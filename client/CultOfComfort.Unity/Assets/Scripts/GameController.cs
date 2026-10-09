@@ -40,8 +40,11 @@ namespace CultOfComfort.Client
         private readonly List<Rect> _uiRects = new List<Rect>();
         private readonly Queue<string> _announcements = new Queue<string>();
         private IReadOnlyList<GridPosition> _rocks;
+        private readonly List<Vector2> _pointers = new List<Vector2>();
         private Camera _camera;
-        private Vector3 _cameraHome;
+        private CameraRig _rig;
+        private GestureRecognizer _gestures;
+        private GestureFrame _gesture;
         private BoardView _board;
         private BattleView _battleView;
         private GamePhase _phase = GamePhase.Dusk;
@@ -71,6 +74,7 @@ namespace CultOfComfort.Client
         private void Start()
         {
             Application.targetFrameRate = 60;
+            PointerInput.Enable();
             _rocks = DemoMap.CreateRocks();
 
             _board = gameObject.AddComponent<BoardView>();
@@ -84,6 +88,7 @@ namespace CultOfComfort.Client
 
         private void Update()
         {
+            ReadGestures();
             if (_phase == GamePhase.Dusk)
             {
                 UpdateDusk();
@@ -94,14 +99,37 @@ namespace CultOfComfort.Client
             }
 
             _board.SetHearthWarmth(_battle == null ? 1f : _battle.HearthHealth / (float)_battle.HearthMaxHealth);
-            _camera.transform.position = _cameraHome + Random.insideUnitSphere * _battleView.CameraShake;
+            _rig.SetShake(Random.insideUnitSphere * _battleView.CameraShake);
+        }
+
+        /// <summary>One-finger drag pans, two-finger pinch zooms (and pans), mouse wheel zooms. Taps come out on release.</summary>
+        private void ReadGestures()
+        {
+            PointerInput.GetPressedPointers(_pointers);
+            _gesture = _gestures.Update(_pointers, IsOverUi);
+
+            if (_gesture.Panned)
+            {
+                _rig.Pan(_gesture.PanFrom, _gesture.PanTo);
+            }
+
+            if (_gesture.Pinched)
+            {
+                _rig.Zoom(_gesture.PinchRatio, _gesture.PinchCenter);
+            }
+
+            var scroll = PointerInput.ScrollDelta();
+            if (Mathf.Abs(scroll) > 0.01f && PointerInput.TryGetHover(out var mouse) && !IsOverUi(mouse))
+            {
+                _rig.Zoom(Mathf.Pow(1.0015f, scroll), mouse);
+            }
         }
 
         // ---------------- Dusk: building ----------------
 
         private void UpdateDusk()
         {
-            if (PointerInput.TryGetHover(out var hover) && !IsOverUi(hover) && TryScreenToTile(hover, out var hoverTile))
+            if (!_gestures.IsDragging && PointerInput.TryGetHover(out var hover) && !IsOverUi(hover) && TryScreenToTile(hover, out var hoverTile))
             {
                 _board.ShowCursor(hoverTile, CanToggle(hoverTile, out _));
             }
@@ -110,7 +138,7 @@ namespace CultOfComfort.Client
                 _board.ShowCursor(null, false);
             }
 
-            if (!PointerInput.TryGetTap(out var tap) || IsOverUi(tap) || !TryScreenToTile(tap, out var tile))
+            if (!_gesture.Tapped || !TryScreenToTile(_gesture.TapPosition, out var tile))
             {
                 return;
             }
@@ -191,7 +219,7 @@ namespace CultOfComfort.Client
 
         private void UpdateNight()
         {
-            if (PointerInput.TryGetTap(out var tap) && !IsOverUi(tap) && TryScreenToTile(tap, out var tile))
+            if (_gesture.Tapped && TryScreenToTile(_gesture.TapPosition, out var tile))
             {
                 _battle.Intervene(PlayerActionType.MoveLeader, tile);
             }
@@ -253,22 +281,26 @@ namespace CultOfComfort.Client
             _camera.fieldOfView = 44f;
             _camera.clearFlags = CameraClearFlags.SolidColor;
             _camera.backgroundColor = Shapes.Hex("#14110d");
-            _cameraHome = center + new Vector3(0f, 16.5f, -11f);
-            _camera.transform.position = _cameraHome;
-            _camera.transform.LookAt(center + new Vector3(0f, 0f, -0.6f));
+            _rig = new CameraRig(
+                _camera,
+                focus: center + new Vector3(0f, 0f, -0.6f),
+                offset: new Vector3(0f, 16.5f, -10.4f),
+                boardMin: new Vector2(0f, -(DemoMap.Height - 1)),
+                boardMax: new Vector2(DemoMap.Width - 1, 0f));
+
+            // ~2 mm of finger wobble still counts as a tap (dpi is 0 on some devices; fall back to screen height).
+            var slop = Screen.dpi > 0 ? Screen.dpi * 0.08f : Screen.height * 0.02f;
+            _gestures = new GestureRecognizer(slop);
         }
 
         private bool TryScreenToTile(Vector2 screen, out GridPosition tile)
         {
-            var ray = _camera.ScreenPointToRay(screen);
-            var ground = new Plane(Vector3.up, Vector3.zero);
             tile = default;
-            if (!ground.Raycast(ray, out var distance))
+            if (!_rig.TryScreenToGround(screen, out var point))
             {
                 return false;
             }
 
-            var point = ray.GetPoint(distance);
             tile = new GridPosition(Mathf.RoundToInt(point.x), Mathf.RoundToInt(-point.z));
             return tile.X >= 0 && tile.Y >= 0 && tile.X < DemoMap.Width && tile.Y < DemoMap.Height;
         }
@@ -342,6 +374,11 @@ namespace CultOfComfort.Client
             var phase = _phase == GamePhase.Dusk ? $"Dusk · Night {_night}" : _phase == GamePhase.Night ? $"Night {_night}" : "Dawn";
             Panel(new Rect(0f, 0f, 350f, 94f));
             GUI.Label(new Rect(12f, 4f, 320f, 30f), "Cult of Comfort", _title);
+            if (Button(new Rect(360f, 0f, 110f, 44f), "Recenter"))
+            {
+                _rig.Reset();
+            }
+
             GUI.Label(new Rect(12f, 30f, 320f, 24f), _phase == GamePhase.Dusk ? $"{phase} · Scrap {_scrap}" : phase, _label);
 
             if (_phase == GamePhase.Dusk && DeterminismProbe.Matches.HasValue)

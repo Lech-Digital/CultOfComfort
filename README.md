@@ -53,6 +53,7 @@ dotnet build src/CultOfComfort.Simulation   # also copies the DLL into client/�
 
 Open `client/CultOfComfort.Unity` in Unity Hub (Add → Add project from disk), open `Assets/Scenes/SampleScene`, press **Play**. The scene is built entirely from code by `GameBootstrap` — there is nothing to wire up in the editor.
 
+- **Camera:** drag with one finger to pan, pinch to zoom (editor: mouse drag + scroll wheel). *Recenter* resets the view.
 - **Dusk:** pick a tower, tap empty ground to build, tap a tower to demolish. The road reroutes live.
 - **Night:** tap the ground to move the Prophet; *Open Sluice* and *Phantom Voice* are buttons.
 - **Dawn:** result plus a server-style replay of your input log, with matching hashes.
