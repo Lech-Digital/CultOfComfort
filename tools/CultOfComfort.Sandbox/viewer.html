@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Night Replay</title>
+<style>
+  :root {
+    --bg: #14110d;
+    --panel: #1e1a15;
+    --panel-edge: #2e271f;
+    --text: #e9e1d3;
+    --muted: #9c907d;
+    --ember: #e8a54b;
+    --water: #6db3dc;
+    --danger: #d0583c;
+    --moss: #8aa65a;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 20px 16px 40px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin-bottom: 14px; }
+  header h1 { font: 600 26px/1.1 var(--serif); margin: 0; letter-spacing: .01em; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  .stage { position: relative; background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 10px; overflow: hidden; }
+  canvas { display: block; width: 100%; height: auto; }
+  .controls { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--panel-edge); flex-wrap: wrap; }
+  button { background: #2b241c; color: var(--text); border: 1px solid #3d3428; border-radius: 6px; padding: 6px 10px; font: 600 13px var(--sans); cursor: pointer; }
+  button:hover { border-color: var(--ember); }
+  button.on { background: var(--ember); color: #1a130b; border-color: var(--ember); }
+  input[type=range] { flex: 1; min-width: 120px; accent-color: var(--ember); }
+  .time { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 92px; text-align: right; }
+  aside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .card { background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 10px; padding: 12px 14px; }
+  .card h2 { font: 600 12px var(--sans); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; }
+  .bar { height: 10px; background: #2b241c; border-radius: 5px; overflow: hidden; }
+  .bar > div { height: 100%; background: linear-gradient(90deg, #c4572e, var(--ember)); transition: width .15s; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin-top: 10px; }
+  .stat .k { color: var(--muted); font-size: 12px; }
+  .stat .v { font: 600 18px var(--serif); font-variant-numeric: tabular-nums; }
+  .drops { letter-spacing: 2px; }
+  .log { max-height: 340px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 4px; }
+  .log div { padding: 6px 8px; border-left: 2px solid #3d3428; color: var(--muted); cursor: pointer; border-radius: 0 4px 4px 0; }
+  .log div .t { font-variant-numeric: tabular-nums; font-size: 11px; color: #6f6556; margin-right: 6px; }
+  .log div.seen { color: var(--text); }
+  .log div.latest { border-left-color: var(--ember); background: #2a2219; }
+  .log div.k-HearthDamaged.seen { border-left-color: var(--danger); }
+  .log div.k-InterventionUsed.seen { border-left-color: var(--water); }
+  .end { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(12, 10, 8, .78); padding: 16px; }
+  .end.show { display: flex; }
+  .end .box { max-width: 520px; background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 12px; padding: 22px 24px; text-align: center; }
+  .end h3 { font: 600 30px var(--serif); margin: 0; }
+  .end .stars { font-size: 28px; color: var(--ember); letter-spacing: 4px; margin: 4px 0 10px; }
+  .end p { font: italic 16px/1.5 var(--serif); margin: 0 0 16px; }
+  .verify { text-align: left; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; background: #15120e; border-radius: 8px; padding: 10px 12px; color: var(--muted); }
+  .verify b { color: var(--text); font-weight: 600; }
+  .ok { color: var(--moss); } .bad { color: var(--danger); }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: 12px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Cult of Comfort</h1>
+    <span class="sub" id="subtitle"></span>
+  </header>
+  <div class="layout">
+    <div>
+      <div class="stage">
+        <canvas id="map"></canvas>
+        <div class="end" id="end">
+          <div class="box">
+            <h3 id="endTitle"></h3>
+            <div class="stars" id="endStars"></div>
+            <p id="endText"></p>
+            <div class="verify" id="verify"></div>
+            <div style="margin-top:14px"><button id="again">Watch again</button></div>
+          </div>
+        </div>
+        <div class="controls">
+          <button id="play">Pause</button>
+          <button id="restart">Restart</button>
+          <button data-speed="1">1×</button>
+          <button data-speed="2" class="on">2×</button>
+          <button data-speed="4">4×</button>
+          <input type="range" id="scrub" min="0" value="0" step="1" aria-label="Timeline">
+          <span class="time" id="time">0:00 / 0:00</span>
+        </div>
+      </div>
+      <div class="legend" style="margin-top:10px">
+        <span><i style="background:#d9c39a"></i>Levy</span>
+        <span><i style="background:#9aa3ab"></i>Man-at-arms</span>
+        <span><i style="background:#6b4a2b"></i>Muddied</span>
+        <span>▲ Slurry Chute: slows, muddies</span>
+        <span>⌒ Sapling Flinger: crits on muddied targets</span>
+      </div>
+    </div>
+    <aside>
+      <div class="card">
+        <h2>The Hearth</h2>
+        <div class="bar"><div id="hearthBar" style="width:100%"></div></div>
+        <div class="stats">
+          <div class="stat"><div class="k">Warmth</div><div class="v" id="hearthVal"></div></div>
+          <div class="stat"><div class="k">Wave</div><div class="v" id="waveVal"></div></div>
+          <div class="stat"><div class="k">Sluice charges</div><div class="v drops" id="sluiceVal"></div></div>
+          <div class="stat"><div class="k">On the road</div><div class="v" id="aliveVal"></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Chronicle</h2>
+        <div class="log" id="log"></div>
+      </div>
+    </aside>
+  </div>
+</div>
+<script>
+const R = /*__REPLAY__*/null;
+
+const canvas = document.getElementById('map');
+const ctx = canvas.getContext('2d');
+const towersById = Object.fromEntries(R.towers.map(t => [t.id, t]));
+const last = R.frames.length - 1;
+const tps = R.ticksPerSecond;
+let tile = 40, dpr = 1, cur = 0, playing = true, speed = 2, lastTs = null, shake = 0;
+const staticLayer = document.createElement('canvas');
+
+document.getElementById('subtitle').textContent =
+  `Night replay · Lord Wulfric's raid · seed ${R.seed} · budget ${R.budget} · layout ${R.layoutHash}`;
+
+// --- deterministic noise for ground texture (presentation only) ---
+function hash(x, y) { let h = (x * 374761393 + y * 668265263) ^ 0x5bd1e995; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967295; }
+
+function resize() {
+  const w = canvas.parentElement.clientWidth;
+  tile = Math.floor(w / R.width);
+  dpr = window.devicePixelRatio || 1;
+  canvas.width = R.width * tile * dpr; canvas.height = R.height * tile * dpr;
+  canvas.style.height = (R.height * tile) + 'px';
+  canvas.style.width = (R.width * tile) + 'px';
+  drawStatic();
+}
+
+function cx(x) { return (x + .5) * tile; }
+
+function drawStatic() {
+  staticLayer.width = canvas.width; staticLayer.height = canvas.height;
+  const g = staticLayer.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // ground
+  for (let y = 0; y < R.height; y++) for (let x = 0; x < R.width; x++) {
+    const n = hash(x, y);
+    g.fillStyle = n > .82 ? '#2c3220' : n > .5 ? '#2a241b' : '#262019';
+    g.fillRect(x * tile, y * tile, tile, tile);
+    if (n > .9) { g.fillStyle = '#3d4a2a'; g.fillRect(x * tile + tile * .3, y * tile + tile * .55, 2, tile * .2); g.fillRect(x * tile + tile * .45, y * tile + tile * .5, 2, tile * .25); }
+  }
+  // path
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  g.strokeStyle = '#4a3a28'; g.lineWidth = tile * .78; tracePath(g); g.stroke();
+  g.strokeStyle = '#584530'; g.lineWidth = tile * .5; tracePath(g); g.stroke();
+  g.setLineDash([2, tile * .35]); g.strokeStyle = 'rgba(30,22,14,.55)'; g.lineWidth = 2; tracePath(g, -.12); g.stroke(); tracePath(g, .12); g.stroke(); g.setLineDash([]);
+  // rocks
+  for (const [x, y] of R.obstacles) {
+    const r = hash(x + 7, y + 3);
+    g.fillStyle = '#4b4842';
+    g.beginPath();
+    g.moveTo(x * tile + tile * (.12 + r * .1), y * tile + tile * .7);
+    g.lineTo(x * tile + tile * .3, y * tile + tile * (.18 + r * .1));
+    g.lineTo(x * tile + tile * .72, y * tile + tile * .14);
+    g.lineTo(x * tile + tile * .9, y * tile + tile * .62);
+    g.lineTo(x * tile + tile * .6, y * tile + tile * .9);
+    g.lineTo(x * tile + tile * .22, y * tile + tile * .88);
+    g.closePath(); g.fill();
+    g.fillStyle = '#5f5b53'; g.beginPath(); g.moveTo(x * tile + tile * .32, y * tile + tile * .24); g.lineTo(x * tile + tile * .7, y * tile + tile * .2); g.lineTo(x * tile + tile * .55, y * tile + tile * .45); g.closePath(); g.fill();
+  }
+  // spawn gate
+  const [sx, sy] = R.spawn;
+  g.strokeStyle = '#7a5b3a'; g.lineWidth = 3;
+  g.beginPath(); g.moveTo(sx * tile + tile * .2, sy * tile + tile * .9); g.lineTo(sx * tile + tile * .2, sy * tile + tile * .15);
+  g.moveTo(sx * tile + tile * .8, sy * tile + tile * .9); g.lineTo(sx * tile + tile * .8, sy * tile + tile * .15);
+  g.moveTo(sx * tile + tile * .1, sy * tile + tile * .25); g.lineTo(sx * tile + tile * .9, sy * tile + tile * .25); g.stroke();
+  // towers
+  for (const t of R.towers) drawTower(g, t);
+}
+
+function tracePath(g, offset = 0) {
+  g.beginPath();
+  R.path.forEach(([x, y], i) => { const px = cx(x) + offset * tile, py = cx(y) + offset * tile; i ? g.lineTo(px, py) : g.moveTo(px, py); });
+}
+
+function drawTower(g, t) {
+  const x = t.x * tile, y = t.y * tile;
+  g.fillStyle = '#1b1712'; g.beginPath(); g.ellipse(x + tile / 2, y + tile * .86, tile * .36, tile * .1, 0, 0, Math.PI * 2); g.fill();
+  if (t.type === 'SlurryChute') {
+    g.strokeStyle = '#6e5233'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(x + tile * .3, y + tile * .85); g.lineTo(x + tile * .36, y + tile * .45); g.moveTo(x + tile * .7, y + tile * .85); g.lineTo(x + tile * .64, y + tile * .45); g.stroke();
+    g.fillStyle = '#8a6a43'; g.beginPath(); g.moveTo(x + tile * .16, y + tile * .14); g.lineTo(x + tile * .84, y + tile * .14); g.lineTo(x + tile * .66, y + tile * .5); g.lineTo(x + tile * .34, y + tile * .5); g.closePath(); g.fill();
+    g.fillStyle = '#5a3f22'; g.fillRect(x + tile * .2, y + tile * .14, tile * .6, tile * .08);
+  } else {
+    g.strokeStyle = '#7d9a4e'; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(x + tile * .5, y + tile * .86); g.quadraticCurveTo(x + tile * .52, y + tile * .4, x + tile * .22, y + tile * .2); g.stroke();
+    g.fillStyle = '#9db86a'; g.beginPath(); g.arc(x + tile * .24, y + tile * .2, tile * .08, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#6e5233'; g.lineWidth = 2; g.beginPath(); g.moveTo(x + tile * .3, y + tile * .8); g.lineTo(x + tile * .72, y + tile * .8); g.stroke();
+    g.fillStyle = '#76716a'; g.beginPath(); g.arc(x + tile * .68, y + tile * .7, tile * .08, 0, Math.PI * 2); g.fill();
+  }
+}
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function draw() {
+  const i = Math.min(Math.floor(cur), last), f = cur - i;
+  const A = R.frames[i], B = R.frames[Math.min(i + 1, last)];
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const sh = shake > 0 ? (Math.random() - .5) * shake : 0;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(staticLayer, sh, sh, staticLayer.width / dpr, staticLayer.height / dpr);
+  ctx.save(); ctx.translate(sh, sh);
+
+  drawHearth(A.hearth / R.hearthMax, i);
+  drawSluice(i);
+
+  const next = new Map(B.enemies.map(e => [e[0], e]));
+  for (const e of A.enemies) {
+    const n = next.get(e[0]) || e;
+    drawEnemy(e, lerp(e[2], n[2], f), lerp(e[3], n[3], f));
+  }
+  drawShots(i + f);
+  ctx.restore();
+  vignette();
+}
+
+function drawHearth(frac, i) {
+  const [hx, hy] = R.hearth, x = cx(hx), y = cx(hy);
+  const pulse = 1 + Math.sin(i / 6) * .06;
+  const glow = ctx.createRadialGradient(x, y, 2, x, y, tile * 2.6 * pulse * (.4 + frac * .6));
+  glow.addColorStop(0, `rgba(232,165,75,${.45 * frac + .05})`); glow.addColorStop(1, 'rgba(232,165,75,0)');
+  ctx.fillStyle = glow; ctx.fillRect(x - tile * 3, y - tile * 3, tile * 6, tile * 6);
+  ctx.fillStyle = '#6b5a48'; ctx.fillRect(x - tile * .4, y - tile * .3, tile * .8, tile * .65);
+  ctx.fillStyle = '#4a3c30'; ctx.beginPath(); ctx.moveTo(x - tile * .48, y - tile * .28); ctx.lineTo(x, y - tile * .62); ctx.lineTo(x + tile * .48, y - tile * .28); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = frac > 0 ? `rgba(255,${150 + 60 * frac},80,${.5 + .5 * frac})` : '#2a2420';
+  ctx.fillRect(x - tile * .14, y + tile * .02, tile * .28, tile * .33);
+  if (frac > 0) for (let k = 0; k < 3; k++) {
+    const p = ((i * .02 + k / 3) % 1);
+    ctx.fillStyle = `rgba(220,215,205,${.25 * (1 - p)})`;
+    ctx.beginPath(); ctx.arc(x + tile * .22 + Math.sin(p * 6 + k) * 4, y - tile * (.6 + p * 1.1), tile * (.08 + p * .14), 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+function drawEnemy(e, x, y) {
+  const [, type, , , hp, flags] = e;
+  const px = cx(x), py = cx(y), heavy = type === 1, r = tile * (heavy ? .26 : .19);
+  ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(px, py + r * .9, r, r * .35, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = heavy ? '#9aa3ab' : '#d9c39a';
+  ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
+  ctx.lineWidth = heavy ? 3 : 1.5; ctx.strokeStyle = heavy ? '#5d656c' : '#7a6646'; ctx.stroke();
+  if (!heavy) { ctx.strokeStyle = '#8a7350'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(px + r * .6, py + r); ctx.lineTo(px + r * 1.3, py - r * 1.4); ctx.stroke(); }
+  if (flags & 1) { ctx.fillStyle = 'rgba(92,62,32,.85)'; for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(px + Math.cos(k * 2.1 + e[0]) * r * .5, py + Math.sin(k * 2.1 + e[0]) * r * .5, r * .3, 0, Math.PI * 2); ctx.fill(); } }
+  if (hp < 1) {
+    const w = tile * .6;
+    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(px - w / 2, py - r - 8, w, 4);
+    ctx.fillStyle = hp > .5 ? '#8aa65a' : hp > .25 ? '#e8a54b' : '#d0583c'; ctx.fillRect(px - w / 2, py - r - 8, w * hp, 4);
+  }
+}
+
+function drawShots(t) {
+  const from = Math.max(0, Math.floor(t) - 14);
+  for (let k = from; k <= Math.min(Math.floor(t), last); k++) {
+    for (const [towerId, tx, ty, crit] of R.frames[k].shots) {
+      const tower = towersById[towerId]; const age = t - k;
+      if (tower.type === 'SlurryChute') {
+        if (age > 12) continue;
+        const p = age / 12;
+        ctx.fillStyle = `rgba(110,78,44,${.7 * (1 - p)})`;
+        ctx.beginPath(); ctx.arc(cx(tx), cx(ty), tile * (.3 + p * .9), 0, Math.PI * 2); ctx.fill();
+        if (p < .4) { ctx.strokeStyle = 'rgba(138,106,67,.8)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(cx(tower.x), cx(tower.y) - tile * .2); ctx.quadraticCurveTo((cx(tower.x) + cx(tx)) / 2, Math.min(cx(tower.y), cx(ty)) - tile, cx(tx), cx(ty)); ctx.stroke(); }
+      } else {
+        if (age > 6) continue;
+        const p = age / 6, sx = cx(tower.x) - tile * .26, sy = cx(tower.y) - tile * .3;
+        const x = lerp(sx, cx(tx), p), y = lerp(sy, cx(ty), p) - Math.sin(p * Math.PI) * tile * .9;
+        ctx.fillStyle = '#b8b2a8'; ctx.beginPath(); ctx.arc(x, y, tile * .08, 0, Math.PI * 2); ctx.fill();
+        if (crit && age > 4) {
+          ctx.font = `700 ${Math.round(tile * .32)}px ${getComputedStyle(document.body).getPropertyValue('--serif')}`;
+          ctx.fillStyle = `rgba(232,165,75,${1 - (age - 4) / 2})`; ctx.textAlign = 'center';
+          ctx.fillText('THWACK', cx(tx), cx(ty) - tile * .55);
+        }
+      }
+    }
+  }
+}
+
+function drawSluice(i) {
+  for (let k = Math.max(0, i - 30); k <= i; k++) {
+    if (!R.frames[k].sluice) continue;
+    const p = (i - k) / 30;
+    ctx.save(); ctx.globalAlpha = .55 * (1 - p);
+    ctx.strokeStyle = '#6db3dc'; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = tile * (.9 - p * .4);
+    ctx.beginPath();
+    R.path.forEach(([x, y], n) => { const wob = Math.sin(n * 1.7 + p * 9) * 2; n ? ctx.lineTo(cx(x) + wob, cx(y) + wob) : ctx.moveTo(cx(x), cx(y)); });
+    ctx.stroke(); ctx.restore();
+  }
+}
+
+function vignette() {
+  const w = canvas.width / dpr, h = canvas.height / dpr;
+  const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * .35, w / 2, h / 2, Math.max(w, h) * .75);
+  g.addColorStop(0, 'rgba(10,12,24,0)'); g.addColorStop(1, 'rgba(10,12,24,.55)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+}
+
+// --- HUD & chronicle ---
+const logEl = document.getElementById('log');
+R.log.forEach((entry, n) => {
+  const d = document.createElement('div');
+  d.className = 'k-' + entry.kind;
+  d.innerHTML = `<span class="t">${fmt(entry.t)}</span>`;
+  d.appendChild(document.createTextNode(entry.text));
+  d.onclick = () => { cur = entry.t; hideEnd(); };
+  logEl.appendChild(d);
+});
+let lastLatest = -1;
+
+function hud() {
+  const i = Math.min(Math.floor(cur), last), F = R.frames[i];
+  document.getElementById('hearthBar').style.width = (100 * F.hearth / R.hearthMax) + '%';
+  document.getElementById('hearthVal').textContent = `${F.hearth} / ${R.hearthMax}`;
+  document.getElementById('waveVal').textContent = `${Math.max(F.wave, 1)} / ${R.waveCount}`;
+  document.getElementById('sluiceVal').innerHTML = '<span style="color:var(--water)">' + '●'.repeat(F.charges) + '</span><span style="color:#3d3428">' + '●'.repeat(Math.max(0, 2 - F.charges)) + '</span>';
+  document.getElementById('aliveVal').textContent = F.enemies.length;
+  document.getElementById('scrub').value = i;
+  document.getElementById('time').textContent = `${fmt(i)} / ${fmt(last)}`;
+  let latest = -1;
+  [...logEl.children].forEach((d, n) => { const seen = R.log[n].t <= i; d.classList.toggle('seen', seen); if (seen) latest = n; d.classList.remove('latest'); });
+  if (latest >= 0) { logEl.children[latest].classList.add('latest'); if (latest !== lastLatest) logEl.children[latest].scrollIntoView({ block: 'nearest' }); }
+  lastLatest = latest;
+}
+
+function fmt(tick) { const s = Math.floor(tick / tps); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
+
+// --- end card ---
+const end = document.getElementById('end');
+function showEnd() {
+  const r = R.result, won = r.outcome === 'Won';
+  document.getElementById('endTitle').textContent = won ? 'The Hearth stands' : 'The Hearth went cold';
+  document.getElementById('endTitle').style.color = won ? 'var(--ember)' : 'var(--danger)';
+  document.getElementById('endStars').textContent = '★'.repeat(r.stars) + '☆'.repeat(3 - r.stars);
+  document.getElementById('endText').textContent = R.log.length ? R.log[R.log.length - 1].text : '';
+  const inputs = R.inputLog.length ? R.inputLog.map(i => `${i.type}@${i.tick}`).join(', ') : '(none)';
+  document.getElementById('verify').innerHTML =
+    `<b>${r.defeated}</b> defeated · <b>${r.leaked}</b> reached the Hearth · <b>${(r.ticks / tps).toFixed(1)}s</b><br>` +
+    `input log: ${inputs}<br>` +
+    `client hash: <b>${r.hash}</b><br>` +
+    `server replay: <b>${R.verdict.replayHash}</b> <span class="${R.verdict.match ? 'ok' : 'bad'}">${R.verdict.match ? '✔ match, rewards granted' : '✘ mismatch'}</span>` +
+    (R.verdict.tamperedHash ? `<br>tampered log: <b>${R.verdict.tamperedHash}</b> <span class="bad">✘ rejected</span>` : '');
+  end.classList.add('show');
+}
+function hideEnd() { end.classList.remove('show'); }
+
+// --- controls ---
+const playBtn = document.getElementById('play');
+playBtn.onclick = () => { if (cur >= last) cur = 0; playing = !playing; hideEnd(); syncPlay(); };
+function syncPlay() { playBtn.textContent = playing ? 'Pause' : 'Play'; }
+document.getElementById('restart').onclick = () => { cur = 0; playing = true; hideEnd(); syncPlay(); };
+document.getElementById('again').onclick = () => { cur = 0; playing = true; hideEnd(); syncPlay(); };
+document.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => {
+  speed = +b.dataset.speed; document.querySelectorAll('[data-speed]').forEach(x => x.classList.toggle('on', x === b));
+});
+const scrub = document.getElementById('scrub');
+scrub.max = last;
+scrub.oninput = () => { cur = +scrub.value; hideEnd(); };
+
+let prevHearth = R.frames[0].hearth;
+function frame(ts) {
+  if (lastTs !== null && playing) {
+    cur = Math.min(last, cur + (ts - lastTs) / 1000 * tps * speed);
+    if (cur >= last) { playing = false; syncPlay(); showEnd(); }
+  }
+  lastTs = ts;
+  const h = R.frames[Math.min(Math.floor(cur), last)].hearth;
+  if (h < prevHearth) shake = 6;
+  prevHearth = h; shake = Math.max(0, shake - .4);
+  draw(); hud();
+  requestAnimationFrame(frame);
+}
+
+// Deep link: #t=<tick> opens the replay paused at that moment.
+const linked = /#t=(\d+)/.exec(location.hash);
+if (linked) { cur = Math.min(last, +linked[1]); playing = false; syncPlay(); }
+
+window.addEventListener('resize', resize);
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

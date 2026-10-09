@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- netstandard2.1: the compiled DLL drops straight into Unity (Assets/Plugins) and is referenced by the server. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <RootNamespace>CultOfComfort.Simulation</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CultOfComfort.Simulation.Tests" />
+  </ItemGroup>
+
+</Project>
