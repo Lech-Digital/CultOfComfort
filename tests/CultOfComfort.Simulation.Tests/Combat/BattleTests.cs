@@ -17,7 +17,7 @@ public class BattleTests
     public void Simulate_SameSetupTwice_ProducesIdenticalResult()
     {
         // Arrange
-        var setup = Setup(TestLayouts.Fortified(), inputs: new PlayerInput(200, InterventionType.OpenSluiceGate));
+        var setup = Setup(TestLayouts.Fortified(), inputs: new PlayerInput(200, PlayerActionType.OpenSluiceGate));
 
         // Act
         var first = Battle.Simulate(setup);
@@ -72,7 +72,7 @@ public class BattleTests
         {
             if (live.IsSluiceReady && live.Enemies.Any(e => e.IsActive && e.DistanceAlongPath > live.PathLength / 2))
             {
-                live.Intervene(InterventionType.OpenSluiceGate);
+                live.Intervene(PlayerActionType.OpenSluiceGate);
             }
 
             live.Step();
@@ -90,10 +90,10 @@ public class BattleTests
     public void Simulate_TamperedInputLog_ProducesDifferentStateHash()
     {
         // Arrange
-        var honest = Battle.Simulate(Setup(TestLayouts.Fortified(), inputs: new PlayerInput(200, InterventionType.OpenSluiceGate)));
+        var honest = Battle.Simulate(Setup(TestLayouts.Fortified(), inputs: new PlayerInput(200, PlayerActionType.OpenSluiceGate)));
 
         // Act
-        var tampered = Battle.Simulate(Setup(TestLayouts.Fortified(), inputs: new PlayerInput(201, InterventionType.OpenSluiceGate)));
+        var tampered = Battle.Simulate(Setup(TestLayouts.Fortified(), inputs: new PlayerInput(201, PlayerActionType.OpenSluiceGate)));
 
         // Assert
         tampered.StateHash.Should().NotBe(honest.StateHash);
@@ -112,7 +112,7 @@ public class BattleTests
         var before = battle.Enemies[0].DistanceAlongPath;
 
         // Act
-        battle.Intervene(InterventionType.OpenSluiceGate);
+        battle.Intervene(PlayerActionType.OpenSluiceGate);
         battle.Step();
 
         // Assert
@@ -127,7 +127,7 @@ public class BattleTests
         // Arrange
         var battle = new Battle(Setup(
             TestLayouts.Corridor(),
-            inputs: [new PlayerInput(10, InterventionType.OpenSluiceGate), new PlayerInput(11, InterventionType.OpenSluiceGate)])
+            inputs: [new PlayerInput(10, PlayerActionType.OpenSluiceGate), new PlayerInput(11, PlayerActionType.OpenSluiceGate)])
             with { Balance = Indestructible });
 
         // Act
@@ -149,7 +149,7 @@ public class BattleTests
         // Arrange
         var battle = new Battle(Setup(
             TestLayouts.Corridor(),
-            inputs: [new PlayerInput(0, InterventionType.OpenSluiceGate), new PlayerInput(250, InterventionType.OpenSluiceGate), new PlayerInput(500, InterventionType.OpenSluiceGate)])
+            inputs: [new PlayerInput(0, PlayerActionType.OpenSluiceGate), new PlayerInput(250, PlayerActionType.OpenSluiceGate), new PlayerInput(500, PlayerActionType.OpenSluiceGate)])
             with { Balance = Indestructible });
 
         // Act
@@ -183,7 +183,7 @@ public class BattleTests
     public void Constructor_NegativeInputTick_ThrowsArgumentException()
     {
         // Act
-        Action act = () => _ = new Battle(Setup(TestLayouts.Corridor(), inputs: new PlayerInput(-1, InterventionType.OpenSluiceGate)));
+        Action act = () => _ = new Battle(Setup(TestLayouts.Corridor(), inputs: new PlayerInput(-1, PlayerActionType.OpenSluiceGate)));
 
         // Assert
         act.Should().Throw<ArgumentException>();

@@ -19,7 +19,8 @@ public sealed class BattleLayout
         GridPosition spawn,
         GridPosition hearth,
         IEnumerable<PlacedTower> towers,
-        IEnumerable<GridPosition> obstacles)
+        IEnumerable<GridPosition> obstacles,
+        GridPosition? leaderStart = null)
     {
         Width = width;
         Height = height;
@@ -28,6 +29,7 @@ public sealed class BattleLayout
         Towers = towers.ToList();
         Obstacles = obstacles.ToList();
         _blocked = new HashSet<GridPosition>(Obstacles.Concat(Towers.Select(t => t.Position)));
+        LeaderStart = leaderStart ?? FindDefaultLeaderStart();
     }
 
     public int Width { get; }
@@ -37,7 +39,17 @@ public sealed class BattleLayout
     public IReadOnlyList<PlacedTower> Towers { get; }
     public IReadOnlyList<GridPosition> Obstacles { get; }
 
+    /// <summary>Where the cult leader stands when the Night begins. Defaults to a free tile beside the Hearth.</summary>
+    public GridPosition LeaderStart { get; }
+
     public bool IsBlocked(GridPosition position) => _blocked.Contains(position);
+
+    public bool IsInBounds(GridPosition position) =>
+        position.X >= 0 && position.Y >= 0 && position.X < Width && position.Y < Height;
+
+    /// <summary>The leader can stand anywhere except rocks, towers and the Hearth itself.</summary>
+    public bool IsWalkableForLeader(GridPosition position) =>
+        IsInBounds(position) && !IsBlocked(position) && position != Hearth;
 
     public IReadOnlyList<GridPosition> ResolveEnemyPath() =>
         Pathfinder.FindPath(Width, Height, Spawn, Hearth, IsBlocked)
@@ -54,7 +66,7 @@ public sealed class BattleLayout
         var occupied = new HashSet<GridPosition>();
         foreach (var position in new[] { Spawn, Hearth }.Concat(Obstacles).Concat(Towers.Select(t => t.Position)))
         {
-            if (position.X < 0 || position.Y < 0 || position.X >= Width || position.Y >= Height)
+            if (!IsInBounds(position))
             {
                 throw new InvalidLayoutException($"Tile {position} is outside the {Width}x{Height} grid.");
             }
@@ -63,6 +75,11 @@ public sealed class BattleLayout
             {
                 throw new InvalidLayoutException($"Tile {position} is occupied twice.");
             }
+        }
+
+        if (!IsWalkableForLeader(LeaderStart))
+        {
+            throw new InvalidLayoutException($"The cult leader cannot start on {LeaderStart}. He refuses to stand on rocks.");
         }
 
         ResolveEnemyPath();
@@ -87,7 +104,23 @@ public sealed class BattleLayout
             AddPosition(hasher, obstacle);
         }
 
+        AddPosition(hasher, LeaderStart);
         return hasher.Value;
+    }
+
+    private GridPosition FindDefaultLeaderStart()
+    {
+        GridPosition[] offsets = { new(-1, 0), new(0, -1), new(1, 0), new(0, 1), new(-1, -1), new(1, -1), new(-1, 1), new(1, 1) };
+        foreach (var offset in offsets)
+        {
+            var candidate = new GridPosition(Hearth.X + offset.X, Hearth.Y + offset.Y);
+            if (IsWalkableForLeader(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return Hearth; // Fully enclosed Hearth; Validate() reports it.
     }
 
     private static void AddPosition(Fnv1aHasher hasher, GridPosition position)

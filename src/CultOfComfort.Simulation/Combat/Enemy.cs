@@ -32,12 +32,16 @@ public sealed class Enemy
     public int MuddiedUntilTick { get; private set; }
     public int SlowedUntilTick { get; private set; }
     public Fix SlowMultiplier { get; private set; } = Fix.One;
+    public int FrightenedUntilTick { get; private set; }
 
     public bool IsActive => State == EnemyState.Marching;
 
     public bool IsMuddied(int tick) => tick < MuddiedUntilTick;
 
     public bool IsSlowed(int tick) => tick < SlowedUntilTick;
+
+    /// <summary>Frightened enemies walk back the way they came.</summary>
+    public bool IsFrightened(int tick) => tick < FrightenedUntilTick;
 
     /// <returns>True if this damage defeated the enemy.</returns>
     internal bool TakeDamage(Fix amount)
@@ -64,6 +68,8 @@ public sealed class Enemy
         SlowMultiplier = multiplier;
         SlowedUntilTick = Math.Max(SlowedUntilTick, untilTick);
     }
+
+    internal void Frighten(int untilTick) => FrightenedUntilTick = Math.Max(FrightenedUntilTick, untilTick);
 
     internal void ReachHearth() => State = EnemyState.ReachedHearth;
 }

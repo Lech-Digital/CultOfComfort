@@ -1,0 +1,4 @@
+<!-- Stops MSBuild from inheriting the repo-root Directory.Build.props (C# 12, warnings-as-errors)
+     into the .csproj files Unity generates for IDEs. Unity compiles with its own settings. -->
+<Project>
+</Project>

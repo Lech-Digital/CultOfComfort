@@ -32,6 +32,17 @@ public sealed record TowerStats(
 
 public sealed record SluiceGateStats(int Charges, int CooldownTicks, Fix PushbackTiles, int MuddiedTicks);
 
+/// <param name="VoiceRadius">Phantom Voice (tin-can megaphone) reach in tiles.</param>
+/// <param name="VoiceFleeTicks">How long frightened enemies walk backwards.</param>
+public sealed record LeaderStats(
+    Fix TilesPerSecond,
+    Fix AttackRange,
+    Fix AttackDamage,
+    int AttackCooldownTicks,
+    Fix VoiceRadius,
+    int VoiceFleeTicks,
+    int VoiceCooldownTicks);
+
 /// <summary>
 /// Versioned balance data. A raid pins the version it started with so replays stay valid after rebalancing.
 /// </summary>
@@ -91,4 +102,13 @@ public sealed class BalanceTable
         CooldownTicks: 10 * TicksPerSecond,
         PushbackTiles: Fix.FromInt(3),
         MuddiedTicks: 4 * TicksPerSecond);
+
+    public LeaderStats Leader { get; init; } = new(
+        TilesPerSecond: Fix.FromInt(3),
+        AttackRange: Fix.Ratio(3, 2),
+        AttackDamage: Fix.FromInt(14),
+        AttackCooldownTicks: 16,
+        VoiceRadius: Fix.Ratio(5, 2),
+        VoiceFleeTicks: 2 * TicksPerSecond,
+        VoiceCooldownTicks: 15 * TicksPerSecond);
 }

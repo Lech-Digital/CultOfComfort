@@ -31,10 +31,13 @@ internal sealed class Chronicle
     public string? Describe(BattleEvent battleEvent) => battleEvent switch
     {
         WaveStarted e => $"Wave {e.Wave}. {WaveLines[Math.Min(e.Wave - 1, WaveLines.Length - 1)]}",
+        InterventionUsed { Type: PlayerActionType.PhantomVoice } e => e.EnemiesAffected == 0
+            ? "The leader shouted into a tin can at nobody. Cultists exchanged looks."
+            : $"A disembodied voice told {e.EnemiesAffected} soldiers to go home. They did.",
         InterventionUsed e => e.EnemiesAffected == 0
             ? "Sluice gate opened on an empty road. Very clean road now."
             : $"Sluice gate opened. {e.EnemiesAffected} soldiers rediscover mud at speed.",
-        InputRejected e => $"Pulled the sluice lever. Nothing. {e.Reason}",
+        InputRejected e => $"That didn't work. {e.Reason}",
         HearthDamaged { Type: EnemyType.ManAtArms } e => $"A man-at-arms dented the Hearth. −{e.Damage}. Rude.",
         HearthDamaged e => $"A levy reached the Hearth and kicked it. −{e.Damage} warmth.",
         EnemyDefeated { Type: EnemyType.ManAtArms } => HeavyDefeatLines[_heavyDefeated++ % HeavyDefeatLines.Length],

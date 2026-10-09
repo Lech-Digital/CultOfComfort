@@ -45,7 +45,7 @@ internal static class DemoScenario
         var dangerZone = battle.PathLength - Fix.FromInt(6);
         if (battle.IsSluiceReady && battle.Enemies.Any(e => e.IsActive && e.DistanceAlongPath > dangerZone))
         {
-            battle.Intervene(InterventionType.OpenSluiceGate);
+            battle.Intervene(PlayerActionType.OpenSluiceGate);
         }
     }
 }

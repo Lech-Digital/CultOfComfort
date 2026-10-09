@@ -1,0 +1,13 @@
+{
+    "name": "CultOfComfort.Client",
+    "rootNamespace": "CultOfComfort.Client",
+    "references": [
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "autoReferenced": true,
+    "noEngineReferences": false
+}

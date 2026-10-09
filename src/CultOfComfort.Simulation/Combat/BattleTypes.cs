@@ -5,9 +5,11 @@ using CultOfComfort.Simulation.Numerics;
 
 namespace CultOfComfort.Simulation.Combat;
 
-public enum InterventionType
+public enum PlayerActionType
 {
     OpenSluiceGate,
+    MoveLeader,
+    PhantomVoice,
 }
 
 public enum BattleOutcome
@@ -17,7 +19,8 @@ public enum BattleOutcome
 }
 
 /// <summary>One recorded player action. The input log is all the server needs to replay a Night.</summary>
-public readonly record struct PlayerInput(int Tick, InterventionType Type);
+/// <param name="Target">Destination tile for <see cref="PlayerActionType.MoveLeader"/>; ignored otherwise.</param>
+public readonly record struct PlayerInput(int Tick, PlayerActionType Type, GridPosition Target = default);
 
 public sealed record BattleSetup(
     BattleLayout Layout,
@@ -52,8 +55,12 @@ public sealed record EnemyDefeated(int Tick, int EnemyId, EnemyType Type) : Batt
 
 public sealed record HearthDamaged(int Tick, int EnemyId, EnemyType Type, int Damage, int HearthHealthRemaining) : BattleEvent(Tick);
 
-public sealed record InterventionUsed(int Tick, InterventionType Type, int EnemiesAffected) : BattleEvent(Tick);
+public sealed record InterventionUsed(int Tick, PlayerActionType Type, int EnemiesAffected) : BattleEvent(Tick);
 
-public sealed record InputRejected(int Tick, InterventionType Type, string Reason) : BattleEvent(Tick);
+public sealed record InputRejected(int Tick, PlayerActionType Type, string Reason) : BattleEvent(Tick);
+
+public sealed record LeaderMoveOrdered(int Tick, GridPosition Target) : BattleEvent(Tick);
+
+public sealed record LeaderAttacked(int Tick, int TargetId, Fix Damage) : BattleEvent(Tick);
 
 public sealed record BattleEnded(int Tick, BattleOutcome Outcome, int Stars) : BattleEvent(Tick);

@@ -10,4 +10,13 @@
     <InternalsVisibleTo Include="CultOfComfort.Simulation.Tests" />
   </ItemGroup>
 
+  <!-- Keep the Unity client in sync: every build drops the DLL into the Unity project's Plugins folder. -->
+  <PropertyGroup>
+    <UnityPluginDir>$(MSBuildThisFileDirectory)../../client/CultOfComfort.Unity/Assets/Plugins/CultOfComfort.Simulation/</UnityPluginDir>
+  </PropertyGroup>
+
+  <Target Name="CopyToUnityClient" AfterTargets="Build" Condition="Exists('$(MSBuildThisFileDirectory)../../client/CultOfComfort.Unity/Assets')">
+    <Copy SourceFiles="$(TargetPath);$(TargetDir)$(TargetName).pdb" DestinationFolder="$(UnityPluginDir)" SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

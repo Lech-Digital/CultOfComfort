@@ -26,7 +26,7 @@ internal sealed class ReplayRecorder
                 shots.Add([fired.TowerId, Round(position.X.ToDouble()), Round(position.Y.ToDouble()), fired.Critical ? 1 : 0]);
             }
 
-            sluice |= battleEvent is InterventionUsed;
+            sluice |= battleEvent is InterventionUsed { Type: PlayerActionType.OpenSluiceGate };
 
             var line = _chronicle.Describe(battleEvent);
             if (line is not null)

@@ -15,6 +15,7 @@ namespace CultOfComfort.Simulation.Combat;
 public sealed class Battle
 {
     private readonly BalanceTable _balance;
+    private readonly BattleLayout _layout;
     private readonly PcgRandom _combatRandom;
     private readonly IReadOnlyList<SpawnEntry> _spawns;
     private readonly List<PlayerInput> _pendingInputs;
@@ -41,6 +42,8 @@ public sealed class Battle
         setup.Layout.Validate();
 
         _balance = setup.Balance ?? BalanceTable.Default;
+        _layout = setup.Layout;
+        Leader = new CultLeader(setup.Layout.LeaderStart);
         _combatRandom = new PcgRandom(setup.Seed, RandomStreams.Combat);
         _spawns = WaveGenerator.Generate(setup.Budget, setup.WaveCount, setup.Seed, _balance);
         _pendingInputs = setup.Inputs.OrderBy(input => input.Tick).ToList();
@@ -68,6 +71,8 @@ public sealed class Battle
     public int SluiceChargesLeft { get; private set; }
     public int SluiceReadyAtTick { get; private set; }
     public bool IsSluiceReady => SluiceChargesLeft > 0 && Tick >= SluiceReadyAtTick;
+    public CultLeader Leader { get; }
+    public bool IsVoiceReady => Tick >= Leader.VoiceReadyAtTick;
     public int CurrentWave { get; private set; }
     public int WaveCount { get; }
     public int TotalEnemies { get; }
@@ -95,7 +100,8 @@ public sealed class Battle
     }
 
     /// <summary>Queues a live player action for the upcoming tick.</summary>
-    public void Intervene(InterventionType type)
+    /// <param name="target">Destination tile for <see cref="PlayerActionType.MoveLeader"/>.</param>
+    public void Intervene(PlayerActionType type, GridPosition target = default)
     {
         if (IsFinished)
         {
@@ -103,7 +109,7 @@ public sealed class Battle
         }
 
         var insertAt = _pendingInputs.FindLastIndex(input => input.Tick <= Tick) + 1;
-        _pendingInputs.Insert(insertAt, new PlayerInput(Tick, type));
+        _pendingInputs.Insert(insertAt, new PlayerInput(Tick, type, target));
     }
 
     public void Step()
@@ -117,7 +123,9 @@ public sealed class Battle
         SpawnEnemies();
         ApplyInputs();
         FireTowers();
+        LeaderAttack();
         MoveEnemies();
+        Leader.Walk(_balance.Leader.TilesPerSecond / BalanceTable.TicksPerSecond);
         HashState();
         CheckForEnd();
         Tick++;
@@ -167,8 +175,14 @@ public sealed class Battle
 
             switch (input.Type)
             {
-                case InterventionType.OpenSluiceGate:
+                case PlayerActionType.OpenSluiceGate:
                     OpenSluiceGate();
+                    break;
+                case PlayerActionType.MoveLeader:
+                    OrderLeader(input.Target);
+                    break;
+                case PlayerActionType.PhantomVoice:
+                    UsePhantomVoice();
                     break;
                 default:
                     _tickEvents.Add(new InputRejected(Tick, input.Type, "Unknown intervention."));
@@ -182,13 +196,13 @@ public sealed class Battle
         var stats = _balance.SluiceGate;
         if (SluiceChargesLeft == 0)
         {
-            _tickEvents.Add(new InputRejected(Tick, InterventionType.OpenSluiceGate, "The cistern is empty."));
+            _tickEvents.Add(new InputRejected(Tick, PlayerActionType.OpenSluiceGate, "The cistern is empty."));
             return;
         }
 
         if (Tick < SluiceReadyAtTick)
         {
-            _tickEvents.Add(new InputRejected(Tick, InterventionType.OpenSluiceGate, "The cistern is still refilling."));
+            _tickEvents.Add(new InputRejected(Tick, PlayerActionType.OpenSluiceGate, "The cistern is still refilling."));
             return;
         }
 
@@ -203,7 +217,94 @@ public sealed class Battle
             affected++;
         }
 
-        _tickEvents.Add(new InterventionUsed(Tick, InterventionType.OpenSluiceGate, affected));
+        _tickEvents.Add(new InterventionUsed(Tick, PlayerActionType.OpenSluiceGate, affected));
+    }
+
+    private void OrderLeader(GridPosition target)
+    {
+        if (!_layout.IsWalkableForLeader(target))
+        {
+            _tickEvents.Add(new InputRejected(Tick, PlayerActionType.MoveLeader, "He is not walking into that."));
+            return;
+        }
+
+        var route = Pathfinder.FindPath(
+            _layout.Width, _layout.Height, Leader.RouteOrigin, target, p => !_layout.IsWalkableForLeader(p));
+        if (route is null)
+        {
+            _tickEvents.Add(new InputRejected(Tick, PlayerActionType.MoveLeader, "There is no way through."));
+            return;
+        }
+
+        Leader.SetRoute(route, target);
+        _tickEvents.Add(new LeaderMoveOrdered(Tick, target));
+    }
+
+    /// <summary>Tin-can megaphone: nearby enemies hear a disembodied voice and walk back the way they came.</summary>
+    private void UsePhantomVoice()
+    {
+        var stats = _balance.Leader;
+        if (Tick < Leader.VoiceReadyAtTick)
+        {
+            _tickEvents.Add(new InputRejected(Tick, PlayerActionType.PhantomVoice, "He is still hoarse."));
+            return;
+        }
+
+        Leader.VoiceReadyAtTick = Tick + stats.VoiceCooldownTicks;
+        var radiusSquared = stats.VoiceRadius * stats.VoiceRadius;
+        var affected = 0;
+        foreach (var enemy in _enemies)
+        {
+            if (!enemy.IsActive || PositionOf(enemy).DistanceSquaredTo(Leader.Position) > radiusSquared)
+            {
+                continue;
+            }
+
+            enemy.Frighten(Tick + stats.VoiceFleeTicks);
+            affected++;
+        }
+
+        _tickEvents.Add(new InterventionUsed(Tick, PlayerActionType.PhantomVoice, affected));
+    }
+
+    /// <summary>He hits whatever is closest to the Hearth within reach, with a 2024 umbrella.</summary>
+    private void LeaderAttack()
+    {
+        if (Leader.AttackCooldownTicksRemaining > 0)
+        {
+            Leader.AttackCooldownTicksRemaining--;
+        }
+
+        if (Leader.AttackCooldownTicksRemaining > 0)
+        {
+            return;
+        }
+
+        var stats = _balance.Leader;
+        var rangeSquared = stats.AttackRange * stats.AttackRange;
+        Enemy? target = null;
+        foreach (var enemy in _enemies)
+        {
+            if (!enemy.IsActive || PositionOf(enemy).DistanceSquaredTo(Leader.Position) > rangeSquared)
+            {
+                continue;
+            }
+
+            if (target is null || enemy.DistanceAlongPath > target.DistanceAlongPath)
+            {
+                target = enemy;
+            }
+        }
+
+        if (target is null)
+        {
+            return;
+        }
+
+        Leader.AttackCooldownTicksRemaining = stats.AttackCooldownTicks;
+        var damage = ApplyResistance(target, stats.AttackDamage);
+        _tickEvents.Add(new LeaderAttacked(Tick, target.Id, damage));
+        DealDamage(target, damage);
     }
 
     private void FireTowers()
@@ -323,6 +424,12 @@ public sealed class Battle
                 step *= enemy.SlowMultiplier;
             }
 
+            if (enemy.IsFrightened(Tick))
+            {
+                enemy.PushBack(step);
+                continue;
+            }
+
             enemy.Advance(step);
             if (enemy.DistanceAlongPath < PathLength)
             {
@@ -348,7 +455,10 @@ public sealed class Battle
             _hasher.Add(enemy.DistanceAlongPath.Raw);
             _hasher.Add(enemy.MuddiedUntilTick);
             _hasher.Add(enemy.SlowedUntilTick);
+            _hasher.Add(enemy.FrightenedUntilTick);
         }
+
+        Leader.AddToHash(_hasher);
 
         foreach (var tower in _towers)
         {
