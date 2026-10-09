@@ -57,6 +57,21 @@ Open `client/CultOfComfort.Unity` in Unity Hub (Add → Add project from disk), 
 - **Night:** tap the ground to move the Prophet; *Open Sluice* and *Phantom Voice* are buttons.
 - **Dawn:** result plus a server-style replay of your input log, with matching hashes.
 
+### Android build (device via adb)
+
+```bash
+UNITY=~/Unity/Hub/Editor/6000.3.26f1/Unity.app/Contents/MacOS/Unity
+"$UNITY" -batchmode -quit -projectPath client/CultOfComfort.Unity -buildTarget Android \
+  -executeMethod CultOfComfort.Editor.BuildScripts.BuildAndroid -logFile -
+~/android-sdk/platform-tools/adb install -r client/CultOfComfort.Unity/Builds/Android/CultOfComfort.apk
+~/android-sdk/platform-tools/adb shell monkey -p com.lechdigital.cultofcomfort 1
+~/android-sdk/platform-tools/adb logcat -s Unity | grep "\[CoC\]"   # determinism probe result
+```
+
+IL2CPP + ARM64 (required by 64-bit-only devices such as the Pixel 10), development build, debug-signed. Also available in the editor menu: **Cult of Comfort → Build Android APK**.
+
+On startup the client runs `DeterminismProbe`: it replays the Sandbox demo Night and compares the state hash with the .NET value. The Dusk HUD shows `✔ deterministic` when the device produces the bit-identical result.
+
 ### Rules for Unity code
 
 Unity code only *reads* simulation state (`Battle.Enemies`, `Battle.PositionOf`, `Battle.LastTickEvents`) and calls `Battle.Step()` at a fixed 20 Hz; it never feeds floats, physics or `Time.deltaTime` back into the sim. Player actions go through `Battle.Intervene(...)` so they land in the input log.

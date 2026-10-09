@@ -22,6 +22,7 @@ namespace CultOfComfort.Client.Tests
             var game = Object.FindAnyObjectByType<GameController>();
             Assert.IsNotNull(game, "GameBootstrap should create a GameController after the scene loads.");
             Assert.AreEqual(GamePhase.Dusk, game.Phase);
+            Assert.AreEqual(true, DeterminismProbe.Matches, $"Probe hash {DeterminismProbe.LastHash} should equal the .NET hash {DeterminismProbe.ExpectedHash}.");
         }
 
         [UnityTest]

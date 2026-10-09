@@ -27,6 +27,9 @@ namespace CultOfComfort.Client
         private const int RaidWaves = 4;
         private const float ReferenceScreenHeight = 720f;
 
+        /// <summary>Extra inset beyond the OS safe area, for rounded display corners (fraction of screen height).</summary>
+        private const float CornerMargin = 0.04f;
+
         private static readonly Dictionary<TowerType, int> TowerCost = new Dictionary<TowerType, int>
         {
             [TowerType.SaplingFlinger] = 70,
@@ -53,7 +56,9 @@ namespace CultOfComfort.Client
         private string _announcement = "Tap a tile to build. Towers reroute the road — use that.";
         private float _announcementUntil = float.MaxValue;
         private float _guiScale = 1f;
+        private Rect _safe = new Rect(0f, 0f, 1280f, ReferenceScreenHeight);
         private GUIStyle _label;
+        private GUIStyle _small;
         private GUIStyle _title;
         private GUIStyle _button;
         private GUIStyle _box;
@@ -245,10 +250,10 @@ namespace CultOfComfort.Client
 
             var center = new Vector3((DemoMap.Width - 1) / 2f, 0f, -(DemoMap.Height - 1) / 2f);
             _camera.orthographic = false;
-            _camera.fieldOfView = 40f;
+            _camera.fieldOfView = 44f;
             _camera.clearFlags = CameraClearFlags.SolidColor;
             _camera.backgroundColor = Shapes.Hex("#14110d");
-            _cameraHome = center + new Vector3(0f, 15.5f, -10.5f);
+            _cameraHome = center + new Vector3(0f, 16.5f, -11f);
             _camera.transform.position = _cameraHome;
             _camera.transform.LookAt(center + new Vector3(0f, 0f, -0.6f));
         }
@@ -293,8 +298,11 @@ namespace CultOfComfort.Client
             EnsureStyles();
             _guiScale = Screen.height / ReferenceScreenHeight;
             GUI.matrix = Matrix4x4.Scale(new Vector3(_guiScale, _guiScale, 1f));
-            var width = Screen.width / _guiScale;
+            _safe = SafeGuiRect();
+            var width = _safe.width;
 
+            // Everything below is laid out relative to the safe rect, clear of cutouts and rounded corners.
+            GUI.BeginGroup(_safe);
             DrawHeader();
             switch (_phase)
             {
@@ -313,46 +321,66 @@ namespace CultOfComfort.Client
             {
                 GUI.Label(new Rect(width / 2f - 330f, 70f, 660f, 30f), _announcement, _label);
             }
+
+            GUI.EndGroup();
+        }
+
+        /// <summary>Screen.safeArea (pixels, bottom-left origin) plus a corner margin, converted to scaled GUI space.</summary>
+        private Rect SafeGuiRect()
+        {
+            var area = Screen.safeArea;
+            var margin = Screen.height * CornerMargin;
+            var left = (area.xMin + margin) / _guiScale;
+            var right = (Screen.width - area.xMax + margin) / _guiScale;
+            var top = (Screen.height - area.yMax + margin * 0.5f) / _guiScale;
+            var bottom = (area.yMin + margin * 0.5f) / _guiScale;
+            return new Rect(left, top, Screen.width / _guiScale - left - right, Screen.height / _guiScale - top - bottom);
         }
 
         private void DrawHeader()
         {
             var phase = _phase == GamePhase.Dusk ? $"Dusk · Night {_night}" : _phase == GamePhase.Night ? $"Night {_night}" : "Dawn";
-            Panel(new Rect(12f, 12f, 330f, _phase == GamePhase.Dusk ? 60f : 84f));
-            GUI.Label(new Rect(24f, 16f, 320f, 30f), "Cult of Comfort", _title);
-            GUI.Label(new Rect(24f, 42f, 320f, 24f), _phase == GamePhase.Dusk ? $"{phase} · Scrap {_scrap}" : phase, _label);
+            Panel(new Rect(0f, 0f, 350f, 94f));
+            GUI.Label(new Rect(12f, 4f, 320f, 30f), "Cult of Comfort", _title);
+            GUI.Label(new Rect(12f, 30f, 320f, 24f), _phase == GamePhase.Dusk ? $"{phase} · Scrap {_scrap}" : phase, _label);
+
+            if (_phase == GamePhase.Dusk && DeterminismProbe.Matches.HasValue)
+            {
+                var probe = DeterminismProbe.Matches.Value ? "Deterministic: OK" : "Determinism: MISMATCH";
+                GUI.Label(new Rect(12f, 56f, 330f, 24f), $"{probe} · {DeterminismProbe.LastHash}", _small);
+            }
 
             if (_battle != null)
             {
                 var fraction = _battle.HearthHealth / (float)_battle.HearthMaxHealth;
-                GUI.Label(new Rect(24f, 62f, 120f, 24f), $"Hearth {_battle.HearthHealth}", _label);
-                GUI.DrawTexture(new Rect(130f, 70f, 200f, 8f), Texture2D.grayTexture);
+                GUI.Label(new Rect(12f, 54f, 120f, 24f), $"Hearth {_battle.HearthHealth}", _label);
+                GUI.DrawTexture(new Rect(118f, 63f, 210f, 8f), Texture2D.grayTexture);
                 var previous = GUI.color;
                 GUI.color = Color.Lerp(Palette.Invalid, Palette.Ember, fraction);
-                GUI.DrawTexture(new Rect(130f, 70f, 200f * fraction, 8f), Texture2D.whiteTexture);
+                GUI.DrawTexture(new Rect(118f, 63f, 210f * fraction, 8f), Texture2D.whiteTexture);
                 GUI.color = previous;
             }
         }
 
         private void DrawDuskBar(float width)
         {
-            var y = ReferenceScreenHeight - 76f;
-            Panel(new Rect(12f, y - 8f, width - 24f, 72f));
-            var x = 24f;
+            var y = _safe.height - 70f;
+            Panel(new Rect(0f, y - 8f, width, 72f));
+            var x = 12f;
             foreach (var type in new[] { TowerType.SaplingFlinger, TowerType.SlurryChute })
             {
                 var label = (type == TowerType.SaplingFlinger ? "Sapling Flinger" : "Slurry Chute") + $"  ·  {TowerCost[type]}";
                 var selected = _selectedTower == type;
-                if (Button(new Rect(x, y, 210f, 56f), selected ? $"▶ {label}" : label))
+                if (Button(new Rect(x, y, 250f, 56f), selected ? $"▶ {label}" : label))
                 {
                     _selectedTower = type;
                 }
 
-                x += 220f;
+                x += 260f;
             }
 
-            GUI.Label(new Rect(x + 6f, y + 4f, 380f, 50f), "Tap empty ground to build, tap a tower to demolish.", _label);
-            if (Button(new Rect(width - 260f, y, 236f, 56f), "Light the Lamps  →"))
+            GUI.Label(new Rect(x + 6f, y + 4f, width - x - 266f, 50f), "Tap empty ground to build, tap a tower to demolish.", _label);
+            if (Button(new Rect(width - 248f, y, 236f, 56f), "Light the Lamps  →"))
             {
                 StartNight();
             }
@@ -360,41 +388,41 @@ namespace CultOfComfort.Client
 
         private void DrawNightBar(float width)
         {
-            var y = ReferenceScreenHeight - 76f;
-            Panel(new Rect(12f, y - 8f, width - 24f, 72f));
+            var y = _safe.height - 70f;
+            Panel(new Rect(0f, y - 8f, width, 72f));
 
             var sluice = _battle.IsSluiceReady ? $"Open Sluice  ·  {_battle.SluiceChargesLeft} left"
                 : _battle.SluiceChargesLeft == 0 ? "Cistern empty" : $"Refilling… {Seconds(_battle.SluiceReadyAtTick)}s";
-            if (Button(new Rect(24f, y, 230f, 56f), sluice))
+            if (Button(new Rect(12f, y, 230f, 56f), sluice))
             {
                 _battle.Intervene(PlayerActionType.OpenSluiceGate);
             }
 
             var voice = _battle.IsVoiceReady ? "Phantom Voice" : $"Hoarse… {Seconds(_battle.Leader.VoiceReadyAtTick)}s";
-            if (Button(new Rect(264f, y, 230f, 56f), voice))
+            if (Button(new Rect(252f, y, 230f, 56f), voice))
             {
                 _battle.Intervene(PlayerActionType.PhantomVoice);
             }
 
-            if (Button(new Rect(504f, y, 90f, 56f), $"{_speed}×"))
+            if (Button(new Rect(492f, y, 90f, 56f), $"{_speed}×"))
             {
                 _speed = _speed == 1 ? 2 : _speed == 2 ? 4 : 1;
             }
 
             var alive = _battle.Enemies.Count(e => e.IsActive);
-            GUI.Label(new Rect(610f, y + 4f, width - 640f, 50f),
+            GUI.Label(new Rect(598f, y + 4f, width - 610f, 50f),
                 $"Wave {Mathf.Max(1, _battle.CurrentWave)}/{_battle.WaveCount} · {alive} on the road · Tap the ground to move the Prophet.", _label);
         }
 
         private void DrawDawnCard(float width)
         {
             var result = _battle.Result;
-            var rect = new Rect(width / 2f - 280f, ReferenceScreenHeight / 2f - 170f, 560f, 340f);
+            var rect = new Rect(width / 2f - 280f, _safe.height / 2f - 170f, 560f, 340f);
             Panel(rect);
             var won = result.Outcome == BattleOutcome.Won;
             GUI.Label(new Rect(rect.x + 24f, rect.y + 18f, 520f, 40f), won ? "The Hearth stands" : "The Hearth went cold", _title);
             GUI.Label(new Rect(rect.x + 24f, rect.y + 56f, 520f, 30f),
-                new string('★', result.Stars) + new string('☆', 3 - result.Stars) + $"   Hearth {result.HearthHealth}/{result.HearthMaxHealth}", _label);
+                $"Stars {result.Stars}/3   ·   Hearth {result.HearthHealth}/{result.HearthMaxHealth}", _label);
             GUI.Label(new Rect(rect.x + 24f, rect.y + 86f, 520f, 60f), won
                 ? "The attackers left damp, confused and noticeably cleaner."
                 : "Wulfric's men warmed their hands on the embers and left. Tomorrow: repairs, and a strongly worded diary entry.", _label);
@@ -403,7 +431,7 @@ namespace CultOfComfort.Client
             GUI.Label(new Rect(rect.x + 24f, rect.y + 150f, 520f, 110f),
                 $"{result.EnemiesDefeated} defeated · {result.EnemiesLeaked} reached the Hearth · {_battle.InputLog.Count} commands logged\n" +
                 $"Client hash:   {result.StateHashHex}\n" +
-                $"Server replay: {_serverReplay.StateHashHex}  {(match ? "✔ verified" : "✘ mismatch")}", _label);
+                $"Server replay: {_serverReplay.StateHashHex}  {(match ? "VERIFIED" : "MISMATCH")}", _label);
 
             if (Button(new Rect(rect.x + 24f, rect.yMax - 72f, 512f, 52f), "Back to Dusk"))
             {
@@ -415,13 +443,13 @@ namespace CultOfComfort.Client
 
         private bool Button(Rect rect, string text)
         {
-            _uiRects.Add(rect);
+            _uiRects.Add(new Rect(rect.position + _safe.position, rect.size));
             return GUI.Button(rect, text, _button);
         }
 
         private void Panel(Rect rect)
         {
-            _uiRects.Add(rect);
+            _uiRects.Add(new Rect(rect.position + _safe.position, rect.size));
             GUI.Box(rect, GUIContent.none, _box);
         }
 
@@ -438,6 +466,7 @@ namespace CultOfComfort.Client
 
             _box = new GUIStyle(GUI.skin.box) { normal = { background = panel } };
             _label = new GUIStyle(GUI.skin.label) { fontSize = 17, wordWrap = true, normal = { textColor = Shapes.Hex("#e9e1d3") } };
+            _small = new GUIStyle(_label) { fontSize = 14, normal = { textColor = Shapes.Hex("#9c907d") } };
             _title = new GUIStyle(_label) { fontSize = 24, fontStyle = FontStyle.Bold, normal = { textColor = Palette.Ember } };
             _button = new GUIStyle(GUI.skin.button) { fontSize = 17, fontStyle = FontStyle.Bold };
         }

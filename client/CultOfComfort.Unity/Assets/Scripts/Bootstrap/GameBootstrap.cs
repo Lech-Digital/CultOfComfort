@@ -15,6 +15,7 @@ namespace CultOfComfort.Client
             // -= first: with "Enter Play Mode Options" (no domain reload) statics survive between sessions.
             SceneManager.sceneLoaded -= OnSceneLoaded;
             SceneManager.sceneLoaded += OnSceneLoaded;
+            DeterminismProbe.Run();
         }
 
         private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)

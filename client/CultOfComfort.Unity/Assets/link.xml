@@ -1,0 +1,12 @@
+<!--
+  Keeps types the code stripper can't see we need. GameObject.CreatePrimitive (Shapes.cs) adds colliders by
+  native class name; our code never references them, so without this they are stripped from device builds.
+-->
+<linker>
+  <assembly fullname="UnityEngine.PhysicsModule">
+    <type fullname="UnityEngine.BoxCollider" preserve="all" />
+    <type fullname="UnityEngine.SphereCollider" preserve="all" />
+    <type fullname="UnityEngine.CapsuleCollider" preserve="all" />
+    <type fullname="UnityEngine.MeshCollider" preserve="all" />
+  </assembly>
+</linker>

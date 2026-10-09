@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using CultOfComfort.Simulation.Grid;
 using CultOfComfort.Simulation.Numerics;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace CultOfComfort.Client
 {
@@ -13,6 +12,7 @@ namespace CultOfComfort.Client
     public static class Shapes
     {
         private static readonly Dictionary<Color, Material> Materials = new Dictionary<Color, Material>();
+        private static Material _baseMaterial;
 
         public static Vector3 ToWorld(GridPosition tile, float height = 0f) => new Vector3(tile.X, height, -tile.Y);
 
@@ -39,15 +39,15 @@ namespace CultOfComfort.Client
                 return material;
             }
 
-            var shader = GraphicsSettings.currentRenderPipeline != null
-                ? Shader.Find("Universal Render Pipeline/Lit")
-                : Shader.Find("Standard");
-            material = new Material(shader) { color = color };
-            if (material.HasProperty("_Smoothness"))
+            // Assets/Resources/BaseLit.mat (created by ProjectSetup) makes the build include the URP Lit shader;
+            // Shader.Find alone works in the editor but returns null on devices because unreferenced shaders are stripped.
+            if (_baseMaterial == null)
             {
-                material.SetFloat("_Smoothness", 0.1f);
+                _baseMaterial = Resources.Load<Material>("BaseLit");
             }
 
+            material = new Material(_baseMaterial);
+            material.color = color;
             Materials[color] = material;
             return material;
         }
