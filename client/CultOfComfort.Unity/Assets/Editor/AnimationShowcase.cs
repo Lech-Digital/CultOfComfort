@@ -18,27 +18,52 @@ namespace CultOfComfort.Editor
         private const int Size = 384;
         private const int Fps = 20;
 
+        private static readonly (string Clip, float Seconds, Action<PartAnimator, float> Script)[] AllClips =
+        {
+            ("bored", 10.5f, (_, __) => { }), // gets bored after 4 s of nothing
+            ("walk", 1.6f, (a, _) => a.IsMoving = true),
+            ("attack", 1.2f, (a, t) => Once(t, 0.15f, a.Attack)),
+            ("hit", 1f, (a, t) => Once(t, 0.15f, a.Hit)),
+            ("annoyed", 2f, (a, t) => Once(t, 0.15f, a.Annoyed)),
+            ("unimpressed", 2.4f, (a, t) => Once(t, 0.15f, a.Unimpressed)),
+            ("swoon_revive", 4.6f, (a, t) => a.IsSwooning = t > 0.3f && t < 2.8f),
+        };
+
         [MenuItem("Cult of Comfort/Render Prophet Animations")]
-        public static void RenderProphet()
+        public static void RenderProphet() => RenderCharacter("prophet", "bored", "walk", "attack", "hit", "annoyed", "unimpressed", "swoon_revive");
+
+        /// <summary>The rest of the cast: raiders march and fight, animals trot (front legs are "arms").</summary>
+        public static void RenderCast()
+        {
+            RenderCharacter("levy", "walk", "attack", "annoyed");
+            RenderCharacter("manatarms", "walk", "attack");
+            RenderCharacter("zealot", "walk", "attack", "unimpressed");
+            RenderCharacter("lord_wulfric", "annoyed");
+            RenderCharacter("pig", "walk");
+            RenderCharacter("goose", "walk", "annoyed");
+            RenderCharacter("dog", "walk");
+        }
+
+        private static void RenderCharacter(string name, params string[] clips)
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             var camera = SetUpStage();
-            var model = ArtLibrary.Instantiate("prophet", null);
+            var model = ArtLibrary.Instantiate(name, null);
             if (model == null)
             {
-                throw new InvalidOperationException("No prophet model: run ./art/build.sh prophet first.");
+                throw new InvalidOperationException($"No {name} model: run ./art/build.sh {name} first.");
             }
 
             var output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "..", "art", "previews", "anim"));
+            foreach (var clip in AllClips)
+            {
+                if (Array.IndexOf(clips, clip.Clip) >= 0)
+                {
+                    Render(camera, model, output, $"{name}_{clip.Clip}", clip.Seconds, clip.Script);
+                }
+            }
 
-            Render(camera, model, output, "bored", 10.5f, (_, __) => { }); // gets bored after 4 s of nothing
-            Render(camera, model, output, "walk", 1.6f, (a, _) => a.IsMoving = true);
-            Render(camera, model, output, "attack", 1.2f, (a, t) => Once(t, 0.15f, a.Attack));
-            Render(camera, model, output, "hit", 1f, (a, t) => Once(t, 0.15f, a.Hit));
-            Render(camera, model, output, "annoyed", 2f, (a, t) => Once(t, 0.15f, a.Annoyed));
-            Render(camera, model, output, "unimpressed", 2.4f, (a, t) => Once(t, 0.15f, a.Unimpressed));
-            Render(camera, model, output, "swoon_revive", 4.6f, (a, t) => a.IsSwooning = t > 0.3f && t < 2.8f);
-            Debug.Log($"[CoC] Animation frames written to {output}");
+            Debug.Log($"[CoC] {name} animation frames written to {output}");
         }
 
         private static void Once(float t, float at, Action action)
