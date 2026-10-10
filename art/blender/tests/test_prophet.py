@@ -38,5 +38,6 @@ class ProphetTests(unittest.TestCase):
         self.assertEqual(objects["Umbrella"].parent.name, "ArmR")
 
     def test_front_marker_is_on_the_face_side(self):
+        # Exported models face +Y (Unity +Z); see lib.mesh.TURN.
         objects = {o.name: o for o in self.root.children_recursive}
-        self.assertLess(objects["Front"].matrix_world.translation.y, -0.2)
+        self.assertGreater(objects["Front"].matrix_world.translation.y, 0.2)

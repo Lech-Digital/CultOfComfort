@@ -40,7 +40,7 @@ def _leg(name, x, body):
 
 def _arm(name, x, body, watch):
     arm = (Part(name, pivot=(x, 0, SHOULDER_Z), parent=body)
-           .box((0.09, 0.10, 0.20), (x, 0, 0.47), "linen", bevel=0.025, rotation=(0, 4 if x < 0 else -4, 0))
+           .box((0.09, 0.10, 0.20), (x, 0, 0.47), "linen", bevel=0.025, rotation=(0, -4 if x > 0 else 4, 0))
            .sphere(0.05, (x, 0, HAND_Z), "prophet_skin", segments=8, rings=6, smooth=True))
     if watch:
         arm.box((0.10, 0.11, 0.03), (x, 0, 0.39), "hivis_yellow", bevel=0.006)                # smartwatch, flat battery
@@ -75,11 +75,9 @@ def _head(body):
     head.sphere(0.024, (0, _face_y(0, 0.75, inset=-0.006), 0.75), "prophet_skin", segments=8, rings=6, smooth=True)
     head.box((0.05, 0.012, 0.011), (0, _face_y(0, 0.705, inset=-0.002), 0.705), "wet_mud", bevel=0.004)
 
-    obj = head.build()
     # Chin up, as in a weary sigh; it also turns the face towards the high game camera. Head has no children,
-    # so rotating it here does not disturb any child pivots.
-    obj.rotation_euler = (math.radians(-12), 0, 0)
-    return obj
+    # so rotating it does not disturb any child pivots.
+    return head.build(rotation=(-12, 0, 0))
 
 
 def build():
@@ -92,16 +90,17 @@ def build():
             .box((0.12, 0.06, 0.08), (0.08, -0.145, 0.345), "cone_orange", bevel=0.015)     # belt bag (2024)
             .build())
 
-    _leg("LegL", -0.08, body)
-    _leg("LegR", 0.08, body)
+    # He faces −Y, so his left is +X.
+    _leg("LegL", 0.08, body)
+    _leg("LegR", -0.08, body)
     _head(body)
-    _arm("ArmL", -ARM_X, body, watch=True)
-    arm_r = _arm("ArmR", ARM_X, body, watch=False)
+    _arm("ArmL", ARM_X, body, watch=True)
+    arm_r = _arm("ArmR", -ARM_X, body, watch=False)
 
-    (Part("Umbrella", pivot=(ARM_X, 0, HAND_Z), parent=arm_r)
-     .box((0.035, 0.035, 0.06), (ARM_X, -0.04, 0.40), "fresh_log", bevel=0.008)            # wooden handle
-     .cylinder(0.012, 0.38, (ARM_X, -0.04, 0.18), "umbrella_black", segments=6)            # shaft (tip on the ground)
-     .cylinder(0.02, 0.26, (ARM_X, -0.04, 0.17), "umbrella_black", segments=8, radius_top=0.06)  # furled canopy, chunkier
+    (Part("Umbrella", pivot=(-ARM_X, 0, HAND_Z), parent=arm_r)
+     .box((0.035, 0.035, 0.06), (-ARM_X, -0.04, 0.40), "fresh_log", bevel=0.008)           # wooden handle
+     .cylinder(0.012, 0.38, (-ARM_X, -0.04, 0.18), "umbrella_black", segments=6)           # shaft (tip on the ground)
+     .cylinder(0.02, 0.26, (-ARM_X, -0.04, 0.17), "umbrella_black", segments=8, radius_top=0.06)  # furled canopy, chunkier
      .build())
 
     marker("Front", (0, -0.3, 0.5), prophet)

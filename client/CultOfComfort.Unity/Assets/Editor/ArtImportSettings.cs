@@ -33,6 +33,7 @@ namespace CultOfComfort.Editor
 
             var importer = (ModelImporter)assetImporter;
             importer.materialImportMode = ModelImporterMaterialImportMode.None; // ArtLibrary assigns Palette.mat
+            importer.bakeAxisConversion = true; // Blender Z-up → Unity Y-up baked into every node, children included
             importer.importCameras = false;
             importer.importLights = false;
             importer.importAnimation = false;

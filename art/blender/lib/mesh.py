@@ -9,6 +9,15 @@ import palette
 
 MATERIAL_NAME = "Palette"
 
+# Models are authored facing −Y (Blender's front view, left hand at +X). Unity moves units with
+# LookRotation(heading), so exported models must face Unity +Z, which is Blender +Y. Every position and
+# rotation goes through this half turn when it is baked; authors never see it.
+TURN = Matrix.Rotation(math.pi, 3, "Z")
+
+
+def _turned(vector):
+    return TURN @ Vector(vector)
+
 
 def palette_material():
     material = bpy.data.materials.get(MATERIAL_NAME)
@@ -55,7 +64,7 @@ def marker(name, location, parent):
     obj.empty_display_type = "SPHERE"
     obj.empty_display_size = 0.03
     _link(obj, parent)
-    obj.location = Vector(location) - world_position(parent)
+    obj.location = _turned(location) - world_position(parent)
     return obj
 
 
@@ -96,7 +105,8 @@ class Part:
     def _add(self, piece, center, swatch, rotation, smooth=False):
         u, v = palette.uv(swatch)  # KeyError for unknown swatches, before any geometry is merged
         rot = Euler(tuple(math.radians(a) for a in rotation), "XYZ").to_matrix().to_4x4()
-        bmesh.ops.transform(piece, matrix=Matrix.Translation(Vector(center) - self.pivot) @ rot, verts=piece.verts)
+        placed = TURN.to_4x4() @ Matrix.Translation(Vector(center)) @ rot  # authoring space → exported space
+        bmesh.ops.transform(piece, matrix=Matrix.Translation(-_turned(self.pivot)) @ placed, verts=piece.verts)
         layer = piece.loops.layers.uv.verify()
         for face in piece.faces:
             face.smooth = smooth
@@ -109,12 +119,16 @@ class Part:
         bpy.data.meshes.remove(mesh)
         return self
 
-    def build(self):
+    def build(self, rotation=None):
+        """`rotation` (degrees, XYZ) is a pose given in authoring space, e.g. (-12, 0, 0) tips the face up."""
         mesh = bpy.data.meshes.new(self.name)
         self.bm.to_mesh(mesh)
         self.bm.free()
         mesh.materials.append(palette_material())
         obj = _link(bpy.data.objects.new(self.name, mesh), self.parent)
         # Pivots are given in model space; a child stores its location relative to its parent.
-        obj.location = self.pivot - world_position(self.parent) if self.parent is not None else self.pivot
+        obj.location = _turned(self.pivot) - world_position(self.parent)
+        if rotation is not None:
+            authored = Euler(tuple(math.radians(a) for a in rotation), "XYZ").to_matrix()
+            obj.rotation_euler = (TURN @ authored @ TURN.inverted()).to_euler("XYZ")
         return obj

@@ -60,7 +60,8 @@ def render(root, day_path, night_path, size=512):
     camera = bpy.data.objects.new("PreviewCamera", camera_data)
     scene.collection.objects.link(camera)
     yaw, pitch = math.radians(30), math.radians(GAME_ELEVATION)
-    direction = Vector((math.sin(yaw) * math.cos(pitch), -math.cos(yaw) * math.cos(pitch), math.sin(pitch)))
+    # Models face +Y once built (lib.mesh.TURN), so the camera stands on the +Y side to see the front.
+    direction = Vector((math.sin(yaw) * math.cos(pitch), math.cos(yaw) * math.cos(pitch), math.sin(pitch)))
     camera.location = centre + direction * extent * 6
     camera.rotation_euler = (-direction).to_track_quat("-Z", "Y").to_euler()
     scene.camera = camera

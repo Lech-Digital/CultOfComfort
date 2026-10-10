@@ -1,6 +1,7 @@
 import unittest
 
 import bpy
+from mathutils import Vector
 
 import palette
 from lib import scene
@@ -56,6 +57,33 @@ class MeshTests(unittest.TestCase):
         # Assert
         self.assertEqual(tuple(round(c, 5) for c in hand.location), (0, 0, -0.15))
         self.assertAlmostEqual(hand.matrix_world.translation.z, 0.35, places=5)
+
+    def test_model_authored_facing_minus_y_is_turned_to_face_plus_y(self):
+        # Arrange — authors place the face at −Y (Blender front view) and the left hand at +X.
+        body = Part("Body").box((0.1, 0.1, 0.1), (0, -0.2, 0.5), "linen", bevel=0).build()
+        hand = Part("HandL", pivot=(0.2, 0, 0.4), parent=body).sphere(0.05, (0.2, 0, 0.4), "prophet_skin").build()
+        front = marker("Front", (0, -0.3, 0.5), body)
+        bpy.context.view_layer.update()
+
+        # Act
+        face_y = sum(v.co.y for v in body.data.vertices) / len(body.data.vertices)
+
+        # Assert — exported models face +Y (→ Unity +Z) and keep the left hand on the model's left (−X when facing +Y).
+        self.assertAlmostEqual(face_y, 0.2, places=4)
+        self.assertAlmostEqual(front.matrix_world.translation.y, 0.3, places=4)
+        self.assertAlmostEqual(hand.matrix_world.translation.x, -0.2, places=4)
+        self.assertAlmostEqual(hand.matrix_world.translation.z, 0.4, places=4)
+
+    def test_build_rotation_is_given_in_authoring_space(self):
+        # Arrange — chin up by tilting the face (−Y) upwards: −12° about X while authoring.
+        head = Part("Head", pivot=(0, 0, 0.6)).sphere(0.2, (0, 0, 0.8), "prophet_skin").build(rotation=(-12, 0, 0))
+        bpy.context.view_layer.update()
+
+        # Act — the point straight in front of the face, transformed by the object's rotation.
+        nose = head.matrix_world.to_3x3() @ Vector((0, 1, 0))
+
+        # Assert — after the turn the face is +Y, and it still points up.
+        self.assertGreater(nose.z, 0.15)
 
     def test_faces_are_flat_shaded(self):
         # Act
