@@ -52,4 +52,14 @@ public class WaveGeneratorTests
         // Assert
         act.Should().Throw<ArgumentOutOfRangeException>();
     }
+
+    [Fact]
+    public void Generate_ManySeeds_ZealotsOnlyFromWaveTwo()
+    {
+        // Act
+        var spawns = Enumerable.Range(1, 50).SelectMany(seed => WaveGenerator.Generate(40, 4, (ulong)seed, _balance)).ToList();
+
+        // Assert
+        spawns.Where(s => s.Type == EnemyType.Zealot).Should().NotBeEmpty().And.OnlyContain(s => s.Wave >= 2);
+    }
 }

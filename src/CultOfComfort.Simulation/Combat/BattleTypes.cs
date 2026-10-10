@@ -10,6 +10,7 @@ public enum PlayerActionType
     OpenSluiceGate,
     MoveLeader,
     PhantomVoice,
+    HotStones,
 }
 
 public enum BattleOutcome
@@ -19,7 +20,7 @@ public enum BattleOutcome
 }
 
 /// <summary>One recorded player action. The input log is all the server needs to replay a Night.</summary>
-/// <param name="Target">Destination tile for <see cref="PlayerActionType.MoveLeader"/>; ignored otherwise.</param>
+/// <param name="Target">Tile for <see cref="PlayerActionType.MoveLeader"/> and <see cref="PlayerActionType.HotStones"/>; ignored otherwise.</param>
 public readonly record struct PlayerInput(int Tick, PlayerActionType Type, GridPosition Target = default);
 
 public sealed record BattleSetup(
@@ -62,5 +63,14 @@ public sealed record InputRejected(int Tick, PlayerActionType Type, string Reaso
 public sealed record LeaderMoveOrdered(int Tick, GridPosition Target) : BattleEvent(Tick);
 
 public sealed record LeaderAttacked(int Tick, int TargetId, Fix Damage) : BattleEvent(Tick);
+
+/// <summary>An enemy stopped to fight the Prophet and landed a hit.</summary>
+public sealed record LeaderHit(int Tick, int EnemyId, EnemyType Type, int Damage, int HealthRemaining) : BattleEvent(Tick);
+
+public sealed record LeaderSwooned(int Tick) : BattleEvent(Tick);
+
+public sealed record LeaderRevived(int Tick, int Health) : BattleEvent(Tick);
+
+public sealed record HotStonesThrown(int Tick, GridPosition Target, int EnemiesAffected) : BattleEvent(Tick);
 
 public sealed record BattleEnded(int Tick, BattleOutcome Outcome, int Stars) : BattleEvent(Tick);

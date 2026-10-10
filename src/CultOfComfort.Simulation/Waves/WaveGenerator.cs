@@ -30,6 +30,7 @@ public static class WaveGenerator
         var random = new PcgRandom(seed, RandomStreams.Waves);
         var levyCost = balance.Enemies[EnemyType.Levy].WaveCost;
         var heavyCost = balance.Enemies[EnemyType.ManAtArms].WaveCost;
+        var zealotCost = balance.Enemies[EnemyType.Zealot].WaveCost;
         var weightTotal = waveCount * (waveCount + 1) / 2;
         var spawns = new List<SpawnEntry>();
         var tick = FirstWaveStartTick;
@@ -43,14 +44,18 @@ public static class WaveGenerator
 
             var remaining = waveBudget;
             var heavyChancePercent = 15 + 10 * wave;
+
+            // Zealots join from wave 2: by then the Prophet has usually wandered somewhere they can see him.
+            var zealotChancePercent = wave >= 2 ? 20 : 0;
             var isFirstInWave = true;
 
             while (remaining >= levyCost)
             {
-                var type = remaining >= heavyCost && random.Next(0, 100) < heavyChancePercent
-                    ? EnemyType.ManAtArms
+                var roll = random.Next(0, 100);
+                var type = roll < heavyChancePercent && remaining >= heavyCost ? EnemyType.ManAtArms
+                    : roll >= 100 - zealotChancePercent && remaining >= zealotCost ? EnemyType.Zealot
                     : EnemyType.Levy;
-                remaining -= type == EnemyType.ManAtArms ? heavyCost : levyCost;
+                remaining -= balance.Enemies[type].WaveCost;
 
                 if (!isFirstInWave)
                 {

@@ -19,10 +19,17 @@ namespace CultOfComfort.Client
         private Transform _root;
         private Transform _leader;
         private Transform _umbrella;
+        private Transform _leaderBody;
+        private Transform _leaderHealth;
+        private Renderer _leaderHealthRenderer;
+        private Transform _reachRing;
+        private float _leaderFlash;
+        private float _leaderTilt;
         private Vector3 _leaderPrevious;
         private Vector3 _leaderCurrent;
         private float _umbrellaSwing;
         private float _shake;
+        private bool _zealotAnnounced;
         private Dictionary<int, Tower> _towers;
 
         public event Action<string> Announcement;
@@ -47,17 +54,35 @@ namespace CultOfComfort.Client
 
             _leader = new GameObject("The Prophet").transform;
             _leader.SetParent(_root, false);
-            Shapes.Create(PrimitiveType.Capsule, Palette.Linen, new Vector3(0f, 0.45f, 0f), new Vector3(0.38f, 0.45f, 0.38f), _leader, "Linen Shirt");
-            Shapes.Create(PrimitiveType.Sphere, Shapes.Hex("#e0b48f"), new Vector3(0f, 1.0f, 0f), Vector3.one * 0.28f, _leader, "Tired Face");
             Shapes.Create(PrimitiveType.Cylinder, Palette.Highlight, new Vector3(0f, 0.01f, 0f), new Vector3(0.75f, 0.01f, 0.75f), _leader, "Halo (ironic)");
+
+            // Body pivots at the feet so swooning tips him over instead of sinking him into the ground.
+            _leaderBody = new GameObject("Body").transform;
+            _leaderBody.SetParent(_leader, false);
+            Shapes.Create(PrimitiveType.Capsule, Palette.Linen, new Vector3(0f, 0.45f, 0f), new Vector3(0.38f, 0.45f, 0.38f), _leaderBody, "Linen Shirt");
+            Shapes.Create(PrimitiveType.Sphere, Shapes.Hex("#e0b48f"), new Vector3(0f, 1.0f, 0f), Vector3.one * 0.28f, _leaderBody, "Tired Face");
+            var bar = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, 1.45f, 0f), new Vector3(0.7f, 0.07f, 0.07f), _leader, "Prophet Health");
+            _leaderHealth = bar.transform;
+            _leaderHealthRenderer = bar.GetComponent<Renderer>();
+            _reachRing = CreateReachRing((float)BalanceTable.Default.HotStones.Reach.ToDouble());
+            _reachRing.gameObject.SetActive(false);
             var umbrellaPivot = new GameObject("Umbrella Pivot").transform;
-            umbrellaPivot.SetParent(_leader, false);
+            umbrellaPivot.SetParent(_leaderBody, false);
             umbrellaPivot.localPosition = new Vector3(0.25f, 0.6f, 0f);
             Shapes.Create(PrimitiveType.Cylinder, Shapes.Hex("#1d1d24"), new Vector3(0f, 0.3f, 0f), new Vector3(0.05f, 0.3f, 0.05f), umbrellaPivot, "Umbrella (2024)");
             _umbrella = umbrellaPivot;
 
             _leaderCurrent = _leaderPrevious = Shapes.ToWorld(battle.Leader.Position);
             _leader.localPosition = _leaderCurrent;
+        }
+
+        /// <summary>While aiming Hot Stones: a ring of pebbles around the Prophet marking how far he can throw.</summary>
+        public void ShowReach(bool visible)
+        {
+            if (_reachRing != null)
+            {
+                _reachRing.gameObject.SetActive(visible);
+            }
         }
 
         public void Clear()
@@ -117,6 +142,7 @@ namespace CultOfComfort.Client
                 visual.Health = (float)(enemy.Health.ToDouble() / enemy.MaxHealth.ToDouble());
                 visual.Muddied = enemy.IsMuddied(_battle.Tick);
                 visual.Frightened = enemy.IsFrightened(_battle.Tick);
+                visual.Fighting = enemy.IsFightingLeader;
             }
 
             _leaderCurrent = Shapes.ToWorld(_battle.Leader.Position);
@@ -133,8 +159,11 @@ namespace CultOfComfort.Client
             foreach (var visual in _enemies.Values)
             {
                 var position = Vector3.Lerp(visual.Previous, visual.Current, alpha);
-                var heading = visual.Current - visual.Previous;
-                visual.Root.localPosition = position + Vector3.up * (Mathf.Abs(Mathf.Sin(Time.time * 12f + visual.Phase)) * 0.06f);
+                var heading = visual.Fighting ? _leader.localPosition - position : visual.Current - visual.Previous;
+                heading.y = 0f;
+                var lunge = visual.Fighting ? Mathf.Max(0f, Mathf.Sin(Time.time * 9f + visual.Phase)) * 0.18f : 0f;
+                var bob = Mathf.Abs(Mathf.Sin(Time.time * 12f + visual.Phase)) * 0.06f;
+                visual.Root.localPosition = position + Vector3.up * bob + (heading.sqrMagnitude > 0.0001f ? heading.normalized * lunge : Vector3.zero);
                 if (heading.sqrMagnitude > 0.00001f)
                 {
                     visual.Root.localRotation = Quaternion.LookRotation(heading.normalized, Vector3.up);
@@ -153,6 +182,16 @@ namespace CultOfComfort.Client
             {
                 _leader.localRotation = Quaternion.LookRotation(leaderHeading.normalized, Vector3.up);
             }
+
+            var leader = _battle.Leader;
+            var swooning = leader.IsSwooning(_battle.Tick);
+            _leaderTilt = Mathf.MoveTowards(_leaderTilt, swooning ? 1f : 0f, Time.deltaTime * (swooning ? 5f : 2f));
+            _leaderBody.localRotation = Quaternion.Euler(_leaderTilt * 88f, 0f, 0f);
+            var health = leader.Health / (float)leader.MaxHealth;
+            _leaderHealth.localScale = new Vector3(0.7f * health, 0.07f, 0.07f);
+            _leaderHealth.gameObject.SetActive(!swooning && health < 0.999f);
+            _leaderFlash = Mathf.MoveTowards(_leaderFlash, 0f, Time.deltaTime * 5f);
+            Shapes.Tint(_leaderHealthRenderer, Color.Lerp(health > 0.4f ? Palette.HealthGood : Palette.HealthBad, Color.white, _leaderFlash), _block);
 
             _umbrellaSwing = Mathf.MoveTowards(_umbrellaSwing, 0f, Time.deltaTime * 4f);
             _umbrella.localRotation = Quaternion.Euler(_umbrellaSwing * 110f, 0f, 0f);
@@ -194,6 +233,31 @@ namespace CultOfComfort.Client
                 case LeaderAttacked _:
                     _umbrellaSwing = 1f;
                     break;
+                case LeaderHit hit:
+                    _leaderFlash = 1f;
+                    if (hit.Type == EnemyType.Zealot && _enemies.TryGetValue(hit.EnemyId, out var thrower))
+                    {
+                        SpawnHymnal(thrower.Current, _leaderCurrent);
+                    }
+
+                    break;
+                case LeaderSwooned _:
+                    _shake = 0.15f;
+                    Announcement?.Invoke("The Prophet has fainted. Dramatically, into the mud. Back in 10 seconds.");
+                    break;
+                case LeaderRevived _:
+                    Announcement?.Invoke("He's up. Muddy, offended, and back in charge.");
+                    break;
+                case HotStonesThrown thrown:
+                    SpawnHotStones(_leaderCurrent, Shapes.ToWorld(thrown.Target));
+                    Announcement?.Invoke(thrown.EnemiesAffected == 0
+                        ? "Hot stones, thrown at nothing. The grass is now exfoliated."
+                        : $"Hot Stone Therapy for {thrown.EnemiesAffected}. Unrequested, unrefundable.");
+                    break;
+                case EnemySpawned { Type: EnemyType.Zealot } when !_zealotAnnounced:
+                    _zealotAnnounced = true;
+                    Announcement?.Invoke("Zealots. Friar Odo's lot. They throw hymnals, and they aim for the heretic.");
+                    break;
                 case InterventionUsed { Type: PlayerActionType.OpenSluiceGate } used:
                     SpawnFlood();
                     Announcement?.Invoke($"Sluice gate opened. {used.EnemiesAffected} soldiers rediscover mud at speed.");
@@ -212,9 +276,12 @@ namespace CultOfComfort.Client
                     break;
                 case HearthDamaged damaged:
                     _shake = 0.25f;
-                    Announcement?.Invoke(damaged.Type == EnemyType.ManAtArms
-                        ? $"A man-at-arms dented the Hearth. −{damaged.Damage}. Rude."
-                        : $"A levy kicked the Hearth. −{damaged.Damage} warmth.");
+                    Announcement?.Invoke(damaged.Type switch
+                    {
+                        EnemyType.ManAtArms => $"A man-at-arms dented the Hearth. −{damaged.Damage}. Rude.",
+                        EnemyType.Zealot => $"A zealot blessed the Hearth. Aggressively. −{damaged.Damage}.",
+                        _ => $"A levy kicked the Hearth. −{damaged.Damage} warmth.",
+                    });
                     break;
                 case EnemyDefeated defeated when _enemies.TryGetValue(defeated.EnemyId, out var dead):
                     SpawnPoof(dead.Current);
@@ -225,14 +292,20 @@ namespace CultOfComfort.Client
         private EnemyVisual CreateEnemy(Enemy enemy)
         {
             var heavy = enemy.Type == EnemyType.ManAtArms;
-            var color = heavy ? Palette.ManAtArms : Palette.Levy;
+            var zealot = enemy.Type == EnemyType.Zealot;
+            var color = heavy ? Palette.ManAtArms : zealot ? Palette.Zealot : Palette.Levy;
             var root = new GameObject($"{enemy.Type} #{enemy.Id}").transform;
             root.SetParent(_root, false);
-            var size = heavy ? 0.42f : 0.3f;
+            var size = heavy ? 0.42f : zealot ? 0.28f : 0.3f;
             var body = Shapes.Create(PrimitiveType.Capsule, color, new Vector3(0f, size, 0f), new Vector3(size, size, size), root, "Body");
             if (heavy)
             {
                 Shapes.Create(PrimitiveType.Sphere, Shapes.Hex("#6c747b"), new Vector3(0f, size * 2.1f, 0f), Vector3.one * size * 0.75f, root, "Helmet");
+            }
+            else if (zealot)
+            {
+                Shapes.Create(PrimitiveType.Sphere, Shapes.Hex("#e0b48f"), new Vector3(0f, size * 2.1f, 0f), Vector3.one * size * 0.7f, root, "Tonsure");
+                Shapes.Create(PrimitiveType.Cube, Shapes.Hex("#3b2a1c"), new Vector3(0.16f, size * 1.2f, 0.12f), new Vector3(0.14f, 0.18f, 0.06f), root, "Hymnal");
             }
             else
             {
@@ -310,6 +383,59 @@ namespace CultOfComfort.Client
             AddEffect(ring, 0.6f, (go, t) => go.transform.localScale = new Vector3(diameter * t, 0.01f, diameter * t));
         }
 
+        private void SpawnHymnal(Vector3 from, Vector3 to)
+        {
+            var book = Shapes.Create(PrimitiveType.Cube, Shapes.Hex("#3b2a1c"), from, new Vector3(0.16f, 0.06f, 0.2f), _root, "Hymnal");
+            var start = from + Vector3.up * 0.6f;
+            var end = to + Vector3.up * 0.8f;
+            AddEffect(book, 0.45f, (go, t) =>
+            {
+                go.transform.localPosition = Vector3.Lerp(start, end, t) + Vector3.up * Mathf.Sin(t * Mathf.PI) * 0.9f;
+                go.transform.localRotation = Quaternion.Euler(t * 720f, t * 200f, 0f);
+            });
+        }
+
+        private void SpawnHotStones(Vector3 from, Vector3 to)
+        {
+            var radius = (float)BalanceTable.Default.HotStones.Radius.ToDouble();
+            for (var i = 0; i < 4; i++)
+            {
+                var offset = Quaternion.Euler(0f, i * 90f + 45f, 0f) * Vector3.forward * (i == 0 ? 0f : 0.45f);
+                var stone = Shapes.Create(PrimitiveType.Sphere, Palette.HotStone, from, Vector3.one * 0.2f, _root, "Hot Stone");
+                var start = from + Vector3.up * 1.1f;
+                var end = to + offset + Vector3.up * 0.1f;
+                var delay = i * 0.06f;
+                AddEffect(stone, 0.55f + delay, (go, t) =>
+                {
+                    var k = Mathf.Clamp01((t * (0.55f + delay) - delay) / 0.55f);
+                    go.transform.localPosition = Vector3.Lerp(start, end, k) + Vector3.up * Mathf.Sin(k * Mathf.PI) * 1.8f;
+                });
+            }
+
+            var steam = Shapes.Create(PrimitiveType.Sphere, Palette.Steam, to + Vector3.up * 0.2f, Vector3.zero, _root, "Steam");
+            AddEffect(steam, 1.1f, (go, t) =>
+            {
+                var k = Mathf.Clamp01((t - 0.45f) / 0.55f);
+                go.SetActive(k > 0f);
+                go.transform.localScale = new Vector3(radius * 2f * Mathf.Sqrt(k), 0.6f * (1f - k), radius * 2f * Mathf.Sqrt(k));
+            });
+        }
+
+        private Transform CreateReachRing(float radius)
+        {
+            var ring = new GameObject("Hot Stones Reach").transform;
+            ring.SetParent(_leader, false);
+            const int pebbles = 40;
+            for (var i = 0; i < pebbles; i++)
+            {
+                var angle = i * Mathf.PI * 2f / pebbles;
+                Shapes.Create(PrimitiveType.Sphere, Palette.HotStone, new Vector3(Mathf.Cos(angle) * radius, 0.06f, Mathf.Sin(angle) * radius),
+                    Vector3.one * 0.12f, ring, "Pebble");
+            }
+
+            return ring;
+        }
+
         private void SpawnPoof(Vector3 at)
         {
             var poof = Shapes.Create(PrimitiveType.Sphere, Shapes.Hex("#c9bfae"), at + Vector3.up * 0.3f, Vector3.zero, _root, "Poof");
@@ -331,6 +457,7 @@ namespace CultOfComfort.Client
             public float Health;
             public bool Muddied;
             public bool Frightened;
+            public bool Fighting;
             public float Phase;
         }
 

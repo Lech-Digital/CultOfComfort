@@ -10,8 +10,15 @@ namespace CultOfComfort.Client
     /// <summary>What the Night bar shows. Built by the controller each frame from the live battle.</summary>
     public readonly struct NightHudState
     {
-        public NightHudState(int night, int hearth, int hearthMax, string sluice, bool sluiceReady, string voice, bool voiceReady, int speed, string status)
+        public NightHudState(
+            int night, int hearth, int hearthMax, int prophet, int prophetMax, string sluice, bool sluiceReady, string voice, bool voiceReady,
+            string stones, bool stonesReady, bool aiming, int speed, string status)
         {
+            Prophet = prophet;
+            ProphetMax = prophetMax;
+            Stones = stones;
+            StonesReady = stonesReady;
+            Aiming = aiming;
             Night = night;
             Hearth = hearth;
             HearthMax = hearthMax;
@@ -26,6 +33,13 @@ namespace CultOfComfort.Client
         public int Night { get; }
         public int Hearth { get; }
         public int HearthMax { get; }
+        public int Prophet { get; }
+        public int ProphetMax { get; }
+        public string Stones { get; }
+        public bool StonesReady { get; }
+
+        /// <summary>Hot Stones is armed: the next tap on the board picks where they land.</summary>
+        public bool Aiming { get; }
         public string Sluice { get; }
         public bool SluiceReady { get; }
         public string Voice { get; }
@@ -51,6 +65,9 @@ namespace CultOfComfort.Client
         private readonly VisualElement _hearth;
         private readonly Label _hearthLabel;
         private readonly VisualElement _hearthFill;
+        private readonly VisualElement _prophet;
+        private readonly Label _prophetLabel;
+        private readonly VisualElement _prophetFill;
         private readonly Label _toast;
         private readonly VisualElement _card;
         private readonly Label _cardTitle;
@@ -64,6 +81,7 @@ namespace CultOfComfort.Client
         private readonly Dictionary<TowerType, Button> _towerButtons = new Dictionary<TowerType, Button>();
         private readonly Button _sluice;
         private readonly Button _voice;
+        private readonly Button _stones;
         private readonly Button _speed;
         private readonly Label _nightStatus;
         private float _toastUntil;
@@ -81,16 +99,12 @@ namespace CultOfComfort.Client
             status.Add(Text("Cult of Comfort", "title"));
             _phaseLine = Text(string.Empty, "line");
             _probeLine = Text(string.Empty, "line", "small");
-            _hearth = Container("hearth");
-            _hearthLabel = Text(string.Empty, "hearth-label");
-            var track = Container("track");
-            _hearthFill = Container("fill");
-            track.Add(_hearthFill);
-            _hearth.Add(_hearthLabel);
-            _hearth.Add(track);
+            (_hearth, _hearthLabel, _hearthFill) = Meter();
+            (_prophet, _prophetLabel, _prophetFill) = Meter();
             status.Add(_phaseLine);
             status.Add(_probeLine);
             status.Add(_hearth);
+            status.Add(_prophet);
             _top.Add(status);
             _top.Add(Container("spacer"));
             _top.Add(ButtonWith("Recenter", () => RecenterClicked?.Invoke(), "chip"));
@@ -149,11 +163,14 @@ namespace CultOfComfort.Client
             var skills = Container("group");
             _sluice = ButtonWith(string.Empty, () => SluiceClicked?.Invoke(), "first");
             _voice = ButtonWith(string.Empty, () => VoiceClicked?.Invoke());
+            _stones = ButtonWith(string.Empty, () => StonesClicked?.Invoke());
             _speed = ButtonWith(string.Empty, () => SpeedClicked?.Invoke(), "speed");
             _sluice.name = "sluice";
             _voice.name = "voice";
+            _stones.name = "stones";
             skills.Add(_sluice);
             skills.Add(_voice);
+            skills.Add(_stones);
             skills.Add(_speed);
             _nightStatus = Text(string.Empty, "hint");
             _nightBar.Add(skills);
@@ -171,6 +188,7 @@ namespace CultOfComfort.Client
         public event Action StartNightClicked;
         public event Action SluiceClicked;
         public event Action VoiceClicked;
+        public event Action StonesClicked;
         public event Action SpeedClicked;
         public event Action RecenterClicked;
         public event Action BackToDuskClicked;
@@ -189,6 +207,7 @@ namespace CultOfComfort.Client
             Show(_card, phase == GamePhase.Dawn);
             Show(_probeLine, phase == GamePhase.Dusk);
             Show(_hearth, phase != GamePhase.Dusk);
+            Show(_prophet, phase == GamePhase.Night);
         }
 
         public void UpdateDusk(int night, int scrap, TowerType? selected, IReadOnlyDictionary<TowerType, int> costs, string probe)
@@ -210,6 +229,10 @@ namespace CultOfComfort.Client
             _sluice.SetEnabled(state.SluiceReady);
             _voice.text = state.Voice;
             _voice.SetEnabled(state.VoiceReady);
+            _stones.text = state.Stones;
+            _stones.SetEnabled(state.StonesReady);
+            _stones.EnableInClassList("aiming", state.Aiming);
+            SetMeter(_prophetLabel, _prophetFill, "Prophet", state.Prophet, state.ProphetMax);
             _speed.text = $"{state.Speed}×";
             _nightStatus.text = state.Status;
         }
@@ -278,12 +301,26 @@ namespace CultOfComfort.Client
             return Rect.MinMaxRect(left + gap, 1f - bottom + gap, 1f - right - gap, 1f - top - gap);
         }
 
-        private void SetHearth(int hearth, int max)
+        private void SetHearth(int hearth, int max) => SetMeter(_hearthLabel, _hearthFill, "Hearth", hearth, max);
+
+        private static void SetMeter(Label label, VisualElement fill, string name, int value, int max)
         {
-            var fraction = max > 0 ? Mathf.Clamp01(hearth / (float)max) : 0f;
-            _hearthLabel.text = $"Hearth {hearth}";
-            _hearthFill.style.width = Length.Percent(fraction * 100f);
-            _hearthFill.style.backgroundColor = Color.Lerp(Palette.Invalid, Palette.Ember, fraction);
+            var fraction = max > 0 ? Mathf.Clamp01(value / (float)max) : 0f;
+            label.text = $"{name} {value}";
+            fill.style.width = Length.Percent(fraction * 100f);
+            fill.style.backgroundColor = Color.Lerp(Palette.Invalid, Palette.Ember, fraction);
+        }
+
+        private static (VisualElement Row, Label Label, VisualElement Fill) Meter()
+        {
+            var row = Container("hearth");
+            var label = Text(string.Empty, "hearth-label");
+            var track = Container("track");
+            var fill = Container("fill");
+            track.Add(fill);
+            row.Add(label);
+            row.Add(track);
+            return (row, label, fill);
         }
 
         /// <summary>UI Toolkit ignores Screen.safeArea, so pad the root ourselves (cutouts, rounded corners, gesture bar).</summary>

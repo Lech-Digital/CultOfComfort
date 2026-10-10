@@ -57,7 +57,7 @@ Open `client/CultOfComfort.Unity` in Unity Hub (Add → Add project from disk), 
 - **Orientation:** portrait and landscape both work and follow the phone's auto-rotate. In portrait the board turns 90° so the road runs top (spawn) to bottom (Hearth); the camera always fits the board between the HUD panels.
 - **HUD:** UI Toolkit, built in code (`Assets/Scripts/Hud/HudView.cs`) and styled by `Assets/Resources/UI/Hud.uss`; a `portrait` / `landscape` class on the root restacks the bars.
 - **Dusk:** pick a tower, tap empty ground to build, tap a tower to demolish. The road reroutes live.
-- **Night:** tap the ground to move the Prophet; *Open Sluice* and *Phantom Voice* are buttons.
+- **Night:** tap the ground to move the Prophet. Enemies that reach him stop to fight (towers love that), Zealots pelt him from range, and at 0 HP he swoons for 10 s. *Open Sluice* and *Phantom Voice* fire at once; *Hot Stones* arms a targeted throw: tap it, then a tile inside the pebble ring.
 - **Dawn:** result plus a server-style replay of your input log, with matching hashes.
 
 ### Android build (device via adb)

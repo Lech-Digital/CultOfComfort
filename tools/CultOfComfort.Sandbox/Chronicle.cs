@@ -24,7 +24,16 @@ internal sealed class Chronicle
         "A man-at-arms has left the conversation.",
     ];
 
+    private static readonly string[] SwoonLines =
+    [
+        "The leader has fainted. Dramatically, and into the mud. The cult takes notes.",
+        "Down again. He claims it's low blood sugar. It's a pitchfork.",
+        "He lies face down, muttering about health insurance.",
+    ];
+
     private int _leviesDefeated;
+    private int _swoons;
+    private bool _firstZealotLogged;
     private int _heavyDefeated;
     private bool _firstCritLogged;
 
@@ -38,6 +47,13 @@ internal sealed class Chronicle
             ? "Sluice gate opened on an empty road. Very clean road now."
             : $"Sluice gate opened. {e.EnemiesAffected} soldiers rediscover mud at speed.",
         InputRejected e => $"That didn't work. {e.Reason}",
+        HotStonesThrown e => e.EnemiesAffected == 0
+            ? "Hot stones, thrown at nothing. The grass is now exfoliated."
+            : $"Hot Stone Therapy for {e.EnemiesAffected}. Unrequested, unrefundable.",
+        LeaderSwooned => SwoonLines[_swoons++ % SwoonLines.Length],
+        LeaderRevived => "He's up. Muddy, offended, and back in charge.",
+        EnemySpawned { Type: EnemyType.Zealot } when !_firstZealotLogged => FirstZealot(),
+        HearthDamaged { Type: EnemyType.Zealot } e => $"A zealot reached the Hearth and blessed it. Aggressively. −{e.Damage}.",
         HearthDamaged { Type: EnemyType.ManAtArms } e => $"A man-at-arms dented the Hearth. −{e.Damage}. Rude.",
         HearthDamaged e => $"A levy reached the Hearth and kicked it. −{e.Damage} warmth.",
         EnemyDefeated { Type: EnemyType.ManAtArms } => HeavyDefeatLines[_heavyDefeated++ % HeavyDefeatLines.Length],
@@ -57,6 +73,12 @@ internal sealed class Chronicle
             10 => "Ten levies. Wulfric is running out of cousins.",
             _ => null,
         };
+    }
+
+    private string FirstZealot()
+    {
+        _firstZealotLogged = true;
+        return "Zealots. Friar Odo's lot. They throw hymnals, and they aim for the heretic.";
     }
 
     private string FirstCrit()

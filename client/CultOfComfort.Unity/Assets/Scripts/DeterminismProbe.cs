@@ -14,7 +14,7 @@ namespace CultOfComfort.Client
     public static class DeterminismProbe
     {
         /// <summary>From `dotnet run --project tools/CultOfComfort.Sandbox` (seed 947, budget 54). Update when the sim changes on purpose.</summary>
-        public const string ExpectedHash = "47274012541c0100";
+        public const string ExpectedHash = "12c3fe1f0e23fb59";
 
         public static string LastHash { get; private set; }
         public static bool? Matches { get; private set; }
@@ -33,8 +33,8 @@ namespace CultOfComfort.Client
             var layout = new BattleLayout(DemoMap.Width, DemoMap.Height, DemoMap.Spawn, DemoMap.Hearth, towers, DemoMap.CreateRocks());
             var inputs = new List<PlayerInput>
             {
-                new PlayerInput(2204, PlayerActionType.OpenSluiceGate),
-                new PlayerInput(2404, PlayerActionType.OpenSluiceGate),
+                new PlayerInput(2281, PlayerActionType.OpenSluiceGate),
+                new PlayerInput(2481, PlayerActionType.OpenSluiceGate),
             };
 
             var result = Battle.Simulate(new BattleSetup(layout, 947, 54, 4, inputs));

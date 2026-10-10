@@ -5,7 +5,9 @@
 - [x] 2026-10-09 — Shared simulation skeleton: `Fix` (Q47.16), PCG32, BFS pathing, wave generator, `Battle` with 2 towers, 2 enemy types, Sluice Gate intervention, rolling state hash, server-replay verification; Sandbox + HTML replay viewer.
 
 - [x] 2026-10-09 — Cult leader (tap-to-move, umbrella, Phantom Voice) in the sim; Unity 6.3 LTS client prototype (Dusk build → Night → Dawn verify); PlayMode smoke tests; Android IL2CPP ARM64 build running on a Pixel 10.
-- [x] 2026-10-09 — **Cross-platform determinism verified on device:** IL2CPP/ARM64 (Pixel 10, Android 17) produces the same demo-Night state hash as .NET on macOS (`47274012541c0100`).
+- [x] 2026-10-09 — **Cross-platform determinism verified on device:** IL2CPP/ARM64 (Pixel 10, Android 17) produces the same demo-Night state hash as .NET on macOS (`47274012541c0100` at the time).
+
+- [x] 2026-10-10 — **Prophet threat:** enemies stop to fight him (max 3), Zealot ranged enemy, health/regen/swoon with a revive grace period, Hot Stone Therapy targeted skill. Balance 2026.10.2; demo hash `12c3fe1f0e23fb59`, verified identical on the Pixel 10.
 
 ## Next Sessions
 
@@ -13,7 +15,6 @@
 - [ ] Full Hearth 1–10 progression curve in a spreadsheet model (income vs. cost vs. time-to-level).
 - [ ] Determinism CI: automate the on-device probe (Android emulator / Firebase Test Lab) and add iOS.
 - [x] Touch UX: pinch/drag camera, UI Toolkit HUD instead of the IMGUI debug HUD, portrait + landscape (board turns 90° in portrait).
-- [ ] Enemies can target the Prophet (positioning stakes); more leader skills.
 - [ ] Golden-hash regression corpus for recorded battles (fails on any unintended sim change).
 - [ ] Morale + Bishop units (preach at Devotion buildings), Comfort-era towers (Pressure Sluice, Hypocaust Vent).
 - [ ] Balance: difficulty cliff between budget ~54 and ~60 on the demo map — investigate smoothing.

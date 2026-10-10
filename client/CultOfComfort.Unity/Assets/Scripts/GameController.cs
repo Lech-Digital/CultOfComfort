@@ -57,6 +57,7 @@ namespace CultOfComfort.Client
         private HudView _hud;
         private Vector2Int _screenSize;
         private int _framePending;
+        private bool _aimingStones;
 
         public GamePhase Phase => _phase;
 
@@ -218,10 +219,25 @@ namespace CultOfComfort.Client
 
         private void UpdateNight()
         {
+            if (_aimingStones && !_battle.IsHotStonesReady)
+            {
+                SetAimingStones(false); // He fainted mid-aim.
+            }
+
             if (_gesture.Tapped && TryScreenToTile(_gesture.TapPosition, out var tile))
             {
-                _battle.Intervene(PlayerActionType.MoveLeader, tile);
+                if (_aimingStones)
+                {
+                    _battle.Intervene(PlayerActionType.HotStones, tile);
+                    SetAimingStones(false);
+                }
+                else
+                {
+                    _battle.Intervene(PlayerActionType.MoveLeader, tile);
+                }
             }
+
+            ShowStonesTarget();
 
             _accumulator += Time.deltaTime * _speed;
             var steps = 0;
@@ -242,8 +258,53 @@ namespace CultOfComfort.Client
             }
         }
 
+        private void ToggleAimingStones()
+        {
+            if (_battle == null || !_battle.IsHotStonesReady)
+            {
+                return;
+            }
+
+            SetAimingStones(!_aimingStones);
+            if (_aimingStones)
+            {
+                Announce("Hot Stone Therapy: tap a tile inside the pebble ring.");
+            }
+        }
+
+        private void SetAimingStones(bool aiming)
+        {
+            _aimingStones = aiming;
+            _battleView.ShowReach(aiming);
+            if (!aiming)
+            {
+                _board.ShowCursor(null, false);
+            }
+        }
+
+        /// <summary>While aiming, highlight the tile under the cursor or finger: amber in reach, red out of it.</summary>
+        private void ShowStonesTarget()
+        {
+            if (!_aimingStones)
+            {
+                return;
+            }
+
+            var hasPointer = _gestures.TryGetPendingTap(out var pointer) || (PointerInput.TryGetHover(out pointer) && !IsOverUi(pointer));
+            if (!hasPointer || !TryScreenToTile(pointer, out var tile))
+            {
+                _board.ShowCursor(null, false);
+                return;
+            }
+
+            var reach = (float)BalanceTable.Default.HotStones.Reach.ToDouble();
+            var leader = Shapes.ToWorld(_battle.Leader.Position);
+            _board.ShowCursor(tile, (Shapes.ToWorld(tile) - leader).sqrMagnitude <= reach * reach);
+        }
+
         private void EndNight()
         {
+            SetAimingStones(false);
             // What the server does with /api/combat/resolve: replay the submitted input log and compare.
             _serverReplay = Battle.Simulate(_setup with { Inputs = _battle.InputLog.ToList() });
             LastNightVerified = _serverReplay == _battle.Result;
@@ -332,6 +393,7 @@ namespace CultOfComfort.Client
             _hud.StartNightClicked += StartNight;
             _hud.SluiceClicked += () => _battle?.Intervene(PlayerActionType.OpenSluiceGate);
             _hud.VoiceClicked += () => _battle?.Intervene(PlayerActionType.PhantomVoice);
+            _hud.StonesClicked += ToggleAimingStones;
             _hud.SpeedClicked += () => _speed = _speed == 1 ? 2 : _speed == 2 ? 4 : 1;
             _hud.RecenterClicked += () => _rig.Reset();
             _hud.BackToDuskClicked += BackToDusk;
@@ -355,11 +417,18 @@ namespace CultOfComfort.Client
             {
                 var sluice = _battle.IsSluiceReady ? $"Open Sluice · {_battle.SluiceChargesLeft}"
                     : _battle.SluiceChargesLeft == 0 ? "Cistern empty" : $"Sluice {Seconds(_battle.SluiceReadyAtTick)}s";
-                var voice = _battle.IsVoiceReady ? "Phantom Voice" : $"Hoarse {Seconds(_battle.Leader.VoiceReadyAtTick)}s";
+                var leader = _battle.Leader;
+                var swooning = leader.IsSwooning(_battle.Tick);
+                var voice = swooning ? "Fainted" : _battle.IsVoiceReady ? "Phantom Voice" : $"Hoarse {Seconds(leader.VoiceReadyAtTick)}s";
+                var stones = swooning ? "Fainted" : _aimingStones ? "Pick a tile" : _battle.IsHotStonesReady ? "Hot Stones" : $"Heating {Seconds(leader.HotStonesReadyAtTick)}s";
                 var alive = _battle.Enemies.Count(e => e.IsActive);
+                var hint = swooning ? $"The Prophet is face down in the mud. Up in {Seconds(leader.SwoonedUntilTick)}s: tap where he should run."
+                    : _aimingStones ? "Tap a tile inside the pebble ring, or Hot Stones again to cancel."
+                    : "Tap the ground to move the Prophet. Enemies stop to fight him.";
                 _hud.UpdateNight(new NightHudState(
-                    _night, _battle.HearthHealth, _battle.HearthMaxHealth, sluice, _battle.IsSluiceReady, voice, _battle.IsVoiceReady, _speed,
-                    $"Wave {Mathf.Max(1, _battle.CurrentWave)}/{_battle.WaveCount} · {alive} on the road · Tap the ground to move the Prophet."));
+                    _night, _battle.HearthHealth, _battle.HearthMaxHealth, leader.Health, leader.MaxHealth,
+                    sluice, _battle.IsSluiceReady, voice, _battle.IsVoiceReady, stones, _battle.IsHotStonesReady || _aimingStones, _aimingStones, _speed,
+                    $"Wave {Mathf.Max(1, _battle.CurrentWave)}/{_battle.WaveCount} · {alive} on the road · {hint}"));
             }
         }
 

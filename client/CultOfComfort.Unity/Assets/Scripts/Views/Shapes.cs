@@ -78,6 +78,9 @@ namespace CultOfComfort.Client
         public static readonly Color Stone = Shapes.Hex("#a8a29a");
         public static readonly Color Levy = Shapes.Hex("#d9c39a");
         public static readonly Color ManAtArms = Shapes.Hex("#9aa3ab");
+        public static readonly Color Zealot = Shapes.Hex("#c7533a");
+        public static readonly Color HotStone = Shapes.Hex("#e0663a");
+        public static readonly Color Steam = Shapes.Hex("#ece6dc");
         public static readonly Color Mud = Shapes.Hex("#5c3e20");
         public static readonly Color Fright = Shapes.Hex("#e6e0ff");
         public static readonly Color Linen = Shapes.Hex("#f2ece0");

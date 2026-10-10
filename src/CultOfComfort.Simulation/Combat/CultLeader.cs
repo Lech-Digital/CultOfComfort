@@ -12,10 +12,13 @@ public sealed class CultLeader
 {
     private readonly Queue<GridPosition> _waypoints = new();
 
-    internal CultLeader(GridPosition start)
+    internal CultLeader(GridPosition start, int maxHealth)
     {
         Position = start.ToVector();
         Destination = start;
+        MaxHealth = maxHealth;
+        Health = maxHealth;
+        LastHitTick = int.MinValue / 2;
     }
 
     public FixVector2 Position { get; private set; }
@@ -26,6 +29,18 @@ public sealed class CultLeader
     public bool IsMoving => _waypoints.Count > 0;
     public int AttackCooldownTicksRemaining { get; internal set; }
     public int VoiceReadyAtTick { get; internal set; }
+    public int HotStonesReadyAtTick { get; internal set; }
+    public int MaxHealth { get; }
+    public int Health { get; private set; }
+
+    /// <summary>While swooning he can't walk, fight or use skills, and enemies ignore him.</summary>
+    public int SwoonedUntilTick { get; private set; }
+    public int LastHitTick { get; private set; }
+
+    public bool IsSwooning(int tick) => tick < SwoonedUntilTick;
+
+    /// <summary>Enemies won't engage him: swooning, or just back on his feet.</summary>
+    public bool IsIgnoredByEnemies(int tick, int graceTicks) => tick < SwoonedUntilTick + graceTicks;
 
     /// <summary>
     /// The tile from which a new route should start: the waypoint he is currently heading to,
@@ -70,6 +85,43 @@ public sealed class CultLeader
         }
     }
 
+    /// <returns>True if this hit knocked him out.</returns>
+    internal bool TakeHit(int tick, int damage, int swoonTicks)
+    {
+        LastHitTick = tick;
+        Health = System.Math.Max(0, Health - damage);
+        if (Health > 0)
+        {
+            return false;
+        }
+
+        // He drops where he stands, possibly between two tiles; that is still axis-aligned, so later routes stay valid.
+        SwoonedUntilTick = tick + swoonTicks;
+        _waypoints.Clear();
+        Destination = RouteOrigin;
+        return true;
+    }
+
+    /// <returns>True on the tick he gets back up.</returns>
+    internal bool TryRevive(int tick)
+    {
+        if (Health > 0 || tick < SwoonedUntilTick)
+        {
+            return false;
+        }
+
+        Health = MaxHealth / 2;
+        return true;
+    }
+
+    internal void Regenerate(int tick, int delayTicks, int intervalTicks)
+    {
+        if (Health > 0 && Health < MaxHealth && tick - LastHitTick >= delayTicks && tick % intervalTicks == 0)
+        {
+            Health++;
+        }
+    }
+
     private static Fix Sign(Fix value) => value > Fix.Zero ? Fix.One : value < Fix.Zero ? -Fix.One : Fix.Zero;
 
     internal void AddToHash(Fnv1aHasher hasher)
@@ -79,5 +131,8 @@ public sealed class CultLeader
         hasher.Add(_waypoints.Count);
         hasher.Add(AttackCooldownTicksRemaining);
         hasher.Add(VoiceReadyAtTick);
+        hasher.Add(HotStonesReadyAtTick);
+        hasher.Add(Health);
+        hasher.Add(SwoonedUntilTick);
     }
 }

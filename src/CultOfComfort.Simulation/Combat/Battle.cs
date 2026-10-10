@@ -43,7 +43,7 @@ public sealed class Battle
 
         _balance = setup.Balance ?? BalanceTable.Default;
         _layout = setup.Layout;
-        Leader = new CultLeader(setup.Layout.LeaderStart);
+        Leader = new CultLeader(setup.Layout.LeaderStart, _balance.Leader.MaxHealth);
         _combatRandom = new PcgRandom(setup.Seed, RandomStreams.Combat);
         _spawns = WaveGenerator.Generate(setup.Budget, setup.WaveCount, setup.Seed, _balance);
         _pendingInputs = setup.Inputs.OrderBy(input => input.Tick).ToList();
@@ -72,7 +72,8 @@ public sealed class Battle
     public int SluiceReadyAtTick { get; private set; }
     public bool IsSluiceReady => SluiceChargesLeft > 0 && Tick >= SluiceReadyAtTick;
     public CultLeader Leader { get; }
-    public bool IsVoiceReady => Tick >= Leader.VoiceReadyAtTick;
+    public bool IsVoiceReady => Tick >= Leader.VoiceReadyAtTick && !Leader.IsSwooning(Tick);
+    public bool IsHotStonesReady => Tick >= Leader.HotStonesReadyAtTick && !Leader.IsSwooning(Tick);
     public int CurrentWave { get; private set; }
     public int WaveCount { get; }
     public int TotalEnemies { get; }
@@ -100,7 +101,7 @@ public sealed class Battle
     }
 
     /// <summary>Queues a live player action for the upcoming tick.</summary>
-    /// <param name="target">Destination tile for <see cref="PlayerActionType.MoveLeader"/>.</param>
+    /// <param name="target">Tile for <see cref="PlayerActionType.MoveLeader"/> and <see cref="PlayerActionType.HotStones"/>.</param>
     public void Intervene(PlayerActionType type, GridPosition target = default)
     {
         if (IsFinished)
@@ -121,11 +122,17 @@ public sealed class Battle
 
         _tickEvents.Clear();
         SpawnEnemies();
+        ReviveLeader();
         ApplyInputs();
         FireTowers();
         LeaderAttack();
         MoveEnemies();
-        Leader.Walk(_balance.Leader.TilesPerSecond / BalanceTable.TicksPerSecond);
+        if (!Leader.IsSwooning(Tick))
+        {
+            Leader.Walk(_balance.Leader.TilesPerSecond / BalanceTable.TicksPerSecond);
+        }
+
+        Leader.Regenerate(Tick, _balance.Leader.RegenDelayTicks, _balance.Leader.RegenIntervalTicks);
         HashState();
         CheckForEnd();
         Tick++;
@@ -184,6 +191,9 @@ public sealed class Battle
                 case PlayerActionType.PhantomVoice:
                     UsePhantomVoice();
                     break;
+                case PlayerActionType.HotStones:
+                    ThrowHotStones(input.Target);
+                    break;
                 default:
                     _tickEvents.Add(new InputRejected(Tick, input.Type, "Unknown intervention."));
                     break;
@@ -220,6 +230,15 @@ public sealed class Battle
         _tickEvents.Add(new InterventionUsed(Tick, PlayerActionType.OpenSluiceGate, affected));
     }
 
+    private void ReviveLeader()
+    {
+        if (Leader.TryRevive(Tick))
+        {
+            _tickEvents.Add(new LeaderRevived(Tick, Leader.Health));
+        }
+    }
+
+    /// <summary>Orders are accepted while he is swooning; he sets off the moment he gets up.</summary>
     private void OrderLeader(GridPosition target)
     {
         if (!_layout.IsWalkableForLeader(target))
@@ -244,6 +263,12 @@ public sealed class Battle
     private void UsePhantomVoice()
     {
         var stats = _balance.Leader;
+        if (Leader.IsSwooning(Tick))
+        {
+            _tickEvents.Add(new InputRejected(Tick, PlayerActionType.PhantomVoice, "He is face down in the mud."));
+            return;
+        }
+
         if (Tick < Leader.VoiceReadyAtTick)
         {
             _tickEvents.Add(new InputRejected(Tick, PlayerActionType.PhantomVoice, "He is still hoarse."));
@@ -267,6 +292,47 @@ public sealed class Battle
         _tickEvents.Add(new InterventionUsed(Tick, PlayerActionType.PhantomVoice, affected));
     }
 
+    /// <summary>Hot Stone Therapy: heated river stones on a tile within reach. Burns, and muddies whoever survives.</summary>
+    private void ThrowHotStones(GridPosition target)
+    {
+        var stats = _balance.HotStones;
+        if (Leader.IsSwooning(Tick))
+        {
+            _tickEvents.Add(new InputRejected(Tick, PlayerActionType.HotStones, "He is in no state to throw anything."));
+            return;
+        }
+
+        if (Tick < Leader.HotStonesReadyAtTick)
+        {
+            _tickEvents.Add(new InputRejected(Tick, PlayerActionType.HotStones, "The stones are still heating."));
+            return;
+        }
+
+        if (!_layout.IsInBounds(target) || target.ToVector().DistanceSquaredTo(Leader.Position) > stats.Reach * stats.Reach)
+        {
+            _tickEvents.Add(new InputRejected(Tick, PlayerActionType.HotStones, "He can't throw that far. He has tried."));
+            return;
+        }
+
+        Leader.HotStonesReadyAtTick = Tick + stats.CooldownTicks;
+        var center = target.ToVector();
+        var radiusSquared = stats.Radius * stats.Radius;
+        var affected = 0;
+        foreach (var enemy in _enemies)
+        {
+            if (!enemy.IsActive || PositionOf(enemy).DistanceSquaredTo(center) > radiusSquared)
+            {
+                continue;
+            }
+
+            affected++;
+            enemy.ApplyMud(Tick + stats.MuddiedTicks);
+            DealDamage(enemy, ApplyResistance(enemy, stats.Damage));
+        }
+
+        _tickEvents.Add(new HotStonesThrown(Tick, target, affected));
+    }
+
     /// <summary>He hits whatever is closest to the Hearth within reach, with a 2024 umbrella.</summary>
     private void LeaderAttack()
     {
@@ -275,7 +341,7 @@ public sealed class Battle
             Leader.AttackCooldownTicksRemaining--;
         }
 
-        if (Leader.AttackCooldownTicksRemaining > 0)
+        if (Leader.AttackCooldownTicksRemaining > 0 || Leader.IsSwooning(Tick))
         {
             return;
         }
@@ -410,14 +476,23 @@ public sealed class Battle
 
     private void MoveEnemies()
     {
+        var engaged = 0;
         foreach (var enemy in _enemies)
         {
+            enemy.IsFightingLeader = false;
             if (!enemy.IsActive)
             {
                 continue;
             }
 
             var stats = _balance.Enemies[enemy.Type];
+            if (!enemy.IsFrightened(Tick) && engaged < _balance.Leader.MaxEngaged && CanEngageLeader(enemy, stats))
+            {
+                engaged++;
+                FightLeader(enemy, stats);
+                continue;
+            }
+
             var step = stats.TilesPerSecond / BalanceTable.TicksPerSecond;
             if (enemy.IsSlowed(Tick))
             {
@@ -442,6 +517,30 @@ public sealed class Battle
         }
     }
 
+    private bool CanEngageLeader(Enemy enemy, EnemyStats stats) =>
+        stats.EngageRange > Fix.Zero
+        && !Leader.IsIgnoredByEnemies(Tick, _balance.Leader.ReviveGraceTicks)
+        && PositionOf(enemy).DistanceSquaredTo(Leader.Position) <= stats.EngageRange * stats.EngageRange;
+
+    /// <summary>Stops on the road and swings (or throws) at the Prophet. Holding them still is what towers like.</summary>
+    private void FightLeader(Enemy enemy, EnemyStats stats)
+    {
+        enemy.IsFightingLeader = true;
+        if (enemy.LeaderAttackCooldownTicksRemaining > 0)
+        {
+            enemy.LeaderAttackCooldownTicksRemaining--;
+            return;
+        }
+
+        enemy.LeaderAttackCooldownTicksRemaining = stats.LeaderAttackCooldownTicks;
+        var swooned = Leader.TakeHit(Tick, stats.LeaderDamage, _balance.Leader.SwoonTicks);
+        _tickEvents.Add(new LeaderHit(Tick, enemy.Id, enemy.Type, stats.LeaderDamage, Leader.Health));
+        if (swooned)
+        {
+            _tickEvents.Add(new LeaderSwooned(Tick));
+        }
+    }
+
     private void HashState()
     {
         _hasher.Add(Tick);
@@ -456,6 +555,8 @@ public sealed class Battle
             _hasher.Add(enemy.MuddiedUntilTick);
             _hasher.Add(enemy.SlowedUntilTick);
             _hasher.Add(enemy.FrightenedUntilTick);
+            _hasher.Add(enemy.IsFightingLeader ? 1 : 0);
+            _hasher.Add(enemy.LeaderAttackCooldownTicksRemaining);
         }
 
         Leader.AddToHash(_hasher);

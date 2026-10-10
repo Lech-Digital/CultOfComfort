@@ -34,6 +34,10 @@ public sealed class Enemy
     public Fix SlowMultiplier { get; private set; } = Fix.One;
     public int FrightenedUntilTick { get; private set; }
 
+    /// <summary>True while it has stopped on the road to fight the Prophet.</summary>
+    public bool IsFightingLeader { get; internal set; }
+    public int LeaderAttackCooldownTicksRemaining { get; internal set; }
+
     public bool IsActive => State == EnemyState.Marching;
 
     public bool IsMuddied(int tick) => tick < MuddiedUntilTick;

@@ -49,6 +49,16 @@ stateDiagram-v2
 | Build lock | No new towers; only pre-stocked emergency barricades |
 | Cultists | Auto-repair crews; ringing the bell speeds them up at a Morale cost |
 
+### The Prophet on the battlefield (prototype, balance 2026.10.2)
+
+The time traveller is the player's hero unit. Tap the ground to walk him; he swings a 2024 umbrella at anything in reach.
+
+- **Blocking.** Enemies that come within reach of him stop on the road and fight him instead of marching: Levies at 0.75 tiles, men-at-arms at 1 tile. He holds at most **3** at once; the rest walk past. Holding them still inside tower range is the point, and it costs him health.
+- **Zealots** (from wave 2): light and quick, and they throw hymnals at him from **2.5 tiles**. They punish a Prophet parked next to the road.
+- **Health 120.** He regains 1 HP every 0.5 s once he hasn't been hit for 3 s. At 0 he **swoons** for 10 s: no walking, umbrella or skills, and enemies ignore him. He gets up at half health and is left alone for 2 s. Move orders given while he's down are carried out when he gets up.
+- **Skills:** Phantom Voice (nearby enemies walk backwards, 15 s cooldown) and **Hot Stone Therapy**: tap the skill, then a tile within 4 tiles of him. It deals 45 damage in a 1.2-tile radius and muddies whoever survives, setting up Flinger crits (20 s cooldown).
+- **The decision each Night:** where to stand, when to retreat before he swoons, and whether to spend stones on a clump at the front or save them for the men-at-arms.
+
 ## Win/Loss — Single Night
 
 | Outcome | Condition | Result |
