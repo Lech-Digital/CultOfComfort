@@ -9,3 +9,7 @@ TestResults/
 
 # Brainstorming companion scratch
 .superpowers/
+
+# Python bytecode (Blender art pipeline)
+__pycache__/
+*.pyc
