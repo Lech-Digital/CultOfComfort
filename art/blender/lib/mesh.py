@@ -100,6 +100,16 @@ class Part:
         bmesh.ops.scale(piece, vec=Vector(scale), verts=piece.verts)
         return self._add(piece, center, swatch, rotation, smooth)
 
+    def prism(self, size, center, swatch, rotation=(0, 0, 0), smooth=False):
+        """Triangular prism, e.g. a gable roof: `size` = (width X, length Y, height Z), ridge along Y at the top."""
+        w, l, h = (v / 2 for v in size)
+        piece = bmesh.new()
+        v = [piece.verts.new(co) for co in ((-w, -l, -h), (w, -l, -h), (0, -l, h), (-w, l, -h), (w, l, -h), (0, l, h))]
+        for face in ((0, 1, 2), (5, 4, 3), (0, 3, 4, 1), (1, 4, 5, 2), (2, 5, 3, 0)):
+            piece.faces.new([v[i] for i in face])
+        bmesh.ops.recalc_face_normals(piece, faces=piece.faces)
+        return self._add(piece, center, swatch, rotation, smooth)
+
     # ---- assembly -----------------------------------------------------------------------------------------
 
     def _add(self, piece, center, swatch, rotation, smooth=False):

@@ -85,6 +85,17 @@ class MeshTests(unittest.TestCase):
         # Assert — after the turn the face is +Y, and it still points up.
         self.assertGreater(nose.z, 0.15)
 
+    def test_prism_is_a_gable_roof_shape(self):
+        # Act — 1 m wide (X), 2 m long (Y), 0.5 m high, ridge along Y.
+        roof = Part("Roof").prism((1.0, 2.0, 0.5), (0, 0, 1.0), "thatch").build()
+
+        # Assert — 6 corners, 5 faces (2 triangles + 3 quads), ridge at the top centre.
+        self.assertEqual(len(roof.data.vertices), 6)
+        self.assertEqual(len(roof.data.polygons), 5)
+        top = max(v.co.z for v in roof.data.vertices)
+        self.assertAlmostEqual(top, 1.25, places=4)
+        self.assertTrue(all(abs(v.co.x) < 1e-4 for v in roof.data.vertices if abs(v.co.z - top) < 1e-4))
+
     def test_faces_are_flat_shaded(self):
         # Act
         obj = Part("Ball").sphere(0.3, (0, 0, 0), "grass").build()

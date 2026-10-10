@@ -45,7 +45,7 @@ Replace the placeholder primitives with a real, coherent look **designed togethe
 
 ### Budgets
 
-- ≤ 2,200 triangles per character (raised from 1,500 after the Prophet review: smooth friendly faces cost ~2k; 30 units on screen ≈ 60k triangles, trivial for the target phones), ≤ 3,000 per building, ≤ 300 per prop/effect.
+- ≤ 2,200 triangles per character (raised from 1,500 after the Prophet review: smooth friendly faces cost ~2k; 30 units on screen ≈ 60k triangles, trivial for the target phones), ≤ 3,000 per building, ≤ 600 per tree/bush/rock (round canopies; ~20 per map), ≤ 300 per other prop/effect.
 - One opaque material (palette texture) plus one emissive variant; GPU instancing on.
 - Performance on the Pixel 10 development build: steady 60 fps in Dusk, ≥ 50 fps during a busy Night.
 
