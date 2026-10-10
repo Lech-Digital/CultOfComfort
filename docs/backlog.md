@@ -9,7 +9,13 @@
 
 - [x] 2026-10-10 — **Prophet threat:** enemies stop to fight him (max 3), Zealot ranged enemy, health/regen/swoon with a revive grace period, Hot Stone Therapy targeted skill. Balance 2026.10.2; demo hash `12c3fe1f0e23fb59`, verified identical on the Pixel 10.
 
+- [x] 2026-10-11 — **Art direction + pipeline:** Muddy Satire / Marchlands / Golden Mud / Manuscript+Junk (spec `docs/superpowers/specs/2026-10-10-art-direction-and-pipeline-design.md`); Blender-scripted assets (`art/`), 65 models (Prophet, raiders, villagers, creatures, Hearth L1–L3, towers, village, nature, 2024 junk, effects); code-driven comic animation (`PartAnimator`); board, raiders, towers and effects use the models with primitive fallback. Gallery: `art/previews/README.md`.
+
 ## Next Sessions
+
+- [ ] On-device check of the art build (frame rate target: 60 fps Dusk, ≥ 50 fps busy Night).
+- [ ] Spec step 3: HUD kit (parchment panels, sticky notes, tape, icons, fonts) and restyled HUD.
+- [ ] Spec step 5: Golden Mud lighting rigs (day/night), colour grading, bloom; store-page screenshots.
 
 - [ ] Enemy roster stats (HP, speed, armor, damage types) and Authority AI personalities.
 - [ ] Full Hearth 1–10 progression curve in a spreadsheet model (income vs. cost vs. time-to-level).

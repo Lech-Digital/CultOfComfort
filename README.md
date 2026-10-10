@@ -97,3 +97,9 @@ Then:
     ./art/build.sh --all         # rebuild everything
 
 Override the Blender location with `BLENDER=/path/to/Blender`.
+
+Review tools (Unity batch mode, `-executeMethod`):
+
+- `CultOfComfort.Editor.AnimationShowcase.RenderProphet` / `RenderCast` → frames in `art/previews/anim/`, then `python3 art/make_gifs.py`.
+- `CultOfComfort.Editor.BoardScreenshot.Render` / `RenderVillage` → `art/previews/board_*.png`, `village_*.png`.
+- `python3 art/make_gallery.py` rebuilds the gallery at `art/previews/README.md`.
