@@ -196,9 +196,22 @@ namespace CultOfComfort.Client
                 }
 
                 var tint = visual.Frightened ? Palette.Fright : visual.Muddied ? Color.Lerp(visual.BaseColor, Palette.Mud, 0.6f) : visual.BaseColor;
-                foreach (var renderer in visual.Renderers)
+                // Only touch renderers when the tint changes, and drop the property block when it is neutral:
+                // a renderer with a block falls out of URP's SRP Batcher, and a raider is ~8 renderers.
+                if (tint != visual.LastTint)
                 {
-                    Shapes.Tint(renderer, tint, _block);
+                    visual.LastTint = tint;
+                    foreach (var renderer in visual.Renderers)
+                    {
+                        if (tint == visual.BaseColor)
+                        {
+                            renderer.SetPropertyBlock(null);
+                        }
+                        else
+                        {
+                            Shapes.Tint(renderer, tint, _block);
+                        }
+                    }
                 }
                 visual.HealthBar.localScale = new Vector3(0.6f * visual.Health, 0.06f, 0.06f);
                 visual.HealthBar.gameObject.SetActive(visual.Health < 0.999f);
@@ -568,6 +581,7 @@ namespace CultOfComfort.Client
             public Transform HealthBar;
             public Renderer HealthBarRenderer;
             public Color BaseColor;
+            public Color LastTint = new Color(-1f, -1f, -1f); // "never tinted": the first frame always applies
             public Vector3 Previous;
             public Vector3 Current;
             public float Health;

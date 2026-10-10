@@ -228,5 +228,86 @@ namespace CultOfComfort.Client.Tests
             Assert.IsNotNull(_instance, $"Run ./art/build.sh {name} first.");
             Assert.IsNotNull(ArtLibrary.FindPart(_instance.transform, part));
         }
+
+        private PartAnimator ProphetAnimator()
+        {
+            _instance = ArtLibrary.Instantiate("prophet", null);
+            var animator = _instance.AddComponent<PartAnimator>();
+            animator.Bind();
+            return animator;
+        }
+
+        [Test]
+        public void PartAnimator_TickWithEmotesRunning_AllocatesNothing()
+        {
+            // Arrange — reviewer finding: method-group delegates were allocated per one-shot per frame.
+            var animator = ProphetAnimator();
+            animator.IsMoving = true;
+            animator.Attack();
+            animator.Annoyed();
+            animator.Tick(1f / 30f, 0f); // warm up
+            var before = System.GC.GetAllocatedBytesForCurrentThread();
+
+            // Act
+            for (var i = 1; i < 30; i++)
+            {
+                animator.Tick(1f / 30f, i / 30f);
+            }
+
+            // Assert
+            Assert.AreEqual(0L, System.GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
+        [Test]
+        public void PartAnimator_EmoteWhileSwooning_IsIgnored()
+        {
+            // Arrange — a rejected order while he lies in the mud must not queue a tantrum for after he gets up.
+            var animator = ProphetAnimator();
+            animator.IsSwooning = true;
+            animator.Tick(1f / 30f, 0f);
+
+            // Act
+            animator.Annoyed();
+            animator.Unimpressed();
+
+            // Assert
+            Assert.IsFalse(animator.IsEmoting);
+        }
+
+        [Test]
+        public void PartAnimator_RefiringAnEmoteMidway_DoesNotSnapBackToRest()
+        {
+            // Arrange — half way through a tantrum the umbrella is above his head.
+            var animator = ProphetAnimator();
+            var umbrella = ArtLibrary.FindPart(_instance.transform, "Umbrella").GetComponent<Renderer>();
+            animator.Annoyed();
+            for (var i = 0; i < 24; i++)
+            {
+                animator.Tick(1f / 30f, i / 30f);
+            }
+
+            // Act — another refusal arrives.
+            animator.Annoyed();
+            animator.Tick(1f / 30f, 0.8f);
+
+            // Assert
+            Assert.Greater(umbrella.bounds.max.y, 1.05f);
+        }
+
+        [Test]
+        public void SurroundingsLayout_DemoMap_KeepsTheForestRingWithinBudget()
+        {
+            // Act — reviewer finding: the scatter placed 157 models (ruling: about 20 trees).
+            var layout = BoardView.SurroundingsLayout(DemoMap.Width, DemoMap.Height);
+
+            // Assert
+            Assert.LessOrEqual(layout.Count, 40);
+            Assert.GreaterOrEqual(layout.Count, 15);
+            foreach (var item in layout)
+            {
+                var inside = item.Tile.X >= 0 && item.Tile.Y >= 0 && item.Tile.X < DemoMap.Width && item.Tile.Y < DemoMap.Height;
+                Assert.IsFalse(inside, $"{item.Model} at {item.Tile} would block the board");
+            }
+        }
     }
 }

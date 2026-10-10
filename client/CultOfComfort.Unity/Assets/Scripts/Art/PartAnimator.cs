@@ -30,6 +30,9 @@ namespace CultOfComfort.Client
         /// <summary>True while he is visibly bored (for tests and the showcase).</summary>
         public bool IsBored => _boredWeight > 0.5f;
 
+        /// <summary>True while any one-shot (attack, hit, annoyed, unimpressed) is playing.</summary>
+        public bool IsEmoting => _attack.Active || _hit.Active || _annoyed.Active || _unimpressed.Active;
+
         public void Bind()
         {
             _body = Find("Body", out _bodyRest);
@@ -46,9 +49,24 @@ namespace CultOfComfort.Client
 
         public void Hit() => _hit.Fire();
 
-        public void Annoyed() => _annoyed.Fire();
+        /// <summary>Ignored while he is fainted or getting up: a tantrum must not queue up for after the revive.</summary>
+        public void Annoyed()
+        {
+            if (!IsDown)
+            {
+                _annoyed.Fire();
+            }
+        }
 
-        public void Unimpressed() => _unimpressed.Fire();
+        public void Unimpressed()
+        {
+            if (!IsDown)
+            {
+                _unimpressed.Fire();
+            }
+        }
+
+        private bool IsDown => IsSwooning || _revive < 1f;
 
         private void Update() => Tick(Time.deltaTime, Time.time);
 
@@ -146,7 +164,14 @@ namespace CultOfComfort.Client
 
             public bool Active => _progress < 1f;
 
-            public void Fire() => _progress = 0f;
+            /// <summary>Starts the one-shot; a repeat trigger while it is playing is ignored rather than snapping it back to rest.</summary>
+            public void Fire()
+            {
+                if (!Active)
+                {
+                    _progress = 0f;
+                }
+            }
 
             public Pose Sample(float dt, System.Func<float, Pose> curve)
             {

@@ -152,23 +152,35 @@ namespace CultOfComfort.Client
 
             Shapes.Create(PrimitiveType.Cube, Palette.Grass, new Vector3((DemoMap.Width - 1) / 2f, -0.22f, -(DemoMap.Height - 1) / 2f),
                 new Vector3(DemoMap.Width + 10f, 0.2f, DemoMap.Height + 10f), _root, "Apron");
-            string[] nature = { "pine", "pine", "oak", "birch", "bush", "pine", "dead_tree", "stump", "rock_b", "bush" };
-            for (var y = -3; y < DemoMap.Height + 3; y++)
+            foreach (var item in SurroundingsLayout(DemoMap.Width, DemoMap.Height))
             {
-                for (var x = -3; x < DemoMap.Width + 3; x++)
+                Place(item.Model, Shapes.ToWorld(item.Tile) + item.Jitter, item.Yaw, item.Scale);
+            }
+        }
+
+        /// <summary>Deterministic scenery placement around (never on) a width × height board.</summary>
+        public static List<(string Model, GridPosition Tile, Vector3 Jitter, float Yaw, float Scale)> SurroundingsLayout(int width, int height)
+        {
+            var layout = new List<(string, GridPosition, Vector3, float, float)>();
+            string[] nature = { "pine", "pine", "oak", "birch", "bush", "pine", "dead_tree", "stump", "rock_b", "bush" };
+            for (var y = -3; y < height + 3; y++)
+            {
+                for (var x = -3; x < width + 3; x++)
                 {
-                    var inside = x >= 0 && y >= 0 && x < DemoMap.Width && y < DemoMap.Height;
+                    var inside = x >= 0 && y >= 0 && x < width && y < height;
                     var hash = (x * 73856093) ^ (y * 19349663);
-                    if (inside || (hash & 3) == 0)
+                    if (inside || (hash & 7) != 1) // ~1 in 8 tiles: a ring of trees, not a wall (≈27 on the demo map)
                     {
                         continue;
                     }
 
                     var jitter = new Vector3((hash >> 4 & 15) / 30f - 0.25f, 0f, (hash >> 8 & 15) / 30f - 0.25f);
                     var pick = nature[(hash >> 12 & 0x7fff) % nature.Length];
-                    Place(pick, Shapes.ToWorld(new GridPosition(x, y)) + jitter, hash >> 16 & 359, 1f + (hash >> 20 & 3) * 0.12f);
+                    layout.Add((pick, new GridPosition(x, y), jitter, hash >> 16 & 359, 1f + (hash >> 20 & 3) * 0.12f));
                 }
             }
+
+            return layout;
         }
 
         private void BuildSpawn()

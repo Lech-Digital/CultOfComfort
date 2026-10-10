@@ -20,19 +20,55 @@ namespace CultOfComfort.Editor
         [MenuItem("Cult of Comfort/Render Board Screenshots")]
         public static void Render()
         {
+            if (!PrepareEditor(out var previous))
+            {
+                return;
+            }
+
             var output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "..", "art", "previews"));
             Shoot(Path.Combine(output, "board_landscape.png"), 1600, 900, 0f);
             Shoot(Path.Combine(output, "board_portrait.png"), 720, 1520, -90f);
             Debug.Log($"[CoC] Board screenshots written to {output}");
+            Restore(previous);
         }
 
         [MenuItem("Cult of Comfort/Render Village Screenshots")]
         public static void RenderVillage()
         {
+            if (!PrepareEditor(out var previous))
+            {
+                return;
+            }
+
             var output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "..", "art", "previews"));
             ShootVillage(Path.Combine(output, "village_day.png"), night: false);
             ShootVillage(Path.Combine(output, "village_night.png"), night: true);
             Debug.Log($"[CoC] Village screenshots written to {output}");
+            Restore(previous);
+        }
+
+        /// <summary>
+        /// Renders happen in a throwaway scene so the game scene is never modified. Offers to save unsaved work first;
+        /// returns false (and does nothing) if the user cancels.
+        /// </summary>
+        private static bool PrepareEditor(out string previousScene)
+        {
+            previousScene = EditorSceneManager.GetActiveScene().path;
+            return Application.isBatchMode || EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo();
+        }
+
+        private static void Restore(string previousScene)
+        {
+            if (!string.IsNullOrEmpty(previousScene))
+            {
+                EditorSceneManager.OpenScene(previousScene, OpenSceneMode.Single);
+            }
+        }
+
+        /// <summary>A fresh untitled scene with a camera and a sun, like the game's (never saved).</summary>
+        private static void NewStage()
+        {
+            EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
         }
 
         /// <summary>
@@ -41,7 +77,7 @@ namespace CultOfComfort.Editor
         /// </summary>
         private static void ShootVillage(string path, bool night)
         {
-            EditorSceneManager.OpenScene("Assets/Scenes/SampleScene.unity", OpenSceneMode.Single);
+            NewStage();
             var ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
             ground.transform.localScale = new Vector3(16f, 0.2f, 12f);
             ground.transform.position = new Vector3(0f, -0.1f, 0f);
@@ -126,7 +162,7 @@ namespace CultOfComfort.Editor
 
         private static void Shoot(string path, int width, int height, float yaw)
         {
-            EditorSceneManager.OpenScene("Assets/Scenes/SampleScene.unity", OpenSceneMode.Single);
+            NewStage();
             var stage = new GameObject("Stage");
             var board = stage.AddComponent<BoardView>();
             var rocks = DemoMap.CreateRocks();
@@ -150,6 +186,11 @@ namespace CultOfComfort.Editor
             for (var i = 0; i < raiders.Length; i++)
             {
                 var step = 3 + i * 3;
+                if (step + 1 >= road.Count)
+                {
+                    break;
+                }
+
                 var at = Shapes.ToWorld(road[step]);
                 var next = Shapes.ToWorld(road[step + 1]);
                 Pose(raiders[i], at, Quaternion.LookRotation(next - at).eulerAngles.y);
