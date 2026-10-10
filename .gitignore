@@ -6,3 +6,6 @@ artifacts/
 *.user
 TestResults/
 .DS_Store
+
+# Brainstorming companion scratch
+.superpowers/
