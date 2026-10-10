@@ -20,6 +20,7 @@ namespace CultOfComfort.Client
         private Transform _leader;
         private Transform _umbrella;
         private Transform _leaderBody;
+        private PartAnimator _prophet;
         private Transform _leaderHealth;
         private Renderer _leaderHealthRenderer;
         private Transform _reachRing;
@@ -56,24 +57,40 @@ namespace CultOfComfort.Client
             _leader.SetParent(_root, false);
             Shapes.Create(PrimitiveType.Cylinder, Palette.Highlight, new Vector3(0f, 0.01f, 0f), new Vector3(0.75f, 0.01f, 0.75f), _leader, "Halo (ironic)");
 
+            var model = ArtLibrary.Instantiate("prophet", _leader);
+            if (model != null)
+            {
+                _prophet = model.AddComponent<PartAnimator>();
+                _prophet.Bind();
+            }
+            else
+            {
+                BuildPlaceholderProphet();
+            }
+
+            var bar = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, 1.3f, 0f), new Vector3(0.7f, 0.07f, 0.07f), _leader, "Prophet Health");
+            _leaderHealth = bar.transform;
+            _leaderHealthRenderer = bar.GetComponent<Renderer>();
+            _reachRing = CreateReachRing((float)BalanceTable.Default.HotStones.Reach.ToDouble());
+            _reachRing.gameObject.SetActive(false);
+
+            _leaderCurrent = _leaderPrevious = Shapes.ToWorld(battle.Leader.Position);
+            _leader.localPosition = _leaderCurrent;
+        }
+
+        /// <summary>Primitive stand-in used until art/build.sh has produced the prophet model.</summary>
+        private void BuildPlaceholderProphet()
+        {
             // Body pivots at the feet so swooning tips him over instead of sinking him into the ground.
             _leaderBody = new GameObject("Body").transform;
             _leaderBody.SetParent(_leader, false);
             Shapes.Create(PrimitiveType.Capsule, Palette.Linen, new Vector3(0f, 0.45f, 0f), new Vector3(0.38f, 0.45f, 0.38f), _leaderBody, "Linen Shirt");
             Shapes.Create(PrimitiveType.Sphere, Shapes.Hex("#e0b48f"), new Vector3(0f, 1.0f, 0f), Vector3.one * 0.28f, _leaderBody, "Tired Face");
-            var bar = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, 1.45f, 0f), new Vector3(0.7f, 0.07f, 0.07f), _leader, "Prophet Health");
-            _leaderHealth = bar.transform;
-            _leaderHealthRenderer = bar.GetComponent<Renderer>();
-            _reachRing = CreateReachRing((float)BalanceTable.Default.HotStones.Reach.ToDouble());
-            _reachRing.gameObject.SetActive(false);
             var umbrellaPivot = new GameObject("Umbrella Pivot").transform;
             umbrellaPivot.SetParent(_leaderBody, false);
             umbrellaPivot.localPosition = new Vector3(0.25f, 0.6f, 0f);
             Shapes.Create(PrimitiveType.Cylinder, Shapes.Hex("#1d1d24"), new Vector3(0f, 0.3f, 0f), new Vector3(0.05f, 0.3f, 0.05f), umbrellaPivot, "Umbrella (2024)");
             _umbrella = umbrellaPivot;
-
-            _leaderCurrent = _leaderPrevious = Shapes.ToWorld(battle.Leader.Position);
-            _leader.localPosition = _leaderCurrent;
         }
 
         /// <summary>While aiming Hot Stones: a ring of pebbles around the Prophet marking how far he can throw.</summary>
@@ -95,6 +112,9 @@ namespace CultOfComfort.Client
             _enemies.Clear();
             _effects.Clear();
             _battle = null;
+            _prophet = null;
+            _leaderBody = null;
+            _umbrella = null;
         }
 
         /// <summary>Call immediately before <see cref="Battle.Step"/>.</summary>
@@ -185,16 +205,27 @@ namespace CultOfComfort.Client
 
             var leader = _battle.Leader;
             var swooning = leader.IsSwooning(_battle.Tick);
-            _leaderTilt = Mathf.MoveTowards(_leaderTilt, swooning ? 1f : 0f, Time.deltaTime * (swooning ? 5f : 2f));
-            _leaderBody.localRotation = Quaternion.Euler(_leaderTilt * 88f, 0f, 0f);
+            if (_prophet != null)
+            {
+                _prophet.IsSwooning = swooning;
+                _prophet.IsMoving = leaderHeading.sqrMagnitude > 0.00001f;
+            }
+            else
+            {
+                _leaderTilt = Mathf.MoveTowards(_leaderTilt, swooning ? 1f : 0f, Time.deltaTime * (swooning ? 5f : 2f));
+                _leaderBody.localRotation = Quaternion.Euler(_leaderTilt * 88f, 0f, 0f);
+            }
             var health = leader.Health / (float)leader.MaxHealth;
             _leaderHealth.localScale = new Vector3(0.7f * health, 0.07f, 0.07f);
             _leaderHealth.gameObject.SetActive(!swooning && health < 0.999f);
             _leaderFlash = Mathf.MoveTowards(_leaderFlash, 0f, Time.deltaTime * 5f);
             Shapes.Tint(_leaderHealthRenderer, Color.Lerp(health > 0.4f ? Palette.HealthGood : Palette.HealthBad, Color.white, _leaderFlash), _block);
 
-            _umbrellaSwing = Mathf.MoveTowards(_umbrellaSwing, 0f, Time.deltaTime * 4f);
-            _umbrella.localRotation = Quaternion.Euler(_umbrellaSwing * 110f, 0f, 0f);
+            if (_umbrella != null)
+            {
+                _umbrellaSwing = Mathf.MoveTowards(_umbrellaSwing, 0f, Time.deltaTime * 4f);
+                _umbrella.localRotation = Quaternion.Euler(_umbrellaSwing * 110f, 0f, 0f);
+            }
 
             for (var i = _effects.Count - 1; i >= 0; i--)
             {
@@ -231,9 +262,18 @@ namespace CultOfComfort.Client
 
                     break;
                 case LeaderAttacked _:
-                    _umbrellaSwing = 1f;
+                    if (_prophet != null)
+                    {
+                        _prophet.Attack();
+                    }
+                    else
+                    {
+                        _umbrellaSwing = 1f;
+                    }
+
                     break;
                 case LeaderHit hit:
+                    _prophet?.Hit();
                     _leaderFlash = 1f;
                     if (hit.Type == EnemyType.Zealot && _enemies.TryGetValue(hit.EnemyId, out var thrower))
                     {
