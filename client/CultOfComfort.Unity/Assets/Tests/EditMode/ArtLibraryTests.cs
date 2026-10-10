@@ -207,5 +207,26 @@ namespace CultOfComfort.Client.Tests
             Assert.IsNotNull(ArtLibrary.FindPart(_instance.transform, "Weapon"));
             Assert.AreEqual(0f, ArtLibrary.FindPart(_instance.transform, "Body").position.y, 0.01f);
         }
+
+        [Test]
+        public void Exists_KnownAndUnknownModels_ReportsCorrectly()
+        {
+            Assert.IsTrue(ArtLibrary.Exists("prophet"));
+            Assert.IsFalse(ArtLibrary.Exists("beige_of_regret"));
+        }
+
+        [TestCase("hearth_l1", "Fire")]
+        [TestCase("sapling_flinger", "Arm")]
+        [TestCase("slurry_chute", "Gate")]
+        [TestCase("torch", "Flame")]
+        public void Instantiate_Scenery_HasItsAnimatedPart(string name, string part)
+        {
+            // Act
+            _instance = ArtLibrary.Instantiate(name, null);
+
+            // Assert
+            Assert.IsNotNull(_instance, $"Run ./art/build.sh {name} first.");
+            Assert.IsNotNull(ArtLibrary.FindPart(_instance.transform, part));
+        }
     }
 }

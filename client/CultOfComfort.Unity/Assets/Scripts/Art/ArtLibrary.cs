@@ -14,6 +14,8 @@ namespace CultOfComfort.Client
         public static Material PaletteMaterial =>
             _palette != null ? _palette : _palette = Resources.Load<Material>("Art/Materials/Palette");
 
+        public static bool Exists(string name) => Resources.Load<GameObject>(ModelFolder + name) != null;
+
         public static GameObject Instantiate(string name, Transform parent)
         {
             var model = Resources.Load<GameObject>(ModelFolder + name);
