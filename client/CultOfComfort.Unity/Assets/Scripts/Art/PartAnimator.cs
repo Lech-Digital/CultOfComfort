@@ -3,20 +3,32 @@ using UnityEngine;
 namespace CultOfComfort.Client
 {
     /// <summary>
-    /// Code-driven animation for Blender-pipeline characters made of named rigid parts (Body, Head, ArmL/R, LegL/R).
-    /// Views set state (moving, swooning) and fire one-shots (attack, hit); this applies <see cref="PartPose"/> each frame.
-    /// Positive X rotation in Unity tips forward, so "backwards" swoon and "forward" swings use the signs below.
+    /// Code-driven, over-acted animation for Blender-pipeline characters made of named rigid parts
+    /// (Body, Head, ArmL/R, LegL/R). Views set state (moving, swooning) and fire one-shots (attack, hit, annoyed,
+    /// unimpressed); left alone for a while he gets visibly bored. Poses come from <see cref="PartPose"/>.
     /// </summary>
     public sealed class PartAnimator : MonoBehaviour
     {
+        private const float BoredAfterSeconds = 4f;
+        private const float SwoonSeconds = 1.7f;
+        private const float ReviveSeconds = 1.3f;
+
         private Transform _body, _head, _armL, _armR, _legL, _legR;
         private Quaternion _bodyRest, _headRest, _armLRest, _armRRest, _legLRest, _legRRest;
         private Vector3 _bodyPosition, _bodyScale;
-        private float _phase, _attack, _hit, _swoon, _revive;
+        private float _phase, _walkWeight, _idleSeconds, _boredWeight;
+        private float _swoon, _revive = 1f;
         private bool _wasSwooning;
+        private readonly OneShot _attack = new OneShot(0.75f);
+        private readonly OneShot _hit = new OneShot(0.45f);
+        private readonly OneShot _annoyed = new OneShot(1.6f);
+        private readonly OneShot _unimpressed = new OneShot(2f);
 
         public bool IsMoving { get; set; }
         public bool IsSwooning { get; set; }
+
+        /// <summary>True while he is visibly bored (for tests and the showcase).</summary>
+        public bool IsBored => _boredWeight > 0.5f;
 
         public void Bind()
         {
@@ -30,9 +42,13 @@ namespace CultOfComfort.Client
             _bodyScale = _body != null ? _body.localScale : Vector3.one;
         }
 
-        public void Attack() => _attack = 1f;
+        public void Attack() => _attack.Fire();
 
-        public void Hit() => _hit = 1f;
+        public void Hit() => _hit.Fire();
+
+        public void Annoyed() => _annoyed.Fire();
+
+        public void Unimpressed() => _unimpressed.Fire();
 
         private void Update() => Tick(Time.deltaTime, Time.time);
 
@@ -44,31 +60,65 @@ namespace CultOfComfort.Client
                 return;
             }
 
-            _phase = IsMoving ? _phase + dt * 12f : Mathf.MoveTowards(_phase, Mathf.Round(_phase / Mathf.PI) * Mathf.PI, dt * 6f);
-            _attack = Mathf.MoveTowards(_attack, 0f, dt * 3.5f);
-            _hit = Mathf.MoveTowards(_hit, 0f, dt * 5f);
-            _swoon = Mathf.MoveTowards(_swoon, IsSwooning ? 1f : 0f, dt * (IsSwooning ? 1.6f : 2.5f));
-            if (_wasSwooning && !IsSwooning)
+            var busy = _attack.Active || _hit.Active || _annoyed.Active || _unimpressed.Active;
+            _idleSeconds = IsMoving || IsSwooning || busy ? 0f : _idleSeconds + dt;
+            _boredWeight = Mathf.MoveTowards(_boredWeight, _idleSeconds > BoredAfterSeconds ? 1f : 0f, dt * 2f);
+            _walkWeight = Mathf.MoveTowards(_walkWeight, IsMoving ? 1f : 0f, dt * 6f);
+            _phase += dt * 11f * _walkWeight;
+
+            if (IsSwooning && !_wasSwooning)
             {
-                _revive = 1f; // he gets up and brushes himself off
+                _swoon = 0f;
+            }
+
+            if (!IsSwooning && _wasSwooning)
+            {
+                _revive = 0f; // springs up and brushes himself off
             }
 
             _wasSwooning = IsSwooning;
-            _revive = _swoon > 0f ? _revive : Mathf.MoveTowards(_revive, 0f, dt * 1.5f);
+            _swoon = IsSwooning ? Mathf.Min(1f, _swoon + dt / SwoonSeconds) : _swoon;
+            _revive = Mathf.Min(1f, _revive + dt / ReviveSeconds);
 
-            var swing = PartPose.ArmSwing(_phase, IsMoving);
-            _body.localRotation = _bodyRest * Quaternion.Euler(-PartPose.SwoonTilt(_swoon), PartPose.ReviveShake(_revive), 0f);
-            _body.localPosition = _bodyPosition + Vector3.up * PartPose.WalkBob(_phase);
-            _body.localScale = Vector3.Scale(_bodyScale, new Vector3(1f, PartPose.HitSquash(_hit), 1f));
-            Rotate(_armL, _armLRest, swing);
-            Rotate(_armR, _armRRest, -swing + PartPose.AttackSwing(_attack));
-            Rotate(_legL, _legLRest, -swing * 0.6f);
-            Rotate(_legR, _legRRest, swing * 0.6f);
+            Pose pose;
+            if (IsSwooning)
+            {
+                pose = PartPose.Swoon(_swoon);
+            }
+            else if (_revive < 1f)
+            {
+                pose = PartPose.Revive(_revive);
+            }
+            else
+            {
+                pose = Pose.Add(Pose.Scale(PartPose.Walk(_phase), _walkWeight),
+                    Pose.Scale(PartPose.Bored(_idleSeconds - BoredAfterSeconds), _boredWeight));
+                pose = Pose.Add(pose, _attack.Sample(dt, PartPose.Attack));
+                pose = Pose.Add(pose, _annoyed.Sample(dt, PartPose.Annoyed));
+                pose = Pose.Add(pose, _unimpressed.Sample(dt, PartPose.Unimpressed));
+            }
+
+            pose = Pose.Add(pose, _hit.Sample(dt, PartPose.Hit));
+            Apply(pose);
+        }
+
+        private void Apply(Pose pose)
+        {
+            _body.localRotation = _bodyRest * Quaternion.Euler(pose.BodyTilt, pose.BodyYaw, pose.BodyRoll);
+            _body.localPosition = _bodyPosition + Vector3.up * pose.Lift;
+            var bulge = 1f + (1f - pose.Squash) * 0.5f; // squash and stretch keeps the volume, cartoon-style
+            _body.localScale = Vector3.Scale(_bodyScale, new Vector3(bulge, pose.Squash, bulge));
             if (_head != null)
             {
-                var glance = IsMoving || IsSwooning ? 0f : Mathf.Sin(time * 0.7f) * 10f; // idly unimpressed
-                _head.localRotation = _headRest * Quaternion.Euler(0f, glance, 0f);
+                _head.localRotation = _headRest * Quaternion.Euler(pose.HeadTilt, pose.HeadYaw, pose.HeadRoll);
             }
+
+            // Limbs hang down (−Y), so a forward swing is a negative X rotation. "Out" is away from the body:
+            // the left arm (−X side) goes out with a negative Z rotation, the right arm with a positive one.
+            Limb(_armL, _armLRest, pose.ArmLForward, -pose.ArmLOut);
+            Limb(_armR, _armRRest, pose.ArmRForward, pose.ArmROut);
+            Limb(_legL, _legLRest, pose.LegLForward, 0f);
+            Limb(_legR, _legRRest, pose.LegRForward, 0f);
         }
 
         private Transform Find(string part, out Quaternion rest)
@@ -78,11 +128,35 @@ namespace CultOfComfort.Client
             return found;
         }
 
-        private static void Rotate(Transform part, Quaternion rest, float forwardDegrees)
+        private static void Limb(Transform part, Quaternion rest, float forward, float outward)
         {
             if (part != null)
             {
-                part.localRotation = rest * Quaternion.Euler(forwardDegrees, 0f, 0f);
+                part.localRotation = rest * Quaternion.Euler(-forward, 0f, outward);
+            }
+        }
+
+        /// <summary>A timed one-shot animation: progress runs 0→1 over its duration after <see cref="Fire"/>.</summary>
+        private sealed class OneShot
+        {
+            private readonly float _seconds;
+            private float _progress = 1f;
+
+            public OneShot(float seconds) => _seconds = seconds;
+
+            public bool Active => _progress < 1f;
+
+            public void Fire() => _progress = 0f;
+
+            public Pose Sample(float dt, System.Func<float, Pose> curve)
+            {
+                if (!Active)
+                {
+                    return Pose.Rest;
+                }
+
+                _progress = Mathf.Min(1f, _progress + dt / _seconds);
+                return curve(_progress);
             }
         }
     }

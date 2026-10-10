@@ -289,6 +289,11 @@ namespace CultOfComfort.Client
                     Announcement?.Invoke("He's up. Muddy, offended, and back in charge.");
                     break;
                 case HotStonesThrown thrown:
+                    if (thrown.EnemiesAffected == 0)
+                    {
+                        _prophet?.Unimpressed();
+                    }
+
                     SpawnHotStones(_leaderCurrent, Shapes.ToWorld(thrown.Target));
                     Announcement?.Invoke(thrown.EnemiesAffected == 0
                         ? "Hot stones, thrown at nothing. The grass is now exfoliated."
@@ -303,18 +308,25 @@ namespace CultOfComfort.Client
                     Announcement?.Invoke($"Sluice gate opened. {used.EnemiesAffected} soldiers rediscover mud at speed.");
                     break;
                 case InterventionUsed { Type: PlayerActionType.PhantomVoice } used:
+                    if (used.EnemiesAffected == 0)
+                    {
+                        _prophet?.Unimpressed();
+                    }
+
                     SpawnShout();
                     Announcement?.Invoke(used.EnemiesAffected == 0
                         ? "He shouted into a tin can at nobody. The cultists exchanged looks."
                         : $"A disembodied voice told {used.EnemiesAffected} soldiers to go home. They did.");
                     break;
                 case InputRejected rejected:
+                    _prophet?.Annoyed(); // he takes refusals personally
                     Announcement?.Invoke(rejected.Reason);
                     break;
                 case WaveStarted wave:
                     Announcement?.Invoke($"Wave {wave.Wave} of {_battle.WaveCount}. Lord Wulfric remains unconvinced.");
                     break;
                 case HearthDamaged damaged:
+                    _prophet?.Unimpressed();
                     _shake = 0.25f;
                     Announcement?.Invoke(damaged.Type switch
                     {

@@ -126,5 +126,64 @@ namespace CultOfComfort.Client.Tests
             Assert.Less(head.position.z, standingHeadZ - 0.4f);
             Assert.Less(head.position.y, 0.35f);
         }
+
+        [Test]
+        public void PartAnimator_Attack_SwingsTheUmbrellaForward()
+        {
+            // Arrange — reviewer finding: a positive X rotation swings a hanging arm backwards.
+            _instance = ArtLibrary.Instantiate("prophet", null);
+            var animator = _instance.AddComponent<PartAnimator>();
+            animator.Bind();
+            var umbrella = ArtLibrary.FindPart(_instance.transform, "Umbrella");
+            var restZ = umbrella.position.z;
+
+            // Act — run into the smash (about half way through the attack).
+            animator.Attack();
+            for (var i = 0; i < 12; i++)
+            {
+                animator.Tick(1f / 30f, i / 30f);
+            }
+
+            // Assert — the model faces +Z, so a forward smash moves the umbrella towards +Z.
+            Assert.Greater(umbrella.position.z, restZ + 0.15f);
+        }
+
+        [Test]
+        public void PartAnimator_LeftIdle_GetsBored()
+        {
+            // Arrange
+            _instance = ArtLibrary.Instantiate("prophet", null);
+            var animator = _instance.AddComponent<PartAnimator>();
+            animator.Bind();
+
+            // Act — six seconds of nothing.
+            for (var i = 0; i < 180; i++)
+            {
+                animator.Tick(1f / 30f, i / 30f);
+            }
+
+            // Assert
+            Assert.IsTrue(animator.IsBored);
+        }
+
+        [Test]
+        public void PartAnimator_Annoyed_ShakesTheUmbrellaAboveHisHead()
+        {
+            // Arrange
+            _instance = ArtLibrary.Instantiate("prophet", null);
+            var animator = _instance.AddComponent<PartAnimator>();
+            animator.Bind();
+            var umbrella = ArtLibrary.FindPart(_instance.transform, "Umbrella").GetComponent<Renderer>();
+
+            // Act — half way through the tantrum.
+            animator.Annoyed();
+            for (var i = 0; i < 24; i++)
+            {
+                animator.Tick(1f / 30f, i / 30f);
+            }
+
+            // Assert — the head tops out at ~1.0 m; the shaken umbrella must poke above it.
+            Assert.Greater(umbrella.bounds.max.y, 1.05f);
+        }
     }
 }

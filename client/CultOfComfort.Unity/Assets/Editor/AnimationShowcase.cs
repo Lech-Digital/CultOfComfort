@@ -29,15 +29,15 @@ namespace CultOfComfort.Editor
                 throw new InvalidOperationException("No prophet model: run ./art/build.sh prophet first.");
             }
 
-            var animator = model.AddComponent<PartAnimator>();
-            animator.Bind();
             var output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "..", "art", "previews", "anim"));
 
-            Render(camera, animator, output, "idle", 3f, (_, __) => { });
-            Render(camera, animator, output, "walk", 1.6f, (a, _) => a.IsMoving = true);
-            Render(camera, animator, output, "attack", 1.4f, (a, t) => Once(t, 0.2f, a.Attack));
-            Render(camera, animator, output, "hit", 1.2f, (a, t) => Once(t, 0.2f, a.Hit));
-            Render(camera, animator, output, "swoon_revive", 3.6f, (a, t) => a.IsSwooning = t > 0.3f && t < 2f);
+            Render(camera, model, output, "bored", 10.5f, (_, __) => { }); // gets bored after 4 s of nothing
+            Render(camera, model, output, "walk", 1.6f, (a, _) => a.IsMoving = true);
+            Render(camera, model, output, "attack", 1.2f, (a, t) => Once(t, 0.15f, a.Attack));
+            Render(camera, model, output, "hit", 1f, (a, t) => Once(t, 0.15f, a.Hit));
+            Render(camera, model, output, "annoyed", 2f, (a, t) => Once(t, 0.15f, a.Annoyed));
+            Render(camera, model, output, "unimpressed", 2.4f, (a, t) => Once(t, 0.15f, a.Unimpressed));
+            Render(camera, model, output, "swoon_revive", 4.6f, (a, t) => a.IsSwooning = t > 0.3f && t < 2.8f);
             Debug.Log($"[CoC] Animation frames written to {output}");
         }
 
@@ -73,8 +73,18 @@ namespace CultOfComfort.Editor
             return camera;
         }
 
-        private static void Render(Camera camera, PartAnimator animator, string output, string clip, float seconds, Action<PartAnimator, float> script)
+        private static void Render(Camera camera, GameObject model, string output, string clip, float seconds, Action<PartAnimator, float> script)
         {
+            // A fresh animator per clip: rest pose, no leftover idle/bored timers.
+            var old = model.GetComponent<PartAnimator>();
+            if (old != null)
+            {
+                UnityEngine.Object.DestroyImmediate(old);
+            }
+
+            var animator = model.AddComponent<PartAnimator>();
+            animator.Bind();
+
             var folder = Path.Combine(output, clip);
             if (Directory.Exists(folder))
             {
@@ -82,12 +92,6 @@ namespace CultOfComfort.Editor
             }
 
             Directory.CreateDirectory(folder);
-            animator.IsMoving = false;
-            animator.IsSwooning = false;
-            for (var i = 0; i < 40; i++)
-            {
-                animator.Tick(1f / Fps, 0f); // settle back to rest between clips
-            }
 
             var target = new RenderTexture(Size, Size, 24) { antiAliasing = 4 };
             var image = new Texture2D(Size, Size, TextureFormat.RGB24, false);
