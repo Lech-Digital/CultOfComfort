@@ -64,6 +64,26 @@ class MeshTests(unittest.TestCase):
         # Assert
         self.assertFalse(any(p.use_smooth for p in obj.data.polygons))
 
+    def test_smooth_pieces_are_smooth_and_others_stay_flat(self):
+        # Act — skin reads as soft and human when smooth; clothes and props keep the chunky facets.
+        obj = (Part("Head")
+               .sphere(0.2, (0, 0, 0), "prophet_skin", smooth=True)
+               .box((0.1, 0.1, 0.1), (0, 0, 0.3), "linen", bevel=0)
+               .build())
+
+        # Assert
+        smooth = [p.use_smooth for p in obj.data.polygons]
+        self.assertEqual(smooth.count(False), 6)  # the unbevelled box
+        self.assertTrue(smooth.count(True) > 6)
+
+    def test_rounded_box_has_more_faces_than_sharp_bevel(self):
+        # Act
+        sharp = Part("A").box((0.3, 0.3, 0.3), (0, 0, 0), "linen", bevel=0.03).build()
+        rounded = Part("B").box((0.3, 0.3, 0.3), (0, 0, 0), "linen", bevel=0.03, bevel_segments=2).build()
+
+        # Assert
+        self.assertGreater(len(rounded.data.polygons), len(sharp.data.polygons))
+
     def test_marker_is_parented_empty(self):
         # Arrange
         parent = root("thing")

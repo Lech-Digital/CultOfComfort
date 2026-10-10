@@ -69,36 +69,37 @@ class Part:
 
     # ---- pieces -------------------------------------------------------------------------------------------
 
-    def box(self, size, center, swatch, bevel=0.015, rotation=(0, 0, 0)):
+    def box(self, size, center, swatch, bevel=0.015, rotation=(0, 0, 0), bevel_segments=1, smooth=False):
+        """`bevel_segments` > 1 rounds the edges (softer, friendlier); `smooth` shades it like skin, not wood."""
         piece = bmesh.new()
         bmesh.ops.create_cube(piece, size=1.0)
         bmesh.ops.scale(piece, vec=Vector(size), verts=piece.verts)
         if bevel > 0:
             bmesh.ops.bevel(piece, geom=list(piece.verts) + list(piece.edges), offset=bevel, offset_type="OFFSET",
-                            segments=1, profile=0.5, affect="EDGES", clamp_overlap=True)
-        return self._add(piece, center, swatch, rotation)
+                            segments=bevel_segments, profile=0.5, affect="EDGES", clamp_overlap=True)
+        return self._add(piece, center, swatch, rotation, smooth)
 
-    def cylinder(self, radius, depth, center, swatch, segments=8, radius_top=None, rotation=(0, 0, 0)):
+    def cylinder(self, radius, depth, center, swatch, segments=8, radius_top=None, rotation=(0, 0, 0), smooth=False):
         piece = bmesh.new()
         bmesh.ops.create_cone(piece, cap_ends=True, cap_tris=False, segments=segments, radius1=radius,
                               radius2=radius if radius_top is None else radius_top, depth=depth)
-        return self._add(piece, center, swatch, rotation)
+        return self._add(piece, center, swatch, rotation, smooth)
 
-    def sphere(self, radius, center, swatch, segments=10, rings=7, scale=(1, 1, 1)):
+    def sphere(self, radius, center, swatch, segments=10, rings=7, scale=(1, 1, 1), rotation=(0, 0, 0), smooth=False):
         piece = bmesh.new()
         bmesh.ops.create_uvsphere(piece, u_segments=segments, v_segments=rings, radius=radius)
         bmesh.ops.scale(piece, vec=Vector(scale), verts=piece.verts)
-        return self._add(piece, center, swatch, (0, 0, 0))
+        return self._add(piece, center, swatch, rotation, smooth)
 
     # ---- assembly -----------------------------------------------------------------------------------------
 
-    def _add(self, piece, center, swatch, rotation):
+    def _add(self, piece, center, swatch, rotation, smooth=False):
         u, v = palette.uv(swatch)  # KeyError for unknown swatches, before any geometry is merged
         rot = Euler(tuple(math.radians(a) for a in rotation), "XYZ").to_matrix().to_4x4()
         bmesh.ops.transform(piece, matrix=Matrix.Translation(Vector(center) - self.pivot) @ rot, verts=piece.verts)
         layer = piece.loops.layers.uv.verify()
         for face in piece.faces:
-            face.smooth = False
+            face.smooth = smooth
             for loop in face.loops:
                 loop[layer].uv = (u, v)
         mesh = bpy.data.meshes.new("_piece")
@@ -112,8 +113,6 @@ class Part:
         mesh = bpy.data.meshes.new(self.name)
         self.bm.to_mesh(mesh)
         self.bm.free()
-        for polygon in mesh.polygons:
-            polygon.use_smooth = False
         mesh.materials.append(palette_material())
         obj = _link(bpy.data.objects.new(self.name, mesh), self.parent)
         # Pivots are given in model space; a child stores its location relative to its parent.
