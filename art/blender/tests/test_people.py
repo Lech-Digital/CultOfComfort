@@ -33,6 +33,12 @@ class PeopleTests(unittest.TestCase):
         # Assert
         checks.verify(monk, 2200, REQUIRED_PARTS)
 
+    def test_build_person_long_hair_bun_and_beard_variants_build(self):
+        for look in (Look(hair_style="long", hair="thatch"), Look(hair_style="bun", hair="worn_stone"), Look(beard=True)):
+            with self.subTest(look.hair_style):
+                scene.reset()
+                checks.verify(build_person("variant", look), 2200, REQUIRED_PARTS)
+
     def test_prop_attaches_to_the_named_part(self):
         # Arrange
         def stick(parts, d):

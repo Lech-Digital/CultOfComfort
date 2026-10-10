@@ -20,12 +20,13 @@ class Look:
     girth: float = 1.0               # torso width multiplier (1.2 = well-fed man-at-arms)
     skin: str = "local_skin"
     hair: str | None = "old_wood"    # swatch, or None
-    hair_style: str = "short"        # short | messy | tonsure | bald | none (hat/hood/helmet supplies the top)
+    hair_style: str = "short"        # short | messy | long | bun | tonsure | bald | none (hat/hood/helmet supplies the top)
     brows: float = 10.0              # degrees; > 0 inner ends up (tired, worried), < 0 down (cross)
     brow_colour: str | None = None   # defaults to the hair colour
     mouth: float = 0.0               # curvature in metres-ish: > 0 smile, < 0 frown, 0 flat
     eye_size: float = 1.0            # 1.2 = wide-eyed zealot
     moustache: bool = False
+    beard: bool = False              # full chin beard (with the moustache drawn on top)
     torso: str = "linen"
     sleeves: str | None = None       # defaults to torso
     legs: str = "linen"
@@ -130,8 +131,13 @@ def _face(head, look, d):
     hair = look.hair
     brow = look.brow_colour or hair or "old_wood"
 
-    if hair and look.hair_style in ("short", "messy"):
+    if hair and look.hair_style in ("short", "messy", "long", "bun"):
         head.sphere(r * 1.075, (0, 0.04 * k, c + 0.075 * k), hair, segments=20, rings=10, scale=(1.03, 0.98, 0.72), smooth=True)
+        if look.hair_style == "long":
+            # Hair falling down the back past the shoulders.
+            head.sphere(r * 0.95, (0, 0.11 * k, c - 0.12 * k), hair, segments=12, rings=8, scale=(1.0, 0.55, 1.2), smooth=True)
+        elif look.hair_style == "bun":
+            head.sphere(r * 0.42, (0, 0.13 * k, c + 0.16 * k), hair, segments=10, rings=7, smooth=True)
         if look.hair_style == "messy":
             head.sphere(0.05 * k, (0.03 * k, 0.09 * k, c + 0.205 * k), hair, segments=6, rings=5, scale=(1.2, 0.8, 0.7), smooth=True)
     elif hair and look.hair_style == "tonsure":
@@ -156,7 +162,10 @@ def _face(head, look, d):
 
     head.sphere(0.024 * k, (0, d.face_y(0, c - 0.04 * k, inset=-0.006), c - 0.04 * k), look.skin, segments=8, rings=6, smooth=True)
 
-    if look.moustache:
+    if look.beard:
+        head.sphere(r * 0.62, (0, d.face_y(0, c - 0.12 * k, inset=0.02) + 0.03 * k, c - 0.13 * k), hair or "old_wood",
+                    segments=12, rings=8, scale=(1.15, 0.8, 0.95), smooth=True)
+    if look.moustache or look.beard:
         for side in (-1, 1):
             x, z = side * 0.035 * k, c - 0.07 * k
             head.sphere(0.035 * k, (x, d.face_y(x, z, inset=-0.01), z), hair or "old_wood", segments=8, rings=5,
