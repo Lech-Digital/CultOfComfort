@@ -15,8 +15,11 @@ SECTIONS = [
     ("Creatures", ["pig", "sheep", "goat", "cow", "dog", "cat", "goose", "chicken"], "model"),
     ("Hearth and towers", ["hearth_l1", "hearth_l2", "hearth_l3", "sapling_flinger", "slurry_chute"], "model"),
     ("Village", ["woodcutter", "peat_cut", "cistern", "storage_hut", "cultist_hut", "well", "sauna"], "model"),
-    ("Nature and props", ["pine", "oak", "birch", "dead_tree", "bush", "stump", "rock_a", "rock_b", "traffic_cone", "torch",
-                          "spawn_gate", "props_barrels", "fence", "palisade"], "model"),
+    ("Nature and props", ["pine", "oak", "birch", "dead_tree", "bush", "stump", "rock_a", "rock_b", "torch",
+                          "spawn_gate", "props_barrels", "fence", "palisade", "wheelbarrow", "haycart", "scarecrow", "signpost",
+                          "beehive", "campfire", "outhouse"], "model"),
+    ("2024 junk", ["rubber_duck", "bathtub", "garden_chair", "shopping_trolley", "traffic_cone"], "model"),
+    ("Battle effects", ["fx_mud_glob", "fx_splat", "fx_rock", "fx_hot_stone", "fx_hymnal", "fx_poof"], "model"),
 ]
 
 
