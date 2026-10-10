@@ -185,5 +185,27 @@ namespace CultOfComfort.Client.Tests
             // Assert — the head tops out at ~1.0 m; the shaken umbrella must poke above it.
             Assert.Greater(umbrella.bounds.max.y, 1.05f);
         }
+
+        [TestCase("levy")]
+        [TestCase("manatarms")]
+        [TestCase("zealot")]
+        public void Instantiate_Enemy_IsALocalSizedPersonFacingPlusZWithAWeapon(string name)
+        {
+            // Act
+            _instance = ArtLibrary.Instantiate(name, null);
+
+            // Assert
+            Assert.IsNotNull(_instance, $"Run ./art/build.sh {name} first.");
+            var bounds = new Bounds(_instance.transform.position, Vector3.zero);
+            foreach (var renderer in _instance.GetComponentsInChildren<Renderer>())
+            {
+                bounds.Encapsulate(renderer.bounds);
+            }
+
+            Assert.AreEqual(0.85f, bounds.size.y, 0.15f, "locals are about 0.8 m");
+            Assert.Greater(ArtLibrary.FindPart(_instance.transform, "Front").position.z, 0.15f);
+            Assert.IsNotNull(ArtLibrary.FindPart(_instance.transform, "Weapon"));
+            Assert.AreEqual(0f, ArtLibrary.FindPart(_instance.transform, "Body").position.y, 0.01f);
+        }
     }
 }

@@ -181,8 +181,14 @@ namespace CultOfComfort.Client
                 var position = Vector3.Lerp(visual.Previous, visual.Current, alpha);
                 var heading = visual.Fighting ? _leader.localPosition - position : visual.Current - visual.Previous;
                 heading.y = 0f;
-                var lunge = visual.Fighting ? Mathf.Max(0f, Mathf.Sin(Time.time * 9f + visual.Phase)) * 0.18f : 0f;
-                var bob = Mathf.Abs(Mathf.Sin(Time.time * 12f + visual.Phase)) * 0.06f;
+                var animated = visual.Animator != null;
+                var lunge = visual.Fighting && !animated ? Mathf.Max(0f, Mathf.Sin(Time.time * 9f + visual.Phase)) * 0.18f : 0f;
+                var bob = animated ? 0f : Mathf.Abs(Mathf.Sin(Time.time * 12f + visual.Phase)) * 0.06f;
+                if (animated)
+                {
+                    visual.Animator.IsMoving = !visual.Fighting && (visual.Current - visual.Previous).sqrMagnitude > 0.000001f;
+                }
+
                 visual.Root.localPosition = position + Vector3.up * bob + (heading.sqrMagnitude > 0.0001f ? heading.normalized * lunge : Vector3.zero);
                 if (heading.sqrMagnitude > 0.00001f)
                 {
@@ -190,7 +196,10 @@ namespace CultOfComfort.Client
                 }
 
                 var tint = visual.Frightened ? Palette.Fright : visual.Muddied ? Color.Lerp(visual.BaseColor, Palette.Mud, 0.6f) : visual.BaseColor;
-                Shapes.Tint(visual.Body, tint, _block);
+                foreach (var renderer in visual.Renderers)
+                {
+                    Shapes.Tint(renderer, tint, _block);
+                }
                 visual.HealthBar.localScale = new Vector3(0.6f * visual.Health, 0.06f, 0.06f);
                 visual.HealthBar.gameObject.SetActive(visual.Health < 0.999f);
                 Shapes.Tint(visual.HealthBarRenderer, visual.Health > 0.4f ? Palette.HealthGood : Palette.HealthBad, _block);
@@ -248,6 +257,7 @@ namespace CultOfComfort.Client
             switch (battleEvent)
             {
                 case TowerFired fired when _enemies.TryGetValue(fired.TargetId, out var target):
+                    target.Animator?.Hit();
                     var tower = _towers[fired.TowerId];
                     var from = Shapes.ToWorld(tower.Position);
                     var to = target.Current;
@@ -274,6 +284,11 @@ namespace CultOfComfort.Client
                     break;
                 case LeaderHit hit:
                     _prophet?.Hit();
+                    if (_enemies.TryGetValue(hit.EnemyId, out var attacker))
+                    {
+                        attacker.Animator?.Attack();
+                    }
+
                     _leaderFlash = 1f;
                     if (hit.Type == EnemyType.Zealot && _enemies.TryGetValue(hit.EnemyId, out var thrower))
                     {
@@ -341,8 +356,41 @@ namespace CultOfComfort.Client
             }
         }
 
+        private static string ModelName(EnemyType type) => type switch
+        {
+            EnemyType.ManAtArms => "manatarms",
+            EnemyType.Zealot => "zealot",
+            _ => "levy",
+        };
+
         private EnemyVisual CreateEnemy(Enemy enemy)
         {
+            var model = ArtLibrary.Instantiate(ModelName(enemy.Type), null);
+            if (model != null)
+            {
+                var modelRoot = new GameObject($"{enemy.Type} #{enemy.Id}").transform;
+                modelRoot.SetParent(_root, false);
+                model.transform.SetParent(modelRoot, false);
+                var animator = model.AddComponent<PartAnimator>();
+                animator.Bind();
+                var modelBar = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, 1.1f, 0f), new Vector3(0.6f, 0.06f, 0.06f), modelRoot, "Health");
+                var start = Shapes.ToWorld(_battle.PositionOf(enemy));
+                modelRoot.localPosition = start;
+                return new EnemyVisual
+                {
+                    Root = modelRoot,
+                    Renderers = model.GetComponentsInChildren<Renderer>(),
+                    Animator = animator,
+                    HealthBar = modelBar.transform,
+                    HealthBarRenderer = modelBar.GetComponent<Renderer>(),
+                    BaseColor = Color.white, // the palette texture carries the colour; tints multiply it
+                    Previous = start,
+                    Current = start,
+                    Health = 1f,
+                    Phase = enemy.Id * 1.7f,
+                };
+            }
+
             var heavy = enemy.Type == EnemyType.ManAtArms;
             var zealot = enemy.Type == EnemyType.Zealot;
             var color = heavy ? Palette.ManAtArms : zealot ? Palette.Zealot : Palette.Levy;
@@ -372,7 +420,7 @@ namespace CultOfComfort.Client
             return new EnemyVisual
             {
                 Root = root,
-                Body = body.GetComponent<Renderer>(),
+                Renderers = new[] { body.GetComponent<Renderer>() },
                 HealthBar = bar.transform,
                 HealthBarRenderer = bar.GetComponent<Renderer>(),
                 BaseColor = color,
@@ -500,7 +548,8 @@ namespace CultOfComfort.Client
         private sealed class EnemyVisual
         {
             public Transform Root;
-            public Renderer Body;
+            public Renderer[] Renderers;
+            public PartAnimator Animator;
             public Transform HealthBar;
             public Renderer HealthBarRenderer;
             public Color BaseColor;
