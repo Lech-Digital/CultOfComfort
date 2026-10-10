@@ -4,7 +4,7 @@ import math
 import bpy
 from mathutils import Vector
 
-from lib.mesh import Part
+from lib.mesh import TURN, Part
 
 GAME_ELEVATION = math.degrees(math.atan2(16.5, 10.4))  # matches CameraRig's offset (0, 16.5, -10.4)
 
@@ -41,6 +41,14 @@ def _world(color, strength):
     bpy.context.scene.world = world
 
 
+def _ground(lo, hi):
+    """A grass slab under the model. Part expects authoring-space coordinates (it applies TURN), so convert back."""
+    centre = (lo + hi) / 2
+    extent = max(hi.x - lo.x, hi.y - lo.y, hi.z - lo.z)
+    authoring = TURN.inverted() @ Vector((centre.x, centre.y, lo.z - 0.01))
+    return Part("PreviewGround").box((extent * 4, extent * 4, 0.02), tuple(authoring), "grass", bevel=0).build()
+
+
 def render(root, day_path, night_path, size=512):
     bpy.context.view_layer.update()  # matrix_world is stale until the depsgraph runs
     scene = bpy.context.scene
@@ -52,7 +60,7 @@ def render(root, day_path, night_path, size=512):
     lo, hi = _bounds(root)
     centre = (lo + hi) / 2
     extent = max(hi.x - lo.x, hi.y - lo.y, hi.z - lo.z)
-    ground = Part("PreviewGround").box((extent * 4, extent * 4, 0.02), (centre.x, centre.y, lo.z - 0.01), "grass", bevel=0).build()
+    ground = _ground(lo, hi)
 
     camera_data = bpy.data.cameras.new("PreviewCamera")
     camera_data.type = "ORTHO"
