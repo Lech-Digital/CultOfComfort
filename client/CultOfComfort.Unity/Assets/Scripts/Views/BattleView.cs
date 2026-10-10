@@ -433,7 +433,7 @@ namespace CultOfComfort.Client
 
         private void SpawnRock(Vector3 from, Vector3 to, bool critical)
         {
-            var rock = Shapes.Create(PrimitiveType.Sphere, Palette.Stone, from, Vector3.one * 0.16f, _root, "Flung Rock");
+            var rock = Fx("fx_rock", from) ?? Shapes.Create(PrimitiveType.Sphere, Palette.Stone, from, Vector3.one * 0.16f, _root, "Flung Rock");
             var start = from + Vector3.up * 1f;
             AddEffect(rock, 0.3f, (go, t) =>
             {
@@ -449,14 +449,15 @@ namespace CultOfComfort.Client
 
         private void SpawnMudSplat(Vector3 from, Vector3 to)
         {
-            var glob = Shapes.Create(PrimitiveType.Sphere, Palette.Mud, from, Vector3.one * 0.25f, _root, "Slurry");
+            var glob = Fx("fx_mud_glob", from) ?? Shapes.Create(PrimitiveType.Sphere, Palette.Mud, from, Vector3.one * 0.25f, _root, "Slurry");
             var start = from + Vector3.up * 1f;
             AddEffect(glob, 0.25f, (go, t) => go.transform.localPosition = Vector3.Lerp(start, to, t) + Vector3.up * Mathf.Sin(t * Mathf.PI) * 0.8f);
-            var splat = Shapes.Create(PrimitiveType.Cylinder, Palette.Mud, to + Vector3.up * 0.02f, Vector3.zero, _root, "Splat");
+            var splatModel = Fx("fx_splat", to + Vector3.up * 0.01f);
+            var splat = splatModel ?? Shapes.Create(PrimitiveType.Cylinder, Palette.Mud, to + Vector3.up * 0.02f, Vector3.zero, _root, "Splat");
             AddEffect(splat, 0.9f, (go, t) =>
             {
                 var size = t < 0.3f ? t / 0.3f * 2f : 2f;
-                go.transform.localScale = new Vector3(size, 0.01f, size);
+                go.transform.localScale = splatModel != null ? new Vector3(size * 0.55f, 1f, size * 0.55f) : new Vector3(size, 0.01f, size);
                 go.SetActive(t > 0.25f);
             });
         }
@@ -485,7 +486,7 @@ namespace CultOfComfort.Client
 
         private void SpawnHymnal(Vector3 from, Vector3 to)
         {
-            var book = Shapes.Create(PrimitiveType.Cube, Shapes.Hex("#3b2a1c"), from, new Vector3(0.16f, 0.06f, 0.2f), _root, "Hymnal");
+            var book = Fx("fx_hymnal", from) ?? Shapes.Create(PrimitiveType.Cube, Shapes.Hex("#3b2a1c"), from, new Vector3(0.16f, 0.06f, 0.2f), _root, "Hymnal");
             var start = from + Vector3.up * 0.6f;
             var end = to + Vector3.up * 0.8f;
             AddEffect(book, 0.45f, (go, t) =>
@@ -501,7 +502,7 @@ namespace CultOfComfort.Client
             for (var i = 0; i < 4; i++)
             {
                 var offset = Quaternion.Euler(0f, i * 90f + 45f, 0f) * Vector3.forward * (i == 0 ? 0f : 0.45f);
-                var stone = Shapes.Create(PrimitiveType.Sphere, Palette.HotStone, from, Vector3.one * 0.2f, _root, "Hot Stone");
+                var stone = Fx("fx_hot_stone", from) ?? Shapes.Create(PrimitiveType.Sphere, Palette.HotStone, from, Vector3.one * 0.2f, _root, "Hot Stone");
                 var start = from + Vector3.up * 1.1f;
                 var end = to + offset + Vector3.up * 0.1f;
                 var delay = i * 0.06f;
@@ -538,8 +539,22 @@ namespace CultOfComfort.Client
 
         private void SpawnPoof(Vector3 at)
         {
-            var poof = Shapes.Create(PrimitiveType.Sphere, Shapes.Hex("#c9bfae"), at + Vector3.up * 0.3f, Vector3.zero, _root, "Poof");
-            AddEffect(poof, 0.4f, (go, t) => go.transform.localScale = Vector3.one * (1f - t) * 0.7f * Mathf.Sqrt(t));
+            var poofModel = Fx("fx_poof", at);
+            var poof = poofModel ?? Shapes.Create(PrimitiveType.Sphere, Shapes.Hex("#c9bfae"), at + Vector3.up * 0.3f, Vector3.zero, _root, "Poof");
+            var poofSize = poofModel != null ? 2.4f : 0.7f; // the model is ~0.35 m across, the primitive 1 m
+            AddEffect(poof, 0.45f, (go, t) => go.transform.localScale = Vector3.one * (1f - t) * poofSize * Mathf.Sqrt(t));
+        }
+
+        /// <summary>A pipeline effect model at <paramref name="at"/>, or null so the caller falls back to a primitive.</summary>
+        private GameObject Fx(string model, Vector3 at)
+        {
+            var go = ArtLibrary.Instantiate(model, _root);
+            if (go != null)
+            {
+                go.transform.localPosition = at;
+            }
+
+            return go;
         }
 
         private void AddEffect(GameObject target, float lifetime, Action<GameObject, float> update) =>
