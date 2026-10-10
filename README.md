@@ -54,6 +54,8 @@ dotnet build src/CultOfComfort.Simulation   # also copies the DLL into client/�
 Open `client/CultOfComfort.Unity` in Unity Hub (Add → Add project from disk), open `Assets/Scenes/SampleScene`, press **Play**. The scene is built entirely from code by `GameBootstrap` — there is nothing to wire up in the editor.
 
 - **Camera:** drag with one finger to pan, pinch to zoom (editor: mouse drag + scroll wheel). *Recenter* resets the view.
+- **Orientation:** portrait and landscape both work and follow the phone's auto-rotate. In portrait the board turns 90° so the road runs top (spawn) to bottom (Hearth); the camera always fits the board between the HUD panels.
+- **HUD:** UI Toolkit, built in code (`Assets/Scripts/Hud/HudView.cs`) and styled by `Assets/Resources/UI/Hud.uss`; a `portrait` / `landscape` class on the root restacks the bars.
 - **Dusk:** pick a tower, tap empty ground to build, tap a tower to demolish. The road reroutes live.
 - **Night:** tap the ground to move the Prophet; *Open Sluice* and *Phantom Voice* are buttons.
 - **Dawn:** result plus a server-style replay of your input log, with matching hashes.
@@ -71,7 +73,7 @@ UNITY=~/Unity/Hub/Editor/6000.3.26f1/Unity.app/Contents/MacOS/Unity
 
 IL2CPP + ARM64 (required by 64-bit-only devices such as the Pixel 10), development build, debug-signed. Also available in the editor menu: **Cult of Comfort → Build Android APK**.
 
-On startup the client runs `DeterminismProbe`: it replays the Sandbox demo Night and compares the state hash with the .NET value. The Dusk HUD shows `✔ deterministic` when the device produces the bit-identical result.
+On startup the client runs `DeterminismProbe`: it replays the Sandbox demo Night and compares the state hash with the .NET value. The Dusk HUD shows `Deterministic: OK` when the device produces the bit-identical result.
 
 ### Rules for Unity code
 

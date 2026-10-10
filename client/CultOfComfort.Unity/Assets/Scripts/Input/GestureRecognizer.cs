@@ -39,6 +39,14 @@ namespace CultOfComfort.Client
         /// <summary>True while the current gesture has turned into a camera move (no tap will follow).</summary>
         public bool IsDragging => _active && !_ignored && _tapCancelled;
 
+        /// <summary>A single finger is down and would tap if lifted now — lets the board preview the target tile.</summary>
+        public bool TryGetPendingTap(out Vector2 position)
+        {
+            var pending = _active && !_ignored && !_tapCancelled && _last.Count == 1;
+            position = pending ? _last[0] : default;
+            return pending;
+        }
+
         /// <param name="pointers">Positions of every pressed pointer this frame, in screen pixels.</param>
         /// <param name="isOverUi">Gestures that start on UI are ignored entirely.</param>
         public GestureFrame Update(IReadOnlyList<Vector2> pointers, Func<Vector2, bool> isOverUi)
@@ -100,10 +108,13 @@ namespace CultOfComfort.Client
                 // Coming down from two fingers to one skips this branch for a frame, so the camera doesn't jump.
                 if (!_tapCancelled && (pointers[0] - _start).magnitude > _tapSlop)
                 {
+                    // Pan from where the finger went down, so the board catches up with the slop and stays glued.
                     _tapCancelled = true;
+                    frame.Panned = true;
+                    frame.PanFrom = _start;
+                    frame.PanTo = pointers[0];
                 }
-
-                if (_tapCancelled)
+                else if (_tapCancelled)
                 {
                     frame.Panned = true;
                     frame.PanFrom = _last[0];

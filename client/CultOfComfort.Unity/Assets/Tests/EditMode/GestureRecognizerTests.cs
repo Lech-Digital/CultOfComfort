@@ -99,5 +99,55 @@ namespace CultOfComfort.Client.Tests
             Assert.IsFalse(drag.Panned);
             Assert.IsFalse(release.Tapped);
         }
+
+        [Test]
+        public void Update_DragCrossesSlopAfterWobble_PansFromPressPosition()
+        {
+            // Arrange — finger wobbles within the slop first, then drags.
+            var recognizer = new GestureRecognizer(Slop);
+            Feed(recognizer, new Vector2(100, 100));
+            Feed(recognizer, new Vector2(106, 100));
+
+            // Act
+            var drag = Feed(recognizer, new Vector2(130, 100));
+
+            // Assert
+            Assert.IsTrue(drag.Panned);
+            Assert.AreEqual(new Vector2(100, 100), drag.PanFrom, "The board must catch up with the slop so it stays under the finger.");
+            Assert.AreEqual(new Vector2(130, 100), drag.PanTo);
+        }
+
+        [Test]
+        public void TryGetPendingTap_FingerDownWithinSlop_ReportsFingerPosition()
+        {
+            // Arrange
+            var recognizer = new GestureRecognizer(Slop);
+            Feed(recognizer, new Vector2(100, 100));
+            Feed(recognizer, new Vector2(103, 101));
+
+            // Act
+            var pending = recognizer.TryGetPendingTap(out var position);
+
+            // Assert
+            Assert.IsTrue(pending);
+            Assert.AreEqual(new Vector2(103, 101), position);
+        }
+
+        [Test]
+        public void TryGetPendingTap_AfterDragOrSecondFinger_ReportsNothing()
+        {
+            // Arrange
+            var dragged = new GestureRecognizer(Slop);
+            Feed(dragged, new Vector2(100, 100));
+            Feed(dragged, new Vector2(100, 100));
+            Feed(dragged, new Vector2(100, 160));
+            var pinched = new GestureRecognizer(Slop);
+            Feed(pinched, new Vector2(100, 100));
+            Feed(pinched, new Vector2(100, 100), new Vector2(200, 100));
+
+            // Act & Assert
+            Assert.IsFalse(dragged.TryGetPendingTap(out _));
+            Assert.IsFalse(pinched.TryGetPendingTap(out _));
+        }
     }
 }

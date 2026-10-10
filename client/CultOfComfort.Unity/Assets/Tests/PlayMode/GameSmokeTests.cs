@@ -2,6 +2,7 @@ using System.Collections;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UIElements;
 using UnityEngine.TestTools;
 
 namespace CultOfComfort.Client.Tests
@@ -45,6 +46,31 @@ namespace CultOfComfort.Client.Tests
             // Assert
             Assert.AreEqual(GamePhase.Dawn, game.Phase, "The Night should finish.");
             Assert.AreEqual(true, game.LastNightVerified, "Server-style replay of the input log should match the live result.");
+        }
+
+        [UnityTest]
+        public IEnumerator Hud_DuskThenNight_SwapsBuildBarForSkillBar()
+        {
+            // Arrange
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return null;
+            var game = Object.FindAnyObjectByType<GameController>();
+            var root = Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            yield return null;
+            var startNight = root.Q<Button>("start-night");
+            var sluice = root.Q<Button>("sluice");
+            var duskVisible = startNight.resolvedStyle.display == DisplayStyle.Flex && startNight.worldBound.width > 0f;
+
+            // Act
+            game.StartNight();
+            yield return null;
+            yield return null;
+
+            // Assert
+            Assert.IsTrue(duskVisible, "Dusk should show the Light the Lamps button.");
+            Assert.AreEqual(DisplayStyle.None, startNight.parent.resolvedStyle.display, "The build bar hides at night.");
+            Assert.AreEqual(DisplayStyle.Flex, sluice.parent.parent.resolvedStyle.display, "The skill bar shows at night.");
+            StringAssert.StartsWith("Open Sluice", sluice.text);
         }
     }
 }

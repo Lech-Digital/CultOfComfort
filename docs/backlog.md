@@ -12,7 +12,7 @@
 - [ ] Enemy roster stats (HP, speed, armor, damage types) and Authority AI personalities.
 - [ ] Full Hearth 1–10 progression curve in a spreadsheet model (income vs. cost vs. time-to-level).
 - [ ] Determinism CI: automate the on-device probe (Android emulator / Firebase Test Lab) and add iOS.
-- [ ] Touch UX: pinch/drag camera, real UI (UI Toolkit) instead of the IMGUI debug HUD, portrait layout decision.
+- [x] Touch UX: pinch/drag camera, UI Toolkit HUD instead of the IMGUI debug HUD, portrait + landscape (board turns 90° in portrait).
 - [ ] Enemies can target the Prophet (positioning stakes); more leader skills.
 - [ ] Golden-hash regression corpus for recorded battles (fails on any unintended sim change).
 - [ ] Morale + Bishop units (preach at Devotion buildings), Comfort-era towers (Pressure Sluice, Hypocaust Vent).

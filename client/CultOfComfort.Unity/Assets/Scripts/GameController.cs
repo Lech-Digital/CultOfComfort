@@ -4,6 +4,7 @@ using CultOfComfort.Simulation.Balance;
 using CultOfComfort.Simulation.Combat;
 using CultOfComfort.Simulation.Grid;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace CultOfComfort.Client
 {
@@ -25,10 +26,9 @@ namespace CultOfComfort.Client
         private const int StartingScrap = 380;
         private const int RaidBudget = 54;
         private const int RaidWaves = 4;
-        private const float ReferenceScreenHeight = 720f;
 
-        /// <summary>Extra inset beyond the OS safe area, for rounded display corners (fraction of screen height).</summary>
-        private const float CornerMargin = 0.04f;
+        /// <summary>Portrait turns the board so its long axis runs up the screen: spawn on top, Hearth at the bottom.</summary>
+        private const float PortraitYaw = -90f;
 
         private static readonly Dictionary<TowerType, int> TowerCost = new Dictionary<TowerType, int>
         {
@@ -37,8 +37,6 @@ namespace CultOfComfort.Client
         };
 
         private readonly List<PlacedTower> _towers = new List<PlacedTower>();
-        private readonly List<Rect> _uiRects = new List<Rect>();
-        private readonly Queue<string> _announcements = new Queue<string>();
         private IReadOnlyList<GridPosition> _rocks;
         private readonly List<Vector2> _pointers = new List<Vector2>();
         private Camera _camera;
@@ -56,15 +54,9 @@ namespace CultOfComfort.Client
         private BattleResult _serverReplay;
         private float _accumulator;
         private int _speed = 1;
-        private string _announcement = "Tap a tile to build. Towers reroute the road — use that.";
-        private float _announcementUntil = float.MaxValue;
-        private float _guiScale = 1f;
-        private Rect _safe = new Rect(0f, 0f, 1280f, ReferenceScreenHeight);
-        private GUIStyle _label;
-        private GUIStyle _small;
-        private GUIStyle _title;
-        private GUIStyle _button;
-        private GUIStyle _box;
+        private HudView _hud;
+        private Vector2Int _screenSize;
+        private int _framePending;
 
         public GamePhase Phase => _phase;
 
@@ -83,11 +75,14 @@ namespace CultOfComfort.Client
             _battleView.Announcement += Announce;
 
             SetUpCamera();
+            SetUpHud();
             RefreshBoard();
+            Announce("Tap a tile to build. Towers reroute the road — use that.");
         }
 
         private void Update()
         {
+            TrackOrientation();
             ReadGestures();
             if (_phase == GamePhase.Dusk)
             {
@@ -100,6 +95,7 @@ namespace CultOfComfort.Client
 
             _board.SetHearthWarmth(_battle == null ? 1f : _battle.HearthHealth / (float)_battle.HearthMaxHealth);
             _rig.SetShake(Random.insideUnitSphere * _battleView.CameraShake);
+            UpdateHud();
         }
 
         /// <summary>One-finger drag pans, two-finger pinch zooms (and pans), mouse wheel zooms. Taps come out on release.</summary>
@@ -129,7 +125,9 @@ namespace CultOfComfort.Client
 
         private void UpdateDusk()
         {
-            if (!_gestures.IsDragging && PointerInput.TryGetHover(out var hover) && !IsOverUi(hover) && TryScreenToTile(hover, out var hoverTile))
+            // Mouse: the tile under the cursor. Touch: the tile under the finger, before release, so you see what you'll hit.
+            var hasPointer = _gestures.TryGetPendingTap(out var hover) || (!_gestures.IsDragging && PointerInput.TryGetHover(out hover) && !IsOverUi(hover));
+            if (hasPointer && TryScreenToTile(hover, out var hoverTile))
             {
                 _board.ShowCursor(hoverTile, CanToggle(hoverTile, out _));
             }
@@ -212,6 +210,7 @@ namespace CultOfComfort.Client
             _board.ShowCursor(null, false);
             _accumulator = 0f;
             _phase = GamePhase.Night;
+            _hud.ShowPhase(_phase);
             Announce("Night falls. Tap the ground to move the Prophet.");
         }
 
@@ -250,7 +249,9 @@ namespace CultOfComfort.Client
             LastNightVerified = _serverReplay == _battle.Result;
             _board.ShowLeaderDestination(null);
             _phase = GamePhase.Dawn;
-            _announcement = null;
+            _hud.ShowPhase(_phase);
+            _hud.ShowDawn(_battle.Result, _serverReplay, _battle.InputLog.Count);
+            _hud.Announce(string.Empty, Time.time, 0f);
         }
 
         private void BackToDusk()
@@ -259,6 +260,7 @@ namespace CultOfComfort.Client
             _battle = null;
             _night++;
             _phase = GamePhase.Dusk;
+            _hud.ShowPhase(_phase);
             Announce("Dawn. Rebuild, rearrange, prepare for tomorrow's disappointment.");
         }
 
@@ -276,14 +278,12 @@ namespace CultOfComfort.Client
                 _camera.tag = "MainCamera";
             }
 
-            var center = new Vector3((DemoMap.Width - 1) / 2f, 0f, -(DemoMap.Height - 1) / 2f);
             _camera.orthographic = false;
             _camera.fieldOfView = 44f;
             _camera.clearFlags = CameraClearFlags.SolidColor;
             _camera.backgroundColor = Shapes.Hex("#14110d");
             _rig = new CameraRig(
                 _camera,
-                focus: center + new Vector3(0f, 0f, -0.6f),
                 offset: new Vector3(0f, 16.5f, -10.4f),
                 boardMin: new Vector2(0f, -(DemoMap.Height - 1)),
                 boardMax: new Vector2(DemoMap.Width - 1, 0f));
@@ -305,207 +305,90 @@ namespace CultOfComfort.Client
             return tile.X >= 0 && tile.Y >= 0 && tile.X < DemoMap.Width && tile.Y < DemoMap.Height;
         }
 
-        private void Announce(string text)
+        private void Announce(string text) => _hud.Announce(text, Time.time);
+
+        // ---------------- HUD & orientation ----------------
+
+        private void SetUpHud()
         {
-            _announcement = text;
-            _announcementUntil = Time.time + 3.5f;
+            // Created in code (not an asset) to keep the project code-first. Constant physical size: 1 unit ≈ 1 dp.
+            var settings = ScriptableObject.CreateInstance<PanelSettings>();
+            settings.themeStyleSheet = Resources.Load<ThemeStyleSheet>("UI/CocTheme");
+            settings.scaleMode = PanelScaleMode.ConstantPhysicalSize;
+            settings.referenceDpi = 160f;
+            settings.fallbackDpi = 160f;
+
+            var document = gameObject.AddComponent<UIDocument>();
+            document.panelSettings = settings;
+            var root = document.rootVisualElement;
+            root.styleSheets.Add(Resources.Load<StyleSheet>("UI/Hud"));
+
+            _hud = new HudView(root, new Dictionary<TowerType, (string, int)>
+            {
+                [TowerType.SaplingFlinger] = ("Sapling Flinger", TowerCost[TowerType.SaplingFlinger]),
+                [TowerType.SlurryChute] = ("Slurry Chute", TowerCost[TowerType.SlurryChute]),
+            });
+            _hud.TowerSelected += type => _selectedTower = type;
+            _hud.StartNightClicked += StartNight;
+            _hud.SluiceClicked += () => _battle?.Intervene(PlayerActionType.OpenSluiceGate);
+            _hud.VoiceClicked += () => _battle?.Intervene(PlayerActionType.PhantomVoice);
+            _hud.SpeedClicked += () => _speed = _speed == 1 ? 2 : _speed == 2 ? 4 : 1;
+            _hud.RecenterClicked += () => _rig.Reset();
+            _hud.BackToDuskClicked += BackToDusk;
+            _hud.ShowPhase(_phase);
         }
 
-        /// <summary>IMGUI buttons don't block world taps, so remember where we drew UI last frame.</summary>
-        private bool IsOverUi(Vector2 screen)
+        private void UpdateHud()
         {
-            var gui = new Vector2(screen.x, Screen.height - screen.y) / _guiScale;
-            return _uiRects.Any(r => r.Contains(gui));
-        }
-
-        // ---------------- HUD (IMGUI: zero setup, good enough for a prototype) ----------------
-
-        private void OnGUI()
-        {
-            if (Event.current.type == EventType.Layout)
+            _hud.Tick(Time.time);
+            if (_phase == GamePhase.Dusk)
             {
-                _uiRects.Clear();
-            }
-
-            EnsureStyles();
-            _guiScale = Screen.height / ReferenceScreenHeight;
-            GUI.matrix = Matrix4x4.Scale(new Vector3(_guiScale, _guiScale, 1f));
-            _safe = SafeGuiRect();
-            var width = _safe.width;
-
-            // Everything below is laid out relative to the safe rect, clear of cutouts and rounded corners.
-            GUI.BeginGroup(_safe);
-            DrawHeader();
-            switch (_phase)
-            {
-                case GamePhase.Dusk:
-                    DrawDuskBar(width);
-                    break;
-                case GamePhase.Night:
-                    DrawNightBar(width);
-                    break;
-                case GamePhase.Dawn:
-                    DrawDawnCard(width);
-                    break;
-            }
-
-            if (_announcement != null && Time.time < _announcementUntil)
-            {
-                GUI.Label(new Rect(width / 2f - 330f, 70f, 660f, 30f), _announcement, _label);
-            }
-
-            GUI.EndGroup();
-        }
-
-        /// <summary>Screen.safeArea (pixels, bottom-left origin) plus a corner margin, converted to scaled GUI space.</summary>
-        private Rect SafeGuiRect()
-        {
-            var area = Screen.safeArea;
-            var margin = Screen.height * CornerMargin;
-            var left = (area.xMin + margin) / _guiScale;
-            var right = (Screen.width - area.xMax + margin) / _guiScale;
-            var top = (Screen.height - area.yMax + margin * 0.5f) / _guiScale;
-            var bottom = (area.yMin + margin * 0.5f) / _guiScale;
-            return new Rect(left, top, Screen.width / _guiScale - left - right, Screen.height / _guiScale - top - bottom);
-        }
-
-        private void DrawHeader()
-        {
-            var phase = _phase == GamePhase.Dusk ? $"Dusk · Night {_night}" : _phase == GamePhase.Night ? $"Night {_night}" : "Dawn";
-            Panel(new Rect(0f, 0f, 350f, 94f));
-            GUI.Label(new Rect(12f, 4f, 320f, 30f), "Cult of Comfort", _title);
-            if (Button(new Rect(360f, 0f, 110f, 44f), "Recenter"))
-            {
-                _rig.Reset();
-            }
-
-            GUI.Label(new Rect(12f, 30f, 320f, 24f), _phase == GamePhase.Dusk ? $"{phase} · Scrap {_scrap}" : phase, _label);
-
-            if (_phase == GamePhase.Dusk && DeterminismProbe.Matches.HasValue)
-            {
-                var probe = DeterminismProbe.Matches.Value ? "Deterministic: OK" : "Determinism: MISMATCH";
-                GUI.Label(new Rect(12f, 56f, 330f, 24f), $"{probe} · {DeterminismProbe.LastHash}", _small);
-            }
-
-            if (_battle != null)
-            {
-                var fraction = _battle.HearthHealth / (float)_battle.HearthMaxHealth;
-                GUI.Label(new Rect(12f, 54f, 120f, 24f), $"Hearth {_battle.HearthHealth}", _label);
-                GUI.DrawTexture(new Rect(118f, 63f, 210f, 8f), Texture2D.grayTexture);
-                var previous = GUI.color;
-                GUI.color = Color.Lerp(Palette.Invalid, Palette.Ember, fraction);
-                GUI.DrawTexture(new Rect(118f, 63f, 210f * fraction, 8f), Texture2D.whiteTexture);
-                GUI.color = previous;
-            }
-        }
-
-        private void DrawDuskBar(float width)
-        {
-            var y = _safe.height - 70f;
-            Panel(new Rect(0f, y - 8f, width, 72f));
-            var x = 12f;
-            foreach (var type in new[] { TowerType.SaplingFlinger, TowerType.SlurryChute })
-            {
-                var label = (type == TowerType.SaplingFlinger ? "Sapling Flinger" : "Slurry Chute") + $"  ·  {TowerCost[type]}";
-                var selected = _selectedTower == type;
-                if (Button(new Rect(x, y, 250f, 56f), selected ? $"▶ {label}" : label))
+                var probe = DeterminismProbe.Matches switch
                 {
-                    _selectedTower = type;
-                }
-
-                x += 260f;
+                    true => $"Deterministic: OK · {DeterminismProbe.LastHash}",
+                    false => $"Determinism: MISMATCH · {DeterminismProbe.LastHash}",
+                    _ => string.Empty,
+                };
+                _hud.UpdateDusk(_night, _scrap, _selectedTower, TowerCost, probe);
             }
-
-            GUI.Label(new Rect(x + 6f, y + 4f, width - x - 266f, 50f), "Tap empty ground to build, tap a tower to demolish.", _label);
-            if (Button(new Rect(width - 248f, y, 236f, 56f), "Light the Lamps  →"))
+            else if (_phase == GamePhase.Night)
             {
-                StartNight();
+                var sluice = _battle.IsSluiceReady ? $"Open Sluice · {_battle.SluiceChargesLeft}"
+                    : _battle.SluiceChargesLeft == 0 ? "Cistern empty" : $"Sluice {Seconds(_battle.SluiceReadyAtTick)}s";
+                var voice = _battle.IsVoiceReady ? "Phantom Voice" : $"Hoarse {Seconds(_battle.Leader.VoiceReadyAtTick)}s";
+                var alive = _battle.Enemies.Count(e => e.IsActive);
+                _hud.UpdateNight(new NightHudState(
+                    _night, _battle.HearthHealth, _battle.HearthMaxHealth, sluice, _battle.IsSluiceReady, voice, _battle.IsVoiceReady, _speed,
+                    $"Wave {Mathf.Max(1, _battle.CurrentWave)}/{_battle.WaveCount} · {alive} on the road · Tap the ground to move the Prophet."));
             }
         }
 
-        private void DrawNightBar(float width)
+        /// <summary>
+        /// On first frame and on every rotation: restack the HUD, then re-frame the camera once UI Toolkit has laid
+        /// the new HUD out (a couple of frames later), so the board fits between the status panel and the bar.
+        /// </summary>
+        private void TrackOrientation()
         {
-            var y = _safe.height - 70f;
-            Panel(new Rect(0f, y - 8f, width, 72f));
-
-            var sluice = _battle.IsSluiceReady ? $"Open Sluice  ·  {_battle.SluiceChargesLeft} left"
-                : _battle.SluiceChargesLeft == 0 ? "Cistern empty" : $"Refilling… {Seconds(_battle.SluiceReadyAtTick)}s";
-            if (Button(new Rect(12f, y, 230f, 56f), sluice))
+            var size = new Vector2Int(Screen.width, Screen.height);
+            if (size != _screenSize)
             {
-                _battle.Intervene(PlayerActionType.OpenSluiceGate);
+                _screenSize = size;
+                _hud.SetPortrait(size.y > size.x);
+                _framePending = 2;
             }
 
-            var voice = _battle.IsVoiceReady ? "Phantom Voice" : $"Hoarse… {Seconds(_battle.Leader.VoiceReadyAtTick)}s";
-            if (Button(new Rect(252f, y, 230f, 56f), voice))
+            if (_framePending > 0 && --_framePending == 0)
             {
-                _battle.Intervene(PlayerActionType.PhantomVoice);
-            }
-
-            if (Button(new Rect(492f, y, 90f, 56f), $"{_speed}×"))
-            {
-                _speed = _speed == 1 ? 2 : _speed == 2 ? 4 : 1;
-            }
-
-            var alive = _battle.Enemies.Count(e => e.IsActive);
-            GUI.Label(new Rect(598f, y + 4f, width - 610f, 50f),
-                $"Wave {Mathf.Max(1, _battle.CurrentWave)}/{_battle.WaveCount} · {alive} on the road · Tap the ground to move the Prophet.", _label);
-        }
-
-        private void DrawDawnCard(float width)
-        {
-            var result = _battle.Result;
-            var rect = new Rect(width / 2f - 280f, _safe.height / 2f - 170f, 560f, 340f);
-            Panel(rect);
-            var won = result.Outcome == BattleOutcome.Won;
-            GUI.Label(new Rect(rect.x + 24f, rect.y + 18f, 520f, 40f), won ? "The Hearth stands" : "The Hearth went cold", _title);
-            GUI.Label(new Rect(rect.x + 24f, rect.y + 56f, 520f, 30f),
-                $"Stars {result.Stars}/3   ·   Hearth {result.HearthHealth}/{result.HearthMaxHealth}", _label);
-            GUI.Label(new Rect(rect.x + 24f, rect.y + 86f, 520f, 60f), won
-                ? "The attackers left damp, confused and noticeably cleaner."
-                : "Wulfric's men warmed their hands on the embers and left. Tomorrow: repairs, and a strongly worded diary entry.", _label);
-
-            var match = _serverReplay == result;
-            GUI.Label(new Rect(rect.x + 24f, rect.y + 150f, 520f, 110f),
-                $"{result.EnemiesDefeated} defeated · {result.EnemiesLeaked} reached the Hearth · {_battle.InputLog.Count} commands logged\n" +
-                $"Client hash:   {result.StateHashHex}\n" +
-                $"Server replay: {_serverReplay.StateHashHex}  {(match ? "VERIFIED" : "MISMATCH")}", _label);
-
-            if (Button(new Rect(rect.x + 24f, rect.yMax - 72f, 512f, 52f), "Back to Dusk"))
-            {
-                BackToDusk();
+                var portrait = size.y > size.x;
+                var fallback = portrait ? Rect.MinMaxRect(0.03f, 0.25f, 0.97f, 0.85f) : Rect.MinMaxRect(0.03f, 0.2f, 0.97f, 0.8f);
+                _rig.Frame(portrait ? PortraitYaw : 0f, _hud.ClearViewport() ?? fallback);
+                _rig.Reset();
             }
         }
 
         private float Seconds(int readyAtTick) => Mathf.Ceil((readyAtTick - _battle.Tick) / (float)BalanceTable.TicksPerSecond);
 
-        private bool Button(Rect rect, string text)
-        {
-            _uiRects.Add(new Rect(rect.position + _safe.position, rect.size));
-            return GUI.Button(rect, text, _button);
-        }
 
-        private void Panel(Rect rect)
-        {
-            _uiRects.Add(new Rect(rect.position + _safe.position, rect.size));
-            GUI.Box(rect, GUIContent.none, _box);
-        }
-
-        private void EnsureStyles()
-        {
-            if (_label != null)
-            {
-                return;
-            }
-
-            var panel = new Texture2D(1, 1);
-            panel.SetPixel(0, 0, new Color(0.09f, 0.08f, 0.06f, 0.88f));
-            panel.Apply();
-
-            _box = new GUIStyle(GUI.skin.box) { normal = { background = panel } };
-            _label = new GUIStyle(GUI.skin.label) { fontSize = 17, wordWrap = true, normal = { textColor = Shapes.Hex("#e9e1d3") } };
-            _small = new GUIStyle(_label) { fontSize = 14, normal = { textColor = Shapes.Hex("#9c907d") } };
-            _title = new GUIStyle(_label) { fontSize = 24, fontStyle = FontStyle.Bold, normal = { textColor = Palette.Ember } };
-            _button = new GUIStyle(GUI.skin.button) { fontSize = 17, fontStyle = FontStyle.Bold };
-        }
+        private bool IsOverUi(Vector2 screen) => _hud.IsOverUi(screen);
     }
 }

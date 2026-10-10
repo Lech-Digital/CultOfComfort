@@ -1,0 +1,280 @@
+/* Cult of Comfort HUD. Units are density-independent points (PanelSettings: constant physical size, 160 dpi). */
+
+.hud {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    flex-direction: column;
+    justify-content: space-between;
+    color: #e9e1d3;
+    font-size: 14px;
+}
+
+.panel {
+    background-color: rgba(23, 20, 15, 0.9);
+    border-color: #4a3c2c;
+    border-width: 1px;
+    border-radius: 12px;
+    padding: 8px 12px;
+}
+
+/* ---------- top row ---------- */
+
+.top-row {
+    flex-direction: row;
+    align-items: flex-start;
+}
+
+.status {
+    min-width: 230px;
+}
+
+.portrait .status {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+.title {
+    color: #ffb04d;
+    font-size: 19px;
+    -unity-font-style: bold;
+    margin: 0;
+    padding: 0;
+}
+
+.line {
+    margin: 2px 0 0 0;
+    padding: 0;
+    white-space: normal;
+}
+
+.small {
+    color: #9c907d;
+    font-size: 11px;
+}
+
+.hearth {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.hearth-label {
+    margin: 0 8px 0 0;
+    padding: 0;
+    min-width: 72px;
+}
+
+.track {
+    flex-grow: 1;
+    height: 8px;
+    min-width: 80px;
+    border-radius: 4px;
+    background-color: #3a3024;
+    overflow: hidden;
+}
+
+.fill {
+    height: 100%;
+    width: 100%;
+    background-color: #ffb04d;
+    border-radius: 4px;
+}
+
+.spacer {
+    flex-grow: 1;
+}
+
+/* ---------- buttons ---------- */
+
+.btn {
+    background-color: #3a3024;
+    border-color: #6b5238;
+    border-width: 1px;
+    border-radius: 10px;
+    color: #e9e1d3;
+    font-size: 15px;
+    -unity-font-style: bold;
+    min-height: 48px;
+    margin: 0 0 0 8px;
+    padding: 4px 14px;
+    white-space: normal;
+    -unity-text-align: middle-center;
+}
+
+.btn:hover {
+    background-color: #4a3c2c;
+}
+
+.btn:active {
+    background-color: #5c4a36;
+}
+
+.btn:disabled {
+    opacity: 0.45;
+}
+
+.btn.chip {
+    min-height: 40px;
+    font-size: 13px;
+    -unity-font-style: normal;
+    background-color: rgba(23, 20, 15, 0.9);
+    border-color: #4a3c2c;
+}
+
+.btn.primary {
+    background-color: #c9772b;
+    border-color: #ffb04d;
+    color: #1b140d;
+    min-width: 180px;
+}
+
+.btn.primary:hover {
+    background-color: #dc8a3c;
+}
+
+.btn.primary:active {
+    background-color: #ffb04d;
+}
+
+/* ---------- middle: toast + dawn card ---------- */
+
+.middle {
+    flex-grow: 1;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 0;
+}
+
+.toast-row {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 8px;
+    align-items: center;
+}
+
+.toast {
+    background-color: rgba(23, 20, 15, 0.82);
+    border-radius: 16px;
+    padding: 6px 14px;
+    max-width: 90%;
+    white-space: normal;
+    -unity-text-align: middle-center;
+    transition-property: opacity;
+    transition-duration: 0.25s;
+}
+
+.toast.hidden {
+    opacity: 0;
+}
+
+.card {
+    width: 520px;
+    max-width: 96%;
+    padding: 18px 20px;
+}
+
+.card-title {
+    color: #ffb04d;
+    font-size: 22px;
+    -unity-font-style: bold;
+    margin: 0 0 6px 0;
+    padding: 0;
+}
+
+.card .btn {
+    margin: 14px 0 0 0;
+}
+
+.verified {
+    color: #8aa65a;
+    -unity-font-style: bold;
+}
+
+.mismatch {
+    color: #d0583c;
+    -unity-font-style: bold;
+}
+
+/* ---------- bottom bar ---------- */
+
+.bar-content {
+    flex-direction: row;
+    align-items: center;
+}
+
+.portrait .bar-content {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.group {
+    flex-direction: row;
+    align-items: stretch;
+}
+
+.btn.first {
+    margin-left: 0;
+}
+
+.portrait .group > .btn {
+    flex-grow: 1;
+    flex-basis: 0;
+}
+
+.hint {
+    flex-grow: 1;
+    flex-shrink: 1;
+    margin: 0 12px;
+    padding: 0;
+    white-space: normal;
+    color: #c8bca8;
+}
+
+.portrait .hint {
+    margin: 8px 0;
+    -unity-text-align: middle-center;
+}
+
+.portrait .bar-content > .btn {
+    margin: 0;
+}
+
+.tower {
+    flex-direction: column;
+    min-width: 150px;
+    border-width: 2px;
+}
+
+.tower.selected {
+    border-color: #ffb04d;
+    background-color: #4a3c2c;
+}
+
+.tower.unaffordable {
+    opacity: 0.5;
+}
+
+.tower-name {
+    -unity-font-style: bold;
+    margin: 0;
+    padding: 0;
+    white-space: normal;
+    -unity-text-align: middle-center;
+}
+
+.tower-cost {
+    color: #ffb04d;
+    font-size: 12px;
+    margin: 0;
+    padding: 0;
+    -unity-text-align: middle-center;
+}
+
+.speed {
+    min-width: 56px;
+}
