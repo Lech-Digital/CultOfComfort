@@ -15,9 +15,13 @@ namespace CultOfComfort.Client.Tests
     {
         private GameObject _host;
 
+        [SetUp]
+        public void SetUp() => TestVillage.Use();
+
         [TearDown]
         public void TearDown()
         {
+            TestVillage.Reset();
             Time.timeScale = 1f;
             Time.captureDeltaTime = 0f;
             if (_host != null)
@@ -56,7 +60,7 @@ namespace CultOfComfort.Client.Tests
             document.panelSettings = settings;
             var root = document.rootVisualElement;
             root.styleSheets.Add(Resources.Load<StyleSheet>("UI/Hud"));
-            var hud = new HudView(root, new Dictionary<TowerType, (string, int)> { [TowerType.SaplingFlinger] = ("Sapling Flinger", 70) });
+            var hud = new HudView(root);
             return (hud, root);
         }
 
@@ -285,16 +289,21 @@ namespace CultOfComfort.Client.Tests
         }
 
         [UnityTest]
-        public IEnumerator DemoPills_Dusk_MarkedDemoExceptScrap()
+        public IEnumerator DemoPills_Dusk_OnlyPenniesAndComfortAreDemo()
         {
             // Arrange & Act
             yield return LoadGame();
             var root = Root();
 
             // Assert
-            foreach (var name in new[] { "pill-timber", "pill-peat", "pill-devotion", "pill-pennies", "comfort" })
+            foreach (var name in new[] { "pill-pennies", "comfort" })
             {
                 Assert.IsTrue(root.Q(name).ClassListContains("demo"), name);
+            }
+
+            foreach (var name in new[] { "pill-timber", "pill-peat", "pill-devotion" })
+            {
+                Assert.IsFalse(root.Q(name).ClassListContains("demo"), name + " is real now (the village)");
             }
 
             StringAssert.Contains("demo", root.Q<Label>("comfort").text, "Comfort's demo mark must be visible, not just a colour.");

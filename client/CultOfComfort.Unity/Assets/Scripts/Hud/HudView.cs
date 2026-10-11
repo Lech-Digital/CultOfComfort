@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using CultOfComfort.Simulation.Balance;
+using CultOfComfort.Simulation.Base;
 using CultOfComfort.Simulation.Combat;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -100,7 +102,17 @@ namespace CultOfComfort.Client
         private readonly VisualElement _bar;
         private readonly VisualElement _duskBar;
         private readonly VisualElement _nightBar;
-        private readonly Dictionary<TowerType, Button> _towerButtons = new Dictionary<TowerType, Button>();
+        private readonly ScrollView _drawer;
+        private readonly Dictionary<BuildingType, Button> _cards = new Dictionary<BuildingType, Button>();
+        private string _cardsSignature;
+        private readonly VisualElement _buildingCard;
+        private readonly Label _buildingTitle;
+        private readonly Label _buildingOutput;
+        private readonly Label _buildingReady;
+        private readonly Label _buildingRemaining;
+        private readonly Button _upgrade;
+        private readonly Button _finishNow;
+        private readonly Button _demolish;
         private readonly Button _sluice;
         private readonly Button _voice;
         private readonly Button _stones;
@@ -115,7 +127,7 @@ namespace CultOfComfort.Client
         private float _noteUntil;
         private Vector4 _padding = new Vector4(float.NaN, 0f, 0f, 0f);
 
-        public HudView(VisualElement root, IReadOnlyDictionary<TowerType, (string Name, int Cost)> towers)
+        public HudView(VisualElement root)
         {
             _root = root;
             _root.AddToClassList("hud");
@@ -200,6 +212,7 @@ namespace CultOfComfort.Client
             _lockedNote = Text(string.Empty, "locked-note", "hidden");
             _lockedNote.name = "locked-note";
             _settings = BuildSettings(out _probe);
+            _buildingCard = BuildBuildingCard(out _buildingTitle, out _buildingOutput, out _buildingReady, out _buildingRemaining, out _upgrade, out _finishNow, out _demolish);
             _card = BuildCard(out _cardTitle, out _cardSummary, out _cardFlavour, out _cardStats, out _stamp);
             centre.Add(_toast);
             centre.Add(_lockedNote);
@@ -211,25 +224,11 @@ namespace CultOfComfort.Client
             _bar = Panel("bar");
             _duskBar = Container("dusk-bar");
             _duskBar.name = "dusk-bar";
-            var picker = Container("towers");
-            var notes = new[] { "note-yellow", "note-pink", "note-green", "note-blue" };
-            foreach (var tower in towers)
-            {
-                var button = new Button(() => TowerSelected?.Invoke(tower.Key)) { name = $"tower-{tower.Key}" };
-                button.AddToClassList("btn");
-                button.AddToClassList("tower");
-                button.AddToClassList(notes[_towerButtons.Count % notes.Length]);
-                button.AddToClassList(_towerButtons.Count % 2 == 0 ? "tilt-left" : "tilt-right"); // USS has no :nth-child
-                var towerName = Text(tower.Value.Name, "tower-name");
-                var towerCost = Text($"{tower.Value.Cost} Scrap", "tower-cost");
-                towerName.pickingMode = towerCost.pickingMode = PickingMode.Ignore;
-                button.Add(towerName);
-                button.Add(towerCost);
-                _towerButtons[tower.Key] = button;
-                picker.Add(button);
-            }
-
-            _duskBar.Add(picker);
+            _drawer = new ScrollView(ScrollViewMode.Horizontal) { name = "build-drawer" };
+            _drawer.AddToClassList("drawer");
+            _drawer.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
+            _drawer.verticalScrollerVisibility = ScrollerVisibility.Hidden;
+            _duskBar.Add(_drawer);
             var actions = Container("actions");
             actions.Add(Shortcut(LockedFeatures.Get("shop"), "bar-shortcut"));
             var start = ButtonWith("Light the Lamps", () => StartNightClicked?.Invoke(), "primary");
@@ -261,6 +260,8 @@ namespace CultOfComfort.Client
             _root.Add(_bar);
             _root.Add(_card);      // overlays, added last so they draw over the bar
             _root.Add(_settings);
+            _root.Add(_buildingCard);
+            Show(_buildingCard, false);
             for (var i = 0; i < _floaters.Length; i++)
             {
                 _floaters[i] = Text(string.Empty, "floater", "hidden");
@@ -272,7 +273,12 @@ namespace CultOfComfort.Client
             Show(_settings, false);
         }
 
-        public event Action<TowerType> TowerSelected;
+        /// <summary>A build card was picked (null: the selected card was tapped again to cancel).</summary>
+        public event Action<BuildingType?> BuildCardSelected;
+        public event Action UpgradeClicked;
+        public event Action DemolishClicked;
+        public event Action FinishNowClicked;
+        public event Action BuildingCardClosed;
         public event Action StartNightClicked;
         public event Action SluiceClicked;
         public event Action VoiceClicked;
@@ -321,14 +327,83 @@ namespace CultOfComfort.Client
             _tensionNote.text = frame.TensionIsDemo ? $"TENSION — {frame.TensionNote} (demo)" : $"TENSION — {frame.TensionNote}";
         }
 
-        public void UpdateDusk(int night, int scrap, TowerType? selected, IReadOnlyDictionary<TowerType, int> costs, string probe)
+        public void UpdateDusk(int night, string probe)
         {
             _probe.text = string.IsNullOrEmpty(probe) ? $"Night {night}" : $"Night {night} · {probe}";
-            foreach (var pair in _towerButtons)
+        }
+
+        /// <summary>Fills the build drawer; rebuilds the cards only when their content changes (called often).</summary>
+        public void SetBuildCards(IReadOnlyList<BuildCardModel> cards, BuildingType? selected)
+        {
+            var signature = string.Join("|", cards.Select(c => $"{c.Type}:{c.Locked}:{c.Affordable}:{c.Cost}:{c.LockText}"));
+            if (signature != _cardsSignature)
+            {
+                _cardsSignature = signature;
+                _drawer.Clear();
+                _cards.Clear();
+                var notes = new[] { "note-yellow", "note-pink", "note-green", "note-blue" };
+                foreach (var card in cards)
+                {
+                    var model = card;
+                    var button = new Button(() => PickCard(model)) { name = $"card-{card.Type}" };
+                    button.AddToClassList("btn");
+                    button.AddToClassList("build-card");
+                    button.AddToClassList(notes[_cards.Count % notes.Length]);
+                    button.AddToClassList(_cards.Count % 2 == 0 ? "tilt-left" : "tilt-right");
+                    button.EnableInClassList("locked", card.Locked);
+                    button.EnableInClassList("unaffordable", !card.Affordable);
+                    button.Add(Icon(card.Icon, "card-icon"));
+                    button.Add(Text(card.Name, "card-name"));
+                    button.Add(Text(card.Cost, "card-cost"));
+                    button.Add(Text(card.Time, "card-time"));
+                    button.Add(Text(card.LockText, "card-lock"));
+                    foreach (var child in button.Children())
+                    {
+                        child.pickingMode = PickingMode.Ignore;
+                    }
+
+                    _cards[card.Type] = button;
+                    _drawer.Add(button);
+                }
+            }
+
+            foreach (var pair in _cards)
             {
                 pair.Value.EnableInClassList("selected", pair.Key == selected);
-                pair.Value.EnableInClassList("unaffordable", scrap < costs[pair.Key]);
             }
+        }
+
+        /// <summary>Shows the parchment card for a building, or hides it (null).</summary>
+        public void ShowBuildingCard(BuildingCardModel card)
+        {
+            Show(_buildingCard, card != null);
+            if (card == null)
+            {
+                return;
+            }
+
+            _buildingTitle.text = card.Title;
+            _buildingOutput.text = card.Output;
+            _buildingReady.text = card.Ready;
+            _buildingRemaining.text = card.Remaining;
+            Show(_buildingReady, !string.IsNullOrEmpty(card.Ready));
+            Show(_buildingRemaining, card.IsUpgrading);
+            _upgrade.text = card.UpgradeLabel;
+            _upgrade.SetEnabled(card.CanUpgrade);
+            Show(_finishNow, card.IsUpgrading && Debug.isDebugBuild);
+            Show(_demolish, card.CanDemolish);
+        }
+
+        private void PickCard(BuildCardModel card)
+        {
+            if (card.Locked)
+            {
+                Announce(card.LockText == "Max built" ? $"No room for another {card.Name} until the Hearth grows." : $"{card.Name} unlocks at {card.LockText}.", Time.time, prophet: true);
+                return;
+            }
+
+            var selected = _cards.TryGetValue(card.Type, out var button) && button.ClassListContains("selected");
+            BuildCardSelected?.Invoke(selected ? (BuildingType?)null : card.Type);
         }
 
         public void UpdateNight(in NightHudState state)
@@ -464,6 +539,38 @@ namespace CultOfComfort.Client
             probe.style.display = Debug.isDebugBuild ? DisplayStyle.Flex : DisplayStyle.None;
             sheet.Add(probe);
             sheet.Add(ButtonWith("Close", () => Show(_settings, false), "plain"));
+            return sheet;
+        }
+
+        private VisualElement BuildBuildingCard(out Label title, out Label output, out Label ready, out Label remaining, out Button upgrade, out Button finishNow, out Button demolish)
+        {
+            var sheet = Panel("sheet");
+            sheet.name = "building-card";
+            title = Text(string.Empty, "sheet-title");
+            title.name = "building-title";
+            output = Text(string.Empty, "sheet-line");
+            output.name = "building-output";
+            ready = Text(string.Empty, "sheet-line");
+            ready.name = "building-ready";
+            remaining = Text(string.Empty, "sheet-line");
+            remaining.name = "building-remaining";
+            upgrade = ButtonWith(string.Empty, () => UpgradeClicked?.Invoke(), "plain");
+            upgrade.name = "upgrade";
+            finishNow = ButtonWith("Finish now (dev)", () => FinishNowClicked?.Invoke(), "plain");
+            finishNow.name = "finish-now";
+            demolish = ButtonWith("Demolish", () => DemolishClicked?.Invoke(), "plain");
+            demolish.name = "demolish";
+            var close = ButtonWith("Close", () =>
+            {
+                Show(_buildingCard, false);
+                BuildingCardClosed?.Invoke();
+            }, "plain");
+            close.name = "card-close";
+            foreach (var element in new VisualElement[] { title, output, ready, remaining, upgrade, finishNow, demolish, close })
+            {
+                sheet.Add(element);
+            }
+
             return sheet;
         }
 

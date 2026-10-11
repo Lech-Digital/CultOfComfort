@@ -1,7 +1,9 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.IO;
 using CultOfComfort.Client;
 using CultOfComfort.Simulation.Balance;
+using CultOfComfort.Simulation.Base;
 using CultOfComfort.Simulation.Grid;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -175,7 +177,9 @@ namespace CultOfComfort.Editor
                 new PlacedTower(TowerType.SlurryChute, new GridPosition(10, 2)),
                 new PlacedTower(TowerType.SaplingFlinger, new GridPosition(12, 1)),
             };
-            board.SetTowers(towers);
+            var buildings = towers.Select((t, i) => new BuildingView(i + 1,
+                t.Type == TowerType.SlurryChute ? BuildingType.SlurryChute : BuildingType.SaplingFlinger, 1, t.Position, 0, 0, 0, null)).ToList();
+            board.SetBuildings(buildings, 1, BuildingTable.Default, System.DateTimeOffset.UtcNow);
             var layout = new BattleLayout(DemoMap.Width, DemoMap.Height, DemoMap.Spawn, DemoMap.Hearth, towers, rocks);
             var road = layout.ResolveEnemyPath();
             board.ShowRoad(road);

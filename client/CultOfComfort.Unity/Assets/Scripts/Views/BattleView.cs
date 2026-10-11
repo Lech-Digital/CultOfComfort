@@ -33,7 +33,6 @@ namespace CultOfComfort.Client
         private bool _zealotAnnounced;
         private Dictionary<int, Tower> _towers;
 
-        private static readonly Dictionary<string, Sprite> StatusSprites = new Dictionary<string, Sprite>();
         private Camera _camera;
 
         public event Action<string> Announcement;
@@ -230,7 +229,7 @@ namespace CultOfComfort.Client
                 var icons = RaiderStatus.Select(visual.Muddied, visual.Slowed, visual.Frightened, visual.Fighting, visual.Icons);
                 for (var k = 0; k < visual.Status.Length; k++)
                 {
-                    var sprite = k < icons ? StatusSprite(visual.Icons[k]) : null;
+                    var sprite = k < icons ? IconSprites.Get(visual.Icons[k]) : null;
                     var status = visual.Status[k];
                     status.enabled = sprite != null;
                     if (sprite != null)
@@ -525,18 +524,6 @@ namespace CultOfComfort.Client
             }
 
             return visual;
-        }
-
-        private static Sprite StatusSprite(string name)
-        {
-            if (!StatusSprites.TryGetValue(name, out var sprite))
-            {
-                var texture = Resources.Load<Texture2D>("UI/Icons/" + name);
-                sprite = texture == null ? null : Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 300f);
-                StatusSprites[name] = sprite;
-            }
-
-            return sprite;
         }
 
         private void FloatOver(Func<Enemy, bool> affected, string text)
