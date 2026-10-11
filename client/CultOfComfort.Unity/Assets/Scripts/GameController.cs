@@ -212,6 +212,7 @@ namespace CultOfComfort.Client
             _setup = new BattleSetup(Layout(_towers), (ulong)(946 + _night), RaidBudget, RaidWaves, new List<PlayerInput>());
             _battle = new Battle(_setup);
             _battleView.Begin(_battle);
+            _framePending = 2; // the Night strip is taller than the Dusk one: re-fit the board once the HUD has laid out
             _board.ShowCursor(null, false);
             _accumulator = 0f;
             _phase = GamePhase.Night;
@@ -323,6 +324,7 @@ namespace CultOfComfort.Client
         {
             _battleView.Clear();
             _battle = null;
+            _framePending = 2;
             _night++;
             _phase = GamePhase.Dusk;
             _hud.ShowPhase(_phase);

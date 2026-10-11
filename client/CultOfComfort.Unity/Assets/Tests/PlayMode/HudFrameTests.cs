@@ -219,6 +219,32 @@ namespace CultOfComfort.Client.Tests
         }
 
         [UnityTest]
+        public IEnumerator Night_StartNight_CameraRefitsSoTheSpawnIsBelowTheTallerStrip()
+        {
+            // Arrange — the wave strip (label + two meters) is taller than the Dusk Tension strip.
+            yield return LoadGame();
+            var game = Object.FindAnyObjectByType<GameController>();
+            var root = Root();
+            for (var i = 0; i < 6; i++)
+            {
+                yield return null;
+            }
+
+            // Act
+            game.StartNight();
+            for (var i = 0; i < 6; i++)
+            {
+                yield return null;
+            }
+
+            // Assert
+            var camera = (Camera)typeof(GameController).GetField("_camera", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(game);
+            var screen = camera.WorldToScreenPoint(Shapes.ToWorld(DemoMap.Spawn));
+            var panel = RuntimePanelUtils.ScreenToPanel(root.panel, new Vector2(screen.x, Screen.height - screen.y));
+            Assert.Greater(panel.y, root.Q(className: "top").worldBound.yMax, "the spawn tile must not hide under the Night strip");
+        }
+
+        [UnityTest]
         public IEnumerator Frame_Dusk_ShowsPillsPortraitTensionAndShortcuts()
         {
             // Arrange & Act
