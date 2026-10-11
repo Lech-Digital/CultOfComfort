@@ -18,6 +18,7 @@ public sealed record DemolishBuilding(Guid CommandId, int BuildingId) : BaseComm
 /// <param name="BuildingId">Null collects from every producer.</param>
 public sealed record Collect(Guid CommandId, int? BuildingId) : BaseCommand(CommandId);
 
+/// <summary>Development and tests only (a server refuses it): records a Night's outcome directly. Real Nights use <see cref="ResolveNight"/>.</summary>
 /// <param name="WreckedBuildingIds">Buildings smashed to nothing in the Night (structure ids are building ids).</param>
 public sealed record RecordNightResult(Guid CommandId, int Night, int Stars, IReadOnlyList<int>? WreckedBuildingIds = null) : BaseCommand(CommandId);
 

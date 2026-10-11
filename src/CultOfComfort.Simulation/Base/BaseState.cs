@@ -69,7 +69,10 @@ public sealed class BaseState
             _nextId = data.NextId,
             LastNightRecorded = data.LastNightRecorded,
             _tensionMilli = data.TensionMilli,
-            _tensionAsOf = new DateTimeOffset(data.TensionAsOfUtcTicks, TimeSpan.Zero),
+            // A save from before Tension existed has no Tension clock: start it at the save's latest moment, not in year 1.
+            _tensionAsOf = data.TensionAsOfUtcTicks > 0
+                ? new DateTimeOffset(data.TensionAsOfUtcTicks, TimeSpan.Zero)
+                : new DateTimeOffset(data.Buildings.Select(b => b.AsOfUtcTicks).DefaultIfEmpty(0).Max(), TimeSpan.Zero),
             _shieldEndsAt = data.ShieldEndsAtUtcTicks == null ? null : new DateTimeOffset(data.ShieldEndsAtUtcTicks.Value, TimeSpan.Zero),
             _nextRaidId = data.NextRaidId,
             _raid = data.Raid == null ? null : new ScheduledRaid(data.Raid.Id, data.Raid.Seed, new DateTimeOffset(data.Raid.WarningEndsAtUtcTicks, TimeSpan.Zero)),
@@ -180,7 +183,7 @@ public sealed class BaseState
         }
 
         Advance(nowUtc);
-        if (_night != null && command is PlaceBuilding or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow)
+        if (_night != null && command is PlaceBuilding or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult)
         {
             return CommandOutcome.Reject("Not now — there's a Night on.") with { Version = Version };
         }
@@ -517,6 +520,12 @@ public sealed class BaseState
                 _night = PlanNight(deadline!.Value);
                 _nightStartedAt = deadline.Value;
                 ResolveAt(Array.Empty<PlayerInput>(), deadline.Value, whileAway: true);
+
+                // One raid per absence: Tension starts again from now, not from the deadline (no raid every day for a month).
+                if (now > _tensionAsOf)
+                {
+                    _tensionAsOf = now;
+                }
             }
             else
             {
@@ -548,6 +557,11 @@ public sealed class BaseState
         if (_night != null)
         {
             return CommandOutcome.Reject("A Night is already on.");
+        }
+
+        if (_raid == null && _shieldEndsAt > now)
+        {
+            return CommandOutcome.Reject("Wulfric's men are still licking their wounds. Nobody comes while the shield is up.");
         }
 
         _night = PlanNight(now);

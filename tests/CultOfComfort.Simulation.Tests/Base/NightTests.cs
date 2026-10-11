@@ -201,4 +201,74 @@ public class NightTests
         // Assert
         restored.Snapshot(T0.AddDays(1).AddMinutes(1)).Should().BeEquivalentTo(state.Snapshot(T0.AddDays(1).AddMinutes(1)));
     }
+
+    private static BaseState HearthTwoBase()
+    {
+        var state = BaseState.CreateNew(new BuildingTable { StartingStock = new ResourceBag(900, 60, 380, 0) }, VillageMap.Demo, T0);
+        state.Apply(new UpgradeHearth(Guid.NewGuid()), T0);
+        state.Snapshot(T0.AddMinutes(10)).HearthLevel.Should().Be(2);
+        return state;
+    }
+
+    [Fact]
+    public void Restore_SaveFromBeforeTension_LoadsCalmAndQuickly()
+    {
+        // Arrange — a Hearth 2 save written before Tension existed: no Tension clock (ticks 0).
+        var old = HearthTwoBase().ToData() with { TensionMilli = 0, TensionAsOfUtcTicks = 0, Raid = null, ShieldEndsAtUtcTicks = null };
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+
+        // Act
+        var snapshot = BaseState.Restore(BuildingTable.Default, VillageMap.Demo, old).Snapshot(T0.AddHours(1));
+
+        // Assert
+        watch.ElapsedMilliseconds.Should().BeLessThan(1000, "no replay of raids since year 1");
+        snapshot.LastNightRecorded.Should().Be(0);
+        snapshot.Tension.Should().BeLessThan(10, "Tension starts counting from the save, not from the year 1");
+    }
+
+    [Fact]
+    public void Snapshot_HearthTwoAwayForAMonth_OnlyOneRaidPlaysItself()
+    {
+        // Arrange
+        var state = HearthTwoBase();
+
+        // Act
+        var snapshot = state.Snapshot(T0.AddDays(30));
+
+        // Assert
+        snapshot.LastNightRecorded.Should().Be(1, "one raid while away, not one a day");
+        snapshot.UnseenReport!.WhileAway.Should().BeTrue();
+    }
+
+    [Fact]
+    public void BeginNight_EarlyDuringTheShield_Rejected()
+    {
+        // Arrange — a Night just fought: 12 h shield.
+        var state = NewBase();
+        var plan = Begin(state, T0);
+        state.Apply(new ResolveNight(Guid.NewGuid(), plan.Night, Array.Empty<PlayerInput>()), T0);
+
+        // Act
+        var again = state.Apply(new BeginNight(Guid.NewGuid()), T0.AddMinutes(1));
+        var afterShield = state.Apply(new BeginNight(Guid.NewGuid()), T0.AddHours(12).AddMinutes(1));
+
+        // Assert
+        again.Status.Should().Be(CommandStatus.Rejected);
+        afterShield.Status.Should().Be(CommandStatus.Accepted);
+    }
+
+    [Fact]
+    public void RecordNightResult_DuringANight_Rejected()
+    {
+        // Arrange
+        var state = NewBase();
+        Begin(state, T0);
+
+        // Act
+        var forged = state.Apply(new RecordNightResult(Guid.NewGuid(), 1, 3), T0);
+
+        // Assert
+        forged.Status.Should().Be(CommandStatus.Rejected);
+    }
 }
+
