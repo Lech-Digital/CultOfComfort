@@ -68,6 +68,7 @@ namespace CultOfComfort.Client
         /// <summary>Extra inset beyond the OS safe area, for rounded display corners (panel points).</summary>
         private const float CornerMargin = 14f;
         private const float NoteSeconds = 3f;
+        private const float FloatSeconds = 1.2f;
 
         private readonly VisualElement _root;
         private readonly VisualElement _top;
@@ -106,6 +107,10 @@ namespace CultOfComfort.Client
         private readonly Button _speed;
         private readonly Label _nightStatus;
         private readonly Dictionary<Button, Label> _skillText = new Dictionary<Button, Label>();
+        private readonly Label[] _floaters = new Label[12];
+        private readonly float[] _floatStart = new float[12];
+        private readonly Vector2[] _floatAt = new Vector2[12];
+        private int _nextFloater;
         private float _toastUntil;
         private float _noteUntil;
         private Vector4 _padding = new Vector4(float.NaN, 0f, 0f, 0f);
@@ -256,6 +261,13 @@ namespace CultOfComfort.Client
             _root.Add(_bar);
             _root.Add(_card);      // overlays, added last so they draw over the bar
             _root.Add(_settings);
+            for (var i = 0; i < _floaters.Length; i++)
+            {
+                _floaters[i] = Text(string.Empty, "floater", "hidden");
+                _floaters[i].pickingMode = PickingMode.Ignore;
+                _floatStart[i] = float.NegativeInfinity;
+                _root.Add(_floaters[i]);
+            }
             SetPortrait(false);
             Show(_settings, false);
         }
@@ -356,6 +368,16 @@ namespace CultOfComfort.Client
             _toastUntil = now + seconds;
         }
 
+        /// <summary>A marker-pen note that rises and fades above a raider (panel coordinates).</summary>
+        public void Float(string text, Vector2 panelPosition, float now)
+        {
+            var i = _nextFloater;
+            _nextFloater = (_nextFloater + 1) % _floaters.Length;
+            _floaters[i].text = text;
+            _floatStart[i] = now;
+            _floatAt[i] = panelPosition;
+        }
+
         public void ShowLockedNote(string id, float now)
         {
             _lockedNote.text = LockedFeatures.Get(id).Note;
@@ -368,6 +390,20 @@ namespace CultOfComfort.Client
         {
             _toast.EnableInClassList("hidden", now >= _toastUntil || string.IsNullOrEmpty(_toast.text));
             _lockedNote.EnableInClassList("hidden", now >= _noteUntil);
+            for (var i = 0; i < _floaters.Length; i++)
+            {
+                var age = now - _floatStart[i];
+                var live = age >= 0f && age < FloatSeconds;
+                _floaters[i].EnableInClassList("hidden", !live);
+                if (live)
+                {
+                    var t = age / FloatSeconds;
+                    _floaters[i].style.left = _floatAt[i].x - 40f;
+                    _floaters[i].style.top = _floatAt[i].y - 36f * t;
+                    _floaters[i].style.opacity = 1f - t * t;
+                }
+            }
+
             ApplySafeArea();
         }
 

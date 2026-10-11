@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using CultOfComfort.Simulation.Balance;
 using CultOfComfort.Simulation.Combat;
 using NUnit.Framework;
@@ -156,6 +157,27 @@ namespace CultOfComfort.Client.Tests
             var content = note.contentRect;
             var text = note.MeasureTextSize(note.text, content.width, VisualElement.MeasureMode.Exactly, 0f, VisualElement.MeasureMode.Undefined);
             Assert.LessOrEqual(text.y, content.height + 0.5f);
+        }
+
+        [UnityTest]
+        public IEnumerator Float_WashedBack_ShowsThenFades()
+        {
+            // Arrange
+            var (hud, root) = PhoneHud(portrait: true);
+            hud.ShowPhase(GamePhase.Night);
+
+            // Act
+            hud.Float("washed back!", new Vector2(100f, 300f), Time.time);
+            hud.Tick(Time.time);
+            yield return null;
+            var shown = root.Query<Label>(className: "floater").Where(l => l.resolvedStyle.display == DisplayStyle.Flex && l.text == "washed back!").ToList().Count;
+            hud.Tick(Time.time + 2f);
+            yield return null;
+            var after = root.Query<Label>(className: "floater").Where(l => l.resolvedStyle.display == DisplayStyle.Flex).ToList().Count;
+
+            // Assert
+            Assert.AreEqual(1, shown);
+            Assert.AreEqual(0, after);
         }
 
         [UnityTest]

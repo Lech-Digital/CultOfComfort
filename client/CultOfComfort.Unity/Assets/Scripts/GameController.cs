@@ -40,6 +40,7 @@ namespace CultOfComfort.Client
         private IReadOnlyList<GridPosition> _rocks;
         private readonly List<Vector2> _pointers = new List<Vector2>();
         private Camera _camera;
+        private UIDocument _document;
         private CameraRig _rig;
         private GestureRecognizer _gestures;
         private GestureFrame _gesture;
@@ -74,6 +75,7 @@ namespace CultOfComfort.Client
             _board.Build(_rocks);
             _battleView = gameObject.AddComponent<BattleView>();
             _battleView.Announcement += Announce;
+            _battleView.Floater += FloatNote;
 
             SetUpCamera();
             SetUpHud();
@@ -368,6 +370,19 @@ namespace CultOfComfort.Client
 
         private void Announce(string text) => _hud.Announce(text, Time.time);
 
+        /// <summary>Projects a world point into the HUD panel and floats a note there.</summary>
+        private void FloatNote(Vector3 world, string text)
+        {
+            var screen = _camera.WorldToScreenPoint(world);
+            var panel = _document.rootVisualElement.panel;
+            if (screen.z <= 0f || panel == null)
+            {
+                return;
+            }
+
+            _hud.Float(text, RuntimePanelUtils.ScreenToPanel(panel, new Vector2(screen.x, Screen.height - screen.y)), Time.time);
+        }
+
         // ---------------- HUD & orientation ----------------
 
         private void SetUpHud()
@@ -380,6 +395,7 @@ namespace CultOfComfort.Client
             settings.fallbackDpi = 160f;
 
             var document = gameObject.AddComponent<UIDocument>();
+            _document = document;
             document.panelSettings = settings;
             var root = document.rootVisualElement;
             root.styleSheets.Add(Resources.Load<StyleSheet>("UI/Hud"));

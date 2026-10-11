@@ -33,7 +33,13 @@ namespace CultOfComfort.Client
         private bool _zealotAnnounced;
         private Dictionary<int, Tower> _towers;
 
+        private static readonly Dictionary<string, Sprite> StatusSprites = new Dictionary<string, Sprite>();
+        private Camera _camera;
+
         public event Action<string> Announcement;
+
+        /// <summary>A short note to float over a raider: world position, text (spec: Floating notes).</summary>
+        public event Action<Vector3, string> Floater;
 
         // Unity objects must not be created in field initializers or constructors — Unity owns component construction.
         private void Awake() => _block = new MaterialPropertyBlock();
@@ -47,6 +53,7 @@ namespace CultOfComfort.Client
         {
             Clear();
             _battle = battle;
+            _camera = Camera.main;
             _towers = new Dictionary<int, Tower>();
             foreach (var tower in battle.Towers)
             {
@@ -164,6 +171,7 @@ namespace CultOfComfort.Client
                 visual.Current = Shapes.ToWorld(_battle.PositionOf(enemy));
                 visual.Health = (float)(enemy.Health.ToDouble() / enemy.MaxHealth.ToDouble());
                 visual.Muddied = enemy.IsMuddied(_battle.Tick);
+                visual.Slowed = enemy.IsSlowed(_battle.Tick);
                 visual.Frightened = enemy.IsFrightened(_battle.Tick);
                 visual.Fighting = enemy.IsFightingLeader;
             }
@@ -216,6 +224,22 @@ namespace CultOfComfort.Client
                         }
                     }
                 }
+                var icons = RaiderStatus.Select(visual.Muddied, visual.Slowed, visual.Frightened, visual.Fighting, visual.Icons);
+                for (var k = 0; k < visual.Status.Length; k++)
+                {
+                    var sprite = k < icons ? StatusSprite(visual.Icons[k]) : null;
+                    var status = visual.Status[k];
+                    status.enabled = sprite != null;
+                    if (sprite != null)
+                    {
+                        status.sprite = sprite;
+                        if (_camera != null)
+                        {
+                            status.transform.rotation = _camera.transform.rotation; // face the camera
+                        }
+                    }
+                }
+
                 visual.HealthBar.localScale = new Vector3(0.6f * visual.Health, 0.06f, 0.06f);
                 visual.HealthBar.gameObject.SetActive(visual.Health < 0.999f);
                 Shapes.Tint(visual.HealthBarRenderer, visual.Health > 0.4f ? Palette.HealthGood : Palette.HealthBad, _block);
@@ -324,6 +348,9 @@ namespace CultOfComfort.Client
                     }
 
                     SpawnHotStones(_leaderCurrent, Shapes.ToWorld(thrown.Target));
+                    var stones = BalanceTable.Default.HotStones.Radius;
+                    var centre = thrown.Target.ToVector();
+                    FloatOver(e => _battle.PositionOf(e).DistanceSquaredTo(centre) <= stones * stones, "ouch!");
                     Announcement?.Invoke(thrown.EnemiesAffected == 0
                         ? "Hot stones, thrown at nothing. The grass is now exfoliated."
                         : $"Hot Stone Therapy for {thrown.EnemiesAffected}. Unrequested, unrefundable.");
@@ -334,6 +361,7 @@ namespace CultOfComfort.Client
                     break;
                 case InterventionUsed { Type: PlayerActionType.OpenSluiceGate } used:
                     SpawnFlood();
+                    FloatOver(_ => true, "washed back!");
                     Announcement?.Invoke($"Sluice gate opened. {used.EnemiesAffected} soldiers rediscover mud at speed.");
                     break;
                 case InterventionUsed { Type: PlayerActionType.PhantomVoice } used:
@@ -343,6 +371,7 @@ namespace CultOfComfort.Client
                     }
 
                     SpawnShout();
+                    FloatOver(e => e.IsFrightened(_battle.Tick), "?!");
                     Announcement?.Invoke(used.EnemiesAffected == 0
                         ? "He shouted into a tin can at nobody. The cultists exchanged looks."
                         : $"A disembodied voice told {used.EnemiesAffected} soldiers to go home. They did.");
@@ -390,7 +419,7 @@ namespace CultOfComfort.Client
                 var modelBar = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, 1.1f, 0f), new Vector3(0.6f, 0.06f, 0.06f), modelRoot, "Health");
                 var start = Shapes.ToWorld(_battle.PositionOf(enemy));
                 modelRoot.localPosition = start;
-                return new EnemyVisual
+                return WithStatus(new EnemyVisual
                 {
                     Root = modelRoot,
                     Renderers = model.GetComponentsInChildren<Renderer>(),
@@ -402,7 +431,7 @@ namespace CultOfComfort.Client
                     Current = start,
                     Health = 1f,
                     Phase = enemy.Id * 1.7f,
-                };
+                }, 1.1f);
             }
 
             var heavy = enemy.Type == EnemyType.ManAtArms;
@@ -431,7 +460,7 @@ namespace CultOfComfort.Client
             var position = Shapes.ToWorld(_battle.PositionOf(enemy));
             root.localPosition = position;
 
-            return new EnemyVisual
+            return WithStatus(new EnemyVisual
             {
                 Root = root,
                 Renderers = new[] { body.GetComponent<Renderer>() },
@@ -442,7 +471,7 @@ namespace CultOfComfort.Client
                 Current = position,
                 Health = 1f,
                 Phase = enemy.Id * 1.7f,
-            };
+            }, size * 2f + 0.45f);
         }
 
         private void SpawnRock(Vector3 from, Vector3 to, bool critical)
@@ -476,15 +505,56 @@ namespace CultOfComfort.Client
             });
         }
 
+        /// <summary>Two billboard icons above the health bar, filled per frame from <see cref="RaiderStatus"/>.</summary>
+        private static EnemyVisual WithStatus(EnemyVisual visual, float barHeight)
+        {
+            for (var k = 0; k < visual.Status.Length; k++)
+            {
+                var icon = new GameObject($"Status{k}").AddComponent<SpriteRenderer>();
+                icon.transform.SetParent(visual.Root, false);
+                icon.transform.localPosition = new Vector3(k == 0 ? -0.17f : 0.17f, barHeight + 0.3f, 0f);
+                icon.sortingOrder = 10;
+                icon.enabled = false;
+                visual.Status[k] = icon;
+            }
+
+            return visual;
+        }
+
+        private static Sprite StatusSprite(string name)
+        {
+            if (!StatusSprites.TryGetValue(name, out var sprite))
+            {
+                var texture = Resources.Load<Texture2D>("UI/Icons/" + name);
+                sprite = texture == null ? null : Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 300f);
+                StatusSprites[name] = sprite;
+            }
+
+            return sprite;
+        }
+
+        private void FloatOver(Func<Enemy, bool> affected, string text)
+        {
+            foreach (var enemy in _battle.Enemies)
+            {
+                if (enemy.IsActive && affected(enemy) && _enemies.TryGetValue(enemy.Id, out var visual))
+                {
+                    Floater?.Invoke(visual.Current + Vector3.up * 1.3f, text);
+                }
+            }
+        }
+
+        /// <summary>The flood sweeps down the road from the Hearth end towards the spawn, washing raiders back.</summary>
         private void SpawnFlood()
         {
-            foreach (var tile in _battle.Path)
+            var path = _battle.Path;
+            for (var index = 0; index < path.Count; index++)
             {
-                var water = Shapes.Create(PrimitiveType.Cube, Palette.Water, Shapes.ToWorld(tile, 0.05f), new Vector3(1f, 0.08f, 1f), _root, "Flood");
-                var delay = tile.X * 0.01f;
-                AddEffect(water, 1.4f, (go, t) =>
+                var water = Shapes.Create(PrimitiveType.Cube, Palette.Water, Shapes.ToWorld(path[index], 0.05f), new Vector3(1f, 0.01f, 1f), _root, "Flood");
+                var delay = (path.Count - 1 - index) / (float)path.Count * 0.8f;
+                AddEffect(water, 1.6f, (go, t) =>
                 {
-                    var height = Mathf.Sin(Mathf.Clamp01(t - delay) * Mathf.PI) * 0.25f;
+                    var height = Mathf.Sin(Mathf.Clamp01((t * 1.6f - delay) / 0.6f) * Mathf.PI) * 0.3f;
                     go.transform.localScale = new Vector3(1f, Mathf.Max(0.01f, height), 1f);
                 });
             }
@@ -587,6 +657,9 @@ namespace CultOfComfort.Client
             public Vector3 Current;
             public float Health;
             public bool Muddied;
+            public bool Slowed;
+            public readonly SpriteRenderer[] Status = new SpriteRenderer[RaiderStatus.MaxIcons];
+            public readonly string[] Icons = new string[RaiderStatus.MaxIcons];
             public bool Frightened;
             public bool Fighting;
             public float Phase;
