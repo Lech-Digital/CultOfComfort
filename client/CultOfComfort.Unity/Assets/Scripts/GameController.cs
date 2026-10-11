@@ -42,6 +42,8 @@ namespace CultOfComfort.Client
         private Camera _camera;
         private UIDocument _document;
         private readonly TipBook _tips = new TipBook(new PlayerPrefsTipStore());
+        private const float TipSeconds = 7f;
+        private float _tipUntil;
         private CameraRig _rig;
         private GestureRecognizer _gestures;
         private GestureFrame _gesture;
@@ -148,7 +150,7 @@ namespace CultOfComfort.Client
 
             if (!CanToggle(tile, out var reason))
             {
-                _hud.Announce(reason, Time.time, prophet: true);
+                Say(reason, prophet: true);
                 return;
             }
 
@@ -372,14 +374,26 @@ namespace CultOfComfort.Client
             return tile.X >= 0 && tile.Y >= 0 && tile.X < DemoMap.Width && tile.Y < DemoMap.Height;
         }
 
-        private void Announce(string text) => _hud.Announce(text, Time.time);
+        /// <summary>World announcements and Prophet quips wait while a first-use tip is up: a tip is shown once ever.</summary>
+        private void Announce(string text) => Say(text, prophet: false);
+
+        private void Say(string text, bool prophet)
+        {
+            if (Time.time < _tipUntil)
+            {
+                return;
+            }
+
+            _hud.Announce(text, Time.time, prophet: prophet);
+        }
 
         private void ShowFirstUseTip(PlayerActionType skill)
         {
             var tip = _tips.Take(skill);
             if (tip != null)
             {
-                _hud.Announce(tip, Time.time, 7f, prophet: true);
+                _hud.Announce(tip, Time.time, TipSeconds, prophet: true);
+                _tipUntil = Time.time + TipSeconds;
             }
         }
 

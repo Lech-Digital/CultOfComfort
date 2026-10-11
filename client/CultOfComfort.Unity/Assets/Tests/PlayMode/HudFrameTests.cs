@@ -245,6 +245,29 @@ namespace CultOfComfort.Client.Tests
         }
 
         [UnityTest]
+        public IEnumerator Tips_AnnouncementDuringTheTip_DoesNotReplaceIt()
+        {
+            // Arrange — the tip is marked seen when taken, so anything that replaced it would lose it for good.
+            PlayerPrefs.DeleteKey("tip.sluice");
+            yield return LoadGame();
+            var game = Object.FindAnyObjectByType<GameController>();
+            var root = Root();
+            game.StartNight();
+            yield return null;
+            Click(root.Q<Button>("sluice"));
+            yield return null;
+            yield return null;
+
+            // Act — a wave announcement and a rejected order arrive while the tip is up.
+            var announce = typeof(GameController).GetMethod("Announce", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            announce.Invoke(game, new object[] { "Wave 2 of 4. Lord Wulfric remains unconvinced." });
+            yield return null;
+
+            // Assert
+            StringAssert.Contains("washed three tiles back", root.Q<Label>("toast").text);
+        }
+
+        [UnityTest]
         public IEnumerator Frame_Dusk_ShowsPillsPortraitTensionAndShortcuts()
         {
             // Arrange & Act
