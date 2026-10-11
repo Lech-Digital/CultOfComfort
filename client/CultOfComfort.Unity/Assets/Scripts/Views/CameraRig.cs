@@ -18,6 +18,8 @@ namespace CultOfComfort.Client
         private readonly Vector3 _offset;
         private Vector2 _minFocus;
         private Vector2 _maxFocus;
+        private Vector2? _roamMin;
+        private Vector2? _roamMax;
         private Vector3 _direction;
         private Vector3 _homeFocus;
         private float _homeDistance;
@@ -48,6 +50,19 @@ namespace CultOfComfort.Client
             _maxFocus = boardMax;
             _homeFocus = new Vector3((boardMin.x + boardMax.x) / 2f, 0f, (boardMin.y + boardMax.y) / 2f);
         }
+
+        /// <summary>
+        /// The whole valley (locked forest, river): the player may pan and zoom out over it, while the home view stays
+        /// on the open land.
+        /// </summary>
+        public void SetRoam(Vector2 roamMin, Vector2 roamMax)
+        {
+            _roamMin = roamMin;
+            _roamMax = roamMax;
+        }
+
+        /// <summary>Current distance from the focus to the camera.</summary>
+        public float Distance => _distance;
 
         public bool TryScreenToGround(Vector2 screen, out Vector3 point)
         {
@@ -85,6 +100,14 @@ namespace CultOfComfort.Client
             if (hasAnchor && TryScreenToGround(anchorScreen, out var after))
             {
                 _focus += before - after;
+            }
+
+            if (_roamMin != null && _roamMax != null && _distance > _homeDistance && _maxDistance > _homeDistance)
+            {
+                // Past the home view, zooming out drifts towards the middle of the valley so all of it comes into view.
+                var valley = new Vector3((_roamMin.Value.x + _roamMax.Value.x) / 2f, 0f, (_roamMin.Value.y + _roamMax.Value.y) / 2f);
+                var t = (_distance - _homeDistance) / (_maxDistance - _homeDistance);
+                _focus = Vector3.Lerp(_focus, valley, t);
             }
 
             ClampAndApply();
@@ -133,6 +156,30 @@ namespace CultOfComfort.Client
             _homeFocus = _focus;
             _homeDistance = _distance;
             _maxDistance = _distance * 1.15f;
+            if (_roamMin != null && _roamMax != null)
+            {
+                // Zooming all the way out shows the whole valley on the full screen (the HUD may cover its edges).
+                var fullScreen = new Rect(0f, 0f, 1f, 1f);
+                float near = _distance, far = 400f;
+                for (var step = 0; step < 32; step++)
+                {
+                    _distance = (near + far) / 2f;
+                    Apply();
+                    var bounds = ProjectedBounds(_roamMin.Value, _roamMax.Value);
+                    if (bounds.width <= fullScreen.width && bounds.height <= fullScreen.height)
+                    {
+                        far = _distance;
+                    }
+                    else
+                    {
+                        near = _distance;
+                    }
+                }
+
+                _maxDistance = Mathf.Max(_maxDistance, far);
+                _distance = _homeDistance;
+                Apply();
+            }
         }
 
         public void Reset()
@@ -149,15 +196,17 @@ namespace CultOfComfort.Client
         }
 
         /// <summary>Viewport-space bounding box of the board, including some height for towers on the far edge.</summary>
-        private Rect ProjectedBoardBounds()
+        private Rect ProjectedBoardBounds() => ProjectedBounds(_minFocus, _maxFocus);
+
+        private Rect ProjectedBounds(Vector2 min, Vector2 max)
         {
             float xMin = float.MaxValue, yMin = float.MaxValue, xMax = float.MinValue, yMax = float.MinValue;
             for (var corner = 0; corner < 8; corner++)
             {
                 var world = new Vector3(
-                    (corner & 1) == 0 ? _minFocus.x - 0.5f : _maxFocus.x + 0.5f,
+                    (corner & 1) == 0 ? min.x - 0.5f : max.x + 0.5f,
                     (corner & 4) == 0 ? 0f : BoardHeightMargin,
-                    (corner & 2) == 0 ? _minFocus.y - 0.5f : _maxFocus.y + 0.5f);
+                    (corner & 2) == 0 ? min.y - 0.5f : max.y + 0.5f);
                 var viewport = _camera.WorldToViewportPoint(world);
                 xMin = Mathf.Min(xMin, viewport.x);
                 xMax = Mathf.Max(xMax, viewport.x);
@@ -170,10 +219,9 @@ namespace CultOfComfort.Client
 
         private void ClampAndApply()
         {
-            _focus = new Vector3(
-                Mathf.Clamp(_focus.x, _minFocus.x, _maxFocus.x),
-                0f,
-                Mathf.Clamp(_focus.z, _minFocus.y, _maxFocus.y));
+            var min = _roamMin ?? _minFocus;
+            var max = _roamMax ?? _maxFocus;
+            _focus = new Vector3(Mathf.Clamp(_focus.x, min.x, max.x), 0f, Mathf.Clamp(_focus.z, min.y, max.y));
             Apply();
         }
 

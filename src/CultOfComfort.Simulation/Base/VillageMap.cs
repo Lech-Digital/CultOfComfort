@@ -31,18 +31,19 @@ public sealed record VillageMap(
     {
         new(1, 6), new(2, 9), new(8, 4), new(14, 1), new(16, 4), new(8, 0),
         new(20, 5), new(14, 16), new(26, 12), new(7, 18),
+        new(34, 8), new(20, 23), new(42, 18), new(31, 28), new(8, 27), new(45, 4),
     };
 
     /// <summary>
-    /// The muddy valley. Building the village is the heart of the game, so there is room: 18×14 open at Hearth 1,
-    /// 24×18 at Hearth 2, the whole 30×20 at Hearth 3. The road between spawn and Hearth never changes.
+    /// The muddy valley. Building the village is the heart of the game, so there is room: 30×20 open at Hearth 1,
+    /// 38×26 at Hearth 2, the whole 48×32 at Hearth 3. The road between spawn and Hearth never changes.
     /// </summary>
-    public static VillageMap Demo { get; } = new(30, 20, new GridPosition(0, 1), new GridPosition(17, 9), DemoRocks(), new[]
+    public static VillageMap Demo { get; } = new(48, 32, new GridPosition(0, 1), new GridPosition(17, 9), DemoRocks(), new[]
     {
-        new MapZone(0, 14, 23, 17, 2),
-        new MapZone(18, 0, 23, 13, 2),
-        new MapZone(0, 18, 23, 19, 3),
-        new MapZone(24, 0, 29, 19, 3),
+        new MapZone(0, 20, 37, 25, 2),
+        new MapZone(30, 0, 37, 19, 2),
+        new MapZone(0, 26, 47, 31, 3),
+        new MapZone(38, 0, 47, 25, 3),
     }, DemoBoulders, SpawnClearance: 3);
 
     /// <summary>Rock that can never be cleared: the walls that shape the raiders' road.</summary>
@@ -143,7 +144,7 @@ public sealed record VillageMap(
         }
 
         // The eastern wall runs to the southern edge, so the land that opens at Hearth 2 is no shortcut for raiders.
-        for (var y = 3; y <= 19; y++)
+        for (var y = 3; y <= 31; y++)
         {
             rocks.Add(new GridPosition(11, y));
         }
@@ -155,6 +156,8 @@ public sealed record VillageMap(
 
             // A few boulders out in the new land, so it isn't a parade ground.
             new GridPosition(20, 5), new GridPosition(14, 16), new GridPosition(26, 12), new GridPosition(7, 18),
+            new GridPosition(34, 8), new GridPosition(20, 23), new GridPosition(42, 18), new GridPosition(31, 28),
+            new GridPosition(8, 27), new GridPosition(45, 4),
         });
         return rocks;
     }

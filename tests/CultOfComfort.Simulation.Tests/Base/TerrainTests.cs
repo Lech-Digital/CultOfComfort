@@ -22,7 +22,7 @@ public class TerrainTests
         var trees = Map.WildTrees;
 
         // Assert
-        trees.Count.Should().BeInRange(30, 90);
+        trees.Count.Should().BeInRange(70, 200);
         trees.Should().NotIntersectWith(road);
         trees.Should().NotIntersectWith(Map.Rocks);
         trees.Should().OnlyContain(t => !Map.IsInSpawnClearance(t) && Math.Max(Math.Abs(t.X - Map.Hearth.X), Math.Abs(t.Y - Map.Hearth.Y)) > 1);
@@ -31,7 +31,7 @@ public class TerrainTests
     [Fact]
     public void Demo_Boulders_AreLooseRocksAndTheWallsAreBedrock()
     {
-        Map.Boulders.Should().HaveCount(10);
+        Map.Boulders.Should().HaveCount(16);
         Map.IsBedrock(new GridPosition(5, 3)).Should().BeTrue();
         Map.IsBedrock(new GridPosition(8, 4)).Should().BeFalse();
     }
@@ -95,7 +95,7 @@ public class TerrainTests
 
     [Theory]
     [InlineData(5, 3, "That's bedrock. It was here before the Romans and it will be here after the Prophet.")]
-    [InlineData(20, 5, "That land opens at Hearth 2.")]
+    [InlineData(34, 8, "That land opens at Hearth 2.")]
     [InlineData(10, 10, "Nothing to clear there.")]
     public void ClearTerrain_WallLockedOrEmpty_Rejected(int x, int y, string reason)
     {

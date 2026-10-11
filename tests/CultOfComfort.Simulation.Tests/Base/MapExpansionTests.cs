@@ -13,20 +13,20 @@ public class MapExpansionTests
     [Fact]
     public void Demo_FullMap_IsRoomyAndGrowsWithTheHearth()
     {
-        // Act — building the village is the game: 18×14 open at once, 24×18 at Hearth 2, 30×20 at Hearth 3.
+        // Act — building the village is the game: 30×20 open at once, 38×26 at Hearth 2, 48×32 at Hearth 3.
         var map = VillageMap.Demo;
 
         // Assert
-        (map.Width, map.Height).Should().Be((30, 20));
-        map.IsOpen(new GridPosition(17, 13), 1).Should().BeTrue();
-        map.IsOpen(new GridPosition(5, 15), 1).Should().BeFalse();
-        map.IsOpen(new GridPosition(5, 15), 2).Should().BeTrue();
-        map.IsOpen(new GridPosition(20, 3), 2).Should().BeTrue();
-        map.IsOpen(new GridPosition(26, 3), 2).Should().BeFalse();
-        map.IsOpen(new GridPosition(26, 3), 3).Should().BeTrue();
-        map.IsOpen(new GridPosition(5, 19), 3).Should().BeTrue();
+        (map.Width, map.Height).Should().Be((48, 32));
+        map.IsOpen(new GridPosition(29, 19), 1).Should().BeTrue();
+        map.IsOpen(new GridPosition(5, 22), 1).Should().BeFalse();
+        map.IsOpen(new GridPosition(5, 22), 2).Should().BeTrue();
+        map.IsOpen(new GridPosition(33, 3), 2).Should().BeTrue();
+        map.IsOpen(new GridPosition(40, 3), 2).Should().BeFalse();
+        map.IsOpen(new GridPosition(40, 3), 3).Should().BeTrue();
+        map.IsOpen(new GridPosition(5, 30), 3).Should().BeTrue();
         Enumerable.Range(0, map.Height).SelectMany(y => Enumerable.Range(0, map.Width).Select(x => new GridPosition(x, y)))
-            .Count(t => map.IsOpen(t, 1) && !map.Rocks.Contains(t)).Should().BeGreaterThan(200, "lots of room from the start");
+            .Count(t => map.IsOpen(t, 1) && !map.Rocks.Contains(t)).Should().BeGreaterThan(540, "lots of room from the start");
     }
 
     [Fact]
@@ -36,9 +36,9 @@ public class MapExpansionTests
         var state = RichBase();
 
         // Act
-        var early = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WattleFence, new GridPosition(5, 15)), T0);
+        var early = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WattleFence, new GridPosition(5, 22)), T0);
         state.Apply(new UpgradeHearth(Guid.NewGuid()), T0);
-        var later = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WattleFence, new GridPosition(5, 15)), T0.AddMinutes(10));
+        var later = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WattleFence, new GridPosition(5, 22)), T0.AddMinutes(10));
 
         // Assert
         early.Reason.Should().Be("That land opens at Hearth 2.");
@@ -66,8 +66,8 @@ public class MapExpansionTests
         var layout = RichBase().ToBattleLayout();
 
         // Assert
-        layout.IsBlocked(new GridPosition(5, 15)).Should().BeTrue();
-        layout.IsBlocked(new GridPosition(20, 3)).Should().BeTrue();
+        layout.IsBlocked(new GridPosition(5, 22)).Should().BeTrue();
+        layout.IsBlocked(new GridPosition(33, 3)).Should().BeTrue();
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public class MapExpansionTests
     {
         // Arrange
         var data = RichBase().ToData();
-        var edited = data with { Buildings = data.Buildings.Append(new BuildingData(5, BuildingType.WattleFence, 1, 5, 15, null, 0, T0.UtcTicks)).ToList(), NextId = 6 };
+        var edited = data with { Buildings = data.Buildings.Append(new BuildingData(5, BuildingType.WattleFence, 1, 5, 22, null, 0, T0.UtcTicks)).ToList(), NextId = 6 };
 
         // Act
         var act = () => BaseState.Restore(BuildingTable.Default, VillageMap.Demo, edited);

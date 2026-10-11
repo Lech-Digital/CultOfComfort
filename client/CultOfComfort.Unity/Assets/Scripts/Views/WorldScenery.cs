@@ -57,9 +57,9 @@ namespace CultOfComfort.Client
         {
             var water = Banks(width, height);
             var layout = new List<(string, GridPosition, Vector3, float, float)>();
-            for (var y = -3; y < height + 3; y++)
+            for (var y = -2; y < height + 2; y++)
             {
-                for (var x = -3; x < width + 3; x++)
+                for (var x = -2; x < width + 2; x++)
                 {
                     var tile = new GridPosition(x, y);
                     var depth = Math.Max(Math.Max(-x, x - width + 1), Math.Max(-y, y - height + 1)); // tiles out from the land

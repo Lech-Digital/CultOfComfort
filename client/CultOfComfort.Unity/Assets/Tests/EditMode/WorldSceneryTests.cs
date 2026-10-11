@@ -8,8 +8,8 @@ namespace CultOfComfort.Client.Tests
 {
     public class WorldSceneryTests
     {
-        private const int Width = 30;
-        private const int Height = 20;
+        private const int Width = 48;
+        private const int Height = 32;
 
         [Test]
         public void RiverPath_DemoMap_StaysOffTheLandWithAGrassMargin()

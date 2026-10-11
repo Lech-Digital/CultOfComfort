@@ -112,6 +112,9 @@ namespace CultOfComfort.Client
 
             _board.SetHearthWarmth(_battle == null ? 1f : _battle.HearthHealth / (float)_battle.HearthMaxHealth);
             _rig.SetShake(UnityEngine.Random.insideUnitSphere * _battleView.CameraShake);
+            // The haze keeps its distance from the camera, so zooming out over the valley doesn't drown it in fog.
+            RenderSettings.fogStartDistance = _rig.Distance + 12f;
+            RenderSettings.fogEndDistance = _rig.Distance * 2.2f + 40f;
             UpdateHud();
         }
 
@@ -371,7 +374,7 @@ namespace CultOfComfort.Client
             {
                 _openLevel = _snapshot.HearthLevel;
                 _board.SetOpenLevel(_openLevel);
-                var (min, max) = OpenBounds(_openLevel);
+                var (min, max) = VillageFraming.HomeBounds(VillageMap.Demo, _openLevel);
                 _rig.SetBounds(min, max);
                 _framePending = 2;
             }
@@ -593,26 +596,6 @@ namespace CultOfComfort.Client
 
         // ---------------- Helpers ----------------
 
-        /// <summary>The camera's roaming area: the land open at this Hearth level (world x, z).</summary>
-        private static (Vector2 Min, Vector2 Max) OpenBounds(int hearthLevel)
-        {
-            var map = VillageMap.Demo;
-            int maxX = 0, maxY = 0;
-            for (var y = 0; y < map.Height; y++)
-            {
-                for (var x = 0; x < map.Width; x++)
-                {
-                    if (map.IsOpen(new GridPosition(x, y), hearthLevel))
-                    {
-                        maxX = Mathf.Max(maxX, x);
-                        maxY = Mathf.Max(maxY, y);
-                    }
-                }
-            }
-
-            return (new Vector2(0f, -maxY), new Vector2(maxX, 0f));
-        }
-
         private void SetUpCamera()
         {
             _camera = Camera.main;
@@ -638,6 +621,9 @@ namespace CultOfComfort.Client
                 offset: new Vector3(0f, 16.5f, -10.4f),
                 boardMin: new Vector2(0f, -(VillageMap.Demo.Height - 1)),
                 boardMax: new Vector2(VillageMap.Demo.Width - 1, 0f));
+            // Pan and zoom out over the whole valley: locked forest, the edge and the river (WorldScenery.RiverPath).
+            var (roamMin, roamMax) = VillageFraming.RoamBounds(VillageMap.Demo);
+            _rig.SetRoam(roamMin, roamMax);
 
             // ~2 mm of finger wobble still counts as a tap (dpi is 0 on some devices; fall back to screen height).
             var slop = Screen.dpi > 0 ? Screen.dpi * 0.08f : Screen.height * 0.02f;
