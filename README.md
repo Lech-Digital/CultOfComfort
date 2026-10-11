@@ -55,9 +55,9 @@ Open `client/CultOfComfort.Unity` in Unity Hub (Add → Add project from disk), 
 
 - **Camera:** drag with one finger to pan, pinch to zoom (editor: mouse drag + scroll wheel). *Recenter* resets the view.
 - **Orientation:** portrait and landscape both work and follow the phone's auto-rotate. In portrait the board turns 90° so the road runs top (spawn) to bottom (Hearth); the camera always fits the board between the HUD panels.
-- **HUD:** UI Toolkit, built in code (`Assets/Scripts/Hud/HudView.cs`) and styled by `Assets/Resources/UI/Hud.uss`; a `portrait` / `landscape` class on the root restacks the bars.
+- **HUD:** UI Toolkit, built in code (`Assets/Scripts/Hud/HudView.cs`) and styled by `Assets/Resources/UI/Hud.uss`: layout C on parchment (spec `docs/superpowers/specs/2026-10-11-hud-kit-and-game-frame-design.md`) — resource pills, Prophet portrait, Tension strip (waves and health at Night), locked shortcuts that answer with a sticky note, sticky-note actions, a Settings sheet and a stamped Dawn card. A `portrait` / `landscape` class on the root restacks it. Values marked *demo* come from `DemoEconomy` until base state exists.
 - **Dusk:** pick a tower, tap empty ground to build, tap a tower to demolish. The road reroutes live.
-- **Night:** tap the ground to move the Prophet. Enemies that reach him stop to fight (towers love that), Zealots pelt him from range, and at 0 HP he swoons for 10 s. *Open Sluice* and *Phantom Voice* fire at once; *Hot Stones* arms a targeted throw: tap it, then a tile inside the pebble ring.
+- **Night:** tap the ground to move the Prophet. Levies and men-at-arms leave the road to fight him when he stands within 2 / 1½ tiles of it — pull them into tower range — Zealots pelt him from the road, and at 0 HP he swoons for 10 s. *Open Sluice* and *Phantom Voice* fire at once; *Hot Stones* arms a targeted throw: tap it, then a tile inside the pebble ring. Status icons over raiders show muddy / slowed / fleeing / fighting, and each skill explains itself the first time (Settings → Show tips again).
 - **Dawn:** result plus a server-style replay of your input log, with matching hashes.
 
 ### Android build (device via adb)
@@ -95,8 +95,11 @@ Then:
     ./art/build.sh --test        # pipeline tests (inside Blender)
     ./art/build.sh prophet       # build one asset: FBX → Assets/Resources/Art/Models, previews → art/previews
     ./art/build.sh --all         # rebuild everything
+    ./art/build.sh --icons       # HUD icons → Assets/Resources/UI/Icons
+    python3 art/ui/make_kit.py   # HUD kit textures (parchment, notes, tape, hazard, stamps) → Assets/Resources/UI/Kit
+    python3 -m unittest discover -s art/ui -p "test_*.py"   # kit generator tests
 
-Override the Blender location with `BLENDER=/path/to/Blender`.
+Override the Blender location with `BLENDER=/path/to/Blender`. HUD fonts live in `Assets/Resources/UI/Fonts` (IM Fell English: OFL; Permanent Marker: Apache 2.0; licence files alongside).
 
 Review tools (Unity batch mode, `-executeMethod`):
 

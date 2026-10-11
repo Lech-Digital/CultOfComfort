@@ -109,7 +109,7 @@ public class CultLeaderTests
     {
         // Arrange — leader at (3,0); voice once the first enemy is right next to him.
         var battle = StartBattle(TestLayouts.Corridor(), new PlayerInput(0, PlayerActionType.MoveLeader, new GridPosition(3, 0)));
-        while (battle.Enemies.Count == 0 || battle.Enemies[0].DistanceAlongPath < Fix.FromInt(2))
+        while (battle.Enemies.Count == 0 || (battle.Enemies[0].DistanceAlongPath < Fix.FromInt(2) && !battle.Enemies[0].IsOffRoad))
         {
             battle.Step();
         }
@@ -118,8 +118,8 @@ public class CultLeaderTests
         battle.Step();
         var afterShout = battle.Enemies[0].DistanceAlongPath;
 
-        // Act
-        StepUntil(battle, battle.Tick + 10);
+        // Act — a raider lured off the road scrambles back onto it before fleeing (balance 2026.10.3).
+        StepUntil(battle, battle.Tick + 30);
 
         // Assert
         battle.LastTickEvents.Should().NotContain(e => e is InputRejected);

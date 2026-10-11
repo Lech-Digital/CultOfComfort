@@ -40,6 +40,10 @@ namespace CultOfComfort.Client
         private IReadOnlyList<GridPosition> _rocks;
         private readonly List<Vector2> _pointers = new List<Vector2>();
         private Camera _camera;
+        private UIDocument _document;
+        private readonly TipBook _tips = new TipBook(new PlayerPrefsTipStore());
+        private const float TipSeconds = 7f;
+        private float _tipUntil;
         private CameraRig _rig;
         private GestureRecognizer _gestures;
         private GestureFrame _gesture;
@@ -74,6 +78,8 @@ namespace CultOfComfort.Client
             _board.Build(_rocks);
             _battleView = gameObject.AddComponent<BattleView>();
             _battleView.Announcement += Announce;
+            _battleView.Floater += FloatNote;
+            _battleView.SkillUsed += ShowFirstUseTip;
 
             SetUpCamera();
             SetUpHud();
@@ -144,7 +150,7 @@ namespace CultOfComfort.Client
 
             if (!CanToggle(tile, out var reason))
             {
-                Announce(reason);
+                Say(reason, prophet: true);
                 return;
             }
 
@@ -208,6 +214,7 @@ namespace CultOfComfort.Client
             _setup = new BattleSetup(Layout(_towers), (ulong)(946 + _night), RaidBudget, RaidWaves, new List<PlayerInput>());
             _battle = new Battle(_setup);
             _battleView.Begin(_battle);
+            _framePending = 2; // the Night strip is taller than the Dusk one: re-fit the board once the HUD has laid out
             _board.ShowCursor(null, false);
             _accumulator = 0f;
             _phase = GamePhase.Night;
@@ -319,6 +326,7 @@ namespace CultOfComfort.Client
         {
             _battleView.Clear();
             _battle = null;
+            _framePending = 2;
             _night++;
             _phase = GamePhase.Dusk;
             _hud.ShowPhase(_phase);
@@ -366,7 +374,41 @@ namespace CultOfComfort.Client
             return tile.X >= 0 && tile.Y >= 0 && tile.X < DemoMap.Width && tile.Y < DemoMap.Height;
         }
 
-        private void Announce(string text) => _hud.Announce(text, Time.time);
+        /// <summary>World announcements and Prophet quips wait while a first-use tip is up: a tip is shown once ever.</summary>
+        private void Announce(string text) => Say(text, prophet: false);
+
+        private void Say(string text, bool prophet)
+        {
+            if (Time.time < _tipUntil)
+            {
+                return;
+            }
+
+            _hud.Announce(text, Time.time, prophet: prophet);
+        }
+
+        private void ShowFirstUseTip(PlayerActionType skill)
+        {
+            var tip = _tips.Take(skill);
+            if (tip != null)
+            {
+                _hud.Announce(tip, Time.time, TipSeconds, prophet: true);
+                _tipUntil = Time.time + TipSeconds;
+            }
+        }
+
+        /// <summary>Projects a world point into the HUD panel and floats a note there.</summary>
+        private void FloatNote(Vector3 world, string text)
+        {
+            var screen = _camera.WorldToScreenPoint(world);
+            var panel = _document.rootVisualElement.panel;
+            if (screen.z <= 0f || panel == null)
+            {
+                return;
+            }
+
+            _hud.Float(text, RuntimePanelUtils.ScreenToPanel(panel, new Vector2(screen.x, Screen.height - screen.y)), Time.time);
+        }
 
         // ---------------- HUD & orientation ----------------
 
@@ -380,6 +422,7 @@ namespace CultOfComfort.Client
             settings.fallbackDpi = 160f;
 
             var document = gameObject.AddComponent<UIDocument>();
+            _document = document;
             document.panelSettings = settings;
             var root = document.rootVisualElement;
             root.styleSheets.Add(Resources.Load<StyleSheet>("UI/Hud"));
@@ -397,12 +440,18 @@ namespace CultOfComfort.Client
             _hud.SpeedClicked += () => _speed = _speed == 1 ? 2 : _speed == 2 ? 4 : 1;
             _hud.RecenterClicked += () => _rig.Reset();
             _hud.BackToDuskClicked += BackToDusk;
+            _hud.ResetTipsClicked += () =>
+            {
+                _tips.Reset();
+                Announce("Tips are back. The Prophet clears his throat.");
+            };
             _hud.ShowPhase(_phase);
         }
 
         private void UpdateHud()
         {
             _hud.Tick(Time.time);
+            _hud.UpdateFrame(DemoEconomy.Frame(_scrap, 1));
             if (_phase == GamePhase.Dusk)
             {
                 var probe = DeterminismProbe.Matches switch
@@ -428,7 +477,7 @@ namespace CultOfComfort.Client
                 _hud.UpdateNight(new NightHudState(
                     _night, _battle.HearthHealth, _battle.HearthMaxHealth, leader.Health, leader.MaxHealth,
                     sluice, _battle.IsSluiceReady, voice, _battle.IsVoiceReady, stones, _battle.IsHotStonesReady || _aimingStones, _aimingStones, _speed,
-                    $"Wave {Mathf.Max(1, _battle.CurrentWave)}/{_battle.WaveCount} · {alive} on the road · {hint}"));
+                    _battle.CurrentWave, _battle.WaveCount, alive, hint));
             }
         }
 

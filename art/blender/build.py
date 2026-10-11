@@ -10,10 +10,12 @@ if HERE not in sys.path:
 
 import palette  # noqa: E402
 from lib import checks, export, scene  # noqa: E402
+from lib import icon  # noqa: E402
 from lib import preview as previews  # noqa: E402
 
 PREVIEW_DIR = os.path.abspath(os.path.join(HERE, "..", "previews"))
 MODEL_DIR = os.path.join(palette.UNITY_ART_DIR, "Models")
+ICON_DIR = os.path.join(os.path.dirname(palette.UNITY_ART_DIR), "UI", "Icons")
 
 
 def build_asset(name, preview=True):
@@ -31,6 +33,23 @@ def build_asset(name, preview=True):
     return result
 
 
+def build_icon(name):
+    module = importlib.import_module(f"icons.{name}")
+    scene.reset()
+    root = module.build()
+    checks.verify(root, module.TRIANGLE_BUDGET, ())
+    os.makedirs(ICON_DIR, exist_ok=True)
+    path = os.path.join(ICON_DIR, f"{name}.png")
+    icon.render_icon(root, path, focus=getattr(module, "FOCUS", None))
+    print(f"[art] icon {name} → {path}")
+    return path
+
+
+def _all_icons():
+    folder = os.path.join(HERE, "icons")
+    return sorted(f[:-3] for f in os.listdir(folder) if f.endswith(".py") and not f.startswith("_"))
+
+
 def _all_models():
     folder = os.path.join(HERE, "models")
     return sorted(f[:-3] for f in os.listdir(folder) if f.endswith(".py") and not f.startswith("_"))
@@ -41,7 +60,12 @@ def main(argv):
     parser.add_argument("names", nargs="*")
     parser.add_argument("--all", action="store_true")
     parser.add_argument("--no-preview", action="store_true")
+    parser.add_argument("--icons", action="store_true")
     args = parser.parse_args(argv)
+    if args.icons:
+        for name in args.names or _all_icons():
+            build_icon(name)
+        return
     names = _all_models() if args.all else args.names
     if not names:
         parser.error("name an asset (see art/blender/models) or pass --all")

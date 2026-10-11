@@ -10,4 +10,8 @@ public readonly record struct FixVector2(Fix X, Fix Y)
         var dy = Y - other.Y;
         return dx * dx + dy * dy;
     }
+
+    public static FixVector2 operator +(FixVector2 a, FixVector2 b) => new(a.X + b.X, a.Y + b.Y);
+
+    public static FixVector2 operator -(FixVector2 a, FixVector2 b) => new(a.X - b.X, a.Y - b.Y);
 }

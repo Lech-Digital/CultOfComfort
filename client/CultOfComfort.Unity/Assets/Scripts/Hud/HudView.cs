@@ -12,21 +12,24 @@ namespace CultOfComfort.Client
     {
         public NightHudState(
             int night, int hearth, int hearthMax, int prophet, int prophetMax, string sluice, bool sluiceReady, string voice, bool voiceReady,
-            string stones, bool stonesReady, bool aiming, int speed, string status)
+            string stones, bool stonesReady, bool aiming, int speed, int wave, int waveCount, int alive, string status)
         {
-            Prophet = prophet;
-            ProphetMax = prophetMax;
-            Stones = stones;
-            StonesReady = stonesReady;
-            Aiming = aiming;
             Night = night;
             Hearth = hearth;
             HearthMax = hearthMax;
+            Prophet = prophet;
+            ProphetMax = prophetMax;
             Sluice = sluice;
             SluiceReady = sluiceReady;
             Voice = voice;
             VoiceReady = voiceReady;
+            Stones = stones;
+            StonesReady = stonesReady;
+            Aiming = aiming;
             Speed = speed;
+            Wave = wave;
+            WaveCount = waveCount;
+            Alive = alive;
             Status = status;
         }
 
@@ -35,46 +38,65 @@ namespace CultOfComfort.Client
         public int HearthMax { get; }
         public int Prophet { get; }
         public int ProphetMax { get; }
+        public string Sluice { get; }
+        public bool SluiceReady { get; }
+        public string Voice { get; }
+        public bool VoiceReady { get; }
         public string Stones { get; }
         public bool StonesReady { get; }
 
         /// <summary>Hot Stones is armed: the next tap on the board picks where they land.</summary>
         public bool Aiming { get; }
-        public string Sluice { get; }
-        public bool SluiceReady { get; }
-        public string Voice { get; }
-        public bool VoiceReady { get; }
         public int Speed { get; }
+        public int Wave { get; }
+        public int WaveCount { get; }
+        public int Alive { get; }
+
+        /// <summary>The one-line hint under the skills.</summary>
         public string Status { get; }
     }
 
     /// <summary>
-    /// The HUD, built in code with UI Toolkit and styled by Resources/UI/Hud.uss. Layout is flexbox: a status panel
-    /// on top, a bar at the bottom, and a <c>portrait</c> / <c>landscape</c> class on the root that restacks the bar.
-    /// It only displays state and raises events; the <see cref="GameController"/> decides what they mean.
+    /// The HUD (spec: HUD Kit & Game Frame), built in code with UI Toolkit and styled by Resources/UI/Hud.uss.
+    /// Layout C on parchment: a frame on top (resource pills, portrait, settings) with a strip under it (Tension at
+    /// Dusk, waves + health at Night), shortcut columns at the sides, and a bottom bar. A <c>portrait</c> /
+    /// <c>landscape</c> class on the root restacks it. It only displays state and raises events; the
+    /// <see cref="GameController"/> decides what they mean.
     /// </summary>
     public sealed class HudView
     {
         /// <summary>Extra inset beyond the OS safe area, for rounded display corners (panel points).</summary>
         private const float CornerMargin = 14f;
+        private const float NoteSeconds = 3f;
+        private const float FloatSeconds = 1.2f;
 
         private readonly VisualElement _root;
         private readonly VisualElement _top;
-        private readonly Label _phaseLine;
-        private readonly Label _probeLine;
-        private readonly VisualElement _hearth;
-        private readonly Label _hearthLabel;
+        private readonly Dictionary<string, (VisualElement Pill, Label Value)> _pills = new Dictionary<string, (VisualElement, Label)>();
+        private readonly Label _hearthBadge;
+        private readonly Label _hearthLine;
+        private readonly Label _comfort;
+        private readonly VisualElement _tensionStrip;
+        private readonly VisualElement _tensionCover;
+        private readonly Label _tensionNote;
+        private readonly VisualElement _waveStrip;
+        private readonly Label _waveLabel;
         private readonly VisualElement _hearthFill;
-        private readonly VisualElement _prophet;
-        private readonly Label _prophetLabel;
+        private readonly Label _hearthValue;
         private readonly VisualElement _prophetFill;
+        private readonly Label _prophetValue;
+        private readonly VisualElement _sideLeft;
+        private readonly VisualElement _sideRight;
+        private readonly Label _lockedNote;
+        private readonly VisualElement _settings;
+        private readonly Label _probe;
         private readonly Label _toast;
         private readonly VisualElement _card;
         private readonly Label _cardTitle;
         private readonly Label _cardSummary;
         private readonly Label _cardFlavour;
         private readonly Label _cardStats;
-        private readonly Label _cardVerdict;
+        private readonly VisualElement _stamp;
         private readonly VisualElement _bar;
         private readonly VisualElement _duskBar;
         private readonly VisualElement _nightBar;
@@ -84,7 +106,13 @@ namespace CultOfComfort.Client
         private readonly Button _stones;
         private readonly Button _speed;
         private readonly Label _nightStatus;
+        private readonly Dictionary<Button, Label> _skillText = new Dictionary<Button, Label>();
+        private readonly Label[] _floaters = new Label[12];
+        private readonly float[] _floatStart = new float[12];
+        private readonly Vector2[] _floatAt = new Vector2[12];
+        private int _nextFloater;
         private float _toastUntil;
+        private float _noteUntil;
         private Vector4 _padding = new Vector4(float.NaN, 0f, 0f, 0f);
 
         public HudView(VisualElement root, IReadOnlyDictionary<TowerType, (string Name, int Cost)> towers)
@@ -93,81 +121,131 @@ namespace CultOfComfort.Client
             _root.AddToClassList("hud");
             _root.pickingMode = PickingMode.Ignore;
 
-            // Top: status panel + recenter.
-            _top = Container("top-row");
-            var status = Panel("status");
-            status.Add(Text("Cult of Comfort", "title"));
-            _phaseLine = Text(string.Empty, "line");
-            _probeLine = Text(string.Empty, "line", "small");
-            (_hearth, _hearthLabel, _hearthFill) = Meter();
-            (_prophet, _prophetLabel, _prophetFill) = Meter();
-            status.Add(_phaseLine);
-            status.Add(_probeLine);
-            status.Add(_hearth);
-            status.Add(_prophet);
-            _top.Add(status);
-            _top.Add(Container("spacer"));
-            _top.Add(ButtonWith("Recenter", () => RecenterClicked?.Invoke(), "chip"));
+            // ---------- top: frame + strip ----------
+            _top = Container("top");
+            var frame = Container("frame");
+            frame.name = "frame";
+            var pills = Container("pills");
+            foreach (var (key, icon) in new[] { ("timber", "timber"), ("scrap", "scrap"), ("peat", "peat"), ("devotion", "devotion"), ("pennies", "penny") })
+            {
+                var pill = Surface(key == "pennies" ? "pill-note" : "pill");
+                pill.name = $"pill-{key}";
+                pill.Add(Icon(icon));
+                var value = Text(string.Empty, "pill-value");
+                pill.Add(value);
+                pill.Add(Text("demo", "demo-tag"));
+                _pills[key] = (pill, value);
+                pills.Add(pill);
+            }
 
-            // Middle: toast and the Dawn card.
+            frame.Add(pills);
+            var identity = Container("identity");
+            var portrait = Surface("avatar"); // not "portrait": that class is the root's orientation flag
+            portrait.name = "portrait";
+            var clip = Container("avatar-clip"); // round mask for the face only, so the badge is not clipped
+            clip.Add(Icon("portrait_prophet", "portrait-face"));
+            portrait.Add(clip);
+            _hearthBadge = Text("1", "hearth-badge");
+            _hearthBadge.name = "hearth-badge";
+            portrait.Add(_hearthBadge);
+            identity.Add(portrait);
+            var label = Surface("id-label");
+            label.Add(Container("tape"));
+            _hearthLine = Text("Hearth Lv 1", "id-title");
+            _comfort = Text(string.Empty, "id-line");
+            _comfort.name = "comfort";
+            label.Add(_hearthLine);
+            label.Add(_comfort);
+            identity.Add(label);
+            identity.Add(Container("spacer"));
+            var settingsButton = IconButton("settings", () => ToggleSettings(), "round");
+            settingsButton.name = "settings-button";
+            identity.Add(settingsButton);
+            frame.Add(identity);
+            _top.Add(frame);
+
+            _tensionStrip = Container("strip");
+            _tensionStrip.name = "tension-strip";
+            var tape = Surface("hazard-track");
+            _tensionCover = Container("hazard-cover");
+            tape.Add(_tensionCover);
+            _tensionStrip.Add(tape);
+            _tensionNote = Text(string.Empty, "marker-note");
+            _tensionStrip.Add(_tensionNote);
+            _top.Add(_tensionStrip);
+
+            _waveStrip = Container("strip");
+            _waveStrip.name = "wave-strip";
+            _waveLabel = Text(string.Empty, "wave-label");
+            _waveLabel.name = "wave-label";
+            _waveStrip.Add(_waveLabel);
+            (_hearthFill, _hearthValue) = Meter(_waveStrip, "Hearth", "hearth-fill");
+            (_prophetFill, _prophetValue) = Meter(_waveStrip, "Prophet", "prophet-fill");
+            _top.Add(_waveStrip);
+
+            // ---------- middle: side columns + centre stack ----------
             var middle = Container("middle");
-            var toastRow = Container("toast-row");
+            _sideLeft = Container("side");
+            _sideLeft.name = "side-left";
+            _sideRight = Container("side");
+            _sideRight.name = "side-right";
+            _sideLeft.Add(Shortcut(LockedFeatures.Get("map")));
+            _sideLeft.Add(Shortcut(LockedFeatures.Get("research")));
+            _sideRight.Add(Shortcut(LockedFeatures.Get("missionaries")));
+            _sideRight.Add(Shortcut(LockedFeatures.Get("tithes")));
+            var centre = Container("centre");
             _toast = Text(string.Empty, "toast", "hidden");
+            _toast.name = "toast";
             _toast.pickingMode = PickingMode.Ignore;
-            toastRow.Add(_toast);
-            _card = Panel("card");
-            _cardTitle = Text(string.Empty, "card-title");
-            _cardSummary = Text(string.Empty, "line");
-            _cardFlavour = Text(string.Empty, "line");
-            _cardStats = Text(string.Empty, "line", "small");
-            _cardVerdict = Text(string.Empty, "line");
-            _card.Add(_cardTitle);
-            _card.Add(_cardSummary);
-            _card.Add(_cardFlavour);
-            _card.Add(_cardStats);
-            _card.Add(_cardVerdict);
-            _card.Add(ButtonWith("Back to Dusk", () => BackToDuskClicked?.Invoke(), "primary", "first"));
-            middle.Add(_card);
-            middle.Add(toastRow);
+            _lockedNote = Text(string.Empty, "locked-note", "hidden");
+            _lockedNote.name = "locked-note";
+            _settings = BuildSettings(out _probe);
+            _card = BuildCard(out _cardTitle, out _cardSummary, out _cardFlavour, out _cardStats, out _stamp);
+            centre.Add(_toast);
+            centre.Add(_lockedNote);
+            middle.Add(_sideLeft);
+            middle.Add(centre);
+            middle.Add(_sideRight);
 
-            // Bottom: Dusk build bar or Night skill bar.
+            // ---------- bottom bar ----------
             _bar = Panel("bar");
-            _duskBar = Container("bar-content");
-            var picker = Container("group");
+            _duskBar = Container("dusk-bar");
+            _duskBar.name = "dusk-bar";
+            var picker = Container("towers");
+            var notes = new[] { "note-yellow", "note-pink", "note-green", "note-blue" };
             foreach (var tower in towers)
             {
                 var button = new Button(() => TowerSelected?.Invoke(tower.Key)) { name = $"tower-{tower.Key}" };
                 button.AddToClassList("btn");
                 button.AddToClassList("tower");
+                button.AddToClassList(notes[_towerButtons.Count % notes.Length]);
+                button.AddToClassList(_towerButtons.Count % 2 == 0 ? "tilt-left" : "tilt-right"); // USS has no :nth-child
                 var towerName = Text(tower.Value.Name, "tower-name");
                 var towerCost = Text($"{tower.Value.Cost} Scrap", "tower-cost");
                 towerName.pickingMode = towerCost.pickingMode = PickingMode.Ignore;
                 button.Add(towerName);
                 button.Add(towerCost);
-                if (_towerButtons.Count == 0)
-                {
-                    button.AddToClassList("first");
-                }
-
                 _towerButtons[tower.Key] = button;
                 picker.Add(button);
             }
 
             _duskBar.Add(picker);
-            _duskBar.Add(Text("Tap empty ground to build, tap a tower to demolish. Drag to look around, pinch to zoom.", "hint"));
+            var actions = Container("actions");
+            actions.Add(Shortcut(LockedFeatures.Get("shop"), "bar-shortcut"));
             var start = ButtonWith("Light the Lamps", () => StartNightClicked?.Invoke(), "primary");
             start.name = "start-night";
-            _duskBar.Add(start);
+            actions.Add(start);
+            actions.Add(Shortcut(LockedFeatures.Get("cult"), "bar-shortcut"));
+            _duskBar.Add(actions);
 
-            _nightBar = Container("bar-content");
-            var skills = Container("group");
-            _sluice = ButtonWith(string.Empty, () => SluiceClicked?.Invoke(), "first");
-            _voice = ButtonWith(string.Empty, () => VoiceClicked?.Invoke());
-            _stones = ButtonWith(string.Empty, () => StonesClicked?.Invoke());
-            _speed = ButtonWith(string.Empty, () => SpeedClicked?.Invoke(), "speed");
-            _sluice.name = "sluice";
-            _voice.name = "voice";
-            _stones.name = "stones";
+            _nightBar = Container("night-bar");
+            _nightBar.name = "night-bar";
+            var skills = Container("skills");
+            _sluice = SkillButton("sluice", "note-blue", () => SluiceClicked?.Invoke());
+            _voice = SkillButton("voice", "note-pink", () => VoiceClicked?.Invoke());
+            _stones = SkillButton("stones", "note-yellow", () => StonesClicked?.Invoke());
+            _speed = SkillButton("speed", "note-green", () => SpeedClicked?.Invoke());
+            _speed.AddToClassList("speed");
             skills.Add(_sluice);
             skills.Add(_voice);
             skills.Add(_stones);
@@ -181,7 +259,17 @@ namespace CultOfComfort.Client
             _root.Add(_top);
             _root.Add(middle);
             _root.Add(_bar);
+            _root.Add(_card);      // overlays, added last so they draw over the bar
+            _root.Add(_settings);
+            for (var i = 0; i < _floaters.Length; i++)
+            {
+                _floaters[i] = Text(string.Empty, "floater", "hidden");
+                _floaters[i].pickingMode = PickingMode.Ignore;
+                _floatStart[i] = float.NegativeInfinity;
+                _root.Add(_floaters[i]);
+            }
             SetPortrait(false);
+            Show(_settings, false);
         }
 
         public event Action<TowerType> TowerSelected;
@@ -192,6 +280,7 @@ namespace CultOfComfort.Client
         public event Action SpeedClicked;
         public event Action RecenterClicked;
         public event Action BackToDuskClicked;
+        public event Action ResetTipsClicked;
 
         public void SetPortrait(bool portrait)
         {
@@ -201,19 +290,40 @@ namespace CultOfComfort.Client
 
         public void ShowPhase(GamePhase phase)
         {
+            Show(_tensionStrip, phase == GamePhase.Dusk);
+            Show(_waveStrip, phase == GamePhase.Night);
+            Show(_sideLeft, phase == GamePhase.Dusk);
+            Show(_sideRight, phase == GamePhase.Dusk);
             Show(_duskBar, phase == GamePhase.Dusk);
             Show(_nightBar, phase == GamePhase.Night);
             Show(_bar, phase != GamePhase.Dawn);
             Show(_card, phase == GamePhase.Dawn);
-            Show(_probeLine, phase == GamePhase.Dusk);
-            Show(_hearth, phase != GamePhase.Dusk);
-            Show(_prophet, phase == GamePhase.Night);
+            Show(_prophetFill.parent.parent, phase == GamePhase.Night);
+            if (phase != GamePhase.Dusk)
+            {
+                Show(_settings, false);
+                _noteUntil = 0f;
+            }
+        }
+
+        public void UpdateFrame(in FrameState frame)
+        {
+            SetPill("timber", frame.Timber);
+            SetPill("scrap", frame.Scrap);
+            SetPill("peat", frame.Peat);
+            SetPill("devotion", frame.Devotion);
+            SetPill("pennies", frame.Pennies);
+            _hearthBadge.text = frame.HearthLevel.ToString();
+            _hearthLine.text = $"Hearth Lv {frame.HearthLevel}";
+            _comfort.text = frame.Comfort.IsDemo ? $"Comfort {frame.Comfort.Value} · demo" : $"Comfort {frame.Comfort.Value}";
+            _comfort.EnableInClassList("demo", frame.Comfort.IsDemo);
+            _tensionCover.style.width = Length.Percent((1f - Mathf.Clamp01(frame.Tension)) * 100f);
+            _tensionNote.text = frame.TensionIsDemo ? $"TENSION — {frame.TensionNote} (demo)" : $"TENSION — {frame.TensionNote}";
         }
 
         public void UpdateDusk(int night, int scrap, TowerType? selected, IReadOnlyDictionary<TowerType, int> costs, string probe)
         {
-            _phaseLine.text = $"Dusk · Night {night} · Scrap {scrap}";
-            _probeLine.text = probe;
+            _probe.text = string.IsNullOrEmpty(probe) ? $"Night {night}" : $"Night {night} · {probe}";
             foreach (var pair in _towerButtons)
             {
                 pair.Value.EnableInClassList("selected", pair.Key == selected);
@@ -223,17 +333,14 @@ namespace CultOfComfort.Client
 
         public void UpdateNight(in NightHudState state)
         {
-            _phaseLine.text = $"Night {state.Night}";
-            SetHearth(state.Hearth, state.HearthMax);
-            _sluice.text = state.Sluice;
-            _sluice.SetEnabled(state.SluiceReady);
-            _voice.text = state.Voice;
-            _voice.SetEnabled(state.VoiceReady);
-            _stones.text = state.Stones;
-            _stones.SetEnabled(state.StonesReady);
+            _waveLabel.text = $"Wave {Mathf.Max(1, state.Wave)}/{state.WaveCount} · {state.Alive} on the road";
+            SetMeter(_hearthValue, _hearthFill, state.Hearth, state.HearthMax);
+            SetMeter(_prophetValue, _prophetFill, state.Prophet, state.ProphetMax);
+            SetSkill(_sluice, state.Sluice, state.SluiceReady);
+            SetSkill(_voice, state.Voice, state.VoiceReady);
+            SetSkill(_stones, state.Stones, state.StonesReady);
             _stones.EnableInClassList("aiming", state.Aiming);
-            SetMeter(_prophetLabel, _prophetFill, "Prophet", state.Prophet, state.ProphetMax);
-            _speed.text = $"{state.Speed}×";
+            SetSkill(_speed, $"{state.Speed}×", true);
             _nightStatus.text = state.Status;
         }
 
@@ -241,8 +348,8 @@ namespace CultOfComfort.Client
         {
             var won = result.Outcome == BattleOutcome.Won;
             var match = serverReplay == result;
-            _phaseLine.text = "Dawn";
-            SetHearth(result.HearthHealth, result.HearthMaxHealth);
+            SetMeter(_hearthValue, _hearthFill, result.HearthHealth, result.HearthMaxHealth);
+            _waveLabel.text = "Dawn";
             _cardTitle.text = won ? "The Hearth stands" : "The Hearth went cold";
             _cardSummary.text = $"Stars {result.Stars}/3 · Hearth {result.HearthHealth}/{result.HearthMaxHealth}";
             _cardFlavour.text = won
@@ -250,21 +357,54 @@ namespace CultOfComfort.Client
                 : "Wulfric's men warmed their hands on the embers and left. Tomorrow: repairs, and a strongly worded diary entry.";
             _cardStats.text = $"{result.EnemiesDefeated} defeated · {result.EnemiesLeaked} reached the Hearth · {commands} commands logged\n" +
                               $"Client hash {result.StateHashHex} · server replay {serverReplay.StateHashHex}";
-            _cardVerdict.text = match ? "Server replay: VERIFIED" : "Server replay: MISMATCH";
-            _cardVerdict.EnableInClassList("verified", match);
-            _cardVerdict.EnableInClassList("mismatch", !match);
+            _stamp.EnableInClassList("verified", match);
+            _stamp.EnableInClassList("mismatch", !match);
         }
 
-        public void Announce(string text, float now, float seconds = 3.5f)
+        /// <summary>The world speaks on a parchment ribbon; the Prophet (<paramref name="prophet"/>) scribbles on a sticky note.</summary>
+        public void Announce(string text, float now, float seconds = 3.5f, bool prophet = false)
         {
             _toast.text = text;
+            _toast.EnableInClassList("prophet", prophet);
             _toastUntil = now + seconds;
         }
 
-        /// <summary>Per frame: hides an expired toast and keeps the root padded to the safe area.</summary>
+        /// <summary>A marker-pen note that rises and fades above a raider (panel coordinates).</summary>
+        public void Float(string text, Vector2 panelPosition, float now)
+        {
+            var i = _nextFloater;
+            _nextFloater = (_nextFloater + 1) % _floaters.Length;
+            _floaters[i].text = text;
+            _floatStart[i] = now;
+            _floatAt[i] = panelPosition;
+        }
+
+        public void ShowLockedNote(string id, float now)
+        {
+            _lockedNote.text = LockedFeatures.Get(id).Note;
+            _noteUntil = now + NoteSeconds;
+            Show(_settings, false);
+        }
+
+        /// <summary>Per frame: hides expired notes and keeps the root padded to the safe area.</summary>
         public void Tick(float now)
         {
             _toast.EnableInClassList("hidden", now >= _toastUntil || string.IsNullOrEmpty(_toast.text));
+            _lockedNote.EnableInClassList("hidden", now >= _noteUntil);
+            for (var i = 0; i < _floaters.Length; i++)
+            {
+                var age = now - _floatStart[i];
+                var live = age >= 0f && age < FloatSeconds;
+                _floaters[i].EnableInClassList("hidden", !live);
+                if (live)
+                {
+                    var t = age / FloatSeconds;
+                    _floaters[i].style.left = _floatAt[i].x - 40f;
+                    _floaters[i].style.top = _floatAt[i].y - 36f * t;
+                    _floaters[i].style.opacity = 1f - t * t;
+                }
+            }
+
             ApplySafeArea();
         }
 
@@ -282,7 +422,7 @@ namespace CultOfComfort.Client
         }
 
         /// <summary>
-        /// The part of the screen between the status panel and the bottom bar, in viewport coordinates (0..1,
+        /// The part of the screen between the top (frame + strip) and the bottom bar, in viewport coordinates (0..1,
         /// bottom-left origin). The camera fits the board in here. Null until UI Toolkit has done a layout pass.
         /// </summary>
         public Rect? ClearViewport()
@@ -301,26 +441,117 @@ namespace CultOfComfort.Client
             return Rect.MinMaxRect(left + gap, 1f - bottom + gap, 1f - right - gap, 1f - top - gap);
         }
 
-        private void SetHearth(int hearth, int max) => SetMeter(_hearthLabel, _hearthFill, "Hearth", hearth, max);
-
-        private static void SetMeter(Label label, VisualElement fill, string name, int value, int max)
+        private void ToggleSettings()
         {
-            var fraction = max > 0 ? Mathf.Clamp01(value / (float)max) : 0f;
-            label.text = $"{name} {value}";
-            fill.style.width = Length.Percent(fraction * 100f);
-            fill.style.backgroundColor = Color.Lerp(Palette.Invalid, Palette.Ember, fraction);
+            Show(_settings, _settings.style.display == DisplayStyle.None);
+            _noteUntil = 0f;
         }
 
-        private static (VisualElement Row, Label Label, VisualElement Fill) Meter()
+        private VisualElement BuildSettings(out Label probe)
         {
-            var row = Container("hearth");
-            var label = Text(string.Empty, "hearth-label");
-            var track = Container("track");
-            var fill = Container("fill");
+            var sheet = Panel("sheet");
+            sheet.name = "settings-sheet";
+            sheet.Add(Text("Settings", "sheet-title"));
+            var recenter = ButtonWith("Recenter camera", () => RecenterClicked?.Invoke(), "plain");
+            recenter.name = "recenter";
+            sheet.Add(recenter);
+            sheet.Add(Text("Sound: there is no sound yet.", "sheet-line"));
+            var tips = ButtonWith("Show tips again", () => ResetTipsClicked?.Invoke(), "plain");
+            tips.name = "reset-tips";
+            sheet.Add(tips);
+            sheet.Add(Text($"Build {Application.version}", "sheet-line", "small"));
+            probe = Text(string.Empty, "sheet-line", "small");
+            probe.style.display = Debug.isDebugBuild ? DisplayStyle.Flex : DisplayStyle.None;
+            sheet.Add(probe);
+            sheet.Add(ButtonWith("Close", () => Show(_settings, false), "plain"));
+            return sheet;
+        }
+
+        private VisualElement BuildCard(out Label title, out Label summary, out Label flavour, out Label stats, out VisualElement stamp)
+        {
+            var card = Panel("card");
+            card.name = "card";
+            title = Text(string.Empty, "card-title");
+            summary = Text(string.Empty, "card-line");
+            flavour = Text(string.Empty, "card-line");
+            stats = Text(string.Empty, "card-line", "small");
+            stamp = Container("stamp");
+            stamp.name = "stamp";
+            card.Add(title);
+            card.Add(summary);
+            card.Add(flavour);
+            card.Add(stats);
+            card.Add(stamp);
+            card.Add(ButtonWith("Back to Dusk", () => BackToDuskClicked?.Invoke(), "primary"));
+            return card;
+        }
+
+        private VisualElement Shortcut(LockedFeature feature, string extraClass = null)
+        {
+            var holder = Container("shortcut");
+            if (extraClass != null)
+            {
+                holder.AddToClassList(extraClass);
+            }
+
+            var button = IconButton(feature.Icon, () => ShowLockedNote(feature.Id, Time.time), "round", "locked");
+            button.name = $"locked-{feature.Id}";
+            button.Add(Container("padlock"));
+            holder.Add(button);
+            holder.Add(Text(feature.Label, "shortcut-label"));
+            return holder;
+        }
+
+        private Button SkillButton(string icon, string note, Action clicked)
+        {
+            var button = new Button(clicked) { name = icon };
+            button.AddToClassList("btn");
+            button.AddToClassList("skill");
+            button.AddToClassList(note);
+            button.Add(Icon(icon, "skill-icon"));
+            var text = Text(string.Empty, "skill-text");
+            text.pickingMode = PickingMode.Ignore;
+            button.Add(text);
+            _skillText[button] = text;
+            return button;
+        }
+
+        /// <summary>Per frame, so no queries: the label was remembered when the button was built.</summary>
+        private void SetSkill(Button button, string text, bool ready)
+        {
+            _skillText[button].text = text;
+            button.SetEnabled(ready);
+        }
+
+        private void SetPill(string key, Reading reading)
+        {
+            var (pill, value) = _pills[key];
+            value.text = reading.Cap > 0 ? $"{reading.Value}/{Short(reading.Cap)}" : reading.Value.ToString();
+            pill.EnableInClassList("demo", reading.IsDemo);
+        }
+
+        private static string Short(int cap) => cap >= 1000 && cap % 1000 == 0 ? $"{cap / 1000}k" : cap.ToString();
+
+        private static void SetMeter(Label value, VisualElement fill, int current, int max)
+        {
+            var fraction = max > 0 ? Mathf.Clamp01(current / (float)max) : 0f;
+            value.text = Mathf.Max(0, current).ToString();
+            fill.style.width = Length.Percent(fraction * 100f);
+        }
+
+        private static (VisualElement Fill, Label Value) Meter(VisualElement parent, string name, string fillName)
+        {
+            var row = Container("meter");
+            row.Add(Text(name, "meter-label"));
+            var track = Surface("meter-track");
+            var fill = Container("meter-fill");
+            fill.name = fillName;
             track.Add(fill);
-            row.Add(label);
             row.Add(track);
-            return (row, label, fill);
+            var value = Text(string.Empty, "meter-value");
+            row.Add(value);
+            parent.Add(row);
+            return (fill, value);
         }
 
         /// <summary>UI Toolkit ignores Screen.safeArea, so pad the root ourselves (cutouts, rounded corners, gesture bar).</summary>
@@ -363,12 +594,28 @@ namespace CultOfComfort.Client
             return element;
         }
 
+        /// <summary>A drawn piece of the frame (pill, portrait, tape): blocks world taps, unlike plain layout containers.</summary>
+        private static VisualElement Surface(string className)
+        {
+            var element = new VisualElement();
+            element.AddToClassList(className);
+            return element;
+        }
+
         /// <summary>A panel blocks world taps (picking on), unlike plain layout containers.</summary>
         private static VisualElement Panel(string className)
         {
             var element = new VisualElement();
             element.AddToClassList("panel");
             element.AddToClassList(className);
+            return element;
+        }
+
+        private static VisualElement Icon(string icon, string className = "icon")
+        {
+            var element = Container(className);
+            element.AddToClassList("icon");
+            element.AddToClassList($"icon-{icon}");
             return element;
         }
 
@@ -381,6 +628,13 @@ namespace CultOfComfort.Client
             }
 
             return label;
+        }
+
+        private static Button IconButton(string icon, Action clicked, params string[] classNames)
+        {
+            var button = ButtonWith(string.Empty, clicked, classNames);
+            button.Add(Icon(icon));
+            return button;
         }
 
         private static Button ButtonWith(string text, Action clicked, params string[] classNames)
