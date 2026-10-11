@@ -573,6 +573,7 @@ namespace CultOfComfort.Client
             BuildingType.DirtTrack => "road_dirt",
             BuildingType.PlankWalk => "road_planks",
             BuildingType.CobbledRoad => "road_cobbles",
+            BuildingType.Cottage => "cottage",
             BuildingType.Stone => "rock_b",
             BuildingType.Tree => "oak",
             _ => null,

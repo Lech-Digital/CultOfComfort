@@ -269,3 +269,6 @@
 .icon-b_dirt_track { background-image: resource("UI/Icons/b_dirt_track"); }
 .icon-b_plank_walk { background-image: resource("UI/Icons/b_plank_walk"); }
 .icon-b_cobbled_road { background-image: resource("UI/Icons/b_cobbled_road"); }
+.icon-b_cottage { background-image: resource("UI/Icons/b_cottage"); }
+.pill.cold, .pill-note.cold { background-color: #9fc7d9; }
+.pill.cold .pill-value, .pill-note.cold .pill-value { color: #1d4a66; }

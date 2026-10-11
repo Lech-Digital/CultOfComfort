@@ -38,6 +38,7 @@ namespace CultOfComfort.Client
             BuildingType.DirtTrack => "b_dirt_track",
             BuildingType.PlankWalk => "b_plank_walk",
             BuildingType.CobbledRoad => "b_cobbled_road",
+            BuildingType.Cottage => "b_cottage",
             BuildingType.Stone => "b_stone",
             BuildingType.Tree => "b_tree",
             _ => "b_sapling_flinger",
@@ -89,8 +90,10 @@ namespace CultOfComfort.Client
                 CanRepair = b.Wrecked && snapshot.Stock.Covers(repair),
                 Output = b.Wrecked ? (spec.IsTower ? "Wrecked — won't fire until repaired" : "Wrecked — produces nothing")
                     : !b.Connected ? "Not connected — build a road to it"
+                    : b.Level > 0 && b.CrewNeeded > 0 && b.Crew == 0 ? $"Needs {b.CrewNeeded} villager{(b.CrewNeeded == 1 ? string.Empty : "s")} — build a Cottage"
+                    : b.Level > 0 && spec.Produces != null && snapshot.Cold ? "Cold — no Peat, nobody works"
                     : b.Level == 0 ? string.Empty : spec.Produces != null ? $"+{b.PerHour} {spec.Produces}/h" : Effect(spec, b.Level),
-                Ready = spec.Produces != null && b.Level > 0 ? $"{b.Ready}/{b.Capacity} ready" : string.Empty,
+                Ready = spec.Produces != null && b.Level > 0 ? $"{b.Ready}/{b.Capacity} ready" + (b.CrewNeeded > 0 ? $" · Crew {b.Crew}/{b.CrewNeeded}" : string.Empty) : string.Empty,
                 UpgradeLabel = upgradeLabel,
                 CanUpgrade = !b.Wrecked && !maxed && !b.IsUpgrading && snapshot.ConstructionEndsAtUtc == null && snapshot.Stock.Covers(next.Cost)
                              && (b.Type == BuildingType.Hearth || b.Level + 1 <= snapshot.HearthLevel),
@@ -161,7 +164,7 @@ namespace CultOfComfort.Client
             new Reading(s.Stock.Devotion, s.Caps.Devotion, false),
             new Reading(50, 0, true),
             new Reading(42, 0, true),
-            s.HearthLevel, s.Tension / 150f, TensionNote(s), false);
+            s.HearthLevel, s.Tension / 150f, TensionNote(s), false, new Reading(s.Population, s.Beds, false), s.Cold);
 
         /// <summary>
         /// Whether <paramref name="candidate"/> should replace <paramref name="current"/>: a later version, or the same
@@ -184,6 +187,7 @@ namespace CultOfComfort.Client
             var l = spec.Levels[level - 1];
             if (l.StorageBonus > 0) return $"+{l.StorageBonus} storage for everything";
             if (l.SluiceCharges > 0) return $"+{l.SluiceCharges} Open Sluice per Night";
+            if (l.Beds > 0) return $"{l.Beds} beds";
             return spec.IsTower ? "Defends the road" : spec.Type == BuildingType.Hearth ? "The heart of the cult" : string.Empty;
         }
     }

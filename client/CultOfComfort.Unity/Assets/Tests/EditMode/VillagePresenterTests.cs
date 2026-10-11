@@ -280,5 +280,54 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("Hearth 2", cards.Single(c => c.Type == BuildingType.PlankWalk).LockText);
             Assert.AreEqual("Hearth 3", cards.Single(c => c.Type == BuildingType.CobbledRoad).LockText);
         }
+
+        [Test]
+        public void Card_ProducerWithoutACrew_SaysWhoIsMissing()
+        {
+            // Arrange — a peat trench (crew 2) built first takes both villagers; the lean-to beside the road gets none.
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.PeatCut, new GridPosition(12, 3), true), T0);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(15, 5)), T0);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+            var snapshot = state.Snapshot(T0);
+
+            // Act
+            var lean = VillagePresenter.Card(snapshot, BuildingTable.Default, snapshot.Buildings.Single(b => b.Type == BuildingType.Woodcutter).Id);
+            var peat = VillagePresenter.Card(snapshot, BuildingTable.Default, snapshot.Buildings.Single(b => b.Type == BuildingType.PeatCut).Id);
+
+            // Assert
+            Assert.AreEqual("Needs 1 villager — build a Cottage", lean.Output);
+            StringAssert.Contains("Crew 2/2", peat.Ready);
+        }
+
+        [Test]
+        public void Frame_Villagers_ShowPeopleAndBedsAndTheCold()
+        {
+            // Arrange — 2 Peat for 2 villagers: cold after an hour.
+            var table = new BuildingTable { StartingStock = new ResourceBag(500, 2, 380, 0) };
+            var state = BaseState.CreateNew(table, VillageMap.Demo, T0);
+
+            // Act
+            var warm = VillagePresenter.Frame(state.Snapshot(T0));
+            var cold = VillagePresenter.Frame(state.Snapshot(T0.AddHours(2)));
+
+            // Assert
+            Assert.AreEqual(2, warm.People.Value);
+            Assert.AreEqual(2, warm.People.Cap);
+            Assert.IsFalse(warm.Cold);
+            Assert.IsTrue(cold.Cold);
+        }
+
+        [Test]
+        public void BuildCards_Cottage_HasItsIconAndBeds()
+        {
+            // Act
+            var cottage = VillagePresenter.BuildCards(Fresh(), BuildingTable.Default).Single(c => c.Type == BuildingType.Cottage);
+
+            // Assert
+            Assert.AreEqual("b_cottage", cottage.Icon);
+            Assert.AreEqual("2×2", cottage.Size);
+        }
     }
 }

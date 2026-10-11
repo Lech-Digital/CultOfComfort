@@ -107,6 +107,11 @@ namespace CultOfComfort.Client
             cleared = (data.ClearedTerrain ?? Array.Empty<GridPosition>()).Select(t => new TileDto { x = t.X, y = t.Y }).ToList(),
             treeCuts = (data.TreeCuts ?? Array.Empty<TreeCutData>()).Select(c => new TreeCutDto { x = c.X, y = c.Y, ticks = c.CutAtUtcTicks }).ToList(),
             layoutVersion = data.LayoutVersion,
+            population = data.Population,
+            populationAsOfTicks = data.PopulationAsOfUtcTicks,
+            upkeepAsOfTicks = data.UpkeepAsOfUtcTicks,
+            upkeepMilli = data.UpkeepMilli,
+            cold = data.Cold,
         });
 
         private static NightDto ToDto(NightPlan plan) => new NightDto
@@ -189,7 +194,12 @@ namespace CultOfComfort.Client
                 dto.hasReport ? FromDto(dto.report) : null,
                 (dto.cleared ?? new List<TileDto>()).Select(t => new GridPosition(t.x, t.y)).ToList(),
                 (dto.treeCuts ?? new List<TreeCutDto>()).Select(c => new TreeCutData(c.x, c.y, c.ticks)).ToList(),
-                dto.layoutVersion);
+                dto.layoutVersion,
+                dto.population,
+                dto.populationAsOfTicks,
+                dto.upkeepAsOfTicks,
+                dto.upkeepMilli,
+                dto.cold);
         }
 
         [Serializable]
@@ -219,6 +229,11 @@ namespace CultOfComfort.Client
             public List<TileDto> cleared;
             public List<TreeCutDto> treeCuts;
             public int layoutVersion; // 0 in saves from before building shapes: the village migrates them
+            public int population;
+            public long populationAsOfTicks;
+            public long upkeepAsOfTicks;
+            public long upkeepMilli;
+            public bool cold;
         }
 
         [Serializable]
