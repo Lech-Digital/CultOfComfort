@@ -21,7 +21,11 @@ public sealed record BaseSnapshot(
     ResourceBag Caps,
     IReadOnlyList<BuildingView> Buildings,
     int SluiceBonus,
-    int LastNightRecorded)
+    int LastNightRecorded,
+    int Tension = 0,
+    TensionState TensionState = TensionState.Calm,
+    DateTimeOffset? RaidWarningEndsAtUtc = null,
+    DateTimeOffset? ShieldEndsAtUtc = null)
 {
     public DateTimeOffset? ConstructionEndsAtUtc => Buildings.FirstOrDefault(b => b.IsUpgrading)?.UpgradeEndsAtUtc;
 

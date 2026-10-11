@@ -23,6 +23,12 @@ public sealed record RecordNightResult(Guid CommandId, int Night, int Stars, IRe
 
 public sealed record RepairBuilding(Guid CommandId, int BuildingId) : BaseCommand(CommandId);
 
+/// <summary>Development only: adds Tension at once. A server refuses this.</summary>
+public sealed record DebugRaiseTension(Guid CommandId, int Amount) : BaseCommand(CommandId);
+
+/// <summary>Development only: ends a raid's warning now. A server refuses this.</summary>
+public sealed record DebugSkipWarning(Guid CommandId) : BaseCommand(CommandId);
+
 /// <summary>Development only: completes the running construction. A server refuses (or charges for) this.</summary>
 public sealed record FinishConstructionNow(Guid CommandId) : BaseCommand(CommandId);
 

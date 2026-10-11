@@ -48,6 +48,8 @@ public sealed class BuildingTable
 
     public ResourceBag StartingStock { get; init; } = new(500, 60, 380, 0);
 
+    public TensionTable Tension { get; init; } = TensionTable.Default;
+
     public int SalvageBase { get; init; } = 40;
 
     public int SalvagePerStar { get; init; } = 40;

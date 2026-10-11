@@ -21,6 +21,11 @@ public sealed class BaseState
     private readonly HashSet<Guid> _recent = new();
     private ResourceBag _stock;
     private int _nextId = 1;
+    private long _tensionMilli;
+    private DateTimeOffset _tensionAsOf;
+    private DateTimeOffset? _shieldEndsAt;
+    private ScheduledRaid? _raid;
+    private int _nextRaidId = 1;
 
     private BaseState(BuildingTable table, VillageMap map)
     {
@@ -40,7 +45,7 @@ public sealed class BaseState
 
     public static BaseState CreateNew(BuildingTable table, VillageMap map, DateTimeOffset nowUtc)
     {
-        var state = new BaseState(table, map) { _stock = table.StartingStock };
+        var state = new BaseState(table, map) { _stock = table.StartingStock, _tensionAsOf = nowUtc };
         state._buildings.Add(new Building(HearthId, BuildingType.Hearth, map.Hearth, 1, nowUtc));
         return state;
     }
@@ -59,6 +64,11 @@ public sealed class BaseState
             _stock = data.Stock,
             _nextId = data.NextId,
             LastNightRecorded = data.LastNightRecorded,
+            _tensionMilli = data.TensionMilli,
+            _tensionAsOf = new DateTimeOffset(data.TensionAsOfUtcTicks, TimeSpan.Zero),
+            _shieldEndsAt = data.ShieldEndsAtUtcTicks == null ? null : new DateTimeOffset(data.ShieldEndsAtUtcTicks.Value, TimeSpan.Zero),
+            _nextRaidId = data.NextRaidId,
+            _raid = data.Raid == null ? null : new ScheduledRaid(data.Raid.Id, data.Raid.Seed, new DateTimeOffset(data.Raid.WarningEndsAtUtcTicks, TimeSpan.Zero)),
         };
         foreach (var b in data.Buildings.OrderBy(b => b.Type == BuildingType.Hearth ? -1 : b.Id))
         {
@@ -88,6 +98,11 @@ public sealed class BaseState
     private void Validate()
     {
         void Fail(string reason) => throw new InvalidBaseDataException(reason);
+
+        if (_tensionMilli < 0 || _tensionMilli > _table.Tension.Max * 1000L || _nextRaidId < 1 || (_raid != null && _raid.Id >= _nextRaidId))
+        {
+            Fail("impossible Tension or raid");
+        }
 
         if (_stock.Timber < 0 || _stock.Peat < 0 || _stock.Scrap < 0 || _stock.Devotion < 0)
         {
@@ -140,7 +155,12 @@ public sealed class BaseState
     public BaseData ToData() => new(
         Version, _stock, _nextId, LastNightRecorded,
         _buildings.Select(b => new BuildingData(b.Id, b.Type, b.Level, b.Position.X, b.Position.Y, b.UpgradeEndsAtUtc?.UtcTicks, b.BufferMilli, b.AsOfUtc.UtcTicks, b.Wrecked)).ToList(),
-        _recentOrder.ToList());
+        _recentOrder.ToList(),
+        _tensionMilli,
+        _tensionAsOf.UtcTicks,
+        _shieldEndsAt?.UtcTicks,
+        _nextRaidId,
+        _raid == null ? null : new RaidData(_raid.Id, _raid.Seed, _raid.WarningEndsAtUtc.UtcTicks));
 
     public CommandOutcome Apply(BaseCommand command, DateTimeOffset nowUtc)
     {
@@ -159,6 +179,8 @@ public sealed class BaseState
             Collect collect => DoCollect(collect.BuildingId, nowUtc),
             RecordNightResult night => RecordNight(night, nowUtc),
             FinishConstructionNow _ => FinishNow(nowUtc),
+            DebugRaiseTension raise => RaiseTension(raise.Amount, nowUtc),
+            DebugSkipWarning _ => SkipWarning(nowUtc),
             RepairBuilding repair => Repair(repair.BuildingId, nowUtc),
             _ => CommandOutcome.Reject("Unknown order."),
         };
@@ -177,7 +199,9 @@ public sealed class BaseState
         Advance(nowUtc);
         var views = _buildings.Select(b => new BuildingView(
             b.Id, b.Type, b.Level, b.Position, (int)(Buffer(b, nowUtc) / 1000), (int)(CapacityMilli(b) / 1000), Rate(b), b.UpgradeEndsAtUtc, b.Wrecked)).ToList();
-        return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded);
+        var tension = TensionValue(nowUtc);
+        return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
+            tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null);
     }
 
     public ResourceBag Caps
@@ -435,16 +459,39 @@ public sealed class BaseState
         return null;
     }
 
-    /// <summary>Completes a construction whose timer ran out, at its own end time (so production counts from then).</summary>
+    /// <summary>
+    /// Brings the village up to <paramref name="now"/>, handling what happened meanwhile in time order: a construction
+    /// finishing (which may change the Tension rate) and Tension crossing Hostile (which schedules a raid).
+    /// </summary>
     private void Advance(DateTimeOffset now)
     {
-        var building = Constructing;
-        if (building == null || building.UpgradeEndsAtUtc > now)
+        while (true)
         {
-            return;
-        }
+            var construction = Constructing?.UpgradeEndsAtUtc;
+            var crossing = _raid == null ? HostileCrossing() : null;
+            var dueConstruction = construction <= now ? construction : null;
+            var dueCrossing = crossing <= now ? crossing : null;
+            if (dueConstruction == null && dueCrossing == null)
+            {
+                return;
+            }
 
-        var endedAt = building.UpgradeEndsAtUtc!.Value;
+            if (dueConstruction != null && (dueCrossing == null || dueConstruction <= dueCrossing))
+            {
+                CompleteConstruction(dueConstruction.Value);
+            }
+            else
+            {
+                ScheduleRaid(dueCrossing!.Value);
+            }
+        }
+    }
+
+    /// <summary>Completes a construction at its own end time (so production and the Tension rate change from then).</summary>
+    private void CompleteConstruction(DateTimeOffset endedAt)
+    {
+        var building = Constructing!;
+        MaterializeTension(endedAt);
         Materialize(building, endedAt);
         building.Level++;
         building.UpgradeEndsAtUtc = null;
@@ -452,6 +499,83 @@ public sealed class BaseState
         {
             building.AsOfUtc = endedAt; // never backwards: time already counted is never counted again
         }
+    }
+
+    private void ScheduleRaid(DateTimeOffset crossing)
+    {
+        MaterializeTension(crossing);
+        var id = _nextRaidId++;
+        _raid = new ScheduledRaid(id, (ulong)(1_000_003L * id + 946), crossing.AddHours(_table.Tension.WarningHours));
+    }
+
+    // ---------------- Tension (lazy and linear, ADR 0004) ----------------
+
+    private int TensionRate => _table.Tension.RatePerHour(HearthLevel);
+
+    /// <summary>Tension in thousandths at <paramref name="at"/>: no rise during a shield, capped at the max.</summary>
+    private long TensionMilliAt(DateTimeOffset at)
+    {
+        var start = _shieldEndsAt > _tensionAsOf ? _shieldEndsAt!.Value : _tensionAsOf;
+        if (at <= start)
+        {
+            return _tensionMilli;
+        }
+
+        var seconds = (at.UtcTicks - start.UtcTicks) / TimeSpan.TicksPerSecond;
+        return Math.Min(_table.Tension.Max * 1000L, _tensionMilli + TensionRate * 1000L * seconds / 3600);
+    }
+
+    private int TensionValue(DateTimeOffset at) => (int)(TensionMilliAt(at) / 1000);
+
+    private void MaterializeTension(DateTimeOffset at)
+    {
+        if (at <= _tensionAsOf)
+        {
+            return;
+        }
+
+        _tensionMilli = TensionMilliAt(at);
+        _tensionAsOf = at;
+    }
+
+    /// <summary>When Tension reaches Hostile at the current rate (analytically), or null if it never will.</summary>
+    private DateTimeOffset? HostileCrossing()
+    {
+        var start = _shieldEndsAt > _tensionAsOf ? _shieldEndsAt!.Value : _tensionAsOf;
+        var need = _table.Tension.Hostile * 1000L - _tensionMilli;
+        if (need <= 0)
+        {
+            return start;
+        }
+
+        if (TensionRate <= 0)
+        {
+            return null;
+        }
+
+        var perSecondTimes3600 = TensionRate * 1000L;
+        var seconds = (need * 3600 + perSecondTimes3600 - 1) / perSecondTimes3600; // round up: reached, not almost
+        return start.AddSeconds(seconds);
+    }
+
+    private CommandOutcome RaiseTension(int amount, DateTimeOffset now)
+    {
+        MaterializeTension(now);
+        _tensionMilli = Math.Min(_table.Tension.Max * 1000L, Math.Max(0, _tensionMilli + amount * 1000L));
+        Advance(now);
+        return CommandOutcome.Accept();
+    }
+
+    private CommandOutcome SkipWarning(DateTimeOffset now)
+    {
+        if (_raid == null)
+        {
+            return CommandOutcome.Reject("No raid is coming. Enjoy it.");
+        }
+
+        _raid = _raid with { WarningEndsAtUtc = now };
+        Advance(now);
+        return CommandOutcome.Accept();
     }
 
     /// <summary>What it produces now: nothing while being built or wrecked.</summary>
