@@ -396,6 +396,7 @@ namespace CultOfComfort.Client
             _upgrade.SetEnabled(card.CanUpgrade);
             Show(_finishNow, card.IsUpgrading && Debug.isDebugBuild);
             Show(_demolish, card.CanDemolish);
+            _demolish.text = card.DemolishLabel;
             Show(_repair, card.IsWrecked);
             _repair.text = card.RepairLabel;
             _repair.SetEnabled(card.CanRepair);

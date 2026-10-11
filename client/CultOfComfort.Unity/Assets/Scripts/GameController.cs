@@ -52,6 +52,7 @@ namespace CultOfComfort.Client
         private long _roadVersion = -1;
         private BuildingType? _buildSelection;
         private int? _cardBuilding;
+        private GridPosition? _cardTerrain;
         private NightPlan _plan;
         private NightReport _lastReport;
         private bool _showingReport;
@@ -177,8 +178,11 @@ namespace CultOfComfort.Client
                 return _snapshot.BuildingAt(tile) != null;
             }
 
-            return VillageMap.Demo.IsOpen(tile, _snapshot.HearthLevel) && tile != VillageMap.Demo.Spawn && tile != VillageMap.Demo.Hearth
-                   && !_rocks.Contains(tile) && _snapshot.BuildingAt(tile) == null;
+            var map = VillageMap.Demo;
+            var cleared = _snapshot.ClearedTerrain ?? Array.Empty<GridPosition>();
+            return map.IsOpen(tile, _snapshot.HearthLevel) && tile != map.Spawn && tile != map.Hearth && !map.IsInSpawnClearance(tile)
+                   && (!_rocks.Contains(tile) || (map.IsBoulder(tile) && cleared.Contains(tile)))
+                   && (!map.WildTrees.Contains(tile) || cleared.Contains(tile)) && _snapshot.BuildingAt(tile) == null;
         }
 
         /// <summary>Build with the selected card, otherwise collect from a building or open its card.</summary>
@@ -204,9 +208,17 @@ namespace CultOfComfort.Client
                 if (building == null)
                 {
                     _cardBuilding = null;
+                    _cardTerrain = VillagePresenter.TerrainCard(_snapshot, VillageMap.Demo, BuildingTable.Default, tile) != null ? tile : (GridPosition?)null;
+                    if (_cardTerrain == null && VillageMap.Demo.IsBedrock(tile))
+                    {
+                        Say("That's bedrock. It was here before the Romans and it will be here after the Prophet.", prophet: true);
+                    }
+
                     RefreshVillage();
                     return;
                 }
+
+                _cardTerrain = null;
 
                 if (building.Ready >= 1 && !building.Wrecked) // a wreck always opens its card (to repair it)
                 {
@@ -373,6 +385,7 @@ namespace CultOfComfort.Client
             }
 
             _board.SetBuildings(_snapshot.Buildings, _snapshot.HearthLevel, BuildingTable.Default, _snapshot.AsOfUtc);
+            _board.SetTerrain(_snapshot);
             if (_snapshot.Version != _roadVersion)
             {
                 _roadVersion = _snapshot.Version;
@@ -382,7 +395,8 @@ namespace CultOfComfort.Client
             _hud.SetBuildCards(VillagePresenter.BuildCards(_snapshot, BuildingTable.Default), _buildSelection);
             _hud.SetStartLabel(VillagePresenter.StartLabel(_snapshot));
             var hasCard = _cardBuilding != null && _snapshot.Buildings.Any(b => b.Id == _cardBuilding.Value);
-            _hud.ShowBuildingCard(hasCard ? VillagePresenter.Card(_snapshot, BuildingTable.Default, _cardBuilding.Value) : null);
+            var terrainCard = _cardTerrain != null ? VillagePresenter.TerrainCard(_snapshot, VillageMap.Demo, BuildingTable.Default, _cardTerrain.Value) : null;
+            _hud.ShowBuildingCard(hasCard ? VillagePresenter.Card(_snapshot, BuildingTable.Default, _cardBuilding.Value) : terrainCard);
         }
 
         /// <summary>Asks the village for tonight's plan (the raid that is coming, or an early one) and fights exactly that.</summary>
@@ -702,13 +716,28 @@ namespace CultOfComfort.Client
                 _cardBuilding = null;
                 RefreshVillage();
             };
-            _hud.UpgradeClicked += () => SendFromCard(b => b.Type == BuildingType.Hearth ? (BaseCommand)new UpgradeHearth(Guid.NewGuid()) : new UpgradeBuilding(Guid.NewGuid(), b.Id));
+            _hud.UpgradeClicked += () =>
+            {
+                if (_cardTerrain != null)
+                {
+                    var tile = _cardTerrain.Value;
+                    _cardTerrain = null;
+                    SendSimple(new ClearTerrain(Guid.NewGuid(), tile));
+                    return;
+                }
+
+                SendFromCard(b => b.Type == BuildingType.Hearth ? (BaseCommand)new UpgradeHearth(Guid.NewGuid()) : new UpgradeBuilding(Guid.NewGuid(), b.Id));
+            };
             _hud.DemolishClicked += () => SendFromCard(b => new DemolishBuilding(Guid.NewGuid(), b.Id), closeCard: true);
             _hud.FinishNowClicked += () => SendFromCard(_ => new FinishConstructionNow(Guid.NewGuid()));
             _hud.RepairClicked += () => SendFromCard(b => new RepairBuilding(Guid.NewGuid(), b.Id));
             _hud.DevRaiseTensionClicked += () => SendSimple(new DebugRaiseTension(Guid.NewGuid(), 50));
             _hud.DevSkipWarningClicked += () => SendSimple(new DebugSkipWarning(Guid.NewGuid()));
-            _hud.BuildingCardClosed += () => _cardBuilding = null;
+            _hud.BuildingCardClosed += () =>
+            {
+                _cardBuilding = null;
+                _cardTerrain = null;
+            };
             _hud.StartNightClicked += StartNight;
             _hud.SluiceClicked += () => _battle?.Intervene(PlayerActionType.OpenSluiceGate);
             _hud.VoiceClicked += () => _battle?.Intervene(PlayerActionType.PhantomVoice);

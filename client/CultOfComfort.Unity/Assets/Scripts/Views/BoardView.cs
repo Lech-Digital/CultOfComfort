@@ -14,6 +14,8 @@ namespace CultOfComfort.Client
         private readonly Dictionary<int, BuildingVisual> _buildings = new Dictionary<int, BuildingVisual>();
         private readonly List<SpriteRenderer> _billboards = new List<SpriteRenderer>();
         private readonly Dictionary<MapZone, GameObject> _zones = new Dictionary<MapZone, GameObject>();
+        private readonly Dictionary<GridPosition, GameObject> _rocks = new Dictionary<GridPosition, GameObject>();
+        private readonly Dictionary<GridPosition, GameObject> _wildTrees = new Dictionary<GridPosition, GameObject>();
         private readonly List<Transform> _water = new List<Transform>();
         private Transform _hearth;
         private GameObject _hearthModel;
@@ -56,6 +58,10 @@ namespace CultOfComfort.Client
             {
                 var seed = rock.X * 31 + rock.Y * 17;
                 var model = Place(seed % 2 == 0 ? "rock_a" : "rock_b", Shapes.ToWorld(rock), seed * 37 % 360, 1.35f + seed % 3 * 0.1f);
+                if (model != null)
+                {
+                    _rocks[rock] = model;
+                }
                 if (model == null)
                 {
                     var go = Shapes.Create(PrimitiveType.Sphere, Palette.Rock, Shapes.ToWorld(rock, 0.3f),
@@ -65,6 +71,7 @@ namespace CultOfComfort.Client
             }
 
             BuildSurroundings();
+            BuildEntranceClearing();
             BuildSpawn();
             BuildHearth();
 
@@ -147,6 +154,40 @@ namespace CultOfComfort.Client
             }
         }
 
+        /// <summary>Wild trees that stand and boulders that remain; cut and cleared ones disappear, regrown ones return.</summary>
+        public void SetTerrain(BaseSnapshot snapshot)
+        {
+            var map = VillageMap.Demo;
+            var cleared = new HashSet<GridPosition>(snapshot.ClearedTerrain ?? Array.Empty<GridPosition>());
+            foreach (var pair in _rocks)
+            {
+                var gone = map.IsBoulder(pair.Key) && (cleared.Contains(pair.Key) || snapshot.BuildingAt(pair.Key) != null);
+                if (pair.Value.activeSelf == gone)
+                {
+                    pair.Value.SetActive(!gone);
+                }
+            }
+
+            foreach (var tile in map.WildTrees)
+            {
+                var standing = map.IsOpen(tile, snapshot.HearthLevel) && !cleared.Contains(tile) && snapshot.BuildingAt(tile) == null;
+                if (standing && !_wildTrees.ContainsKey(tile))
+                {
+                    var seed = tile.X * 31 + tile.Y * 17;
+                    var tree = Place(seed % 3 == 0 ? "oak" : seed % 3 == 1 ? "pine" : "birch", Shapes.ToWorld(tile), seed * 37 % 360, 0.85f + seed % 3 * 0.08f);
+                    if (tree != null)
+                    {
+                        _wildTrees[tile] = tree;
+                    }
+                }
+                else if (!standing && _wildTrees.TryGetValue(tile, out var go))
+                {
+                    Destroy(go);
+                    _wildTrees.Remove(tile);
+                }
+            }
+        }
+
         /// <summary>Locked land is forest (one patch per zone, so the phone stays fast); opening a level clears it.</summary>
         public void SetOpenLevel(int hearthLevel)
         {
@@ -203,6 +244,23 @@ namespace CultOfComfort.Client
             }
 
             return holder;
+        }
+
+        /// <summary>Trampled mud where the raiders come in: nobody may build there.</summary>
+        private void BuildEntranceClearing()
+        {
+            var map = VillageMap.Demo;
+            for (var y = 0; y < map.Height; y++)
+            {
+                for (var x = 0; x < map.Width; x++)
+                {
+                    var tile = new GridPosition(x, y);
+                    if (map.IsInSpawnClearance(tile) && !map.Rocks.Contains(tile))
+                    {
+                        Shapes.Create(PrimitiveType.Cube, Palette.Mud, Shapes.ToWorld(tile, 0.004f), new Vector3(0.96f, 0.01f, 0.96f), _root, "Entrance (no building)");
+                    }
+                }
+            }
         }
 
         /// <summary>The river past the south and east: water a hair above the grass, muddy banks, one plank bridge.</summary>
@@ -483,6 +541,8 @@ namespace CultOfComfort.Client
             BuildingType.SlurryChute => "slurry_chute",
             BuildingType.SaplingFlinger => "sapling_flinger",
             BuildingType.WattleFence => "fence",
+            BuildingType.Stone => "rock_b",
+            BuildingType.Tree => "oak",
             _ => null,
         };
 
@@ -513,8 +573,8 @@ namespace CultOfComfort.Client
                 visual.Root = new GameObject(building.Type.ToString()).transform;
                 visual.Root.SetParent(_root, false);
                 visual.Root.localPosition = Shapes.ToWorld(building.Position);
-                var model = ArtLibrary.Instantiate(ModelName(building.Type), visual.Root);
-                var scale = building.Level == 0 ? 0.5f : 0.8f; // a half-built shell until the builder is done
+                var model = ArtLibrary.Instantiate(building.Type == BuildingType.Tree && building.Level == 0 ? "bush" : ModelName(building.Type), visual.Root);
+                var scale = building.Type == BuildingType.Stone ? 0.9f : building.Level == 0 ? 0.5f : 0.8f; // a half-built shell (or a sapling) until it is done
                 if (model != null)
                 {
                     model.transform.localRotation = FaceCamera;

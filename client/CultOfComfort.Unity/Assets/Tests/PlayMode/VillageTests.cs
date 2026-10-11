@@ -281,5 +281,28 @@ namespace CultOfComfort.Client.Tests
             Assert.IsTrue(note.Contains("Wulfric's men are coming") || note.Contains("Punitive raid"), note);
             StringAssert.StartsWith("Face the raid", root.Q<Button>("start-night").text);
         }
+    
+        [UnityTest]
+        public IEnumerator Board_TapAWildTreeAndCutIt_GivesTimber()
+        {
+            // Arrange
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            var tree = VillageMap.Demo.WildTrees.First(t => VillageMap.Demo.IsOpen(t, 1));
+
+            // Act
+            Tap(game, tree);
+            yield return Frames(2);
+            var title = root.Q<Label>("building-title").text;
+            Click(root.Q<Button>("upgrade"));
+            yield return Frames(2);
+
+            // Assert
+            Assert.AreEqual("Wild tree", title);
+            Assert.AreEqual(515, Snapshot(game).Stock.Timber);
+            CollectionAssert.Contains(Snapshot(game).ClearedTerrain.ToList(), tree);
+        }
     }
 }

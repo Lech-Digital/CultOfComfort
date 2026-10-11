@@ -16,6 +16,7 @@ namespace CultOfComfort.Client
         public int BuildingId; public BuildingType Type; public string Title; public string Output; public string Ready;
         public string UpgradeLabel; public bool CanUpgrade; public bool CanDemolish; public bool IsUpgrading; public string Remaining; public bool IsHearth;
         public bool IsWrecked; public string RepairLabel; public bool CanRepair;
+        public string DemolishLabel = "Demolish"; public bool IsTerrain;
     }
 
     /// <summary>Turns a village snapshot into what the HUD shows. Pure: no Unity, easy to test.</summary>
@@ -31,6 +32,8 @@ namespace CultOfComfort.Client
             BuildingType.Cistern => "b_cistern",
             BuildingType.SlurryChute => "b_slurry_chute",
             BuildingType.WattleFence => "b_wattle_fence",
+            BuildingType.Stone => "b_stone",
+            BuildingType.Tree => "b_tree",
             _ => "b_sapling_flinger",
         };
 
@@ -58,8 +61,20 @@ namespace CultOfComfort.Client
             var next = maxed ? null : spec.Levels[b.Level];
             var repair = table.RepairCost(b.Type, b.Level);
             var upgradeLabel = b.Wrecked ? "Wrecked — repair first" : b.IsUpgrading ? (b.Level == 0 ? "Being built" : "Upgrading") : maxed ? "Max level" : $"Upgrade · {next.Cost} · {Duration(next.BuildSeconds)}";
+            if (b.Type == BuildingType.Tree)
+            {
+                return new BuildingCardModel
+                {
+                    BuildingId = b.Id, Type = b.Type, Title = b.Level == 0 ? "Tree · sapling" : "Tree · grown",
+                    Output = b.Level == 0 ? $"Growing: {Duration((long)(b.UpgradeEndsAtUtc.Value - snapshot.AsOfUtc).TotalSeconds)} left" : "Ready to cut.",
+                    UpgradeLabel = "Trees grow on their own", CanUpgrade = false, CanDemolish = true,
+                    DemolishLabel = b.Level == 0 ? "Pull it up (nothing to show yet)" : $"Cut it down · +{table.WildTreeTimber} Timber",
+                };
+            }
+
             return new BuildingCardModel
             {
+                DemolishLabel = b.Type == BuildingType.Stone ? $"Take it away · +{table.Spec(b.Type).Levels[0].Cost}" : "Demolish",
                 BuildingId = b.Id, Type = b.Type, IsHearth = b.Type == BuildingType.Hearth,
                 Title = b.Level == 0 ? $"{spec.Name} · being built" : $"{spec.Name} · level {b.Level}",
                 IsWrecked = b.Wrecked,
@@ -99,6 +114,36 @@ namespace CultOfComfort.Client
             : s.ShieldEndsAtUtc != null
                 ? $"Shielded · {Duration((long)(s.ShieldEndsAtUtc.Value - s.AsOfUtc).TotalSeconds)}"
                 : "Light the Lamps (early)";
+
+        /// <summary>The card for a wild tree or loose boulder on the tile, or null (nothing there, or bedrock).</summary>
+        public static BuildingCardModel TerrainCard(BaseSnapshot s, VillageMap map, BuildingTable table, CultOfComfort.Simulation.Grid.GridPosition tile)
+        {
+            var cleared = s.ClearedTerrain ?? Array.Empty<CultOfComfort.Simulation.Grid.GridPosition>();
+            if (!map.IsOpen(tile, s.HearthLevel) || s.BuildingAt(tile) != null || cleared.Contains(tile))
+            {
+                return null;
+            }
+
+            if (map.IsBoulder(tile))
+            {
+                return new BuildingCardModel
+                {
+                    IsTerrain = true, Title = "Boulder", Output = "Loose stone. Clearing it is free and gives the stone back as Scrap.",
+                    UpgradeLabel = $"Clear it · +{table.BoulderScrap} Scrap", CanUpgrade = true,
+                };
+            }
+
+            if (map.WildTrees.Contains(tile))
+            {
+                return new BuildingCardModel
+                {
+                    IsTerrain = true, Title = "Wild tree", Output = $"Grows back {table.WildTreeRegrowHours}h after it's cut, unless you build there.",
+                    UpgradeLabel = $"Cut it down · +{table.WildTreeTimber} Timber", CanUpgrade = true,
+                };
+            }
+
+            return null;
+        }
 
         public static FrameState Frame(BaseSnapshot s) => new FrameState(
             new Reading(s.Stock.Timber, s.Caps.Timber, false),
