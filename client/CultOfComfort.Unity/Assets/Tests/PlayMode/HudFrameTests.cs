@@ -483,5 +483,27 @@ namespace CultOfComfort.Client.Tests
             var bar = root.Q(className: "bar").worldBound.height;
             Assert.LessOrEqual(bar / root.worldBound.height, 0.3f, "landscape is short: the bar may take at most 30% of it");
         }
+    
+        [UnityTest]
+        public IEnumerator Board_AfterTheNight_HealthBarsAreCleared()
+        {
+            // Arrange — a building damaged in the Night shows a health bar.
+            _host = new GameObject("BoardHost");
+            var board = _host.AddComponent<BoardView>();
+            board.Build(DemoMap.CreateRocks());
+            var hut = new CultOfComfort.Simulation.Base.BuildingView(7, CultOfComfort.Simulation.Base.BuildingType.Woodcutter, 1, new CultOfComfort.Simulation.Grid.GridPosition(3, 9), 0, 800, 100, null);
+            board.SetBuildings(new[] { hut }, 1, CultOfComfort.Simulation.Base.BuildingTable.Default, System.DateTimeOffset.UtcNow);
+            board.ShowStructureHealth(7, 0.5f, false);
+            yield return null;
+            var shownDuringNight = _host.GetComponentsInChildren<Transform>(true).Any(t => t.name == "Health" && t.gameObject.activeInHierarchy);
+
+            // Act
+            board.ClearStructureHealth();
+            yield return null;
+
+            // Assert
+            Assert.IsTrue(shownDuringNight);
+            Assert.IsFalse(_host.GetComponentsInChildren<Transform>(true).Any(t => t.name == "Health" && t.gameObject.activeInHierarchy), "no stale bars in the Day");
+        }
     }
 }

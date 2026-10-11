@@ -145,6 +145,15 @@ namespace CultOfComfort.Client
             }
         }
 
+        /// <summary>Hides every building's health bar (the Night is over, or a new one starts at full health).</summary>
+        public void ClearStructureHealth()
+        {
+            foreach (var visual in _buildings.Values)
+            {
+                visual.Health.SetActive(false);
+            }
+        }
+
         /// <summary>Soggy grey-blue while wrecked; the palette's own colours otherwise.</summary>
         private void TintBuilding(BuildingVisual visual, bool wrecked)
         {

@@ -138,5 +138,21 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("instant", fence.Time);
             Assert.AreEqual("b_wattle_fence", fence.Icon);
         }
+    
+        [Test]
+        public void Card_WreckedTower_SaysItWontFire()
+        {
+            // Arrange
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(4, 6)), T0);
+            var id = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.SlurryChute).Id;
+            state.Apply(new RecordNightResult(Guid.NewGuid(), 1, 0, new[] { id }), T0);
+
+            // Act
+            var card = VillagePresenter.Card(state.Snapshot(T0), BuildingTable.Default, id);
+
+            // Assert
+            Assert.AreEqual("Wrecked — won't fire until repaired", card.Output);
+        }
     }
 }

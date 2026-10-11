@@ -65,7 +65,7 @@ namespace CultOfComfort.Client
                 IsWrecked = b.Wrecked,
                 RepairLabel = b.Wrecked ? $"Repair · {repair}" : string.Empty,
                 CanRepair = b.Wrecked && snapshot.Stock.Covers(repair),
-                Output = b.Wrecked ? "Wrecked — produces nothing" : b.Level == 0 ? string.Empty : spec.Produces != null ? $"+{b.PerHour} {spec.Produces}/h" : Effect(spec, b.Level),
+                Output = b.Wrecked ? (spec.IsTower ? "Wrecked — won't fire until repaired" : "Wrecked — produces nothing") : b.Level == 0 ? string.Empty : spec.Produces != null ? $"+{b.PerHour} {spec.Produces}/h" : Effect(spec, b.Level),
                 Ready = spec.Produces != null && b.Level > 0 ? $"{b.Ready}/{b.Capacity} ready" : string.Empty,
                 UpgradeLabel = upgradeLabel,
                 CanUpgrade = !b.Wrecked && !maxed && !b.IsUpgrading && snapshot.ConstructionEndsAtUtc == null && snapshot.Stock.Covers(next.Cost)

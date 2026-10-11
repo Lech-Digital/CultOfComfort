@@ -348,6 +348,7 @@ namespace CultOfComfort.Client
             _buildSelection = null;
             _cardBuilding = null;
             _hud.ShowBuildingCard(null);
+            _board.ClearStructureHealth();
             var layout = _snapshot != null ? VillageMap.Demo.ToBattleLayout(_snapshot, BuildingTable.Default) : VillageMap.Demo.ToBattleLayout(Array.Empty<PlacedTower>(), Array.Empty<GridPosition>());
             _setup = new BattleSetup(layout, (ulong)(946 + _night), RaidBudget, RaidWaves, new List<PlayerInput>())
             {
@@ -469,6 +470,7 @@ namespace CultOfComfort.Client
             var wrecked = _battle?.Structures.Where(s => s.IsWrecked).Select(s => s.Id).ToList() ?? new List<int>();
             var night = _night;
             _battleView.Clear();
+            _board.ClearStructureHealth();
             _battle = null;
             _framePending = 2;
             _night++;
