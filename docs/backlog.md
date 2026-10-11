@@ -13,7 +13,8 @@
 
 ## Next Sessions
 
-- [ ] On-device check of the art build (frame rate target: 60 fps Dusk, ≥ 50 fps busy Night).
+- [x] 2026-10-11 — On-device check of the art build (Pixel 10): 60 fps Dusk, 60 fps busy Night (11 raiders, 6 towers, all abilities at fast-forward), demo hash still `12c3fe1f0e23fb59`, server replay verified. Owner: graphics good enough for alpha/beta.
+- [ ] One-off frame hitches (min 10–30 fps for a single frame) at Night start and on first ability/effect use: pool battle effects and pre-warm shaders.
 - [ ] Spec step 3: HUD kit (parchment panels, sticky notes, tape, icons, fonts) and restyled HUD.
 - [ ] Spec step 5: Golden Mud lighting rigs (day/night), colour grading, bloom; store-page screenshots.
 
