@@ -11,7 +11,9 @@ namespace CultOfComfort.Simulation.Base;
 /// <param name="StorageBonus">Added to every resource's storage cap (Storage Hut).</param>
 /// <param name="SluiceCharges">Extra Open Sluice charges per Night (Cistern).</param>
 /// <param name="Health">How much smashing it takes in a Night before it is wrecked.</param>
-public sealed record BuildingLevel(ResourceBag Cost, int BuildSeconds, int PerHour = 0, int StorageBonus = 0, int SluiceCharges = 0, int Health = 0);
+/// <param name="Beds">Villagers it houses.</param>
+/// <param name="MinHearth">The Hearth level this level needs (0 = whatever the building needs).</param>
+public sealed record BuildingLevel(ResourceBag Cost, int BuildSeconds, int PerHour = 0, int StorageBonus = 0, int SluiceCharges = 0, int Health = 0, int Beds = 0, int MinHearth = 0);
 
 /// <param name="MaxCountByHearth">How many may stand at Hearth level 1, 2, 3.</param>
 public sealed record BuildingSpec(
@@ -24,7 +26,8 @@ public sealed record BuildingSpec(
     TowerType? Tower = null,
     bool UsesBuilder = true,
     int Width = 1,
-    int Depth = 1)
+    int Depth = 1,
+    int Workers = 0)
 {
     public bool IsTower => Tower != null;
 
@@ -65,6 +68,15 @@ public sealed class BuildingTable
 
     public int BoulderScrap { get; init; } = 10;
 
+    /// <summary>Beds in the Hearth itself (a new village starts with them filled).</summary>
+    public int HearthBeds { get; init; } = 2;
+
+    /// <summary>A villager moves in this often while there is a free bed.</summary>
+    public int VillagerArrivalMinutes { get; init; } = 10;
+
+    /// <summary>Peat each villager burns per hour (GDD: heating upkeep). None left: everyone downs tools.</summary>
+    public int PeatPerVillagerPerHour { get; init; } = 1;
+
     public int SalvageBase { get; init; } = 40;
 
     public int SalvagePerStar { get; init; } = 40;
@@ -82,13 +94,13 @@ public sealed class BuildingTable
             new BuildingLevel(new ResourceBag(50, 0, 0, 0), 30, PerHour: 100, Health: 60),
             new BuildingLevel(new ResourceBag(150, 0, 10, 0), 5 * 60, PerHour: 170, Health: 90),
             new BuildingLevel(new ResourceBag(400, 0, 40, 0), 20 * 60, PerHour: 260, Health: 120),
-        }, Produces: ResourceType.Timber, Width: 2, Depth: 1),
+        }, Produces: ResourceType.Timber, Width: 2, Depth: 1, Workers: 1),
         [BuildingType.PeatCut] = new(BuildingType.PeatCut, "Peat Cut", 1, new[] { 1, 2, 3 }, new[]
         {
             new BuildingLevel(new ResourceBag(80, 0, 10, 0), 60, PerHour: 25, Health: 60),
             new BuildingLevel(new ResourceBag(200, 0, 30, 0), 8 * 60, PerHour: 45, Health: 90),
             new BuildingLevel(new ResourceBag(500, 0, 80, 0), 30 * 60, PerHour: 70, Health: 120),
-        }, Produces: ResourceType.Peat, Width: 2, Depth: 4),
+        }, Produces: ResourceType.Peat, Width: 2, Depth: 4, Workers: 2),
         [BuildingType.StorageHut] = new(BuildingType.StorageHut, "Storage Hut", 1, new[] { 1, 2, 3 }, new[]
         {
             new BuildingLevel(new ResourceBag(100, 0, 0, 0), 60, StorageBonus: 500, Health: 60),
@@ -100,7 +112,7 @@ public sealed class BuildingTable
             new BuildingLevel(new ResourceBag(120, 0, 0, 0), 2 * 60, PerHour: 4, Health: 60),
             new BuildingLevel(new ResourceBag(350, 50, 0, 0), 12 * 60, PerHour: 8, Health: 90),
             new BuildingLevel(new ResourceBag(900, 150, 0, 0), 45 * 60, PerHour: 14, Health: 120),
-        }, Produces: ResourceType.Devotion, Width: 3, Depth: 2),
+        }, Produces: ResourceType.Devotion, Width: 3, Depth: 2, Workers: 1),
         [BuildingType.Cistern] = new(BuildingType.Cistern, "Cistern", 2, new[] { 0, 1, 2 }, new[]
         {
             new BuildingLevel(new ResourceBag(150, 0, 30, 0), 2 * 60, SluiceCharges: 1, Health: 80),
@@ -116,6 +128,11 @@ public sealed class BuildingTable
             new[] { new BuildingLevel(new ResourceBag(30, 0, 0, 0), 0, Health: 250) }),
         [BuildingType.Gate] = new(BuildingType.Gate, "Gate", 1, new[] { Unlimited, Unlimited, Unlimited },
             new[] { new BuildingLevel(new ResourceBag(40, 0, 10, 0), 0, Health: 200) }),
+        [BuildingType.Cottage] = new(BuildingType.Cottage, "Cottage", 1, new[] { 3, 5, 8 }, new[]
+        {
+            new BuildingLevel(new ResourceBag(60, 0, 0, 0), 60, Health: 60, Beds: 4),
+            new BuildingLevel(new ResourceBag(150, 0, 20, 0), 8 * 60, Health: 90, Beds: 6),
+        }, Width: 2, Depth: 2),
         [BuildingType.DirtTrack] = new(BuildingType.DirtTrack, "Dirt Track", 1, new[] { Unlimited, Unlimited, Unlimited },
             new[] { new BuildingLevel(new ResourceBag(2, 0, 0, 0), 0) }, UsesBuilder: false),
         [BuildingType.PlankWalk] = new(BuildingType.PlankWalk, "Plank Walk", 2, new[] { Unlimited, Unlimited, Unlimited },

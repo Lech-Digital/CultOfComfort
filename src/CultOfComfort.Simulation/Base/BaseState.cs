@@ -13,7 +13,7 @@ namespace CultOfComfort.Simulation.Base;
 public sealed class BaseState
 {
     /// <summary>Saves before footprints (layout version 0) are migrated on load: every building finds room for its shape.</summary>
-    public const int CurrentLayoutVersion = 2;
+    public const int CurrentLayoutVersion = 3;
 
     private const int RememberedCommands = 64;
     private const int HearthId = 0;
@@ -38,6 +38,11 @@ public sealed class BaseState
     private HashSet<GridPosition> _road => _roadTiles ??= new HashSet<GridPosition>(_map.Road);
     private HashSet<GridPosition>? _roadTiles;
     private HashSet<GridPosition>? _network; // village road network, rebuilt after any building change
+    private int _population;
+    private DateTimeOffset _populationAsOf; // the next villager arrives an arrival interval after this
+    private DateTimeOffset _upkeepAsOf;     // Peat burned up to here
+    private long _upkeepMilli;              // a part-burned Peat
+    private bool _cold;                     // the Peat ran out: nobody works until there is Peat again
     private DateTimeOffset _now;
 
     private BaseState(BuildingTable table, VillageMap map)
@@ -59,7 +64,10 @@ public sealed class BaseState
 
     public static BaseState CreateNew(BuildingTable table, VillageMap map, DateTimeOffset nowUtc)
     {
-        var state = new BaseState(table, map) { _stock = table.StartingStock, _tensionAsOf = nowUtc };
+        var state = new BaseState(table, map)
+        {
+            _stock = table.StartingStock, _tensionAsOf = nowUtc, _population = table.HearthBeds, _populationAsOf = nowUtc, _upkeepAsOf = nowUtc,
+        };
         state._buildings.Add(new Building(HearthId, BuildingType.Hearth, map.Hearth, 1, nowUtc));
         return state;
     }
@@ -89,6 +97,11 @@ public sealed class BaseState
             _night = data.NightInProgress,
             _nightStartedAt = new DateTimeOffset(data.NightStartedAtUtcTicks, TimeSpan.Zero),
             _unseenReport = data.UnseenReport,
+            _population = data.Population,
+            _populationAsOf = new DateTimeOffset(data.PopulationAsOfUtcTicks, TimeSpan.Zero),
+            _upkeepAsOf = new DateTimeOffset(data.UpkeepAsOfUtcTicks, TimeSpan.Zero),
+            _upkeepMilli = data.UpkeepMilli,
+            _cold = data.Cold,
         };
         foreach (var b in data.Buildings.OrderBy(b => b.Type == BuildingType.Hearth ? -1 : b.Id))
         {
@@ -133,6 +146,16 @@ public sealed class BaseState
         if (data.LayoutVersion < 2)
         {
             state.LayRoadsToEverything();
+        }
+
+        if (data.LayoutVersion < 3)
+        {
+            // From before villagers: the beds are full and the clocks start at the save's latest moment.
+            var latest = new DateTimeOffset(data.Buildings.Select(b => b.AsOfUtcTicks).Append(state._tensionAsOf.UtcTicks).Max(), TimeSpan.Zero);
+            state._population = state.Beds();
+            state._populationAsOf = state._upkeepAsOf = latest;
+            state._upkeepMilli = 0;
+            state._cold = false;
         }
 
         state.Validate();
@@ -356,6 +379,11 @@ public sealed class BaseState
             Fail("negative stock");
         }
 
+        if (_population < 0 || _population > Beds() || _upkeepMilli < 0 || _upkeepMilli >= 1000)
+        {
+            Fail("impossible villagers");
+        }
+
         if (_buildings.Select(b => b.Id).Distinct().Count() != _buildings.Count || _buildings.Any(b => b.Id >= _nextId && b.Id != HearthId))
         {
             Fail("building ids collide");
@@ -417,7 +445,12 @@ public sealed class BaseState
         _unseenReport,
         _cleared.ToList(),
         _treeCuts.Select(c => new TreeCutData(c.Key.X, c.Key.Y, c.Value.UtcTicks)).ToList(),
-        CurrentLayoutVersion);
+        CurrentLayoutVersion,
+        _population,
+        _populationAsOf.UtcTicks,
+        _upkeepAsOf.UtcTicks,
+        _upkeepMilli,
+        _cold);
 
     public CommandOutcome Apply(BaseCommand command, DateTimeOffset nowUtc)
     {
@@ -455,6 +488,7 @@ public sealed class BaseState
         };
 
         _network = null;
+        SettlePeople(nowUtc);
         if (outcome.Status == CommandStatus.Accepted)
         {
             Version++;
@@ -469,10 +503,12 @@ public sealed class BaseState
         Advance(nowUtc);
         _now = nowUtc;
         var views = _buildings.Select(b => new BuildingView(
-            b.Id, b.Type, b.Level, b.Position, (int)(Buffer(b, nowUtc) / 1000), (int)(CapacityMilli(b) / 1000), Rate(b), b.UpgradeEndsAtUtc, b.Wrecked, b.Rotated, b.Tiles, IsConnected(b))).ToList();
+            b.Id, b.Type, b.Level, b.Position, (int)(Buffer(b, nowUtc) / 1000), (int)(CapacityMilli(b) / 1000), Rate(b), b.UpgradeEndsAtUtc, b.Wrecked, b.Rotated, b.Tiles, IsConnected(b),
+            IsStaffed(b) ? _table.Spec(b.Type).Workers : 0, _table.Spec(b.Type).Workers)).ToList();
         var tension = TensionValue(nowUtc);
         return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
-            tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport, _cleared.Concat(_treeCuts.Keys.Where(t => !IsWildTreeStanding(t))).ToList());
+            tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport, _cleared.Concat(_treeCuts.Keys.Where(t => !IsWildTreeStanding(t))).ToList(),
+            _population, Beds(), _cold);
     }
 
     public ResourceBag Caps
@@ -899,11 +935,35 @@ public sealed class BaseState
             var crossing = Due(_raid == null && _night == null ? HostileCrossing() : null, now);
             var deadline = Due(_raid != null && _night == null ? _raid.WarningEndsAtUtc : (DateTimeOffset?)null, now);
             var abandoned = Due(_night != null ? _nightStartedAt.AddMinutes(_table.Tension.AbandonedNightMinutes) : (DateTimeOffset?)null, now);
-            var next = Earliest(construction, crossing, deadline, abandoned);
+            var arrival = Due(_population < Beds() ? _populationAsOf.AddMinutes(_table.VillagerArrivalMinutes) : (DateTimeOffset?)null, now);
+            var runsOut = Due(PeatRunsOutAt(), now);
+            var next = Earliest(construction, crossing, deadline, abandoned, arrival, runsOut);
             if (next == null)
             {
+                MaterializeUpkeep(now);
+                SettlePeople(now);
                 return;
             }
+
+            // Everything earned or burned up to this moment counts under the rules before it.
+            MaterializeAll(next.Value);
+            MaterializeUpkeep(next.Value);
+            if (next == arrival)
+            {
+                _population++;
+                _populationAsOf = arrival!.Value;
+                continue;
+            }
+
+            if (next == runsOut)
+            {
+                _stock = new ResourceBag(_stock.Timber, 0, _stock.Scrap, _stock.Devotion);
+                _upkeepMilli = 0;
+                _cold = true;
+                continue;
+            }
+
+            SettlePeople(next.Value); // a full village's arrival clock waits at each event
 
             if (next == construction)
             {
@@ -930,6 +990,8 @@ public sealed class BaseState
             {
                 ResolveAt(Array.Empty<PlayerInput>(), abandoned!.Value, whileAway: true);
             }
+
+            SettlePeople(next.Value); // beds may have been built or wrecked
         }
     }
 
@@ -1144,7 +1206,105 @@ public sealed class BaseState
     }
 
     /// <summary>What it produces now: nothing while being built or wrecked.</summary>
-    private int Rate(Building b) => b.Wrecked || !IsConnected(b) ? 0 : LevelRate(b) * (100 + RoadBonus(b)) / 100;
+    private int Rate(Building b) => b.Wrecked || _cold || !IsConnected(b) || !IsStaffed(b) ? 0 : LevelRate(b) * (100 + RoadBonus(b)) / 100;
+
+    // ---------------- villagers ----------------
+
+    /// <summary>The Hearth's beds plus every connected, finished, intact cottage's.</summary>
+    private int Beds() => _table.HearthBeds + _buildings
+        .Where(b => b.Level > 0 && !b.Wrecked && _table.Spec(b.Type).Levels[b.Level - 1].Beds > 0 && IsConnected(b))
+        .Sum(b => _table.Spec(b.Type).Levels[b.Level - 1].Beds);
+
+    /// <summary>
+    /// Villagers crew connected, finished, intact producers in building order; one that can't get its full crew gets
+    /// none (the next, smaller one may still be crewed).
+    /// </summary>
+    private bool IsStaffed(Building building)
+    {
+        var need = _table.Spec(building.Type).Workers;
+        if (need == 0)
+        {
+            return true;
+        }
+
+        var free = _population;
+        foreach (var b in _buildings.OrderBy(b => b.Id))
+        {
+            var workers = _table.Spec(b.Type).Workers;
+            if (workers == 0 || b.Level == 0 || b.Wrecked || !IsConnected(b))
+            {
+                continue;
+            }
+
+            var crewed = free >= workers;
+            if (crewed)
+            {
+                free -= workers;
+            }
+
+            if (b == building)
+            {
+                return crewed;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Burns Peat for every villager up to <paramref name="at"/> (nothing while cold: there's nothing to burn).</summary>
+    private void MaterializeUpkeep(DateTimeOffset at)
+    {
+        if (at <= _upkeepAsOf)
+        {
+            return;
+        }
+
+        if (!_cold && _population > 0)
+        {
+            var seconds = (at.UtcTicks - _upkeepAsOf.UtcTicks) / TimeSpan.TicksPerSecond;
+            var burned = _upkeepMilli + _population * _table.PeatPerVillagerPerHour * 1000L * seconds / 3600;
+            var whole = (int)Math.Min(burned / 1000, _stock.Peat);
+            _stock -= new ResourceBag(0, whole, 0, 0);
+            _upkeepMilli = whole < burned / 1000 ? 0 : burned - whole * 1000L;
+        }
+
+        _upkeepAsOf = at;
+    }
+
+    /// <summary>When the Peat in storage runs out at today's burn (null: it won't, or it already has).</summary>
+    private DateTimeOffset? PeatRunsOutAt()
+    {
+        var perHour = _population * _table.PeatPerVillagerPerHour;
+        if (_cold || perHour <= 0)
+        {
+            return null;
+        }
+
+        var milliLeft = _stock.Peat * 1000L - _upkeepMilli;
+        var seconds = (milliLeft * 3600 + perHour * 1000L - 1) / (perHour * 1000L); // round up: it's gone at the end of that second
+        return _upkeepAsOf.AddSeconds(Math.Max(0, seconds));
+    }
+
+    /// <summary>After anything that changes beds or Peat: extra villagers leave; Peat back in storage warms everyone up.</summary>
+    private void SettlePeople(DateTimeOffset at)
+    {
+        var beds = Beds();
+        if (_population > beds)
+        {
+            _population = beds;
+        }
+
+        if (_population >= beds && at > _populationAsOf)
+        {
+            _populationAsOf = at; // full: the next newcomer comes an interval after a bed frees up
+        }
+
+        if (_cold && _stock.Peat > 0)
+        {
+            _cold = false;
+            _upkeepAsOf = at > _upkeepAsOf ? at : _upkeepAsOf;
+        }
+    }
 
     private int LevelRate(Building b)
     {

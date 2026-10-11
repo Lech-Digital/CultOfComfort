@@ -20,6 +20,7 @@ public enum BuildingType
     DirtTrack,
     PlankWalk,
     CobbledRoad,
+    Cottage,
 }
 
 public enum ResourceType

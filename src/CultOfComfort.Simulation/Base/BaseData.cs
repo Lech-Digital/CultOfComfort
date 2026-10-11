@@ -21,7 +21,12 @@ public sealed record BaseData(
     NightReport? UnseenReport = null,
     IReadOnlyList<CultOfComfort.Simulation.Grid.GridPosition>? ClearedTerrain = null,
     IReadOnlyList<TreeCutData>? TreeCuts = null,
-    int LayoutVersion = 0);
+    int LayoutVersion = 0,
+    int Population = 0,
+    long PopulationAsOfUtcTicks = 0,
+    long UpkeepAsOfUtcTicks = 0,
+    long UpkeepMilli = 0,
+    bool Cold = false);
 
 /// <summary>A wild tree cut at <see cref="CutAtUtcTicks"/>; it grows back after the regrow time.</summary>
 public sealed record TreeCutData(int X, int Y, long CutAtUtcTicks);
