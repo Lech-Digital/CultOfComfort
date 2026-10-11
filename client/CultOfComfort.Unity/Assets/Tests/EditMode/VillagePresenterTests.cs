@@ -181,5 +181,47 @@ namespace CultOfComfort.Client.Tests
             Assert.IsFalse(frame.TensionIsDemo);
             Assert.AreEqual(75f / 150f, frame.Tension, 0.001f);
         }
+    
+        [Test]
+        public void TerrainCard_WildTreeBoulderAndWall_ReadRight()
+        {
+            // Arrange
+            var snapshot = Fresh();
+            var tree = VillageMap.Demo.WildTrees.First(t => VillageMap.Demo.IsOpen(t, 1));
+
+            // Act
+            var treeCard = VillagePresenter.TerrainCard(snapshot, VillageMap.Demo, BuildingTable.Default, tree);
+            var boulderCard = VillagePresenter.TerrainCard(snapshot, VillageMap.Demo, BuildingTable.Default, new GridPosition(8, 4));
+            var wall = VillagePresenter.TerrainCard(snapshot, VillageMap.Demo, BuildingTable.Default, new GridPosition(5, 3));
+            var nothing = VillagePresenter.TerrainCard(snapshot, VillageMap.Demo, BuildingTable.Default, new GridPosition(10, 10));
+
+            // Assert
+            Assert.AreEqual("Wild tree", treeCard.Title);
+            Assert.AreEqual("Cut it down · +15 Timber", treeCard.UpgradeLabel);
+            Assert.AreEqual("Boulder", boulderCard.Title);
+            Assert.AreEqual("Clear it · +10 Scrap", boulderCard.UpgradeLabel);
+            Assert.IsNull(wall, "bedrock has no card");
+            Assert.IsNull(nothing);
+        }
+
+        [Test]
+        public void Card_PlantedTree_SaplingThenReadyToCut()
+        {
+            // Arrange
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Tree, new GridPosition(3, 9)), T0);
+            var id = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Tree).Id;
+
+            // Act
+            var sapling = VillagePresenter.Card(state.Snapshot(T0.AddHours(1)), BuildingTable.Default, id);
+            var grown = VillagePresenter.Card(state.Snapshot(T0.AddHours(5)), BuildingTable.Default, id);
+
+            // Assert
+            Assert.AreEqual("Tree · sapling", sapling.Title);
+            Assert.AreEqual("Pull it up (nothing to show yet)", sapling.DemolishLabel);
+            Assert.AreEqual("Tree · grown", grown.Title);
+            Assert.AreEqual("Cut it down · +15 Timber", grown.DemolishLabel);
+            Assert.IsFalse(grown.CanUpgrade);
+        }
     }
 }

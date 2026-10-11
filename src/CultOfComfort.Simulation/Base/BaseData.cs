@@ -18,7 +18,12 @@ public sealed record BaseData(
     RaidData? Raid = null,
     NightPlan? NightInProgress = null,
     long NightStartedAtUtcTicks = 0,
-    NightReport? UnseenReport = null);
+    NightReport? UnseenReport = null,
+    IReadOnlyList<CultOfComfort.Simulation.Grid.GridPosition>? ClearedTerrain = null,
+    IReadOnlyList<TreeCutData>? TreeCuts = null);
+
+/// <summary>A wild tree cut at <see cref="CutAtUtcTicks"/>; it grows back after the regrow time.</summary>
+public sealed record TreeCutData(int X, int Y, long CutAtUtcTicks);
 
 public sealed record RaidData(int Id, ulong Seed, long WarningEndsAtUtcTicks);
 

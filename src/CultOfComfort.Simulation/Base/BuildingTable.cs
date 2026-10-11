@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using CultOfComfort.Simulation.Balance;
 
 namespace CultOfComfort.Simulation.Base;
@@ -20,7 +21,8 @@ public sealed record BuildingSpec(
     IReadOnlyList<int> MaxCountByHearth,
     IReadOnlyList<BuildingLevel> Levels,
     ResourceType? Produces = null,
-    TowerType? Tower = null)
+    TowerType? Tower = null,
+    bool UsesBuilder = true)
 {
     public bool IsTower => Tower != null;
 
@@ -49,6 +51,17 @@ public sealed class BuildingTable
     public ResourceBag StartingStock { get; init; } = new(500, 60, 380, 0);
 
     public TensionTable Tension { get; init; } = TensionTable.Default;
+
+    /// <summary>Timber from cutting a wild tree.</summary>
+    public int WildTreeTimber { get; init; } = 15;
+
+    /// <summary>A cut wild tree grows back on its tile after this long (unless something was built there).</summary>
+    public int WildTreeRegrowHours { get; init; } = 8;
+
+    /// <summary>Clearing a loose boulder costs this and gives <see cref="BoulderScrap"/> back (stone: in = out).</summary>
+    public ResourceBag BoulderCost { get; init; } = default;
+
+    public int BoulderScrap { get; init; } = 10;
 
     public int SalvageBase { get; init; } = 40;
 
@@ -97,6 +110,10 @@ public sealed class BuildingTable
             new[] { new BuildingLevel(new ResourceBag(0, 0, 70, 0), 0, Health: 80) }, Tower: TowerType.SaplingFlinger),
         [BuildingType.WattleFence] = new(BuildingType.WattleFence, "Wattle Fence", 1, new[] { Unlimited, Unlimited, Unlimited },
             new[] { new BuildingLevel(new ResourceBag(15, 0, 0, 0), 0, Health: 50) }),
+        [BuildingType.Stone] = new(BuildingType.Stone, "Stone", 1, new[] { Unlimited, Unlimited, Unlimited },
+            new[] { new BuildingLevel(new ResourceBag(0, 0, 10, 0), 0) }),
+        [BuildingType.Tree] = new(BuildingType.Tree, "Tree", 1, new[] { Unlimited, Unlimited, Unlimited },
+            new[] { new BuildingLevel(new ResourceBag(5, 0, 0, 0), 4 * 60 * 60) }, UsesBuilder: false), // a sapling grows by itself
     };
 
     public BuildingSpec Spec(BuildingType type) => Specs[type];
@@ -111,7 +128,16 @@ public sealed class BuildingTable
     }
 
     /// <summary>A building's health in a Night: its level's, or a flimsy frame while the first level is being built.</summary>
-    public int StructureHealth(BuildingType type, int level) => level == 0 ? UnderConstructionHealth : Spec(type).Levels[level - 1].Health;
+    public int StructureHealth(BuildingType type, int level)
+    {
+        var spec = Spec(type);
+        if (spec.Levels.All(l => l.Health == 0))
+        {
+            return 0; // stones and trees: nothing for raiders to smash
+        }
+
+        return level == 0 ? UnderConstructionHealth : spec.Levels[level - 1].Health;
+    }
 
     public int Salvage(int stars) => SalvageBase + SalvagePerStar * Math.Min(Math.Max(stars, 0), 3);
 }

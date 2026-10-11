@@ -30,6 +30,9 @@ public sealed class BaseState
     private NightPlan? _night;
     private DateTimeOffset _nightStartedAt;
     private NightReport? _unseenReport;
+    private readonly List<GridPosition> _cleared = new(); // boulders, gone for good
+    private readonly Dictionary<GridPosition, DateTimeOffset> _treeCuts = new();
+    private DateTimeOffset _now;
 
     private BaseState(BuildingTable table, VillageMap map)
     {
@@ -45,7 +48,8 @@ public sealed class BaseState
 
     private Building Hearth => _buildings[0];
 
-    private Building? Constructing => _buildings.FirstOrDefault(b => b.IsUpgrading);
+    /// <summary>What the builder is working on (saplings grow by themselves and don't count).</summary>
+    private Building? Constructing => _buildings.FirstOrDefault(b => b.IsUpgrading && _table.Spec(b.Type).UsesBuilder);
 
     public static BaseState CreateNew(BuildingTable table, VillageMap map, DateTimeOffset nowUtc)
     {
@@ -100,6 +104,19 @@ public sealed class BaseState
             state.Remember(id);
         }
 
+        foreach (var tile in data.ClearedTerrain ?? Array.Empty<GridPosition>())
+        {
+            if (!state._cleared.Contains(tile))
+            {
+                state._cleared.Add(tile);
+            }
+        }
+
+        foreach (var cut in data.TreeCuts ?? Array.Empty<TreeCutData>())
+        {
+            state._treeCuts[new GridPosition(cut.X, cut.Y)] = new DateTimeOffset(cut.CutAtUtcTicks, TimeSpan.Zero);
+        }
+
         state.Validate();
         return state;
     }
@@ -129,7 +146,7 @@ public sealed class BaseState
             Fail("the Hearth is not where (or what) it should be");
         }
 
-        if (_buildings.Count(b => b.IsUpgrading) > 1)
+        if (_buildings.Count(b => b.IsUpgrading && _table.Spec(b.Type).UsesBuilder) > 1)
         {
             Fail("two constructions at once");
         }
@@ -146,7 +163,8 @@ public sealed class BaseState
             }
 
             if (!tiles.Add(b.Position) || (b.Type != BuildingType.Hearth
-                && (!_map.IsOpen(b.Position, HearthLevel) || b.Position == _map.Spawn || b.Position == _map.Hearth || _map.Rocks.Contains(b.Position))))
+                && (!_map.IsOpen(b.Position, HearthLevel) || b.Position == _map.Spawn || b.Position == _map.Hearth
+                    || _map.IsBedrock(b.Position) || (_map.IsBoulder(b.Position) && !_cleared.Contains(b.Position)))))
             {
                 Fail($"building {b.Id} stands somewhere it cannot");
             }
@@ -173,7 +191,9 @@ public sealed class BaseState
         _raid == null ? null : new RaidData(_raid.Id, _raid.Seed, _raid.WarningEndsAtUtc.UtcTicks),
         _night,
         _nightStartedAt.UtcTicks,
-        _unseenReport);
+        _unseenReport,
+        _cleared.ToList(),
+        _treeCuts.Select(c => new TreeCutData(c.Key.X, c.Key.Y, c.Value.UtcTicks)).ToList());
 
     public CommandOutcome Apply(BaseCommand command, DateTimeOffset nowUtc)
     {
@@ -183,7 +203,8 @@ public sealed class BaseState
         }
 
         Advance(nowUtc);
-        if (_night != null && command is PlaceBuilding or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult)
+        _now = nowUtc;
+        if (_night != null && command is PlaceBuilding or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain)
         {
             return CommandOutcome.Reject("Not now — there's a Night on.") with { Version = Version };
         }
@@ -193,6 +214,7 @@ public sealed class BaseState
             BeginNight _ => Begin(nowUtc),
             ResolveNight resolve => Resolve(resolve, nowUtc),
             AcknowledgeReport _ => Acknowledge(),
+            ClearTerrain clear => Clear(clear.Tile),
             PlaceBuilding place => Place(place, nowUtc),
             UpgradeBuilding upgrade => Upgrade(Find(upgrade.BuildingId), nowUtc),
             UpgradeHearth _ => Upgrade(Hearth, nowUtc),
@@ -218,11 +240,12 @@ public sealed class BaseState
     public BaseSnapshot Snapshot(DateTimeOffset nowUtc)
     {
         Advance(nowUtc);
+        _now = nowUtc;
         var views = _buildings.Select(b => new BuildingView(
             b.Id, b.Type, b.Level, b.Position, (int)(Buffer(b, nowUtc) / 1000), (int)(CapacityMilli(b) / 1000), Rate(b), b.UpgradeEndsAtUtc, b.Wrecked)).ToList();
         var tension = TensionValue(nowUtc);
         return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
-            tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport);
+            tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport, _cleared.Concat(_treeCuts.Keys.Where(t => !IsWildTreeStanding(t))).ToList());
     }
 
     public ResourceBag Caps
@@ -245,15 +268,21 @@ public sealed class BaseState
     public int SluiceBonus => _buildings.Where(b => b.Level > 0 && !b.Wrecked).Sum(b => _table.Spec(b.Type).Levels[b.Level - 1].SluiceCharges);
 
     /// <summary>The locked layout for a Night: towers fight, every other building is in the way.</summary>
-    public BattleLayout ToBattleLayout() => _map.ToBattleLayout(
-        _buildings.Where(b => _table.Spec(b.Type).IsTower).Select(b => new PlacedTower(_table.Spec(b.Type).Tower!.Value, b.Position)),
-        _buildings.Where(b => b.Type != BuildingType.Hearth && !_table.Spec(b.Type).IsTower).Select(b => b.Position),
-        _buildings.Where(b => b.Type != BuildingType.Hearth).Select(b =>
-        {
-            var health = _table.StructureHealth(b.Type, b.Level);
-            return new PlacedStructure(b.Id, b.Position, health, b.Wrecked ? 0 : health);
-        }),
-        HearthLevel);
+    public BattleLayout ToBattleLayout()
+    {
+        var buildingTiles = new HashSet<GridPosition>(_buildings.Select(b => b.Position));
+        return _map.ToBattleLayout(
+            _buildings.Where(b => _table.Spec(b.Type).IsTower).Select(b => new PlacedTower(_table.Spec(b.Type).Tower!.Value, b.Position)),
+            _buildings.Where(b => b.Type != BuildingType.Hearth && !_table.Spec(b.Type).IsTower).Select(b => b.Position),
+            _buildings.Where(b => b.Type != BuildingType.Hearth && _table.StructureHealth(b.Type, b.Level) > 0).Select(b =>
+            {
+                var health = _table.StructureHealth(b.Type, b.Level);
+                return new PlacedStructure(b.Id, b.Position, health, b.Wrecked ? 0 : health);
+            }),
+            HearthLevel,
+            _cleared);
+    }
+
     // (VillageMap.ToBattleLayout(snapshot, table) is the same rule from a snapshot, for gateways.)
 
     // ---------------- commands ----------------
@@ -277,7 +306,7 @@ public sealed class BaseState
         }
 
         var instant = spec.IsTower || spec.Levels[0].BuildSeconds == 0;
-        if (!instant && Constructing != null)
+        if (!instant && spec.UsesBuilder && Constructing != null)
         {
             return CommandOutcome.Reject("The builder is busy. One thing at a time; he's a cultist, not a crane.");
         }
@@ -354,20 +383,29 @@ public sealed class BaseState
             return CommandOutcome.Reject(building == null ? "That building is gone." : "Demolish the Hearth? The cult would riot.");
         }
 
-        if (building.IsUpgrading)
+        var spec = _table.Spec(building.Type);
+        if (building.IsUpgrading && spec.UsesBuilder)
         {
             return CommandOutcome.Reject("Let the builder finish first.");
         }
 
-        var spec = _table.Spec(building.Type);
-        var cost = spec.Levels[building.Level - 1].Cost;
-        if (!building.Wrecked)
+        var gained = default(ResourceBag);
+        if (building.Type == BuildingType.Tree)
         {
-            _stock += spec.IsTower ? cost : cost.Half(); // a wreck is worth nothing (else demolish-and-rebuild is a free repair)
+            // Cutting a grown tree gives timber (a slow tree farm); a sapling gives nothing.
+            var timber = building.Level >= 1 ? Math.Min(_table.WildTreeTimber, Math.Max(0, Caps.Timber - _stock.Timber)) : 0;
+            gained = new ResourceBag(timber, 0, 0, 0);
+            _stock += gained;
+        }
+        else if (!building.Wrecked && building.Level >= 1)
+        {
+            var cost = spec.Levels[building.Level - 1].Cost;
+            var full = spec.IsTower || building.Type == BuildingType.Stone; // stone: exactly what it cost
+            _stock += full ? cost : cost.Half(); // a wreck is worth nothing (else demolish-and-rebuild is a free repair)
         }
 
         _buildings.Remove(building);
-        return CommandOutcome.Accept();
+        return CommandOutcome.Accept(gained);
     }
 
     private CommandOutcome DoCollect(int? id, DateTimeOffset now)
@@ -459,6 +497,54 @@ public sealed class BaseState
         return CommandOutcome.Accept();
     }
 
+    // ---------------- terrain ----------------
+
+    private bool IsWildTreeStanding(GridPosition tile) =>
+        _map.WildTrees.Contains(tile) && _buildings.All(b => b.Position != tile)
+        && (!_treeCuts.TryGetValue(tile, out var cut) || cut.AddHours(_table.WildTreeRegrowHours) <= _now);
+
+    private CommandOutcome Clear(GridPosition tile)
+    {
+        if (!_map.Contains(tile))
+        {
+            return CommandOutcome.Reject("Nothing to clear there.");
+        }
+
+        if (!_map.IsOpen(tile, HearthLevel))
+        {
+            return CommandOutcome.Reject($"That land opens at Hearth {_map.OpensAt(tile)}.");
+        }
+
+        if (_map.IsBedrock(tile))
+        {
+            return CommandOutcome.Reject("That's bedrock. It was here before the Romans and it will be here after the Prophet.");
+        }
+
+        if (_map.IsBoulder(tile) && !_cleared.Contains(tile))
+        {
+            if (!_stock.Covers(_table.BoulderCost))
+            {
+                return CommandOutcome.Reject($"Need {_stock.Missing(_table.BoulderCost)} more.");
+            }
+
+            _stock -= _table.BoulderCost;
+            var scrap = Math.Min(_table.BoulderScrap, Math.Max(0, Caps.Scrap - _stock.Scrap));
+            _stock += new ResourceBag(0, 0, scrap, 0);
+            _cleared.Add(tile);
+            return CommandOutcome.Accept(new ResourceBag(0, 0, scrap, 0));
+        }
+
+        if (IsWildTreeStanding(tile))
+        {
+            var timber = Math.Min(_table.WildTreeTimber, Math.Max(0, Caps.Timber - _stock.Timber));
+            _stock += new ResourceBag(timber, 0, 0, 0);
+            _treeCuts[tile] = _now;
+            return CommandOutcome.Accept(new ResourceBag(timber, 0, 0, 0));
+        }
+
+        return CommandOutcome.Reject("Nothing to clear there.");
+    }
+
     // ---------------- rules ----------------
 
     private string? PlacementProblem(GridPosition tile)
@@ -468,9 +554,24 @@ public sealed class BaseState
             return $"That land opens at Hearth {_map.OpensAt(tile)}.";
         }
 
-        if (!_map.Contains(tile) || tile == _map.Spawn || tile == _map.Hearth || _map.Rocks.Contains(tile) || _buildings.Any(b => b.Position == tile))
+        if (!_map.Contains(tile) || tile == _map.Spawn || tile == _map.Hearth || _buildings.Any(b => b.Position == tile) || _map.IsBedrock(tile))
         {
             return "Can't build there.";
+        }
+
+        if (_map.IsInSpawnClearance(tile))
+        {
+            return "Too close to where the raiders come in.";
+        }
+
+        if (_map.IsBoulder(tile) && !_cleared.Contains(tile))
+        {
+            return "Clear the boulder first.";
+        }
+
+        if (IsWildTreeStanding(tile))
+        {
+            return "Cut the tree down first.";
         }
 
         try
@@ -496,7 +597,8 @@ public sealed class BaseState
         while (true)
         {
             // The earliest due event goes first: a construction, Tension crossing Hostile, a raid's deadline, an abandoned Night.
-            var construction = Due(Constructing?.UpgradeEndsAtUtc, now);
+            var growing = _buildings.Where(b => b.IsUpgrading).OrderBy(b => b.UpgradeEndsAtUtc).FirstOrDefault();
+            var construction = Due(growing?.UpgradeEndsAtUtc, now);
             var crossing = Due(_raid == null && _night == null ? HostileCrossing() : null, now);
             var deadline = Due(_raid != null && _night == null ? _raid.WarningEndsAtUtc : (DateTimeOffset?)null, now);
             var abandoned = Due(_night != null ? _nightStartedAt.AddMinutes(_table.Tension.AbandonedNightMinutes) : (DateTimeOffset?)null, now);
@@ -508,7 +610,7 @@ public sealed class BaseState
 
             if (next == construction)
             {
-                CompleteConstruction(construction!.Value);
+                CompleteConstruction(growing!, construction!.Value);
             }
             else if (next == crossing)
             {
@@ -655,9 +757,8 @@ public sealed class BaseState
     }
 
     /// <summary>Completes a construction at its own end time (so production and the Tension rate change from then).</summary>
-    private void CompleteConstruction(DateTimeOffset endedAt)
+    private void CompleteConstruction(Building building, DateTimeOffset endedAt)
     {
-        var building = Constructing!;
         MaterializeTension(endedAt);
         Materialize(building, endedAt);
         building.Level++;

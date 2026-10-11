@@ -259,3 +259,5 @@
 .landscape .sheet .plain { height: 26px; margin-top: 3px; font-size: 13px; }
 .landscape .sheet .sheet-title { font-size: 16px; margin-bottom: 2px; }
 .landscape .sheet .sheet-line { font-size: 11px; margin-top: 1px; }
+.icon-b_stone { background-image: resource("UI/Icons/b_stone"); }
+.icon-b_tree { background-image: resource("UI/Icons/b_tree"); }

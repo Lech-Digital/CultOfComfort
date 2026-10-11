@@ -93,6 +93,8 @@ namespace CultOfComfort.Client
             nightStartedAtTicks = data.NightStartedAtUtcTicks,
             hasReport = data.UnseenReport != null,
             report = data.UnseenReport == null ? new ReportDto() : ToDto(data.UnseenReport),
+            cleared = (data.ClearedTerrain ?? Array.Empty<GridPosition>()).Select(t => new TileDto { x = t.X, y = t.Y }).ToList(),
+            treeCuts = (data.TreeCuts ?? Array.Empty<TreeCutData>()).Select(c => new TreeCutDto { x = c.X, y = c.Y, ticks = c.CutAtUtcTicks }).ToList(),
         });
 
         private static NightDto ToDto(NightPlan plan) => new NightDto
@@ -172,7 +174,9 @@ namespace CultOfComfort.Client
                 dto.hasRaid ? new RaidData(dto.raid.id, ParseSeed(dto.raid.seed), dto.raid.warningEndsAtTicks) : null,
                 dto.hasNight ? FromDto(dto.night) : null,
                 dto.nightStartedAtTicks,
-                dto.hasReport ? FromDto(dto.report) : null);
+                dto.hasReport ? FromDto(dto.report) : null,
+                (dto.cleared ?? new List<TileDto>()).Select(t => new GridPosition(t.x, t.y)).ToList(),
+                (dto.treeCuts ?? new List<TreeCutDto>()).Select(c => new TreeCutData(c.x, c.y, c.ticks)).ToList());
         }
 
         [Serializable]
@@ -199,6 +203,16 @@ namespace CultOfComfort.Client
             public long nightStartedAtTicks;
             public bool hasReport;
             public ReportDto report;
+            public List<TileDto> cleared;
+            public List<TreeCutDto> treeCuts;
+        }
+
+        [Serializable]
+        private sealed class TreeCutDto
+        {
+            public int x;
+            public int y;
+            public long ticks;
         }
 
         [Serializable]

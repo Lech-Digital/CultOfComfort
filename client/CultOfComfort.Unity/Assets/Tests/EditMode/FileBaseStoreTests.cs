@@ -127,5 +127,23 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual(original.NightInProgress.Structures.Count, restored.NightInProgress.Structures.Count);
             Assert.AreEqual(original.NightInProgress.Towers[0], restored.NightInProgress.Towers[0]);
         }
+    
+        [Test]
+        public void Mapper_ClearedTerrainAndTreeCuts_RoundTrip()
+        {
+            // Arrange
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new ClearTerrain(Guid.NewGuid(), new GridPosition(8, 4)), T0);
+            var tree = VillageMap.Demo.WildTrees.First(t => VillageMap.Demo.IsOpen(t, 1));
+            state.Apply(new ClearTerrain(Guid.NewGuid(), tree), T0);
+
+            // Act
+            var back = BaseState.Restore(BuildingTable.Default, VillageMap.Demo, VillageSaveMapper.FromJson(VillageSaveMapper.ToJson(state.ToData())));
+
+            // Assert
+            CollectionAssert.Contains(back.Snapshot(T0.AddHours(1)).ClearedTerrain.ToList(), new GridPosition(8, 4));
+            CollectionAssert.Contains(back.Snapshot(T0.AddHours(1)).ClearedTerrain.ToList(), tree);
+            CollectionAssert.DoesNotContain(back.Snapshot(T0.AddHours(9)).ClearedTerrain.ToList(), tree, "it grew back");
+        }
     }
 }

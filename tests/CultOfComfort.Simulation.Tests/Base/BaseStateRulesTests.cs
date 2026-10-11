@@ -14,7 +14,7 @@ public class BaseStateRulesTests
     [InlineData(17, 9)]  // Hearth
     [InlineData(5, 3)]   // rock
     [InlineData(-1, 0)]  // outside
-    [InlineData(22, 0)]  // outside (the full map is 22 wide)
+    [InlineData(30, 0)]  // outside (the full map is 30 wide)
     public void Apply_PlaceOnSpawnOrHearth_Rejected(int x, int y)
     {
         // Act
@@ -28,13 +28,15 @@ public class BaseStateRulesTests
     [Fact]
     public void Apply_PlaceThatSealsTheRoad_Rejected()
     {
-        // Arrange — the rock wall at x = 5 leaves y = 8..10 open; fill (5,8) and (5,9), then try (5,10).
+        // Arrange — the rock wall at x = 5 leaves y = 8..13 open at Hearth 1; fill (5,8)..(5,12), then try (5,13).
         var state = NewBase();
-        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(5, 8)), T0).Status.Should().Be(CommandStatus.Accepted);
-        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(5, 9)), T0).Status.Should().Be(CommandStatus.Accepted);
+        for (var y = 8; y <= 12; y++)
+        {
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(5, y)), T0).Status.Should().Be(CommandStatus.Accepted);
+        }
 
         // Act
-        var outcome = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(5, 10)), T0);
+        var outcome = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(5, 13)), T0);
 
         // Assert
         outcome.Status.Should().Be(CommandStatus.Rejected);
