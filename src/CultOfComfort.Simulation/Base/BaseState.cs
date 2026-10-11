@@ -359,7 +359,10 @@ public sealed class BaseState
             _buildings.Where(b => b.Type != BuildingType.Hearth && _table.StructureHealth(b.Type, b.Level) > 0).Select(b =>
             {
                 var health = _table.StructureHealth(b.Type, b.Level);
-                return new PlacedStructure(b.Id, b.Position, health, b.Wrecked ? 0 : health) { Tiles = b.Tiles };
+                return new PlacedStructure(b.Id, b.Position, health, b.Wrecked ? 0 : health)
+                {
+                    Tiles = b.Tiles, Barrier = BuildingTable.IsBarrier(b.Type), Gate = b.Type == BuildingType.Gate,
+                };
             }),
             HearthLevel,
             _cleared);

@@ -130,14 +130,14 @@ public class FootprintTests
     [Fact]
     public void Battle_StructureBesideTheRoadByItsFarTile_GetsSmashed()
     {
-        // Arrange — a straight road along row 0; the structure's position (4,2) is two rows down, its other tile (4,1) beside the road.
+        // Arrange — a straight road along row 0; a long structure from (4,1) down to (4,6): only its top tile is near the road.
         var road = Enumerable.Range(0, 10).Select(x => new GridPosition(x, 0)).ToList();
-        var structure = new PlacedStructure(7, new GridPosition(4, 2), 200, 200) { Tiles = new[] { new GridPosition(4, 1), new GridPosition(4, 2) } };
-        var oneTile = structure with { Tiles = new[] { new GridPosition(4, 2) } };
+        var structure = new PlacedStructure(7, new GridPosition(4, 6), 200, 200) { Tiles = Enumerable.Range(1, 6).Select(y => new GridPosition(4, y)).ToList() };
+        var oneTile = structure with { Tiles = new[] { new GridPosition(4, 6) } }; // out of raiding range
         List<BattleEvent> Run(PlacedStructure s)
         {
             var battle = new Battle(new BattleSetup(
-                new BattleLayout(10, 4, new GridPosition(0, 0), new GridPosition(9, 0), Array.Empty<PlacedTower>(), Array.Empty<GridPosition>(), null, new[] { s }, road),
+                new BattleLayout(10, 8, new GridPosition(0, 0), new GridPosition(9, 0), Array.Empty<PlacedTower>(), Array.Empty<GridPosition>(), new GridPosition(0, 7), new[] { s }, road),
                 5, 20, 1, []));
             var events = new List<BattleEvent>();
             while (!battle.IsFinished)

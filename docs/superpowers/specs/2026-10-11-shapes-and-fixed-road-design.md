@@ -49,3 +49,15 @@ becomes towers beside it and (slice 2) walls around what you love.
 - .NET: footprint occupancy and rotation, overlap rejection, road rejection, road fixed after clearing/building,
   structures smashed from any tile, migration (fits / rotates / moves / refunds), save round trip of `Rotated`.
 - Unity: presenter size labels, DTO round trip, PlayMode place-rotated, device run (60 fps, probe MATCH).
+
+## Slice 2 — Raids off the road, walls and gates
+
+- **Raiding:** a raider on the road that sees an intact structure it hasn't hit within **3 tiles** (`RaidRange`, combat
+  balance `2026.10.5`) leaves the road on a walking route around everything in the way (rocks, buildings, locked
+  forest), swings once at it, and walks the same route back to the road before marching on. Structures right beside the
+  road are still smashed from the road.
+- **Barriers:** Wattle Fence (50 HP), **Wooden Wall** (new: 30 Timber, 250 HP, instant, unlimited, model `palisade`) and
+  **Gate** (new: 40 Timber + 10 Scrap, 200 HP, instant). If every route to the building is walled off, the raider hacks at
+  the first barrier on the way (each raider hits each barrier once); a wrecked barrier is a gap anyone can walk through.
+- **Gates:** raiders treat a gate as wall; the Prophet walks through it. (Villagers using gates and roads: slice 3.)
+- Raid state (target, route, step, returning) is hashed only for layouts with structures, so the demo hash stays.

@@ -13,12 +13,19 @@ public readonly record struct PlacedStructure(int Id, GridPosition Position, int
 {
     /// <summary>Every tile of its footprint (null = just <see cref="Position"/>).</summary>
     public IReadOnlyList<GridPosition>? Tiles { get; init; }
+
+    /// <summary>A fence, wall or gate: raiders who can't get round it hack through it; once wrecked it is a gap.</summary>
+    public bool Barrier { get; init; }
+
+    /// <summary>A gate: a barrier to raiders, a door to the Prophet.</summary>
+    public bool Gate { get; init; }
 }
 
 /// <summary>Immutable snapshot of a base as it stands when the Night starts (the "locked layout").</summary>
 public sealed class BattleLayout
 {
     private readonly HashSet<GridPosition> _blocked;
+    private readonly HashSet<GridPosition> _gates;
 
     public BattleLayout(
         int width,
@@ -40,6 +47,7 @@ public sealed class BattleLayout
         Obstacles = obstacles.ToList();
         Structures = structures?.ToList() ?? new List<PlacedStructure>();
         _blocked = new HashSet<GridPosition>(Obstacles.Concat(Towers.Select(t => t.Position)));
+        _gates = new HashSet<GridPosition>(Structures.Where(s => s.Gate).SelectMany(s => s.Tiles ?? new[] { s.Position }));
         LeaderStart = leaderStart ?? FindDefaultLeaderStart();
     }
 
@@ -64,9 +72,9 @@ public sealed class BattleLayout
     public bool IsInBounds(GridPosition position) =>
         position.X >= 0 && position.Y >= 0 && position.X < Width && position.Y < Height;
 
-    /// <summary>The leader can stand anywhere except rocks, towers and the Hearth itself.</summary>
+    /// <summary>The leader can stand anywhere except rocks, towers, buildings and the Hearth itself; he walks through gates.</summary>
     public bool IsWalkableForLeader(GridPosition position) =>
-        IsInBounds(position) && !IsBlocked(position) && position != Hearth;
+        IsInBounds(position) && (!IsBlocked(position) || _gates.Contains(position)) && position != Hearth;
 
     public IReadOnlyList<GridPosition> ResolveEnemyPath()
     {

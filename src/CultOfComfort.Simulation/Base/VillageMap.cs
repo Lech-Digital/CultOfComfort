@@ -186,7 +186,10 @@ public sealed record VillageMap(
             snapshot.Buildings.Where(b => b.Type != BuildingType.Hearth && table.StructureHealth(b.Type, b.Level) > 0).Select(b =>
             {
                 var health = table.StructureHealth(b.Type, b.Level);
-                return new PlacedStructure(b.Id, b.Position, health, b.Wrecked ? 0 : health) { Tiles = b.Tiles };
+                return new PlacedStructure(b.Id, b.Position, health, b.Wrecked ? 0 : health)
+                {
+                    Tiles = b.Tiles, Barrier = BuildingTable.IsBarrier(b.Type), Gate = b.Type == BuildingType.Gate,
+                };
             }),
             snapshot.HearthLevel,
             cleared);

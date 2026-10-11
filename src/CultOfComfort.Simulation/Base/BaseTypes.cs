@@ -15,6 +15,8 @@ public enum BuildingType
     WattleFence,
     Stone,
     Tree,
+    WoodenWall,
+    Gate,
 }
 
 public enum ResourceType

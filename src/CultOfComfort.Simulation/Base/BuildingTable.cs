@@ -112,6 +112,10 @@ public sealed class BuildingTable
             new[] { new BuildingLevel(new ResourceBag(0, 0, 70, 0), 0, Health: 80) }, Tower: TowerType.SaplingFlinger),
         [BuildingType.WattleFence] = new(BuildingType.WattleFence, "Wattle Fence", 1, new[] { Unlimited, Unlimited, Unlimited },
             new[] { new BuildingLevel(new ResourceBag(15, 0, 0, 0), 0, Health: 50) }),
+        [BuildingType.WoodenWall] = new(BuildingType.WoodenWall, "Wooden Wall", 1, new[] { Unlimited, Unlimited, Unlimited },
+            new[] { new BuildingLevel(new ResourceBag(30, 0, 0, 0), 0, Health: 250) }),
+        [BuildingType.Gate] = new(BuildingType.Gate, "Gate", 1, new[] { Unlimited, Unlimited, Unlimited },
+            new[] { new BuildingLevel(new ResourceBag(40, 0, 10, 0), 0, Health: 200) }),
         [BuildingType.Stone] = new(BuildingType.Stone, "Stone", 1, new[] { Unlimited, Unlimited, Unlimited },
             new[] { new BuildingLevel(new ResourceBag(0, 0, 10, 0), 0) }),
         [BuildingType.Tree] = new(BuildingType.Tree, "Tree", 1, new[] { Unlimited, Unlimited, Unlimited },
@@ -128,6 +132,9 @@ public sealed class BuildingTable
         var repair = new ResourceBag(Tenth(cost.Timber), Tenth(cost.Peat), Tenth(cost.Scrap), Tenth(cost.Devotion));
         return repair.IsZero ? new ResourceBag(1, 0, 0, 0) : repair;
     }
+
+    /// <summary>Fences, walls and gates: raiders who can't get round them hack through.</summary>
+    public static bool IsBarrier(BuildingType type) => type is BuildingType.WattleFence or BuildingType.WoodenWall or BuildingType.Gate;
 
     /// <summary>A building's health in a Night: its level's, or a flimsy frame while the first level is being built.</summary>
     public int StructureHealth(BuildingType type, int level)
