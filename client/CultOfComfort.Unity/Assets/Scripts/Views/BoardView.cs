@@ -13,8 +13,8 @@ namespace CultOfComfort.Client
     {
         private readonly Dictionary<int, BuildingVisual> _buildings = new Dictionary<int, BuildingVisual>();
         private readonly List<SpriteRenderer> _billboards = new List<SpriteRenderer>();
-        private readonly Dictionary<GridPosition, GameObject> _forest = new Dictionary<GridPosition, GameObject>();
-        private bool _forestBuilt;
+        private readonly Dictionary<MapZone, GameObject> _zones = new Dictionary<MapZone, GameObject>();
+        private readonly List<Transform> _water = new List<Transform>();
         private Transform _hearth;
         private GameObject _hearthModel;
         private int _hearthLevel = 1;
@@ -147,50 +147,99 @@ namespace CultOfComfort.Client
             }
         }
 
-        /// <summary>Locked land is forest with a sign saying when it opens; opening a level clears its trees.</summary>
+        /// <summary>Locked land is forest (one patch per zone, so the phone stays fast); opening a level clears it.</summary>
         public void SetOpenLevel(int hearthLevel)
         {
-            foreach (var tile in _forest.Keys.Where(t => VillageMap.Demo.IsOpen(t, hearthLevel)).ToList())
+            var map = VillageMap.Demo;
+            foreach (var zone in map.Zones ?? Array.Empty<MapZone>())
             {
-                Destroy(_forest[tile]);
-                _forest.Remove(tile);
-            }
-
-            if (_forestBuilt)
-            {
-                return;
-            }
-
-            _forestBuilt = true;
-            var signs = new HashSet<int>();
-            foreach (var tile in VillageMap.Demo.LockedTiles(hearthLevel))
-            {
-                var holder = new GameObject($"Forest {tile}");
-                holder.transform.SetParent(_root, false);
-                holder.transform.localPosition = Shapes.ToWorld(tile);
-                Shapes.Create(PrimitiveType.Cube, Shapes.Hex("#3f4a2b"), new Vector3(0f, 0.02f, 0f), new Vector3(1f, 0.04f, 1f), holder.transform, "Undergrowth");
-                var seed = tile.X * 31 + tile.Y * 17;
-                if (seed % 3 != 1)
+                var open = zone.OpensAtHearth <= hearthLevel;
+                if (open && _zones.TryGetValue(zone, out var patch))
                 {
+                    Destroy(patch);
+                    _zones.Remove(zone);
+                }
+                else if (!open && !_zones.ContainsKey(zone))
+                {
+                    _zones[zone] = CreateForestPatch(zone, map);
+                }
+            }
+        }
+
+        private GameObject CreateForestPatch(MapZone zone, VillageMap map)
+        {
+            var holder = new GameObject($"Forest (Hearth {zone.OpensAtHearth})");
+            holder.transform.SetParent(_root, false);
+            var w = zone.MaxX - zone.MinX + 1;
+            var h = zone.MaxY - zone.MinY + 1;
+            Shapes.Create(PrimitiveType.Cube, Shapes.Hex("#3f4a2b"), new Vector3(zone.MinX + (w - 1) / 2f, 0.02f, -(zone.MinY + (h - 1) / 2f)),
+                new Vector3(w, 0.04f, h), holder.transform, "Undergrowth");
+            for (var y = zone.MinY; y <= zone.MaxY; y++)
+            {
+                for (var x = zone.MinX; x <= zone.MaxX; x++)
+                {
+                    var tile = new GridPosition(x, y);
+                    var seed = x * 31 + y * 17;
+                    if (seed % 3 != 0 || map.Rocks.Contains(tile))
+                    {
+                        continue;
+                    }
+
                     var tree = ArtLibrary.Instantiate(seed % 2 == 0 ? "pine" : "birch", holder.transform);
                     if (tree != null)
                     {
+                        tree.transform.localPosition = Shapes.ToWorld(tile);
                         tree.transform.localRotation = Quaternion.Euler(0f, seed * 37 % 360, 0f);
                         tree.transform.localScale = Vector3.one * (0.8f + seed % 3 * 0.1f);
                     }
                 }
+            }
 
-                var opens = VillageMap.Demo.OpensAt(tile);
-                if (signs.Add(opens))
+            var sign = ArtLibrary.Instantiate("signpost", holder.transform);
+            if (sign != null)
+            {
+                sign.transform.localPosition = Shapes.ToWorld(new GridPosition(zone.MinX, zone.MinY));
+                sign.transform.localRotation = FaceCamera;
+            }
+
+            return holder;
+        }
+
+        /// <summary>The river past the south and east: water a hair above the grass, muddy banks, one plank bridge.</summary>
+        private void BuildRiver()
+        {
+            var river = WorldScenery.RiverPath(VillageMap.Demo.Width, VillageMap.Demo.Height);
+            var water = new HashSet<GridPosition>(river);
+            var banks = new HashSet<GridPosition>();
+            foreach (var tile in river)
+            {
+                for (var dy = -1; dy <= 1; dy++)
                 {
-                    var sign = ArtLibrary.Instantiate("signpost", holder.transform);
-                    if (sign != null)
+                    for (var dx = -1; dx <= 1; dx++)
                     {
-                        sign.transform.localRotation = FaceCamera;
+                        var bank = new GridPosition(tile.X + dx, tile.Y + dy);
+                        if (!water.Contains(bank))
+                        {
+                            banks.Add(bank);
+                        }
                     }
                 }
+            }
 
-                _forest[tile] = holder;
+            foreach (var bank in banks)
+            {
+                Shapes.Create(PrimitiveType.Cube, Palette.Mud, Shapes.ToWorld(bank, -0.115f), new Vector3(1f, 0.01f, 1f), _root, "Bank");
+            }
+
+            foreach (var tile in river)
+            {
+                _water.Add(Shapes.Create(PrimitiveType.Cube, Palette.Water, Shapes.ToWorld(tile, -0.11f), new Vector3(1.02f, 0.02f, 1.02f), _root, "River").transform);
+            }
+
+            var bridge = river[river.Count / 4];
+            for (var k = -1; k <= 1; k++)
+            {
+                Shapes.Create(PrimitiveType.Cube, Palette.Wood, Shapes.ToWorld(bridge, 0f) + new Vector3(k * 0.32f, 0f, 0f), new Vector3(0.28f, 0.08f, 2.6f), _root, "Bridge plank");
             }
         }
 
@@ -259,6 +308,14 @@ namespace CultOfComfort.Client
 
         private void LateUpdate()
         {
+            // The river ripples: a slow wave travelling downstream.
+            for (var i = 0; i < _water.Count; i++)
+            {
+                var p = _water[i].localPosition;
+                p.y = -0.11f + Mathf.Sin(Time.time * 1.6f - i * 0.45f) * 0.012f;
+                _water[i].localPosition = p;
+            }
+
             var camera = Camera.main;
             if (camera == null)
             {
@@ -318,8 +375,15 @@ namespace CultOfComfort.Client
                 return; // no nature models yet
             }
 
+            // The ground runs to the horizon (the haze hides the end of it): no blackness when zooming out.
             Shapes.Create(PrimitiveType.Cube, Palette.Grass, new Vector3((VillageMap.Demo.Width - 1) / 2f, -0.22f, -(VillageMap.Demo.Height - 1) / 2f),
-                new Vector3(VillageMap.Demo.Width + 10f, 0.2f, VillageMap.Demo.Height + 10f), _root, "Apron");
+                new Vector3(VillageMap.Demo.Width + 120f, 0.2f, VillageMap.Demo.Height + 120f), _root, "Apron");
+            BuildRiver();
+            foreach (var item in WorldScenery.WorldLayout(VillageMap.Demo.Width, VillageMap.Demo.Height))
+            {
+                Place(item.Model, Shapes.ToWorld(item.Tile) + item.Jitter, item.Yaw, item.Scale);
+            }
+
             foreach (var item in SurroundingsLayout(VillageMap.Demo.Width, VillageMap.Demo.Height))
             {
                 Place(item.Model, Shapes.ToWorld(item.Tile) + item.Jitter, item.Yaw, item.Scale);

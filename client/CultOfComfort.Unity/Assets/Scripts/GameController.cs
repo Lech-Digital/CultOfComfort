@@ -611,7 +611,14 @@ namespace CultOfComfort.Client
             _camera.orthographic = false;
             _camera.fieldOfView = 44f;
             _camera.clearFlags = CameraClearFlags.SolidColor;
-            _camera.backgroundColor = Shapes.Hex("#14110d");
+            // Golden-Mud haze: the world fades into the sky instead of ending in blackness.
+            var haze = Shapes.Hex("#b8a47a");
+            _camera.backgroundColor = haze;
+            RenderSettings.fog = true;
+            RenderSettings.fogMode = FogMode.Linear;
+            RenderSettings.fogColor = haze;
+            RenderSettings.fogStartDistance = 34f;
+            RenderSettings.fogEndDistance = 85f;
             _rig = new CameraRig(
                 _camera,
                 offset: new Vector3(0f, 16.5f, -10.4f),
