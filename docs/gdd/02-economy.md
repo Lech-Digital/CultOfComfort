@@ -20,6 +20,8 @@
 
 - **Silver Pennies** — QoL and cosmetics only. **Never** convertible into the four core resources.
 
+> **Slice 1 (2026-10-11):** Hearth 1–3 costs and caps as below; building costs, rates and limits are in `BuildingTable` (`village-2026.10.1`, spec `docs/superpowers/specs/2026-10-11-village-slice-1-design.md`). Night salvage: 40 + 40 × stars Scrap.
+
 ## Hearth Progression (Levels 1–5)
 
 | Lvl | Timber | Scrap | Peat | Devotion | Build time | Storage cap (each) | Max cultists | Unlocks |
