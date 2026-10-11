@@ -15,6 +15,7 @@ namespace CultOfComfort.Client
     {
         public int BuildingId; public BuildingType Type; public string Title; public string Output; public string Ready;
         public string UpgradeLabel; public bool CanUpgrade; public bool CanDemolish; public bool IsUpgrading; public string Remaining; public bool IsHearth;
+        public bool IsWrecked; public string RepairLabel; public bool CanRepair;
     }
 
     /// <summary>Turns a village snapshot into what the HUD shows. Pure: no Unity, easy to test.</summary>
@@ -29,6 +30,7 @@ namespace CultOfComfort.Client
             BuildingType.CultistHut => "b_cultist_hut",
             BuildingType.Cistern => "b_cistern",
             BuildingType.SlurryChute => "b_slurry_chute",
+            BuildingType.WattleFence => "b_wattle_fence",
             _ => "b_sapling_flinger",
         };
 
@@ -54,21 +56,49 @@ namespace CultOfComfort.Client
             var spec = table.Spec(b.Type);
             var maxed = b.Level >= spec.MaxLevel || spec.IsTower;
             var next = maxed ? null : spec.Levels[b.Level];
-            var upgradeLabel = b.IsUpgrading ? (b.Level == 0 ? "Being built" : "Upgrading") : maxed ? "Max level" : $"Upgrade · {next.Cost} · {Duration(next.BuildSeconds)}";
+            var repair = table.RepairCost(b.Type, b.Level);
+            var upgradeLabel = b.Wrecked ? "Wrecked — repair first" : b.IsUpgrading ? (b.Level == 0 ? "Being built" : "Upgrading") : maxed ? "Max level" : $"Upgrade · {next.Cost} · {Duration(next.BuildSeconds)}";
             return new BuildingCardModel
             {
                 BuildingId = b.Id, Type = b.Type, IsHearth = b.Type == BuildingType.Hearth,
                 Title = b.Level == 0 ? $"{spec.Name} · being built" : $"{spec.Name} · level {b.Level}",
-                Output = b.Level == 0 ? string.Empty : spec.Produces != null ? $"+{b.PerHour} {spec.Produces}/h" : Effect(spec, b.Level),
+                IsWrecked = b.Wrecked,
+                RepairLabel = b.Wrecked ? $"Repair · {repair}" : string.Empty,
+                CanRepair = b.Wrecked && snapshot.Stock.Covers(repair),
+                Output = b.Wrecked ? (spec.IsTower ? "Wrecked — won't fire until repaired" : "Wrecked — produces nothing") : b.Level == 0 ? string.Empty : spec.Produces != null ? $"+{b.PerHour} {spec.Produces}/h" : Effect(spec, b.Level),
                 Ready = spec.Produces != null && b.Level > 0 ? $"{b.Ready}/{b.Capacity} ready" : string.Empty,
                 UpgradeLabel = upgradeLabel,
-                CanUpgrade = !maxed && !b.IsUpgrading && snapshot.ConstructionEndsAtUtc == null && snapshot.Stock.Covers(next.Cost)
+                CanUpgrade = !b.Wrecked && !maxed && !b.IsUpgrading && snapshot.ConstructionEndsAtUtc == null && snapshot.Stock.Covers(next.Cost)
                              && (b.Type == BuildingType.Hearth || b.Level + 1 <= snapshot.HearthLevel),
                 CanDemolish = b.Type != BuildingType.Hearth && !b.IsUpgrading,
                 IsUpgrading = b.IsUpgrading,
                 Remaining = b.IsUpgrading ? Duration((long)(b.UpgradeEndsAtUtc.Value - snapshot.AsOfUtc).TotalSeconds) + " left" : string.Empty,
             };
         }
+
+        /// <summary>The marker-pen note on the Tension strip.</summary>
+        public static string TensionNote(BaseSnapshot s)
+        {
+            if (s.RaidWarningEndsAtUtc != null)
+            {
+                var left = Duration((long)(s.RaidWarningEndsAtUtc.Value - s.AsOfUtc).TotalSeconds);
+                return s.TensionState == TensionState.Punitive ? $"Punitive raid · {left}" : $"Wulfric's men are coming · {left}";
+            }
+
+            if (s.ShieldEndsAtUtc != null)
+            {
+                return $"Shielded · {Duration((long)(s.ShieldEndsAtUtc.Value - s.AsOfUtc).TotalSeconds)}";
+            }
+
+            return s.TensionState == TensionState.Calm ? "Calm" : "Uneasy — Wulfric is muttering";
+        }
+
+        /// <summary>The big Day button: face the raid that is coming, or invite a smaller one early.</summary>
+        public static string StartLabel(BaseSnapshot s) => s.RaidWarningEndsAtUtc != null
+            ? $"Face the raid · {Duration((long)(s.RaidWarningEndsAtUtc.Value - s.AsOfUtc).TotalSeconds)} left"
+            : s.ShieldEndsAtUtc != null
+                ? $"Shielded · {Duration((long)(s.ShieldEndsAtUtc.Value - s.AsOfUtc).TotalSeconds)}"
+                : "Light the Lamps (early)";
 
         public static FrameState Frame(BaseSnapshot s) => new FrameState(
             new Reading(s.Stock.Timber, s.Caps.Timber, false),
@@ -77,7 +107,7 @@ namespace CultOfComfort.Client
             new Reading(s.Stock.Devotion, s.Caps.Devotion, false),
             new Reading(50, 0, true),
             new Reading(42, 0, true),
-            s.HearthLevel, 0.62f, "Wulfric's coming in ~3h", true);
+            s.HearthLevel, s.Tension / 150f, TensionNote(s), false);
 
         /// <summary>
         /// Whether <paramref name="candidate"/> should replace <paramref name="current"/>: a later version, or the same

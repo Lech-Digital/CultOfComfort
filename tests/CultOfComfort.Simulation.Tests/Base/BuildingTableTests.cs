@@ -68,10 +68,10 @@ public class BuildingTableTests
         var map = VillageMap.Demo;
 
         // Assert
-        (map.Width, map.Height).Should().Be((18, 11));
+        (map.Width, map.Height).Should().Be((22, 14), "the full map; 18×11 is open at Hearth 1");
         map.Spawn.Should().Be(new GridPosition(0, 1));
         map.Hearth.Should().Be(new GridPosition(17, 9));
-        map.Rocks.Should().HaveCount(22, "two walls of 8 plus 6 boulders");
+        map.Rocks.Should().HaveCount(25, "walls of 8 and 11 plus 6 boulders");
         map.ToBattleLayout([], []).ResolveEnemyPath().Should().NotBeEmpty();
     }
 }

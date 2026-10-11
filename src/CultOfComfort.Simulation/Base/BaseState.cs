@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using CultOfComfort.Simulation.Combat;
 using CultOfComfort.Simulation.Grid;
 
 namespace CultOfComfort.Simulation.Base;
@@ -21,6 +22,14 @@ public sealed class BaseState
     private readonly HashSet<Guid> _recent = new();
     private ResourceBag _stock;
     private int _nextId = 1;
+    private long _tensionMilli;
+    private DateTimeOffset _tensionAsOf;
+    private DateTimeOffset? _shieldEndsAt;
+    private ScheduledRaid? _raid;
+    private int _nextRaidId = 1;
+    private NightPlan? _night;
+    private DateTimeOffset _nightStartedAt;
+    private NightReport? _unseenReport;
 
     private BaseState(BuildingTable table, VillageMap map)
     {
@@ -40,7 +49,7 @@ public sealed class BaseState
 
     public static BaseState CreateNew(BuildingTable table, VillageMap map, DateTimeOffset nowUtc)
     {
-        var state = new BaseState(table, map) { _stock = table.StartingStock };
+        var state = new BaseState(table, map) { _stock = table.StartingStock, _tensionAsOf = nowUtc };
         state._buildings.Add(new Building(HearthId, BuildingType.Hearth, map.Hearth, 1, nowUtc));
         return state;
     }
@@ -59,6 +68,17 @@ public sealed class BaseState
             _stock = data.Stock,
             _nextId = data.NextId,
             LastNightRecorded = data.LastNightRecorded,
+            _tensionMilli = data.TensionMilli,
+            // A save from before Tension existed has no Tension clock: start it at the save's latest moment, not in year 1.
+            _tensionAsOf = data.TensionAsOfUtcTicks > 0
+                ? new DateTimeOffset(data.TensionAsOfUtcTicks, TimeSpan.Zero)
+                : new DateTimeOffset(data.Buildings.Select(b => b.AsOfUtcTicks).DefaultIfEmpty(0).Max(), TimeSpan.Zero),
+            _shieldEndsAt = data.ShieldEndsAtUtcTicks == null ? null : new DateTimeOffset(data.ShieldEndsAtUtcTicks.Value, TimeSpan.Zero),
+            _nextRaidId = data.NextRaidId,
+            _raid = data.Raid == null ? null : new ScheduledRaid(data.Raid.Id, data.Raid.Seed, new DateTimeOffset(data.Raid.WarningEndsAtUtcTicks, TimeSpan.Zero)),
+            _night = data.NightInProgress,
+            _nightStartedAt = new DateTimeOffset(data.NightStartedAtUtcTicks, TimeSpan.Zero),
+            _unseenReport = data.UnseenReport,
         };
         foreach (var b in data.Buildings.OrderBy(b => b.Type == BuildingType.Hearth ? -1 : b.Id))
         {
@@ -71,6 +91,7 @@ public sealed class BaseState
             {
                 BufferMilli = b.BufferMilli,
                 UpgradeEndsAtUtc = b.UpgradeEndsAtUtcTicks == null ? null : new DateTimeOffset(b.UpgradeEndsAtUtcTicks.Value, TimeSpan.Zero),
+                Wrecked = b.Wrecked,
             });
         }
 
@@ -87,6 +108,11 @@ public sealed class BaseState
     private void Validate()
     {
         void Fail(string reason) => throw new InvalidBaseDataException(reason);
+
+        if (_tensionMilli < 0 || _tensionMilli > _table.Tension.Max * 1000L || _nextRaidId < 1 || (_raid != null && _raid.Id >= _nextRaidId))
+        {
+            Fail("impossible Tension or raid");
+        }
 
         if (_stock.Timber < 0 || _stock.Peat < 0 || _stock.Scrap < 0 || _stock.Devotion < 0)
         {
@@ -120,7 +146,7 @@ public sealed class BaseState
             }
 
             if (!tiles.Add(b.Position) || (b.Type != BuildingType.Hearth
-                && (!_map.Contains(b.Position) || b.Position == _map.Spawn || b.Position == _map.Hearth || _map.Rocks.Contains(b.Position))))
+                && (!_map.IsOpen(b.Position, HearthLevel) || b.Position == _map.Spawn || b.Position == _map.Hearth || _map.Rocks.Contains(b.Position))))
             {
                 Fail($"building {b.Id} stands somewhere it cannot");
             }
@@ -138,8 +164,16 @@ public sealed class BaseState
 
     public BaseData ToData() => new(
         Version, _stock, _nextId, LastNightRecorded,
-        _buildings.Select(b => new BuildingData(b.Id, b.Type, b.Level, b.Position.X, b.Position.Y, b.UpgradeEndsAtUtc?.UtcTicks, b.BufferMilli, b.AsOfUtc.UtcTicks)).ToList(),
-        _recentOrder.ToList());
+        _buildings.Select(b => new BuildingData(b.Id, b.Type, b.Level, b.Position.X, b.Position.Y, b.UpgradeEndsAtUtc?.UtcTicks, b.BufferMilli, b.AsOfUtc.UtcTicks, b.Wrecked)).ToList(),
+        _recentOrder.ToList(),
+        _tensionMilli,
+        _tensionAsOf.UtcTicks,
+        _shieldEndsAt?.UtcTicks,
+        _nextRaidId,
+        _raid == null ? null : new RaidData(_raid.Id, _raid.Seed, _raid.WarningEndsAtUtc.UtcTicks),
+        _night,
+        _nightStartedAt.UtcTicks,
+        _unseenReport);
 
     public CommandOutcome Apply(BaseCommand command, DateTimeOffset nowUtc)
     {
@@ -149,15 +183,26 @@ public sealed class BaseState
         }
 
         Advance(nowUtc);
+        if (_night != null && command is PlaceBuilding or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult)
+        {
+            return CommandOutcome.Reject("Not now — there's a Night on.") with { Version = Version };
+        }
+
         var outcome = command switch
         {
+            BeginNight _ => Begin(nowUtc),
+            ResolveNight resolve => Resolve(resolve, nowUtc),
+            AcknowledgeReport _ => Acknowledge(),
             PlaceBuilding place => Place(place, nowUtc),
             UpgradeBuilding upgrade => Upgrade(Find(upgrade.BuildingId), nowUtc),
             UpgradeHearth _ => Upgrade(Hearth, nowUtc),
             DemolishBuilding demolish => Demolish(demolish.BuildingId),
             Collect collect => DoCollect(collect.BuildingId, nowUtc),
-            RecordNightResult night => RecordNight(night),
+            RecordNightResult night => RecordNight(night, nowUtc),
             FinishConstructionNow _ => FinishNow(nowUtc),
+            DebugRaiseTension raise => RaiseTension(raise.Amount, nowUtc),
+            DebugSkipWarning _ => SkipWarning(nowUtc),
+            RepairBuilding repair => Repair(repair.BuildingId, nowUtc),
             _ => CommandOutcome.Reject("Unknown order."),
         };
 
@@ -174,8 +219,10 @@ public sealed class BaseState
     {
         Advance(nowUtc);
         var views = _buildings.Select(b => new BuildingView(
-            b.Id, b.Type, b.Level, b.Position, (int)(Buffer(b, nowUtc) / 1000), (int)(CapacityMilli(b) / 1000), Rate(b), b.UpgradeEndsAtUtc)).ToList();
-        return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded);
+            b.Id, b.Type, b.Level, b.Position, (int)(Buffer(b, nowUtc) / 1000), (int)(CapacityMilli(b) / 1000), Rate(b), b.UpgradeEndsAtUtc, b.Wrecked)).ToList();
+        var tension = TensionValue(nowUtc);
+        return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
+            tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport);
     }
 
     public ResourceBag Caps
@@ -185,7 +232,7 @@ public sealed class BaseState
             var cap = _table.HearthStorageCaps[HearthLevel - 1];
             foreach (var b in _buildings)
             {
-                if (b.Level > 0)
+                if (b.Level > 0 && !b.Wrecked)
                 {
                     cap += _table.Spec(b.Type).Levels[b.Level - 1].StorageBonus;
                 }
@@ -195,12 +242,18 @@ public sealed class BaseState
         }
     }
 
-    public int SluiceBonus => _buildings.Where(b => b.Level > 0).Sum(b => _table.Spec(b.Type).Levels[b.Level - 1].SluiceCharges);
+    public int SluiceBonus => _buildings.Where(b => b.Level > 0 && !b.Wrecked).Sum(b => _table.Spec(b.Type).Levels[b.Level - 1].SluiceCharges);
 
     /// <summary>The locked layout for a Night: towers fight, every other building is in the way.</summary>
     public BattleLayout ToBattleLayout() => _map.ToBattleLayout(
         _buildings.Where(b => _table.Spec(b.Type).IsTower).Select(b => new PlacedTower(_table.Spec(b.Type).Tower!.Value, b.Position)),
-        _buildings.Where(b => b.Type != BuildingType.Hearth && !_table.Spec(b.Type).IsTower).Select(b => b.Position));
+        _buildings.Where(b => b.Type != BuildingType.Hearth && !_table.Spec(b.Type).IsTower).Select(b => b.Position),
+        _buildings.Where(b => b.Type != BuildingType.Hearth).Select(b =>
+        {
+            var health = _table.StructureHealth(b.Type, b.Level);
+            return new PlacedStructure(b.Id, b.Position, health, b.Wrecked ? 0 : health);
+        }),
+        HearthLevel);
     // (VillageMap.ToBattleLayout(snapshot, table) is the same rule from a snapshot, for gateways.)
 
     // ---------------- commands ----------------
@@ -223,7 +276,8 @@ public sealed class BaseState
             return CommandOutcome.Reject($"No room for another {spec.Name} until the Hearth grows.");
         }
 
-        if (!spec.IsTower && Constructing != null)
+        var instant = spec.IsTower || spec.Levels[0].BuildSeconds == 0;
+        if (!instant && Constructing != null)
         {
             return CommandOutcome.Reject("The builder is busy. One thing at a time; he's a cultist, not a crane.");
         }
@@ -241,8 +295,8 @@ public sealed class BaseState
         }
 
         _stock -= cost;
-        var building = new Building(_nextId++, command.Type, command.Position, spec.IsTower ? 1 : 0, now);
-        if (!spec.IsTower)
+        var building = new Building(_nextId++, command.Type, command.Position, instant ? 1 : 0, now);
+        if (!instant)
         {
             building.UpgradeEndsAtUtc = now.AddSeconds(spec.Levels[0].BuildSeconds);
         }
@@ -263,6 +317,11 @@ public sealed class BaseState
         if (spec.IsTower || building.Level >= spec.MaxLevel)
         {
             return CommandOutcome.Reject($"{spec.Name} is as good as it gets.");
+        }
+
+        if (building.Wrecked)
+        {
+            return CommandOutcome.Reject("Wrecked — repair it first.");
         }
 
         if (building.IsUpgrading || Constructing != null)
@@ -302,7 +361,11 @@ public sealed class BaseState
 
         var spec = _table.Spec(building.Type);
         var cost = spec.Levels[building.Level - 1].Cost;
-        _stock += spec.IsTower ? cost : cost.Half();
+        if (!building.Wrecked)
+        {
+            _stock += spec.IsTower ? cost : cost.Half(); // a wreck is worth nothing (else demolish-and-rebuild is a free repair)
+        }
+
         _buildings.Remove(building);
         return CommandOutcome.Accept();
     }
@@ -341,7 +404,7 @@ public sealed class BaseState
         return CommandOutcome.Accept(gained);
     }
 
-    private CommandOutcome RecordNight(RecordNightResult night)
+    private CommandOutcome RecordNight(RecordNightResult night, DateTimeOffset now)
     {
         if (night.Night <= LastNightRecorded)
         {
@@ -351,7 +414,36 @@ public sealed class BaseState
         var salvage = Math.Min(_table.Salvage(night.Stars), Math.Max(0, Caps.Scrap - _stock.Scrap));
         _stock += new ResourceBag(0, 0, salvage, 0);
         LastNightRecorded = night.Night;
+        foreach (var id in night.WreckedBuildingIds ?? Array.Empty<int>())
+        {
+            var building = Find(id);
+            if (building != null && building.Type != BuildingType.Hearth)
+            {
+                Materialize(building, now);
+                building.Wrecked = true;
+            }
+        }
         return CommandOutcome.Accept(new ResourceBag(0, 0, salvage, 0));
+    }
+
+    private CommandOutcome Repair(int id, DateTimeOffset now)
+    {
+        var building = Find(id);
+        if (building == null || !building.Wrecked)
+        {
+            return CommandOutcome.Reject(building == null ? "That building is gone." : "It isn't broken. Yet.");
+        }
+
+        var cost = _table.RepairCost(building.Type, building.Level);
+        if (!_stock.Covers(cost))
+        {
+            return CommandOutcome.Reject($"Need {_stock.Missing(cost)} more.");
+        }
+
+        _stock -= cost;
+        Materialize(building, now); // nothing accrued while wrecked; production restarts from now
+        building.Wrecked = false;
+        return CommandOutcome.Accept();
     }
 
     private CommandOutcome FinishNow(DateTimeOffset now)
@@ -371,6 +463,11 @@ public sealed class BaseState
 
     private string? PlacementProblem(GridPosition tile)
     {
+        if (_map.Contains(tile) && !_map.IsOpen(tile, HearthLevel))
+        {
+            return $"That land opens at Hearth {_map.OpensAt(tile)}.";
+        }
+
         if (!_map.Contains(tile) || tile == _map.Spawn || tile == _map.Hearth || _map.Rocks.Contains(tile) || _buildings.Any(b => b.Position == tile))
         {
             return "Can't build there.";
@@ -379,7 +476,8 @@ public sealed class BaseState
         try
         {
             var layout = ToBattleLayout();
-            _map.ToBattleLayout(layout.Towers, layout.Obstacles.Except(_map.Rocks).Append(tile)).Validate();
+            var buildings = _buildings.Where(b => b.Type != BuildingType.Hearth && !_table.Spec(b.Type).IsTower).Select(b => b.Position);
+            _map.ToBattleLayout(layout.Towers, buildings.Append(tile), null, HearthLevel).Validate();
         }
         catch (InvalidLayoutException)
         {
@@ -389,16 +487,178 @@ public sealed class BaseState
         return null;
     }
 
-    /// <summary>Completes a construction whose timer ran out, at its own end time (so production counts from then).</summary>
+    /// <summary>
+    /// Brings the village up to <paramref name="now"/>, handling what happened meanwhile in time order: a construction
+    /// finishing (which may change the Tension rate) and Tension crossing Hostile (which schedules a raid).
+    /// </summary>
     private void Advance(DateTimeOffset now)
     {
-        var building = Constructing;
-        if (building == null || building.UpgradeEndsAtUtc > now)
+        while (true)
         {
-            return;
+            // The earliest due event goes first: a construction, Tension crossing Hostile, a raid's deadline, an abandoned Night.
+            var construction = Due(Constructing?.UpgradeEndsAtUtc, now);
+            var crossing = Due(_raid == null && _night == null ? HostileCrossing() : null, now);
+            var deadline = Due(_raid != null && _night == null ? _raid.WarningEndsAtUtc : (DateTimeOffset?)null, now);
+            var abandoned = Due(_night != null ? _nightStartedAt.AddMinutes(_table.Tension.AbandonedNightMinutes) : (DateTimeOffset?)null, now);
+            var next = Earliest(construction, crossing, deadline, abandoned);
+            if (next == null)
+            {
+                return;
+            }
+
+            if (next == construction)
+            {
+                CompleteConstruction(construction!.Value);
+            }
+            else if (next == crossing)
+            {
+                ScheduleRaid(crossing!.Value);
+            }
+            else if (next == deadline)
+            {
+                // Nobody lit the lamps: the raid happens anyway, with only the towers fighting.
+                _night = PlanNight(deadline!.Value);
+                _nightStartedAt = deadline.Value;
+                ResolveAt(Array.Empty<PlayerInput>(), deadline.Value, whileAway: true);
+
+                // One raid per absence: Tension starts again from now, not from the deadline (no raid every day for a month).
+                if (now > _tensionAsOf)
+                {
+                    _tensionAsOf = now;
+                }
+            }
+            else
+            {
+                ResolveAt(Array.Empty<PlayerInput>(), abandoned!.Value, whileAway: true);
+            }
+        }
+    }
+
+    private static DateTimeOffset? Due(DateTimeOffset? at, DateTimeOffset now) => at <= now ? at : null;
+
+    private static DateTimeOffset? Earliest(params DateTimeOffset?[] times)
+    {
+        DateTimeOffset? best = null;
+        foreach (var t in times)
+        {
+            if (t != null && (best == null || t < best))
+            {
+                best = t;
+            }
         }
 
-        var endedAt = building.UpgradeEndsAtUtc!.Value;
+        return best;
+    }
+
+    // ---------------- Nights ----------------
+
+    private CommandOutcome Begin(DateTimeOffset now)
+    {
+        if (_night != null)
+        {
+            return CommandOutcome.Reject("A Night is already on.");
+        }
+
+        if (_raid == null && _shieldEndsAt > now)
+        {
+            return CommandOutcome.Reject("Wulfric's men are still licking their wounds. Nobody comes while the shield is up.");
+        }
+
+        _night = PlanNight(now);
+        _nightStartedAt = now;
+        return CommandOutcome.Accept() with { Plan = _night };
+    }
+
+    /// <summary>The coming raid, or an early Night sized by the current Tension; the layout is frozen into the plan.</summary>
+    private NightPlan PlanNight(DateTimeOffset now)
+    {
+        MaterializeTension(now);
+        var tension = TensionValue(now);
+        var power = _table.Tension.BasePower(HearthLevel);
+        var night = LastNightRecorded + 1;
+        var layout = ToBattleLayout();
+        var budget = _raid != null ? power * (100 + tension - _table.Tension.Hostile) / 100 : Math.Max(power * tension / _table.Tension.Hostile, power / 2);
+        var waves = _raid != null && tension >= _table.Tension.Punitive ? 5 : 4;
+        var seed = _raid?.Seed ?? (ulong)(946 + night);
+        return new NightPlan(night, seed, budget, waves, SluiceBonus, _raid != null, layout.Towers, layout.Obstacles, layout.Structures);
+    }
+
+    private CommandOutcome Resolve(ResolveNight command, DateTimeOffset now)
+    {
+        if (_night == null || command.Night != _night.Night)
+        {
+            return CommandOutcome.Reject("That isn't the Night being fought.");
+        }
+
+        for (var i = 0; i < command.Inputs.Count; i++)
+        {
+            if (command.Inputs[i].Tick < 0 || (i > 0 && command.Inputs[i].Tick < command.Inputs[i - 1].Tick))
+            {
+                return CommandOutcome.Reject("That input log doesn't add up.");
+            }
+        }
+
+        return CommandOutcome.Accept() with { Report = ResolveAt(command.Inputs, now, whileAway: false) };
+    }
+
+    /// <summary>Replays the Night the village planned (never trusting a reported result) and applies what it finds.</summary>
+    private NightReport ResolveAt(IReadOnlyList<PlayerInput> inputs, DateTimeOffset at, bool whileAway)
+    {
+        var plan = _night!;
+        var battle = new Battle(plan.ToBattleSetup(_map, inputs));
+        var result = battle.RunToCompletion();
+        var wrecked = new List<int>();
+        foreach (var structure in battle.Structures)
+        {
+            if (structure.IsWrecked)
+            {
+                wrecked.Add(structure.Id);
+            }
+        }
+
+        var salvage = Math.Min(_table.Salvage(result.Stars), Math.Max(0, Caps.Scrap - _stock.Scrap));
+        _stock += new ResourceBag(0, 0, salvage, 0);
+        foreach (var id in wrecked)
+        {
+            var building = Find(id);
+            if (building != null && building.Type != BuildingType.Hearth)
+            {
+                Materialize(building, at);
+                building.Wrecked = true;
+            }
+        }
+
+        MaterializeTension(at);
+        _tensionMilli = 0;
+        _shieldEndsAt = at.AddHours(_table.Tension.ShieldHours);
+        _raid = null;
+        _night = null;
+        LastNightRecorded = plan.Night;
+        var report = new NightReport(plan.Night, plan.Scheduled, whileAway, result.Stars, result.HearthHealth, result.HearthMaxHealth, wrecked, salvage, result.StateHashHex);
+        if (whileAway)
+        {
+            _unseenReport = report;
+        }
+
+        return report;
+    }
+
+    private CommandOutcome Acknowledge()
+    {
+        if (_unseenReport == null)
+        {
+            return CommandOutcome.Reject("Nothing to report.");
+        }
+
+        _unseenReport = null;
+        return CommandOutcome.Accept();
+    }
+
+    /// <summary>Completes a construction at its own end time (so production and the Tension rate change from then).</summary>
+    private void CompleteConstruction(DateTimeOffset endedAt)
+    {
+        var building = Constructing!;
+        MaterializeTension(endedAt);
         Materialize(building, endedAt);
         building.Level++;
         building.UpgradeEndsAtUtc = null;
@@ -408,13 +668,94 @@ public sealed class BaseState
         }
     }
 
-    private int Rate(Building b)
+    private void ScheduleRaid(DateTimeOffset crossing)
+    {
+        MaterializeTension(crossing);
+        var id = _nextRaidId++;
+        _raid = new ScheduledRaid(id, (ulong)(1_000_003L * id + 946), crossing.AddHours(_table.Tension.WarningHours));
+    }
+
+    // ---------------- Tension (lazy and linear, ADR 0004) ----------------
+
+    private int TensionRate => _table.Tension.RatePerHour(HearthLevel);
+
+    /// <summary>Tension in thousandths at <paramref name="at"/>: no rise during a shield, capped at the max.</summary>
+    private long TensionMilliAt(DateTimeOffset at)
+    {
+        var start = _shieldEndsAt > _tensionAsOf ? _shieldEndsAt!.Value : _tensionAsOf;
+        if (at <= start)
+        {
+            return _tensionMilli;
+        }
+
+        var seconds = (at.UtcTicks - start.UtcTicks) / TimeSpan.TicksPerSecond;
+        return Math.Min(_table.Tension.Max * 1000L, _tensionMilli + TensionRate * 1000L * seconds / 3600);
+    }
+
+    private int TensionValue(DateTimeOffset at) => (int)(TensionMilliAt(at) / 1000);
+
+    private void MaterializeTension(DateTimeOffset at)
+    {
+        if (at <= _tensionAsOf)
+        {
+            return;
+        }
+
+        _tensionMilli = TensionMilliAt(at);
+        _tensionAsOf = at;
+    }
+
+    /// <summary>When Tension reaches Hostile at the current rate (analytically), or null if it never will.</summary>
+    private DateTimeOffset? HostileCrossing()
+    {
+        var start = _shieldEndsAt > _tensionAsOf ? _shieldEndsAt!.Value : _tensionAsOf;
+        var need = _table.Tension.Hostile * 1000L - _tensionMilli;
+        if (need <= 0)
+        {
+            return start;
+        }
+
+        if (TensionRate <= 0)
+        {
+            return null;
+        }
+
+        var perSecondTimes3600 = TensionRate * 1000L;
+        var seconds = (need * 3600 + perSecondTimes3600 - 1) / perSecondTimes3600; // round up: reached, not almost
+        return start.AddSeconds(seconds);
+    }
+
+    private CommandOutcome RaiseTension(int amount, DateTimeOffset now)
+    {
+        MaterializeTension(now);
+        _tensionMilli = Math.Min(_table.Tension.Max * 1000L, Math.Max(0, _tensionMilli + amount * 1000L));
+        Advance(now);
+        return CommandOutcome.Accept();
+    }
+
+    private CommandOutcome SkipWarning(DateTimeOffset now)
+    {
+        if (_raid == null)
+        {
+            return CommandOutcome.Reject("No raid is coming. Enjoy it.");
+        }
+
+        _raid = _raid with { WarningEndsAtUtc = now };
+        Advance(now);
+        return CommandOutcome.Accept();
+    }
+
+    /// <summary>What it produces now: nothing while being built or wrecked.</summary>
+    private int Rate(Building b) => b.Wrecked ? 0 : LevelRate(b);
+
+    private int LevelRate(Building b)
     {
         var spec = _table.Spec(b.Type);
         return spec.Produces == null || b.Level == 0 ? 0 : spec.Levels[b.Level - 1].PerHour;
     }
 
-    private long CapacityMilli(Building b) => Rate(b) * (long)_table.BufferHours * 1000;
+    /// <summary>How much it can hold: set by its level, so a wreck keeps what was already made.</summary>
+    private long CapacityMilli(Building b) => LevelRate(b) * (long)_table.BufferHours * 1000;
 
     private long Buffer(Building b, DateTimeOffset at)
     {

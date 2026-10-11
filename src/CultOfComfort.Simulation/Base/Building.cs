@@ -22,6 +22,9 @@ public sealed class Building
     public DateTimeOffset? UpgradeEndsAtUtc { get; internal set; }
     public bool IsUpgrading => UpgradeEndsAtUtc != null;
 
+    /// <summary>Smashed in a Night: produces nothing and gives no bonuses until repaired. Still blocks the road.</summary>
+    public bool Wrecked { get; internal set; }
+
     /// <summary>Output waiting to be collected, in thousandths of a unit, as of <see cref="AsOfUtc"/>.</summary>
     internal long BufferMilli { get; set; }
 

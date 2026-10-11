@@ -9,7 +9,8 @@ namespace CultOfComfort.Simulation.Base;
 /// <param name="PerHour">Production per hour (producers only).</param>
 /// <param name="StorageBonus">Added to every resource's storage cap (Storage Hut).</param>
 /// <param name="SluiceCharges">Extra Open Sluice charges per Night (Cistern).</param>
-public sealed record BuildingLevel(ResourceBag Cost, int BuildSeconds, int PerHour = 0, int StorageBonus = 0, int SluiceCharges = 0);
+/// <param name="Health">How much smashing it takes in a Night before it is wrecked.</param>
+public sealed record BuildingLevel(ResourceBag Cost, int BuildSeconds, int PerHour = 0, int StorageBonus = 0, int SluiceCharges = 0, int Health = 0);
 
 /// <param name="MaxCountByHearth">How many may stand at Hearth level 1, 2, 3.</param>
 public sealed record BuildingSpec(
@@ -35,7 +36,10 @@ public sealed class BuildingTable
 
     public static BuildingTable Default { get; } = new();
 
-    public string Version { get; init; } = "village-2026.10.1";
+    public string Version { get; init; } = "village-2026.10.2";
+
+    /// <summary>Health of a building whose first level is still being built.</summary>
+    public int UnderConstructionHealth { get; init; } = 30;
 
     /// <summary>Producers hold at most this many hours of output before someone collects.</summary>
     public int BufferHours { get; init; } = 8;
@@ -43,6 +47,8 @@ public sealed class BuildingTable
     public IReadOnlyList<int> HearthStorageCaps { get; init; } = new[] { 1000, 2500, 6000 };
 
     public ResourceBag StartingStock { get; init; } = new(500, 60, 380, 0);
+
+    public TensionTable Tension { get; init; } = TensionTable.Default;
 
     public int SalvageBase { get; init; } = 40;
 
@@ -58,40 +64,54 @@ public sealed class BuildingTable
         }),
         [BuildingType.Woodcutter] = new(BuildingType.Woodcutter, "Woodcutter's Lean-to", 1, new[] { 2, 3, 4 }, new[]
         {
-            new BuildingLevel(new ResourceBag(50, 0, 0, 0), 30, PerHour: 100),
-            new BuildingLevel(new ResourceBag(150, 0, 10, 0), 5 * 60, PerHour: 170),
-            new BuildingLevel(new ResourceBag(400, 0, 40, 0), 20 * 60, PerHour: 260),
+            new BuildingLevel(new ResourceBag(50, 0, 0, 0), 30, PerHour: 100, Health: 60),
+            new BuildingLevel(new ResourceBag(150, 0, 10, 0), 5 * 60, PerHour: 170, Health: 90),
+            new BuildingLevel(new ResourceBag(400, 0, 40, 0), 20 * 60, PerHour: 260, Health: 120),
         }, Produces: ResourceType.Timber),
         [BuildingType.PeatCut] = new(BuildingType.PeatCut, "Peat Cut", 1, new[] { 1, 2, 3 }, new[]
         {
-            new BuildingLevel(new ResourceBag(80, 0, 10, 0), 60, PerHour: 25),
-            new BuildingLevel(new ResourceBag(200, 0, 30, 0), 8 * 60, PerHour: 45),
-            new BuildingLevel(new ResourceBag(500, 0, 80, 0), 30 * 60, PerHour: 70),
+            new BuildingLevel(new ResourceBag(80, 0, 10, 0), 60, PerHour: 25, Health: 60),
+            new BuildingLevel(new ResourceBag(200, 0, 30, 0), 8 * 60, PerHour: 45, Health: 90),
+            new BuildingLevel(new ResourceBag(500, 0, 80, 0), 30 * 60, PerHour: 70, Health: 120),
         }, Produces: ResourceType.Peat),
         [BuildingType.StorageHut] = new(BuildingType.StorageHut, "Storage Hut", 1, new[] { 1, 2, 3 }, new[]
         {
-            new BuildingLevel(new ResourceBag(100, 0, 0, 0), 60, StorageBonus: 500),
-            new BuildingLevel(new ResourceBag(300, 0, 0, 0), 10 * 60, StorageBonus: 1000),
-            new BuildingLevel(new ResourceBag(800, 0, 50, 0), 40 * 60, StorageBonus: 2000),
+            new BuildingLevel(new ResourceBag(100, 0, 0, 0), 60, StorageBonus: 500, Health: 60),
+            new BuildingLevel(new ResourceBag(300, 0, 0, 0), 10 * 60, StorageBonus: 1000, Health: 90),
+            new BuildingLevel(new ResourceBag(800, 0, 50, 0), 40 * 60, StorageBonus: 2000, Health: 120),
         }),
         [BuildingType.CultistHut] = new(BuildingType.CultistHut, "Cultist Hut", 1, new[] { 1, 2, 3 }, new[]
         {
-            new BuildingLevel(new ResourceBag(120, 0, 0, 0), 2 * 60, PerHour: 4),
-            new BuildingLevel(new ResourceBag(350, 50, 0, 0), 12 * 60, PerHour: 8),
-            new BuildingLevel(new ResourceBag(900, 150, 0, 0), 45 * 60, PerHour: 14),
+            new BuildingLevel(new ResourceBag(120, 0, 0, 0), 2 * 60, PerHour: 4, Health: 60),
+            new BuildingLevel(new ResourceBag(350, 50, 0, 0), 12 * 60, PerHour: 8, Health: 90),
+            new BuildingLevel(new ResourceBag(900, 150, 0, 0), 45 * 60, PerHour: 14, Health: 120),
         }, Produces: ResourceType.Devotion),
         [BuildingType.Cistern] = new(BuildingType.Cistern, "Cistern", 2, new[] { 0, 1, 2 }, new[]
         {
-            new BuildingLevel(new ResourceBag(150, 0, 30, 0), 2 * 60, SluiceCharges: 1),
-            new BuildingLevel(new ResourceBag(400, 0, 100, 0), 15 * 60, SluiceCharges: 2),
+            new BuildingLevel(new ResourceBag(150, 0, 30, 0), 2 * 60, SluiceCharges: 1, Health: 80),
+            new BuildingLevel(new ResourceBag(400, 0, 100, 0), 15 * 60, SluiceCharges: 2, Health: 120),
         }),
         [BuildingType.SlurryChute] = new(BuildingType.SlurryChute, "Slurry Chute", 1, new[] { Unlimited, Unlimited, Unlimited },
-            new[] { new BuildingLevel(new ResourceBag(0, 0, 50, 0), 0) }, Tower: TowerType.SlurryChute),
+            new[] { new BuildingLevel(new ResourceBag(0, 0, 50, 0), 0, Health: 80) }, Tower: TowerType.SlurryChute),
         [BuildingType.SaplingFlinger] = new(BuildingType.SaplingFlinger, "Sapling Flinger", 2, new[] { Unlimited, Unlimited, Unlimited },
-            new[] { new BuildingLevel(new ResourceBag(0, 0, 70, 0), 0) }, Tower: TowerType.SaplingFlinger),
+            new[] { new BuildingLevel(new ResourceBag(0, 0, 70, 0), 0, Health: 80) }, Tower: TowerType.SaplingFlinger),
+        [BuildingType.WattleFence] = new(BuildingType.WattleFence, "Wattle Fence", 1, new[] { Unlimited, Unlimited, Unlimited },
+            new[] { new BuildingLevel(new ResourceBag(15, 0, 0, 0), 0, Health: 50) }),
     };
 
     public BuildingSpec Spec(BuildingType type) => Specs[type];
+
+    /// <summary>Repairing a wrecked building costs 10% of its current level's cost, rounded up (never free).</summary>
+    public ResourceBag RepairCost(BuildingType type, int level)
+    {
+        var cost = Spec(type).Levels[Math.Max(1, level) - 1].Cost;
+        static int Tenth(int amount) => (amount + 9) / 10;
+        var repair = new ResourceBag(Tenth(cost.Timber), Tenth(cost.Peat), Tenth(cost.Scrap), Tenth(cost.Devotion));
+        return repair.IsZero ? new ResourceBag(1, 0, 0, 0) : repair;
+    }
+
+    /// <summary>A building's health in a Night: its level's, or a flimsy frame while the first level is being built.</summary>
+    public int StructureHealth(BuildingType type, int level) => level == 0 ? UnderConstructionHealth : Spec(type).Levels[level - 1].Health;
 
     public int Salvage(int stars) => SalvageBase + SalvagePerStar * Math.Min(Math.Max(stars, 0), 3);
 }

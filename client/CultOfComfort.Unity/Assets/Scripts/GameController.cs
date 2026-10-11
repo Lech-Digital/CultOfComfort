@@ -27,8 +27,6 @@ namespace CultOfComfort.Client
     {
         private const float TickSeconds = 1f / BalanceTable.TicksPerSecond;
         private const int MaxStepsPerFrame = 8;
-        private const int RaidBudget = 54;
-        private const int RaidWaves = 4;
 
         /// <summary>Portrait turns the board so its long axis runs up the screen: spawn on top, Hearth at the bottom.</summary>
         private const float PortraitYaw = -90f;
@@ -54,6 +52,10 @@ namespace CultOfComfort.Client
         private long _roadVersion = -1;
         private BuildingType? _buildSelection;
         private int? _cardBuilding;
+        private NightPlan _plan;
+        private NightReport _lastReport;
+        private bool _showingReport;
+        private int _openLevel;
         private float _villageRefreshAt;
         private int _night = 1;
         private Battle _battle;
@@ -75,7 +77,7 @@ namespace CultOfComfort.Client
         {
             Application.targetFrameRate = 60;
             PointerInput.Enable();
-            _rocks = DemoMap.CreateRocks();
+            _rocks = VillageMap.Demo.Rocks;
 
             _board = gameObject.AddComponent<BoardView>();
             _board.Build(_rocks);
@@ -83,6 +85,7 @@ namespace CultOfComfort.Client
             _battleView.Announcement += Announce;
             _battleView.Floater += FloatNote;
             _battleView.SkillUsed += ShowFirstUseTip;
+            _battleView.StructureDamaged += (id, fraction, wrecked) => _board.ShowStructureHealth(id, fraction, wrecked);
 
             SetUpCamera();
             SetUpHud();
@@ -174,7 +177,8 @@ namespace CultOfComfort.Client
                 return _snapshot.BuildingAt(tile) != null;
             }
 
-            return tile != DemoMap.Spawn && tile != DemoMap.Hearth && !_rocks.Contains(tile) && _snapshot.BuildingAt(tile) == null;
+            return VillageMap.Demo.IsOpen(tile, _snapshot.HearthLevel) && tile != VillageMap.Demo.Spawn && tile != VillageMap.Demo.Hearth
+                   && !_rocks.Contains(tile) && _snapshot.BuildingAt(tile) == null;
         }
 
         /// <summary>Build with the selected card, otherwise collect from a building or open its card.</summary>
@@ -204,7 +208,7 @@ namespace CultOfComfort.Client
                     return;
                 }
 
-                if (building.Ready >= 1)
+                if (building.Ready >= 1 && !building.Wrecked) // a wreck always opens its card (to repair it)
                 {
                     var outcome = await SendVillage(new Collect(Guid.NewGuid(), building.Id));
                     if (outcome.Status == CommandStatus.Accepted)
@@ -251,6 +255,12 @@ namespace CultOfComfort.Client
             try
             {
                 Accept(await _village.LoadAsync(_cts.Token));
+                if (_snapshot.NightInProgress != null)
+                {
+                    // The app closed mid-Night: the towers finish it on their own.
+                    await SendVillage(new ResolveNight(Guid.NewGuid(), _snapshot.NightInProgress.Night, new List<PlayerInput>()));
+                }
+
                 _night = _snapshot.LastNightRecorded + 1; // carry on where the save left off
                 RefreshVillage();
             }
@@ -297,6 +307,21 @@ namespace CultOfComfort.Client
             }
         }
 
+        private async void SendSimple(BaseCommand command)
+        {
+            try
+            {
+                await SendVillage(command);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception e)
+            {
+                VillageFailed(e);
+            }
+        }
+
         private async void SendFromCard(Func<BuildingView, BaseCommand> command, bool closeCard = false)
         {
             try
@@ -330,6 +355,23 @@ namespace CultOfComfort.Client
                 return;
             }
 
+            if (_snapshot.HearthLevel != _openLevel)
+            {
+                _openLevel = _snapshot.HearthLevel;
+                _board.SetOpenLevel(_openLevel);
+                var (min, max) = OpenBounds(_openLevel);
+                _rig.SetBounds(min, max);
+                _framePending = 2;
+            }
+
+            if (_phase == GamePhase.Dusk && _snapshot.UnseenReport != null && !_showingReport)
+            {
+                _showingReport = true; // the raid played itself while we were away: show it once
+                _phase = GamePhase.Dawn;
+                _hud.ShowPhase(_phase);
+                _hud.ShowAwayReport(_snapshot.UnseenReport);
+            }
+
             _board.SetBuildings(_snapshot.Buildings, _snapshot.HearthLevel, BuildingTable.Default, _snapshot.AsOfUtc);
             if (_snapshot.Version != _roadVersion)
             {
@@ -338,20 +380,45 @@ namespace CultOfComfort.Client
             }
 
             _hud.SetBuildCards(VillagePresenter.BuildCards(_snapshot, BuildingTable.Default), _buildSelection);
+            _hud.SetStartLabel(VillagePresenter.StartLabel(_snapshot));
             var hasCard = _cardBuilding != null && _snapshot.Buildings.Any(b => b.Id == _cardBuilding.Value);
             _hud.ShowBuildingCard(hasCard ? VillagePresenter.Card(_snapshot, BuildingTable.Default, _cardBuilding.Value) : null);
         }
 
-        public void StartNight()
+        /// <summary>Asks the village for tonight's plan (the raid that is coming, or an early one) and fights exactly that.</summary>
+        public async void StartNight()
+        {
+            try
+            {
+                if (_phase != GamePhase.Dusk || _village == null)
+                {
+                    return;
+                }
+
+                var outcome = await SendVillage(new BeginNight(Guid.NewGuid()));
+                if (outcome.Status == CommandStatus.Accepted)
+                {
+                    BeginFight(outcome.Plan);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception e)
+            {
+                VillageFailed(e);
+            }
+        }
+
+        private void BeginFight(NightPlan plan)
         {
             _buildSelection = null;
             _cardBuilding = null;
             _hud.ShowBuildingCard(null);
-            var layout = _snapshot != null ? VillageMap.Demo.ToBattleLayout(_snapshot, BuildingTable.Default) : VillageMap.Demo.ToBattleLayout(Array.Empty<PlacedTower>(), Array.Empty<GridPosition>());
-            _setup = new BattleSetup(layout, (ulong)(946 + _night), RaidBudget, RaidWaves, new List<PlayerInput>())
-            {
-                ExtraSluiceCharges = _snapshot?.SluiceBonus ?? 0,
-            };
+            _board.ClearStructureHealth();
+            _plan = plan;
+            _night = plan.Night;
+            _setup = plan.ToBattleSetup(VillageMap.Demo, new List<PlayerInput>());
             _battle = new Battle(_setup);
             _battleView.Begin(_battle);
             _framePending = 2; // the Night strip is taller than the Dusk one: re-fit the board once the HUD has laid out
@@ -449,37 +516,57 @@ namespace CultOfComfort.Client
             _board.ShowCursor(tile, (Shapes.ToWorld(tile) - leader).sqrMagnitude <= reach * reach);
         }
 
-        private void EndNight()
+        /// <summary>Sends only the input log; the village replays the Night itself and its result must match ours.</summary>
+        private async void EndNight()
         {
             SetAimingStones(false);
-            // What the server does with /api/combat/resolve: replay the submitted input log and compare.
-            _serverReplay = Battle.Simulate(_setup with { Inputs = _battle.InputLog.ToList() });
-            LastNightVerified = _serverReplay == _battle.Result;
             _board.ShowLeaderDestination(null);
             _phase = GamePhase.Dawn;
             _hud.ShowPhase(_phase);
-            _hud.ShowDawn(_battle.Result, _serverReplay, _battle.InputLog.Count);
             _hud.Announce(string.Empty, Time.time, 0f);
+            _serverReplay = Battle.Simulate(_setup with { Inputs = _battle.InputLog.ToList() });
+            try
+            {
+                var outcome = await SendVillage(new ResolveNight(Guid.NewGuid(), _plan.Night, _battle.InputLog.ToList()));
+                _lastReport = outcome.Report;
+                LastNightVerified = outcome.Report != null && outcome.Report.StateHashHex == _battle.Result.StateHashHex && _serverReplay == _battle.Result;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception e)
+            {
+                LastNightVerified = false;
+                VillageFailed(e);
+            }
+
+            _hud.ShowDawn(_battle.Result, LastNightVerified == true ? _battle.Result : _serverReplay with { StateHash = 0 }, _battle.InputLog.Count);
         }
 
         private async void BackToDusk()
         {
-            var stars = _battle?.Result?.Stars ?? 0;
-            var night = _night;
+            var report = _lastReport;
+            var acknowledge = _showingReport;
+            _lastReport = null;
+            _showingReport = false;
             _battleView.Clear();
+            _board.ClearStructureHealth();
             _battle = null;
             _framePending = 2;
-            _night++;
             _phase = GamePhase.Dusk;
             _hud.ShowPhase(_phase);
-            Announce("Dawn. Rebuild, rearrange, prepare for tomorrow's disappointment.");
+            Announce(report != null && report.Salvage > 0
+                ? $"Dawn. {report.Salvage} Scrap salvaged from Wulfric's dropped horseshoes."
+                : "Dawn. Rebuild, rearrange, prepare for tomorrow's disappointment.");
             try
             {
-                var outcome = await SendVillage(new RecordNightResult(Guid.NewGuid(), night, stars));
-                if (outcome.Status == CommandStatus.Accepted && outcome.Collected.Scrap > 0)
+                if (acknowledge)
                 {
-                    Announce($"Dawn. {outcome.Collected.Scrap} Scrap salvaged from Wulfric's dropped horseshoes.");
+                    await SendVillage(new AcknowledgeReport(Guid.NewGuid()));
                 }
+
+                _night = (_snapshot?.LastNightRecorded ?? 0) + 1;
+                RefreshVillage();
             }
             catch (OperationCanceledException)
             {
@@ -491,6 +578,26 @@ namespace CultOfComfort.Client
         }
 
         // ---------------- Helpers ----------------
+
+        /// <summary>The camera's roaming area: the land open at this Hearth level (world x, z).</summary>
+        private static (Vector2 Min, Vector2 Max) OpenBounds(int hearthLevel)
+        {
+            var map = VillageMap.Demo;
+            int maxX = 0, maxY = 0;
+            for (var y = 0; y < map.Height; y++)
+            {
+                for (var x = 0; x < map.Width; x++)
+                {
+                    if (map.IsOpen(new GridPosition(x, y), hearthLevel))
+                    {
+                        maxX = Mathf.Max(maxX, x);
+                        maxY = Mathf.Max(maxY, y);
+                    }
+                }
+            }
+
+            return (new Vector2(0f, -maxY), new Vector2(maxX, 0f));
+        }
 
         private void SetUpCamera()
         {
@@ -508,8 +615,8 @@ namespace CultOfComfort.Client
             _rig = new CameraRig(
                 _camera,
                 offset: new Vector3(0f, 16.5f, -10.4f),
-                boardMin: new Vector2(0f, -(DemoMap.Height - 1)),
-                boardMax: new Vector2(DemoMap.Width - 1, 0f));
+                boardMin: new Vector2(0f, -(VillageMap.Demo.Height - 1)),
+                boardMax: new Vector2(VillageMap.Demo.Width - 1, 0f));
 
             // ~2 mm of finger wobble still counts as a tap (dpi is 0 on some devices; fall back to screen height).
             var slop = Screen.dpi > 0 ? Screen.dpi * 0.08f : Screen.height * 0.02f;
@@ -525,7 +632,7 @@ namespace CultOfComfort.Client
             }
 
             tile = new GridPosition(Mathf.RoundToInt(point.x), Mathf.RoundToInt(-point.z));
-            return tile.X >= 0 && tile.Y >= 0 && tile.X < DemoMap.Width && tile.Y < DemoMap.Height;
+            return VillageMap.Demo.Contains(tile);
         }
 
         /// <summary>World announcements and Prophet quips wait while a first-use tip is up: a tip is shown once ever.</summary>
@@ -591,6 +698,9 @@ namespace CultOfComfort.Client
             _hud.UpgradeClicked += () => SendFromCard(b => b.Type == BuildingType.Hearth ? (BaseCommand)new UpgradeHearth(Guid.NewGuid()) : new UpgradeBuilding(Guid.NewGuid(), b.Id));
             _hud.DemolishClicked += () => SendFromCard(b => new DemolishBuilding(Guid.NewGuid(), b.Id), closeCard: true);
             _hud.FinishNowClicked += () => SendFromCard(_ => new FinishConstructionNow(Guid.NewGuid()));
+            _hud.RepairClicked += () => SendFromCard(b => new RepairBuilding(Guid.NewGuid(), b.Id));
+            _hud.DevRaiseTensionClicked += () => SendSimple(new DebugRaiseTension(Guid.NewGuid(), 50));
+            _hud.DevSkipWarningClicked += () => SendSimple(new DebugSkipWarning(Guid.NewGuid()));
             _hud.BuildingCardClosed += () => _cardBuilding = null;
             _hud.StartNightClicked += StartNight;
             _hud.SluiceClicked += () => _battle?.Intervene(PlayerActionType.OpenSluiceGate);

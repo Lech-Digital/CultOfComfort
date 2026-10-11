@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using CultOfComfort.Simulation.Balance;
 using CultOfComfort.Simulation.Numerics;
 
@@ -42,6 +43,21 @@ public sealed class Enemy
     /// <summary>True while it has stopped on the road to fight the Prophet.</summary>
     public bool IsFightingLeader { get; internal set; }
     public int LeaderAttackCooldownTicksRemaining { get; internal set; }
+
+    /// <summary>Ticks left in a swing at a structure (0 = not smashing).</summary>
+    public int SmashTicksRemaining { get; internal set; }
+
+    /// <summary>The structure being smashed, or −1.</summary>
+    public int SmashTargetId { get; internal set; } = -1;
+
+    internal HashSet<int> StructuresHit { get; } = new();
+
+    /// <summary>Breaks off a swing in progress (fright, a sluice, the Prophet): it does not count as a hit.</summary>
+    internal void CancelSwing()
+    {
+        SmashTargetId = -1;
+        SmashTicksRemaining = 0;
+    }
 
     /// <summary>Holds one of the Prophet's engaged slots this tick (chasing or fighting him).</summary>
     public bool HasLeaderSlot { get; internal set; }

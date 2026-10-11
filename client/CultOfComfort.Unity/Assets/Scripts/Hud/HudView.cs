@@ -113,6 +113,7 @@ namespace CultOfComfort.Client
         private readonly Button _upgrade;
         private readonly Button _finishNow;
         private readonly Button _demolish;
+        private Button _repair;
         private readonly Button _sluice;
         private readonly Button _voice;
         private readonly Button _stones;
@@ -278,6 +279,7 @@ namespace CultOfComfort.Client
         public event Action UpgradeClicked;
         public event Action DemolishClicked;
         public event Action FinishNowClicked;
+        public event Action RepairClicked;
         public event Action BuildingCardClosed;
         public event Action StartNightClicked;
         public event Action SluiceClicked;
@@ -287,6 +289,8 @@ namespace CultOfComfort.Client
         public event Action RecenterClicked;
         public event Action BackToDuskClicked;
         public event Action ResetTipsClicked;
+        public event Action DevRaiseTensionClicked;
+        public event Action DevSkipWarningClicked;
 
         public void SetPortrait(bool portrait)
         {
@@ -392,6 +396,9 @@ namespace CultOfComfort.Client
             _upgrade.SetEnabled(card.CanUpgrade);
             Show(_finishNow, card.IsUpgrading && Debug.isDebugBuild);
             Show(_demolish, card.CanDemolish);
+            Show(_repair, card.IsWrecked);
+            _repair.text = card.RepairLabel;
+            _repair.SetEnabled(card.CanRepair);
         }
 
         private void PickCard(BuildCardModel card)
@@ -417,6 +424,30 @@ namespace CultOfComfort.Client
             _stones.EnableInClassList("aiming", state.Aiming);
             SetSkill(_speed, $"{state.Speed}×", true);
             _nightStatus.text = state.Status;
+        }
+
+        public void SetStartLabel(string text)
+        {
+            var start = _root.Q<Button>("start-night");
+            if (start != null && start.text != text)
+            {
+                start.text = text;
+            }
+        }
+
+        /// <summary>The Dawn card for a Night the village played itself while the player was away.</summary>
+        public void ShowAwayReport(NightReport report)
+        {
+            var won = report.HearthHealth > 0;
+            SetMeter(_hearthValue, _hearthFill, report.HearthHealth, report.HearthMaxHealth);
+            _cardTitle.text = won ? "While you were away… the Hearth held" : "While you were away… the Hearth went cold";
+            _cardSummary.text = $"Stars {report.Stars}/3 · Hearth {report.HearthHealth}/{report.HearthMaxHealth} · {report.Wrecked.Count} wrecked · +{report.Salvage} Scrap";
+            _cardFlavour.text = won
+                ? "The towers did the work. The cult slept through it and calls that faith."
+                : "Wulfric's men came, saw nobody in charge, and helped themselves.";
+            _cardStats.text = $"Played out by the village · hash {report.StateHashHex}";
+            _stamp.EnableInClassList("verified", true);
+            _stamp.EnableInClassList("mismatch", false);
         }
 
         public void ShowDawn(BattleResult result, BattleResult serverReplay, int commands)
@@ -534,6 +565,15 @@ namespace CultOfComfort.Client
             var tips = ButtonWith("Show tips again", () => ResetTipsClicked?.Invoke(), "plain");
             tips.name = "reset-tips";
             sheet.Add(tips);
+            if (Debug.isDebugBuild)
+            {
+                var raise = ButtonWith("Raise Tension +50 (dev)", () => DevRaiseTensionClicked?.Invoke(), "plain");
+                raise.name = "dev-raise-tension";
+                var skip = ButtonWith("Skip the raid warning (dev)", () => DevSkipWarningClicked?.Invoke(), "plain");
+                skip.name = "dev-skip-warning";
+                sheet.Add(raise);
+                sheet.Add(skip);
+            }
             sheet.Add(Text($"Build {Application.version}", "sheet-line", "small"));
             probe = Text(string.Empty, "sheet-line", "small");
             probe.style.display = Debug.isDebugBuild ? DisplayStyle.Flex : DisplayStyle.None;
@@ -560,13 +600,15 @@ namespace CultOfComfort.Client
             finishNow.name = "finish-now";
             demolish = ButtonWith("Demolish", () => DemolishClicked?.Invoke(), "plain");
             demolish.name = "demolish";
+            _repair = ButtonWith(string.Empty, () => RepairClicked?.Invoke(), "plain");
+            _repair.name = "repair";
             var close = ButtonWith("Close", () =>
             {
                 Show(_buildingCard, false);
                 BuildingCardClosed?.Invoke();
             }, "plain");
             close.name = "card-close";
-            foreach (var element in new VisualElement[] { title, output, ready, remaining, upgrade, finishNow, demolish, close })
+            foreach (var element in new VisualElement[] { title, output, ready, remaining, _repair, upgrade, finishNow, demolish, close })
             {
                 sheet.Add(element);
             }

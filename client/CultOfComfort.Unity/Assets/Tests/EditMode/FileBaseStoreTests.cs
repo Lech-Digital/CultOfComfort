@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CultOfComfort.Simulation.Base;
@@ -84,6 +85,47 @@ namespace CultOfComfort.Client.Tests
 
             // Act & Assert
             Assert.Throws<InvalidBaseDataException>(() => VillageSaveMapper.FromJson(json));
+        }
+    
+        [Test]
+        public void Mapper_WreckedFlag_RoundTrips()
+        {
+            // Arrange
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WattleFence, new GridPosition(4, 6)), T0);
+            var fence = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.WattleFence).Id;
+            state.Apply(new RecordNightResult(Guid.NewGuid(), 1, 0, new[] { fence }), T0);
+
+            // Act
+            var back = VillageSaveMapper.FromJson(VillageSaveMapper.ToJson(state.ToData()));
+
+            // Assert
+            Assert.IsTrue(BaseState.Restore(BuildingTable.Default, VillageMap.Demo, back).Snapshot(T0).Building(fence).Wrecked);
+        }
+    
+        [Test]
+        public void Mapper_RaidNightAndReport_RoundTrip()
+        {
+            // Arrange — a raid that played itself out (report), then a new Night begun.
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(4, 6)), T0);
+            state.Apply(new DebugRaiseTension(Guid.NewGuid(), 75), T0);
+            state.Snapshot(T0.AddDays(1));
+            state.Apply(new BeginNight(Guid.NewGuid()), T0.AddDays(1));
+            var at = T0.AddDays(1).AddMinutes(1);
+
+            // Act
+            var back = VillageSaveMapper.FromJson(VillageSaveMapper.ToJson(state.ToData()));
+            var restored = BaseState.Restore(BuildingTable.Default, VillageMap.Demo, back).Snapshot(at);
+            var original = state.Snapshot(at);
+
+            // Assert
+            Assert.AreEqual(original.Tension, restored.Tension);
+            Assert.AreEqual(original.ShieldEndsAtUtc, restored.ShieldEndsAtUtc);
+            Assert.AreEqual(original.UnseenReport.StateHashHex, restored.UnseenReport.StateHashHex);
+            Assert.AreEqual(original.NightInProgress.Seed, restored.NightInProgress.Seed);
+            Assert.AreEqual(original.NightInProgress.Structures.Count, restored.NightInProgress.Structures.Count);
+            Assert.AreEqual(original.NightInProgress.Towers[0], restored.NightInProgress.Towers[0]);
         }
     }
 }

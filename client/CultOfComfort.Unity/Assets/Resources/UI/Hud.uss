@@ -252,3 +252,10 @@
 .landscape .bar { padding: 6px 10px; }
 .landscape .primary { height: 44px; }
 .sheet .sheet-title { white-space: normal; font-size: 19px; }
+.icon-b_wattle_fence { background-image: resource("UI/Icons/b_wattle_fence"); }
+
+/* landscape: the settings sheet (with dev buttons) stays clear of the night bar */
+.landscape .sheet { top: 2%; padding: 6px 12px; }
+.landscape .sheet .plain { height: 26px; margin-top: 3px; font-size: 13px; }
+.landscape .sheet .sheet-title { font-size: 16px; margin-bottom: 2px; }
+.landscape .sheet .sheet-line { font-size: 11px; margin-top: 1px; }

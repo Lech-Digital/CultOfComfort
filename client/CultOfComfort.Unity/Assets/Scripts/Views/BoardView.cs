@@ -13,6 +13,8 @@ namespace CultOfComfort.Client
     {
         private readonly Dictionary<int, BuildingVisual> _buildings = new Dictionary<int, BuildingVisual>();
         private readonly List<SpriteRenderer> _billboards = new List<SpriteRenderer>();
+        private readonly Dictionary<GridPosition, GameObject> _forest = new Dictionary<GridPosition, GameObject>();
+        private bool _forestBuilt;
         private Transform _hearth;
         private GameObject _hearthModel;
         private int _hearthLevel = 1;
@@ -27,19 +29,22 @@ namespace CultOfComfort.Client
 
         /// <summary>Blender models face +Z; the board camera looks from −Z, so static buildings turn round to face it.</summary>
         private static readonly Quaternion FaceCamera = Quaternion.Euler(0f, 180f, 0f);
+        private static readonly Color Soggy = new Color(0.44f, 0.5f, 0.53f);
+        private MaterialPropertyBlock _block;
 
         public Vector3 HearthPosition { get; private set; }
 
         public void Build(IReadOnlyList<GridPosition> rocks)
         {
+            _block = new MaterialPropertyBlock();
             _root = new GameObject("Board").transform;
             _root.SetParent(transform, false);
             _roadRoot = new GameObject("Road").transform;
             _roadRoot.SetParent(_root, false);
 
-            for (var y = 0; y < DemoMap.Height; y++)
+            for (var y = 0; y < VillageMap.Demo.Height; y++)
             {
-                for (var x = 0; x < DemoMap.Width; x++)
+                for (var x = 0; x < VillageMap.Demo.Width; x++)
                 {
                     var noise = Mathf.PerlinNoise(x * 0.37f, y * 0.37f);
                     var color = noise > 0.62f ? Palette.Grass : (x + y) % 2 == 0 ? Palette.Ground : Palette.GroundAlt;
@@ -106,7 +111,14 @@ namespace CultOfComfort.Client
 
                 if (visual.Ready != null)
                 {
-                    visual.Ready.enabled = building.Ready >= 1;
+                    visual.Ready.enabled = building.Ready >= 1 && !building.Wrecked;
+                }
+
+                if (visual.Wrecked != building.Wrecked)
+                {
+                    visual.Wrecked = building.Wrecked;
+                    TintBuilding(visual, building.Wrecked);
+                    visual.Health.SetActive(false);
                 }
             }
 
@@ -114,6 +126,101 @@ namespace CultOfComfort.Client
             {
                 _buildings[id].Destroy();
                 _buildings.Remove(id);
+            }
+        }
+
+        /// <summary>During a Night: a health bar over a damaged building; a wreck turns it soggy at once.</summary>
+        public void ShowStructureHealth(int id, float fraction, bool wrecked)
+        {
+            if (!_buildings.TryGetValue(id, out var visual))
+            {
+                return;
+            }
+
+            visual.Health.SetActive(fraction > 0f && fraction < 1f);
+            visual.Health.transform.localScale = new Vector3(0.7f * Mathf.Clamp01(fraction), 0.07f, 0.07f);
+            Shapes.Tint(visual.Health.GetComponent<Renderer>(), fraction > 0.4f ? Palette.HealthGood : Palette.HealthBad, _block);
+            if (wrecked && !visual.Wrecked)
+            {
+                visual.Wrecked = true;
+                TintBuilding(visual, true);
+            }
+        }
+
+        /// <summary>Locked land is forest with a sign saying when it opens; opening a level clears its trees.</summary>
+        public void SetOpenLevel(int hearthLevel)
+        {
+            foreach (var tile in _forest.Keys.Where(t => VillageMap.Demo.IsOpen(t, hearthLevel)).ToList())
+            {
+                Destroy(_forest[tile]);
+                _forest.Remove(tile);
+            }
+
+            if (_forestBuilt)
+            {
+                return;
+            }
+
+            _forestBuilt = true;
+            var signs = new HashSet<int>();
+            foreach (var tile in VillageMap.Demo.LockedTiles(hearthLevel))
+            {
+                var holder = new GameObject($"Forest {tile}");
+                holder.transform.SetParent(_root, false);
+                holder.transform.localPosition = Shapes.ToWorld(tile);
+                Shapes.Create(PrimitiveType.Cube, Shapes.Hex("#3f4a2b"), new Vector3(0f, 0.02f, 0f), new Vector3(1f, 0.04f, 1f), holder.transform, "Undergrowth");
+                var seed = tile.X * 31 + tile.Y * 17;
+                if (seed % 3 != 1)
+                {
+                    var tree = ArtLibrary.Instantiate(seed % 2 == 0 ? "pine" : "birch", holder.transform);
+                    if (tree != null)
+                    {
+                        tree.transform.localRotation = Quaternion.Euler(0f, seed * 37 % 360, 0f);
+                        tree.transform.localScale = Vector3.one * (0.8f + seed % 3 * 0.1f);
+                    }
+                }
+
+                var opens = VillageMap.Demo.OpensAt(tile);
+                if (signs.Add(opens))
+                {
+                    var sign = ArtLibrary.Instantiate("signpost", holder.transform);
+                    if (sign != null)
+                    {
+                        sign.transform.localRotation = FaceCamera;
+                    }
+                }
+
+                _forest[tile] = holder;
+            }
+        }
+
+        /// <summary>Hides every building's health bar (the Night is over, or a new one starts at full health).</summary>
+        public void ClearStructureHealth()
+        {
+            foreach (var visual in _buildings.Values)
+            {
+                visual.Health.SetActive(false);
+            }
+        }
+
+        /// <summary>Soggy grey-blue while wrecked; the palette's own colours otherwise.</summary>
+        private void TintBuilding(BuildingVisual visual, bool wrecked)
+        {
+            foreach (var renderer in visual.Root.GetComponentsInChildren<Renderer>())
+            {
+                if (renderer.gameObject == visual.Bar || renderer.gameObject == visual.Health)
+                {
+                    continue;
+                }
+
+                if (wrecked)
+                {
+                    Shapes.Tint(renderer, Soggy, _block);
+                }
+                else
+                {
+                    renderer.SetPropertyBlock(null);
+                }
             }
         }
 
@@ -211,9 +318,9 @@ namespace CultOfComfort.Client
                 return; // no nature models yet
             }
 
-            Shapes.Create(PrimitiveType.Cube, Palette.Grass, new Vector3((DemoMap.Width - 1) / 2f, -0.22f, -(DemoMap.Height - 1) / 2f),
-                new Vector3(DemoMap.Width + 10f, 0.2f, DemoMap.Height + 10f), _root, "Apron");
-            foreach (var item in SurroundingsLayout(DemoMap.Width, DemoMap.Height))
+            Shapes.Create(PrimitiveType.Cube, Palette.Grass, new Vector3((VillageMap.Demo.Width - 1) / 2f, -0.22f, -(VillageMap.Demo.Height - 1) / 2f),
+                new Vector3(VillageMap.Demo.Width + 10f, 0.2f, VillageMap.Demo.Height + 10f), _root, "Apron");
+            foreach (var item in SurroundingsLayout(VillageMap.Demo.Width, VillageMap.Demo.Height))
             {
                 Place(item.Model, Shapes.ToWorld(item.Tile) + item.Jitter, item.Yaw, item.Scale);
             }
@@ -246,7 +353,7 @@ namespace CultOfComfort.Client
 
         private void BuildSpawn()
         {
-            var at = Shapes.ToWorld(DemoMap.Spawn);
+            var at = Shapes.ToWorld(VillageMap.Demo.Spawn);
             if (Place("spawn_gate", at, 90f, 1.2f) != null)
             {
                 return; // the banner spans the road, which leaves the spawn heading +X
@@ -259,7 +366,7 @@ namespace CultOfComfort.Client
 
         private void BuildHearth()
         {
-            HearthPosition = Shapes.ToWorld(DemoMap.Hearth);
+            HearthPosition = Shapes.ToWorld(VillageMap.Demo.Hearth);
             var hearth = new GameObject("Hearth").transform;
             hearth.SetParent(_root, false);
             hearth.localPosition = HearthPosition;
@@ -311,6 +418,7 @@ namespace CultOfComfort.Client
             BuildingType.Cistern => "cistern",
             BuildingType.SlurryChute => "slurry_chute",
             BuildingType.SaplingFlinger => "sapling_flinger",
+            BuildingType.WattleFence => "fence",
             _ => null,
         };
 
@@ -356,6 +464,8 @@ namespace CultOfComfort.Client
 
             visual.Bar = Shapes.Create(PrimitiveType.Cube, Palette.Highlight, new Vector3(0f, 1.5f, 0f), new Vector3(0.7f, 0.07f, 0.07f), visual.Root, "Construction");
             visual.Bar.SetActive(false);
+            visual.Health = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, 1.3f, 0f), new Vector3(0.7f, 0.07f, 0.07f), visual.Root, "Health");
+            visual.Health.SetActive(false);
             var icon = ResourceIcon(building.Type);
             if (icon != null && building.Level > 0 && IconSprites.Get(icon) != null)
             {
@@ -378,6 +488,8 @@ namespace CultOfComfort.Client
             public GameObject Bar;
             public SpriteRenderer Ready;
             public float ReadyHeight;
+            public GameObject Health;
+            public bool Wrecked;
 
             public void Destroy() => UnityEngine.Object.Destroy(Root.gameObject);
         }

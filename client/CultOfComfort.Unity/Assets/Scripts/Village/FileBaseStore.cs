@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CultOfComfort.Simulation.Base;
+using CultOfComfort.Simulation.Grid;
 using UnityEngine;
 
 namespace CultOfComfort.Client
@@ -78,10 +79,59 @@ namespace CultOfComfort.Client
             buildings = data.Buildings.Select(b => new BuildingDto
             {
                 id = b.Id, type = b.Type.ToString(), level = b.Level, x = b.X, y = b.Y,
-                upgradeEndsAtTicks = b.UpgradeEndsAtUtcTicks ?? -1, bufferMilli = b.BufferMilli, asOfTicks = b.AsOfUtcTicks,
+                upgradeEndsAtTicks = b.UpgradeEndsAtUtcTicks ?? -1, bufferMilli = b.BufferMilli, asOfTicks = b.AsOfUtcTicks, wrecked = b.Wrecked,
             }).ToList(),
             recentCommands = data.RecentCommands.Select(g => g.ToString()).ToList(),
+            tensionMilli = data.TensionMilli,
+            tensionAsOfTicks = data.TensionAsOfUtcTicks,
+            shieldEndsAtTicks = data.ShieldEndsAtUtcTicks ?? -1,
+            nextRaidId = data.NextRaidId,
+            hasRaid = data.Raid != null,
+            raid = data.Raid == null ? new RaidDto() : new RaidDto { id = data.Raid.Id, seed = data.Raid.Seed.ToString(), warningEndsAtTicks = data.Raid.WarningEndsAtUtcTicks },
+            hasNight = data.NightInProgress != null,
+            night = data.NightInProgress == null ? new NightDto() : ToDto(data.NightInProgress),
+            nightStartedAtTicks = data.NightStartedAtUtcTicks,
+            hasReport = data.UnseenReport != null,
+            report = data.UnseenReport == null ? new ReportDto() : ToDto(data.UnseenReport),
         });
+
+        private static NightDto ToDto(NightPlan plan) => new NightDto
+        {
+            night = plan.Night, seed = plan.Seed.ToString(), budget = plan.Budget, waves = plan.Waves, extraSluice = plan.ExtraSluiceCharges, scheduled = plan.Scheduled,
+            towers = plan.Towers.Select(t => new TowerDto { type = t.Type.ToString(), x = t.Position.X, y = t.Position.Y }).ToList(),
+            obstacles = plan.Obstacles.Select(o => new TileDto { x = o.X, y = o.Y }).ToList(),
+            structures = plan.Structures.Select(st => new StructureDto { id = st.Id, x = st.Position.X, y = st.Position.Y, max = st.MaxHealth, health = st.Health }).ToList(),
+        };
+
+        private static NightPlan FromDto(NightDto d)
+        {
+            var towers = new List<PlacedTower>();
+            foreach (var t in d.towers ?? new List<TowerDto>())
+            {
+                if (!Enum.TryParse<CultOfComfort.Simulation.Balance.TowerType>(t.type, out var type))
+                {
+                    throw new InvalidBaseDataException($"unknown tower type '{t.type}'");
+                }
+
+                towers.Add(new PlacedTower(type, new GridPosition(t.x, t.y)));
+            }
+
+            return new NightPlan(d.night, ParseSeed(d.seed), d.budget, d.waves, d.extraSluice, d.scheduled, towers,
+                (d.obstacles ?? new List<TileDto>()).Select(o => new GridPosition(o.x, o.y)).ToList(),
+                (d.structures ?? new List<StructureDto>()).Select(st => new PlacedStructure(st.id, new GridPosition(st.x, st.y), st.max, st.health)).ToList());
+        }
+
+        private static ReportDto ToDto(NightReport r) => new ReportDto
+        {
+            night = r.Night, scheduled = r.Scheduled, whileAway = r.WhileAway, stars = r.Stars, hearth = r.HearthHealth, hearthMax = r.HearthMaxHealth,
+            wrecked = r.Wrecked.ToList(), salvage = r.Salvage, hash = r.StateHashHex,
+        };
+
+        private static NightReport FromDto(ReportDto d) =>
+            new NightReport(d.night, d.scheduled, d.whileAway, d.stars, d.hearth, d.hearthMax, d.wrecked ?? new List<int>(), d.salvage, d.hash ?? string.Empty);
+
+        private static ulong ParseSeed(string text) =>
+            ulong.TryParse(text, out var seed) ? seed : throw new InvalidBaseDataException("bad seed");
 
         public static BaseData FromJson(string json)
         {
@@ -113,11 +163,16 @@ namespace CultOfComfort.Client
                     throw new InvalidBaseDataException($"unknown building type '{b.type}'");
                 }
 
-                buildings.Add(new BuildingData(b.id, type, b.level, b.x, b.y, b.upgradeEndsAtTicks < 0 ? (long?)null : b.upgradeEndsAtTicks, b.bufferMilli, b.asOfTicks));
+                buildings.Add(new BuildingData(b.id, type, b.level, b.x, b.y, b.upgradeEndsAtTicks < 0 ? (long?)null : b.upgradeEndsAtTicks, b.bufferMilli, b.asOfTicks, b.wrecked));
             }
 
             var recent = (dto.recentCommands ?? new List<string>()).Select(s => Guid.TryParse(s, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).ToList();
-            return new BaseData(dto.version, new ResourceBag(dto.timber, dto.peat, dto.scrap, dto.devotion), dto.nextId, dto.lastNight, buildings, recent);
+            return new BaseData(dto.version, new ResourceBag(dto.timber, dto.peat, dto.scrap, dto.devotion), dto.nextId, dto.lastNight, buildings, recent,
+                dto.tensionMilli, dto.tensionAsOfTicks, dto.shieldEndsAtTicks < 0 ? (long?)null : dto.shieldEndsAtTicks, Math.Max(1, dto.nextRaidId),
+                dto.hasRaid ? new RaidData(dto.raid.id, ParseSeed(dto.raid.seed), dto.raid.warningEndsAtTicks) : null,
+                dto.hasNight ? FromDto(dto.night) : null,
+                dto.nightStartedAtTicks,
+                dto.hasReport ? FromDto(dto.report) : null);
         }
 
         [Serializable]
@@ -133,6 +188,78 @@ namespace CultOfComfort.Client
             public int lastNight;
             public List<BuildingDto> buildings;
             public List<string> recentCommands;
+            public long tensionMilli;
+            public long tensionAsOfTicks;
+            public long shieldEndsAtTicks = -1;
+            public int nextRaidId = 1;
+            public bool hasRaid;
+            public RaidDto raid;
+            public bool hasNight;
+            public NightDto night;
+            public long nightStartedAtTicks;
+            public bool hasReport;
+            public ReportDto report;
+        }
+
+        [Serializable]
+        private sealed class RaidDto
+        {
+            public int id;
+            public string seed = "0";
+            public long warningEndsAtTicks;
+        }
+
+        [Serializable]
+        private sealed class NightDto
+        {
+            public int night;
+            public string seed = "0";
+            public int budget;
+            public int waves;
+            public int extraSluice;
+            public bool scheduled;
+            public List<TowerDto> towers;
+            public List<TileDto> obstacles;
+            public List<StructureDto> structures;
+        }
+
+        [Serializable]
+        private sealed class TowerDto
+        {
+            public string type;
+            public int x;
+            public int y;
+        }
+
+        [Serializable]
+        private sealed class TileDto
+        {
+            public int x;
+            public int y;
+        }
+
+        [Serializable]
+        private sealed class StructureDto
+        {
+            public int id;
+            public int x;
+            public int y;
+            public int max;
+            public int health;
+        }
+
+        [Serializable]
+        private sealed class ReportDto
+        {
+            public int night;
+            public bool scheduled;
+            public bool whileAway;
+            public int stars;
+            public int hearth;
+            public int hearthMax;
+            public List<int> wrecked;
+            public int salvage;
+            public string hash;
         }
 
         [Serializable]
@@ -146,6 +273,7 @@ namespace CultOfComfort.Client
             public long upgradeEndsAtTicks = -1;
             public long bufferMilli;
             public long asOfTicks;
+            public bool wrecked;
         }
     }
 }

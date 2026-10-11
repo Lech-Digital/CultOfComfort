@@ -16,8 +16,8 @@ namespace CultOfComfort.Client
 
         private readonly Camera _camera;
         private readonly Vector3 _offset;
-        private readonly Vector2 _minFocus;
-        private readonly Vector2 _maxFocus;
+        private Vector2 _minFocus;
+        private Vector2 _maxFocus;
         private Vector3 _direction;
         private Vector3 _homeFocus;
         private float _homeDistance;
@@ -39,6 +39,14 @@ namespace CultOfComfort.Client
             _homeDistance = _distance = _maxDistance = offset.magnitude;
             _direction = offset.normalized;
             Apply();
+        }
+
+        /// <summary>The land grows with the Hearth: the focus may roam the open area (call Frame/Reset afterwards).</summary>
+        public void SetBounds(Vector2 boardMin, Vector2 boardMax)
+        {
+            _minFocus = boardMin;
+            _maxFocus = boardMax;
+            _homeFocus = new Vector3((boardMin.x + boardMax.x) / 2f, 0f, (boardMin.y + boardMax.y) / 2f);
         }
 
         public bool TryScreenToGround(Vector2 screen, out Vector3 point)

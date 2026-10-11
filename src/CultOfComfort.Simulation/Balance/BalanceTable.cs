@@ -21,6 +21,7 @@ public enum TowerType
 /// <param name="EngageRange">Reach: attacks the Prophet from this close (tiles). Zero means never.</param>
 /// <param name="LeaderDamage">Damage per hit on the Prophet.</param>
 /// <param name="LeaderAttackCooldownTicks">Ticks between hits on the Prophet.</param>
+/// <param name="StructureDamage">Damage of one swing at a building or tower beside the road.</param>
 /// <param name="NoticeRange">Leaves the road to chase the Prophet when he is this close to its road point (tiles). Zero means it fights from the road.</param>
 public sealed record EnemyStats(
     Fix MaxHealth,
@@ -31,7 +32,8 @@ public sealed record EnemyStats(
     Fix EngageRange = default,
     int LeaderDamage = 0,
     int LeaderAttackCooldownTicks = 0,
-    Fix NoticeRange = default);
+    Fix NoticeRange = default,
+    int StructureDamage = 0);
 
 /// <param name="SplashRadius">Zero means single-target.</param>
 /// <param name="SlowMultiplier">Speed multiplier while slowed; One means no slow.</param>
@@ -85,7 +87,10 @@ public sealed class BalanceTable
 
     public static BalanceTable Default { get; } = new();
 
-    public string Version { get; init; } = "2026.10.3";
+    public string Version { get; init; } = "2026.10.4";
+
+    /// <summary>How long a raider stops to swing at a building or tower beside the road.</summary>
+    public int StructureSwingTicks { get; init; } = 16;
 
     public int HearthMaxHealth { get; init; } = 100;
 
@@ -103,7 +108,8 @@ public sealed class BalanceTable
             EngageRange: Fix.Ratio(1, 2),
             LeaderDamage: 3,
             LeaderAttackCooldownTicks: 20,
-            NoticeRange: Fix.FromInt(2)),
+            NoticeRange: Fix.FromInt(2),
+            StructureDamage: 15),
         [EnemyType.ManAtArms] = new(
             MaxHealth: Fix.FromInt(180),
             TilesPerSecond: Fix.Ratio(6, 10),
@@ -113,7 +119,8 @@ public sealed class BalanceTable
             EngageRange: Fix.Ratio(1, 2),
             LeaderDamage: 10,
             LeaderAttackCooldownTicks: 24,
-            NoticeRange: Fix.Ratio(3, 2)),
+            NoticeRange: Fix.Ratio(3, 2),
+            StructureDamage: 40),
         [EnemyType.Zealot] = new(
             MaxHealth: Fix.FromInt(45),
             TilesPerSecond: Fix.Ratio(11, 10),
@@ -122,7 +129,8 @@ public sealed class BalanceTable
             WaveCost: 2,
             EngageRange: Fix.Ratio(5, 2),
             LeaderDamage: 6,
-            LeaderAttackCooldownTicks: 30),
+            LeaderAttackCooldownTicks: 30,
+            StructureDamage: 10),
     };
 
     public IReadOnlyDictionary<TowerType, TowerStats> Towers { get; init; } = new Dictionary<TowerType, TowerStats>

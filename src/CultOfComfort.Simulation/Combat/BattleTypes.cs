@@ -67,6 +67,10 @@ public sealed record LeaderMoveOrdered(int Tick, GridPosition Target) : BattleEv
 public sealed record LeaderAttacked(int Tick, int TargetId, Fix Damage) : BattleEvent(Tick);
 
 /// <summary>An enemy stopped to fight the Prophet and landed a hit.</summary>
+public sealed record StructureHit(int Tick, int StructureId, int EnemyId, int Damage, int HealthRemaining) : BattleEvent(Tick);
+
+public sealed record StructureWrecked(int Tick, int StructureId) : BattleEvent(Tick);
+
 public sealed record LeaderHit(int Tick, int EnemyId, EnemyType Type, int Damage, int HealthRemaining) : BattleEvent(Tick);
 
 public sealed record LeaderSwooned(int Tick) : BattleEvent(Tick);
