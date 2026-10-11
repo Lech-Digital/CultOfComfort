@@ -10,7 +10,11 @@ namespace CultOfComfort.Client.Tests
     public class GameSmokeTests
     {
         [TearDown]
-        public void TearDown() => Time.timeScale = 1f;
+        public void TearDown()
+        {
+            Time.timeScale = 1f;
+            Time.captureDeltaTime = 0f;
+        }
 
         [UnityTest]
         public IEnumerator Bootstrap_SceneLoaded_CreatesGameInDusk()
@@ -46,6 +50,34 @@ namespace CultOfComfort.Client.Tests
             // Assert
             Assert.AreEqual(GamePhase.Dawn, game.Phase, "The Night should finish.");
             Assert.AreEqual(true, game.LastNightVerified, "Server-style replay of the input log should match the live result.");
+        }
+
+        [UnityTest]
+        public IEnumerator CameraShake_NightLostOnAHearthHit_SettlesAtDawn()
+        {
+            // Arrange: an undefended base loses, and the final Hearth hit shakes the camera on the last tick.
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return null;
+            var game = Object.FindAnyObjectByType<GameController>();
+            var battleView = Object.FindAnyObjectByType<BattleView>();
+            Time.captureDeltaTime = 1f / 60f; // phone-sized frames, as fast as the editor can run them
+            game.StartNight();
+            var timeout = Time.realtimeSinceStartup + 120f;
+            while (game.Phase != GamePhase.Dawn && Time.realtimeSinceStartup < timeout)
+            {
+                yield return null;
+            }
+
+            // Act: let a few game seconds pass on the Dawn screen.
+            var settle = Time.time + 3f;
+            while (Time.time < settle)
+            {
+                yield return null;
+            }
+
+            // Assert
+            Assert.AreEqual(GamePhase.Dawn, game.Phase, "The Night should finish.");
+            Assert.AreEqual(0f, battleView.CameraShake, "The camera must stop shaking once the Night is over.");
         }
 
         [UnityTest]

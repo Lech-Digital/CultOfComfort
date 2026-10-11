@@ -38,6 +38,9 @@ namespace CultOfComfort.Client
         // Unity objects must not be created in field initializers or constructors — Unity owns component construction.
         private void Awake() => _block = new MaterialPropertyBlock();
 
+        // Fades every frame, not only while a Night renders: a Night that ends on a Hearth hit must not leave the camera shaking.
+        private void Update() => _shake = Mathf.MoveTowards(_shake, 0f, Time.deltaTime * 0.8f);
+
         public float CameraShake => _shake;
 
         public void Begin(Battle battle)
@@ -261,8 +264,6 @@ namespace CultOfComfort.Client
                     _effects.RemoveAt(i);
                 }
             }
-
-            _shake = Mathf.MoveTowards(_shake, 0f, Time.deltaTime * 0.8f);
         }
 
         private void HandleEvent(BattleEvent battleEvent)
