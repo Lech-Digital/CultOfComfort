@@ -116,6 +116,12 @@ public sealed class BuildingTable
             new[] { new BuildingLevel(new ResourceBag(30, 0, 0, 0), 0, Health: 250) }),
         [BuildingType.Gate] = new(BuildingType.Gate, "Gate", 1, new[] { Unlimited, Unlimited, Unlimited },
             new[] { new BuildingLevel(new ResourceBag(40, 0, 10, 0), 0, Health: 200) }),
+        [BuildingType.DirtTrack] = new(BuildingType.DirtTrack, "Dirt Track", 1, new[] { Unlimited, Unlimited, Unlimited },
+            new[] { new BuildingLevel(new ResourceBag(2, 0, 0, 0), 0) }, UsesBuilder: false),
+        [BuildingType.PlankWalk] = new(BuildingType.PlankWalk, "Plank Walk", 2, new[] { Unlimited, Unlimited, Unlimited },
+            new[] { new BuildingLevel(new ResourceBag(6, 0, 0, 0), 0) }, UsesBuilder: false),
+        [BuildingType.CobbledRoad] = new(BuildingType.CobbledRoad, "Cobbled Road", 3, new[] { Unlimited, Unlimited, Unlimited },
+            new[] { new BuildingLevel(new ResourceBag(0, 0, 4, 0), 0) }, UsesBuilder: false),
         [BuildingType.Stone] = new(BuildingType.Stone, "Stone", 1, new[] { Unlimited, Unlimited, Unlimited },
             new[] { new BuildingLevel(new ResourceBag(0, 0, 10, 0), 0) }),
         [BuildingType.Tree] = new(BuildingType.Tree, "Tree", 1, new[] { Unlimited, Unlimited, Unlimited },
@@ -132,6 +138,26 @@ public sealed class BuildingTable
         var repair = new ResourceBag(Tenth(cost.Timber), Tenth(cost.Peat), Tenth(cost.Scrap), Tenth(cost.Devotion));
         return repair.IsZero ? new ResourceBag(1, 0, 0, 0) : repair;
     }
+
+    /// <summary>Village roads: painted tile by tile, they connect buildings to the Hearth.</summary>
+    public static bool IsRoad(BuildingType type) => type is BuildingType.DirtTrack or BuildingType.PlankWalk or BuildingType.CobbledRoad;
+
+    /// <summary>How good a road is (0 = not a road): a better road paints over a worse one.</summary>
+    public static int RoadRank(BuildingType type) => type switch
+    {
+        BuildingType.DirtTrack => 1,
+        BuildingType.PlankWalk => 2,
+        BuildingType.CobbledRoad => 3,
+        _ => 0,
+    };
+
+    /// <summary>Extra output (percent) for a producer beside this road.</summary>
+    public static int RoadBonusPercent(BuildingType type) => type switch
+    {
+        BuildingType.PlankWalk => 10,
+        BuildingType.CobbledRoad => 20,
+        _ => 0,
+    };
 
     /// <summary>Fences, walls and gates: raiders who can't get round them hack through.</summary>
     public static bool IsBarrier(BuildingType type) => type is BuildingType.WattleFence or BuildingType.WoodenWall or BuildingType.Gate;

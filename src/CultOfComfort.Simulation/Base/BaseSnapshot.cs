@@ -8,7 +8,7 @@ namespace CultOfComfort.Simulation.Base;
 /// <param name="Ready">Whole units waiting to be collected.</param>
 /// <param name="Capacity">Most it holds before production pauses.</param>
 public sealed record BuildingView(int Id, BuildingType Type, int Level, GridPosition Position, int Ready, int Capacity, int PerHour, DateTimeOffset? UpgradeEndsAtUtc, bool Wrecked = false,
-    bool Rotated = false, IReadOnlyList<GridPosition>? Footprint = null)
+    bool Rotated = false, IReadOnlyList<GridPosition>? Footprint = null, bool Connected = true)
 {
     public bool IsUpgrading => UpgradeEndsAtUtc != null;
 

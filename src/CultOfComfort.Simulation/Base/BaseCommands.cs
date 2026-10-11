@@ -11,6 +11,9 @@ public abstract record BaseCommand(Guid CommandId);
 /// <param name="Rotated">Turned a quarter: width and depth swap.</param>
 public sealed record PlaceBuilding(Guid CommandId, BuildingType Type, GridPosition Position, bool Rotated = false) : BaseCommand(CommandId);
 
+/// <summary>Paints a village road over many tiles at once: tiles that can't take it are skipped.</summary>
+public sealed record PlaceRoad(Guid CommandId, BuildingType Type, IReadOnlyList<GridPosition> Tiles) : BaseCommand(CommandId);
+
 public sealed record UpgradeBuilding(Guid CommandId, int BuildingId) : BaseCommand(CommandId);
 
 public sealed record UpgradeHearth(Guid CommandId) : BaseCommand(CommandId);
