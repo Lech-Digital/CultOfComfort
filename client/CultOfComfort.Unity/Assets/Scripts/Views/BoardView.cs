@@ -48,8 +48,7 @@ namespace CultOfComfort.Client
             {
                 for (var x = 0; x < VillageMap.Demo.Width; x++)
                 {
-                    var noise = Mathf.PerlinNoise(x * 0.37f, y * 0.37f);
-                    var color = noise > 0.62f ? Palette.Grass : (x + y) % 2 == 0 ? Palette.Ground : Palette.GroundAlt;
+                    var color = (x + y) % 2 == 0 ? Palette.Ground : Palette.GroundAlt; // all mud: grass means "not your land"
                     Shapes.Create(PrimitiveType.Cube, color, new Vector3(x, -0.1f, -y), new Vector3(1f, 0.2f, 1f), _root, "Tile");
                 }
             }
@@ -57,7 +56,8 @@ namespace CultOfComfort.Client
             foreach (var rock in rocks)
             {
                 var seed = rock.X * 31 + rock.Y * 17;
-                var model = Place(seed % 2 == 0 ? "rock_a" : "rock_b", Shapes.ToWorld(rock), seed * 37 % 360, 1.35f + seed % 3 * 0.1f);
+                var bedrock = VillageMap.Demo.IsBedrock(rock);
+                var model = Place(RockModel(VillageMap.Demo, rock), Shapes.ToWorld(rock), seed * 37 % 360, (bedrock ? 1.1f : 1.35f) + seed % 3 * 0.1f);
                 if (model != null)
                 {
                     _rocks[rock] = model;
@@ -154,6 +154,10 @@ namespace CultOfComfort.Client
             }
         }
 
+        /// <summary>Bedrock is a bare crag (it never moves); a loose boulder is a mossy field stone (clear it for Scrap).</summary>
+        public static string RockModel(VillageMap map, GridPosition tile) =>
+            map.IsBedrock(tile) ? "crag" : (tile.X * 31 + tile.Y * 17) % 2 == 0 ? "rock_a" : "rock_b";
+
         /// <summary>Wild trees that stand and boulders that remain; cut and cleared ones disappear, regrown ones return.</summary>
         public void SetTerrain(BaseSnapshot snapshot)
         {
@@ -213,7 +217,7 @@ namespace CultOfComfort.Client
             holder.transform.SetParent(_root, false);
             var w = zone.MaxX - zone.MinX + 1;
             var h = zone.MaxY - zone.MinY + 1;
-            Shapes.Create(PrimitiveType.Cube, Shapes.Hex("#3f4a2b"), new Vector3(zone.MinX + (w - 1) / 2f, 0.02f, -(zone.MinY + (h - 1) / 2f)),
+            Shapes.Create(PrimitiveType.Cube, Shapes.Hex("#2f3a22"), new Vector3(zone.MinX + (w - 1) / 2f, 0.02f, -(zone.MinY + (h - 1) / 2f)),
                 new Vector3(w, 0.04f, h), holder.transform, "Undergrowth");
             for (var y = zone.MinY; y <= zone.MaxY; y++)
             {
@@ -221,17 +225,17 @@ namespace CultOfComfort.Client
                 {
                     var tile = new GridPosition(x, y);
                     var seed = x * 31 + y * 17;
-                    if (seed % 3 != 0 || map.Rocks.Contains(tile))
+                    if ((x - zone.MinX) % 2 != 0 || (y - zone.MinY) % 2 != 0 || map.Rocks.Contains(tile))
                     {
                         continue;
                     }
 
-                    var tree = ArtLibrary.Instantiate(seed % 2 == 0 ? "pine" : "birch", holder.transform);
+                    var tree = ArtLibrary.Instantiate("deep_forest", holder.transform);
                     if (tree != null)
                     {
-                        tree.transform.localPosition = Shapes.ToWorld(tile);
+                        tree.transform.localPosition = Shapes.ToWorld(tile) + new Vector3(0.5f, 0f, -0.5f); // centre of the 2×2 block
                         tree.transform.localRotation = Quaternion.Euler(0f, seed * 37 % 360, 0f);
-                        tree.transform.localScale = Vector3.one * (0.8f + seed % 3 * 0.1f);
+                        tree.transform.localScale = Vector3.one * (1.3f + seed % 3 * 0.08f);
                     }
                 }
             }
@@ -442,35 +446,15 @@ namespace CultOfComfort.Client
                 Place(item.Model, Shapes.ToWorld(item.Tile) + item.Jitter, item.Yaw, item.Scale);
             }
 
-            foreach (var item in SurroundingsLayout(VillageMap.Demo.Width, VillageMap.Demo.Height))
+            foreach (var item in WorldScenery.BorderLayout(VillageMap.Demo.Width, VillageMap.Demo.Height, VillageMap.Demo.Spawn))
             {
                 Place(item.Model, Shapes.ToWorld(item.Tile) + item.Jitter, item.Yaw, item.Scale);
             }
-        }
 
-        /// <summary>Deterministic scenery placement around (never on) a width × height board.</summary>
-        public static List<(string Model, GridPosition Tile, Vector3 Jitter, float Yaw, float Scale)> SurroundingsLayout(int width, int height)
-        {
-            var layout = new List<(string, GridPosition, Vector3, float, float)>();
-            string[] nature = { "pine", "pine", "oak", "birch", "bush", "pine", "dead_tree", "stump", "rock_b", "bush" };
-            for (var y = -3; y < height + 3; y++)
+            foreach (var tile in WorldScenery.PassTrack(VillageMap.Demo.Spawn))
             {
-                for (var x = -3; x < width + 3; x++)
-                {
-                    var inside = x >= 0 && y >= 0 && x < width && y < height;
-                    var hash = (x * 73856093) ^ (y * 19349663);
-                    if (inside || (hash & 7) != 1) // ~1 in 8 tiles: a ring of trees, not a wall (≈27 on the demo map)
-                    {
-                        continue;
-                    }
-
-                    var jitter = new Vector3((hash >> 4 & 15) / 30f - 0.25f, 0f, (hash >> 8 & 15) / 30f - 0.25f);
-                    var pick = nature[(hash >> 12 & 0x7fff) % nature.Length];
-                    layout.Add((pick, new GridPosition(x, y), jitter, hash >> 16 & 359, 1f + (hash >> 20 & 3) * 0.12f));
-                }
+                Shapes.Create(PrimitiveType.Cube, Palette.Mud, Shapes.ToWorld(tile, -0.115f), new Vector3(1f, 0.01f, 0.9f), _root, "Raiders' track");
             }
-
-            return layout;
         }
 
         private void BuildSpawn()
