@@ -1,0 +1,97 @@
+using System;
+using System.Collections.Generic;
+using CultOfComfort.Simulation.Balance;
+
+namespace CultOfComfort.Simulation.Base;
+
+/// <param name="Cost">Paid when this level is started (level 1 = placing it).</param>
+/// <param name="BuildSeconds">Construction time for this level; zero means instant.</param>
+/// <param name="PerHour">Production per hour (producers only).</param>
+/// <param name="StorageBonus">Added to every resource's storage cap (Storage Hut).</param>
+/// <param name="SluiceCharges">Extra Open Sluice charges per Night (Cistern).</param>
+public sealed record BuildingLevel(ResourceBag Cost, int BuildSeconds, int PerHour = 0, int StorageBonus = 0, int SluiceCharges = 0);
+
+/// <param name="MaxCountByHearth">How many may stand at Hearth level 1, 2, 3.</param>
+public sealed record BuildingSpec(
+    BuildingType Type,
+    string Name,
+    int UnlockHearth,
+    IReadOnlyList<int> MaxCountByHearth,
+    IReadOnlyList<BuildingLevel> Levels,
+    ResourceType? Produces = null,
+    TowerType? Tower = null)
+{
+    public bool IsTower => Tower != null;
+
+    public int MaxLevel => Levels.Count;
+
+    public int MaxCount(int hearthLevel) => MaxCountByHearth[Math.Min(Math.Max(hearthLevel, 1), MaxCountByHearth.Count) - 1];
+}
+
+/// <summary>The village balance (spec: Content). Versioned separately from combat balance.</summary>
+public sealed class BuildingTable
+{
+    private const int Unlimited = int.MaxValue;
+
+    public static BuildingTable Default { get; } = new();
+
+    public string Version { get; init; } = "village-2026.10.1";
+
+    /// <summary>Producers hold at most this many hours of output before someone collects.</summary>
+    public int BufferHours { get; init; } = 8;
+
+    public IReadOnlyList<int> HearthStorageCaps { get; init; } = new[] { 1000, 2500, 6000 };
+
+    public ResourceBag StartingStock { get; init; } = new(500, 60, 380, 0);
+
+    public int SalvageBase { get; init; } = 40;
+
+    public int SalvagePerStar { get; init; } = 40;
+
+    public IReadOnlyDictionary<BuildingType, BuildingSpec> Specs { get; init; } = new Dictionary<BuildingType, BuildingSpec>
+    {
+        [BuildingType.Hearth] = new(BuildingType.Hearth, "Hearth", 1, new[] { 1, 1, 1 }, new[]
+        {
+            new BuildingLevel(default, 0),
+            new BuildingLevel(new ResourceBag(600, 0, 50, 0), 10 * 60),
+            new BuildingLevel(new ResourceBag(2000, 200, 300, 100), 60 * 60),
+        }),
+        [BuildingType.Woodcutter] = new(BuildingType.Woodcutter, "Woodcutter's Lean-to", 1, new[] { 2, 3, 4 }, new[]
+        {
+            new BuildingLevel(new ResourceBag(50, 0, 0, 0), 30, PerHour: 100),
+            new BuildingLevel(new ResourceBag(150, 0, 10, 0), 5 * 60, PerHour: 170),
+            new BuildingLevel(new ResourceBag(400, 0, 40, 0), 20 * 60, PerHour: 260),
+        }, Produces: ResourceType.Timber),
+        [BuildingType.PeatCut] = new(BuildingType.PeatCut, "Peat Cut", 1, new[] { 1, 2, 3 }, new[]
+        {
+            new BuildingLevel(new ResourceBag(80, 0, 10, 0), 60, PerHour: 25),
+            new BuildingLevel(new ResourceBag(200, 0, 30, 0), 8 * 60, PerHour: 45),
+            new BuildingLevel(new ResourceBag(500, 0, 80, 0), 30 * 60, PerHour: 70),
+        }, Produces: ResourceType.Peat),
+        [BuildingType.StorageHut] = new(BuildingType.StorageHut, "Storage Hut", 1, new[] { 1, 2, 3 }, new[]
+        {
+            new BuildingLevel(new ResourceBag(100, 0, 0, 0), 60, StorageBonus: 500),
+            new BuildingLevel(new ResourceBag(300, 0, 0, 0), 10 * 60, StorageBonus: 1000),
+            new BuildingLevel(new ResourceBag(800, 0, 50, 0), 40 * 60, StorageBonus: 2000),
+        }),
+        [BuildingType.CultistHut] = new(BuildingType.CultistHut, "Cultist Hut", 1, new[] { 1, 2, 3 }, new[]
+        {
+            new BuildingLevel(new ResourceBag(120, 0, 0, 0), 2 * 60, PerHour: 4),
+            new BuildingLevel(new ResourceBag(350, 50, 0, 0), 12 * 60, PerHour: 8),
+            new BuildingLevel(new ResourceBag(900, 150, 0, 0), 45 * 60, PerHour: 14),
+        }, Produces: ResourceType.Devotion),
+        [BuildingType.Cistern] = new(BuildingType.Cistern, "Cistern", 2, new[] { 0, 1, 2 }, new[]
+        {
+            new BuildingLevel(new ResourceBag(150, 0, 30, 0), 2 * 60, SluiceCharges: 1),
+            new BuildingLevel(new ResourceBag(400, 0, 100, 0), 15 * 60, SluiceCharges: 2),
+        }),
+        [BuildingType.SlurryChute] = new(BuildingType.SlurryChute, "Slurry Chute", 1, new[] { Unlimited, Unlimited, Unlimited },
+            new[] { new BuildingLevel(new ResourceBag(0, 0, 50, 0), 0) }, Tower: TowerType.SlurryChute),
+        [BuildingType.SaplingFlinger] = new(BuildingType.SaplingFlinger, "Sapling Flinger", 2, new[] { Unlimited, Unlimited, Unlimited },
+            new[] { new BuildingLevel(new ResourceBag(0, 0, 70, 0), 0) }, Tower: TowerType.SaplingFlinger),
+    };
+
+    public BuildingSpec Spec(BuildingType type) => Specs[type];
+
+    public int Salvage(int stars) => SalvageBase + SalvagePerStar * Math.Min(Math.Max(stars, 0), 3);
+}
