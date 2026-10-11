@@ -143,7 +143,7 @@ public sealed class BaseState
             }
 
             if (!tiles.Add(b.Position) || (b.Type != BuildingType.Hearth
-                && (!_map.Contains(b.Position) || b.Position == _map.Spawn || b.Position == _map.Hearth || _map.Rocks.Contains(b.Position))))
+                && (!_map.IsOpen(b.Position, HearthLevel) || b.Position == _map.Spawn || b.Position == _map.Hearth || _map.Rocks.Contains(b.Position))))
             {
                 Fail($"building {b.Id} stands somewhere it cannot");
             }
@@ -249,7 +249,8 @@ public sealed class BaseState
         {
             var health = _table.StructureHealth(b.Type, b.Level);
             return new PlacedStructure(b.Id, b.Position, health, b.Wrecked ? 0 : health);
-        }));
+        }),
+        HearthLevel);
     // (VillageMap.ToBattleLayout(snapshot, table) is the same rule from a snapshot, for gateways.)
 
     // ---------------- commands ----------------
@@ -459,6 +460,11 @@ public sealed class BaseState
 
     private string? PlacementProblem(GridPosition tile)
     {
+        if (_map.Contains(tile) && !_map.IsOpen(tile, HearthLevel))
+        {
+            return $"That land opens at Hearth {_map.OpensAt(tile)}.";
+        }
+
         if (!_map.Contains(tile) || tile == _map.Spawn || tile == _map.Hearth || _map.Rocks.Contains(tile) || _buildings.Any(b => b.Position == tile))
         {
             return "Can't build there.";
@@ -467,7 +473,8 @@ public sealed class BaseState
         try
         {
             var layout = ToBattleLayout();
-            _map.ToBattleLayout(layout.Towers, layout.Obstacles.Except(_map.Rocks).Append(tile)).Validate();
+            var buildings = _buildings.Where(b => b.Type != BuildingType.Hearth && !_table.Spec(b.Type).IsTower).Select(b => b.Position);
+            _map.ToBattleLayout(layout.Towers, buildings.Append(tile), null, HearthLevel).Validate();
         }
         catch (InvalidLayoutException)
         {
