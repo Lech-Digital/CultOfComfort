@@ -35,6 +35,9 @@ namespace CultOfComfort.Client
             BuildingType.WattleFence => "b_wattle_fence",
             BuildingType.WoodenWall => "b_wooden_wall",
             BuildingType.Gate => "b_gate",
+            BuildingType.DirtTrack => "b_dirt_track",
+            BuildingType.PlankWalk => "b_plank_walk",
+            BuildingType.CobbledRoad => "b_cobbled_road",
             BuildingType.Stone => "b_stone",
             BuildingType.Tree => "b_tree",
             _ => "b_sapling_flinger",
@@ -84,7 +87,9 @@ namespace CultOfComfort.Client
                 IsWrecked = b.Wrecked,
                 RepairLabel = b.Wrecked ? $"Repair · {repair}" : string.Empty,
                 CanRepair = b.Wrecked && snapshot.Stock.Covers(repair),
-                Output = b.Wrecked ? (spec.IsTower ? "Wrecked — won't fire until repaired" : "Wrecked — produces nothing") : b.Level == 0 ? string.Empty : spec.Produces != null ? $"+{b.PerHour} {spec.Produces}/h" : Effect(spec, b.Level),
+                Output = b.Wrecked ? (spec.IsTower ? "Wrecked — won't fire until repaired" : "Wrecked — produces nothing")
+                    : !b.Connected ? "Not connected — build a road to it"
+                    : b.Level == 0 ? string.Empty : spec.Produces != null ? $"+{b.PerHour} {spec.Produces}/h" : Effect(spec, b.Level),
                 Ready = spec.Produces != null && b.Level > 0 ? $"{b.Ready}/{b.Capacity} ready" : string.Empty,
                 UpgradeLabel = upgradeLabel,
                 CanUpgrade = !b.Wrecked && !maxed && !b.IsUpgrading && snapshot.ConstructionEndsAtUtc == null && snapshot.Stock.Covers(next.Cost)

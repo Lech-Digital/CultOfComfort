@@ -197,4 +197,20 @@ public class RoadTests
         restored.Snapshot(T0).Buildings.Should().Contain(b => b.Type == BuildingType.DirtTrack);
         restored.ToData().LayoutVersion.Should().Be(BaseState.CurrentLayoutVersion);
     }
+
+    [Fact]
+    public void Restore_LayoutVersionOneSave_KeepsEveryBuildingsShape()
+    {
+        // Arrange — regression: a version-1 save already has shapes; loading it must not shrink them to 1×1
+        // (roads were laid across the lean-to's second tile, and the next load threw the village away).
+        var data = WithFinishedWoodcutterAt(15, 7).ToData() with { LayoutVersion = 1 };
+
+        // Act
+        var restored = BaseState.Restore(Table(), Map, data);
+        var again = BaseState.Restore(Table(), Map, restored.ToData());
+
+        // Assert
+        Woodcutter(restored, T0).Tiles.Should().HaveCount(2);
+        again.Snapshot(T0).Buildings.SelectMany(b => b.Tiles).Should().OnlyHaveUniqueItems("a road never runs through a building");
+    }
 }

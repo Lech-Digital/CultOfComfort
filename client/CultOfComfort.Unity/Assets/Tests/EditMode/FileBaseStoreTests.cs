@@ -162,5 +162,23 @@ namespace CultOfComfort.Client.Tests
             Assert.IsTrue(lean.Rotated);
             CollectionAssert.AreEquivalent(new[] { new GridPosition(13, 5), new GridPosition(13, 6) }, lean.Tiles.ToList());
         }
+
+        [Test]
+        public async Task FileStore_Quarantine_KeepsACopyOfTheUnreadableSave()
+        {
+            // Arrange
+            var path = Path.Combine(Path.GetTempPath(), $"village-{Guid.NewGuid()}.json");
+            File.WriteAllText(path, "{ the old village }");
+            var store = new FileBaseStore(path);
+
+            // Act
+            await store.QuarantineAsync(CancellationToken.None);
+            await store.SaveAsync(BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0).ToData(), CancellationToken.None);
+
+            // Assert
+            var copies = Directory.GetFiles(Path.GetDirectoryName(path), Path.GetFileName(path) + ".unreadable-*");
+            Assert.AreEqual(1, copies.Length);
+            Assert.AreEqual("{ the old village }", File.ReadAllText(copies[0]));
+        }
     }
 }

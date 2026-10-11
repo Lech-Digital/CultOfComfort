@@ -14,7 +14,7 @@ namespace CultOfComfort.Client
         public static readonly string[] Icons =
         {
             "timber", "scrap", "peat", "devotion", "penny", "comfort", "sluice", "voice", "stones", "speed",
-            "map", "research", "missionaries", "tithes", "shop", "cult", "settings", "portrait_prophet", "mud", "swords", "b_hearth", "b_woodcutter", "b_peat_cut", "b_storage_hut", "b_cultist_hut", "b_cistern", "b_slurry_chute", "b_sapling_flinger", "b_wattle_fence", "b_stone", "b_tree", "b_wooden_wall", "b_gate",
+            "map", "research", "missionaries", "tithes", "shop", "cult", "settings", "portrait_prophet", "mud", "swords", "b_hearth", "b_woodcutter", "b_peat_cut", "b_storage_hut", "b_cultist_hut", "b_cistern", "b_slurry_chute", "b_sapling_flinger", "b_wattle_fence", "b_stone", "b_tree", "b_wooden_wall", "b_gate", "b_dirt_track", "b_plank_walk", "b_cobbled_road",
         };
     }
 }

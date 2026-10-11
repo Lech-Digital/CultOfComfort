@@ -250,5 +250,35 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("b_wooden_wall", wall.Icon);
             Assert.AreEqual("b_gate", gate.Icon);
         }
+
+        [Test]
+        public void Card_UnconnectedBuilding_SaysToBuildARoad()
+        {
+            // Arrange — a lean-to out in the field, nowhere near a road.
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(20, 14)), T0);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+            var id = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Woodcutter).Id;
+
+            // Act
+            var card = VillagePresenter.Card(state.Snapshot(T0), BuildingTable.Default, id);
+
+            // Assert
+            Assert.AreEqual("Not connected — build a road to it", card.Output);
+        }
+
+        [Test]
+        public void BuildCards_Roads_TrackAtHearthOnePlanksAndCobblesLater()
+        {
+            // Act
+            var cards = VillagePresenter.BuildCards(Fresh(), BuildingTable.Default);
+
+            // Assert
+            var track = cards.Single(c => c.Type == BuildingType.DirtTrack);
+            Assert.IsFalse(track.Locked);
+            Assert.AreEqual("b_dirt_track", track.Icon);
+            Assert.AreEqual("Hearth 2", cards.Single(c => c.Type == BuildingType.PlankWalk).LockText);
+            Assert.AreEqual("Hearth 3", cards.Single(c => c.Type == BuildingType.CobbledRoad).LockText);
+        }
     }
 }

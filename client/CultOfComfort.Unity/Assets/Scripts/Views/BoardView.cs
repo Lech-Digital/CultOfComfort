@@ -15,6 +15,7 @@ namespace CultOfComfort.Client
         private readonly List<SpriteRenderer> _billboards = new List<SpriteRenderer>();
         private readonly Dictionary<MapZone, GameObject> _zones = new Dictionary<MapZone, GameObject>();
         private readonly Dictionary<GridPosition, GameObject> _rocks = new Dictionary<GridPosition, GameObject>();
+        private readonly List<GameObject> _paintGhosts = new List<GameObject>();
         private readonly Dictionary<GridPosition, GameObject> _wildTrees = new Dictionary<GridPosition, GameObject>();
         private readonly List<Transform> _water = new List<Transform>();
         private Transform _hearth;
@@ -365,6 +366,27 @@ namespace CultOfComfort.Client
             }
         }
 
+        /// <summary>Ghost tiles along a road stroke while the finger is still down.</summary>
+        public void ShowPaintPreview(IReadOnlyList<GridPosition> tiles, Func<GridPosition, bool> valid)
+        {
+            var count = tiles?.Count ?? 0;
+            while (_paintGhosts.Count < count)
+            {
+                _paintGhosts.Add(Shapes.Create(PrimitiveType.Cube, Palette.Highlight, Vector3.zero, new Vector3(0.9f, 0.05f, 0.9f), _root, "Paint"));
+            }
+
+            for (var i = 0; i < _paintGhosts.Count; i++)
+            {
+                var ghost = _paintGhosts[i];
+                ghost.SetActive(i < count);
+                if (i < count)
+                {
+                    ghost.transform.localPosition = Shapes.ToWorld(tiles[i], 0.03f);
+                    ghost.GetComponent<Renderer>().sharedMaterial = Shapes.Material(valid(tiles[i]) ? Palette.Highlight : Palette.Invalid);
+                }
+            }
+        }
+
         /// <summary>Centre (world, on the ground) and size (x, z in tiles) of a set of tiles.</summary>
         public static (Vector3 Centre, Vector2 Size) FootprintBox(IReadOnlyList<GridPosition> tiles)
         {
@@ -548,6 +570,9 @@ namespace CultOfComfort.Client
             BuildingType.WattleFence => "fence",
             BuildingType.WoodenWall => "palisade",
             BuildingType.Gate => "spawn_gate",
+            BuildingType.DirtTrack => "road_dirt",
+            BuildingType.PlankWalk => "road_planks",
+            BuildingType.CobbledRoad => "road_cobbles",
             BuildingType.Stone => "rock_b",
             BuildingType.Tree => "oak",
             _ => null,
@@ -581,6 +606,24 @@ namespace CultOfComfort.Client
                 visual.Root.SetParent(_root, false);
                 var (centre, size) = FootprintBox(building.Tiles);
                 visual.Root.localPosition = centre;
+                if (BuildingTable.IsRoad(building.Type))
+                {
+                    // A road is the ground itself: flat, full tile, never a "building" with bars and badges.
+                    var tile = ArtLibrary.Instantiate(ModelName(building.Type), visual.Root);
+                    if (tile == null)
+                    {
+                        Shapes.Create(PrimitiveType.Cube, Palette.Road, new Vector3(0f, 0.01f, 0f), new Vector3(0.98f, 0.02f, 0.98f), visual.Root, "Road");
+                    }
+
+                    visual.Bar = new GameObject("No bar");
+                    visual.Bar.transform.SetParent(visual.Root, false);
+                    visual.Health = new GameObject("No health");
+                    visual.Health.transform.SetParent(visual.Root, false);
+                    visual.Bar.SetActive(false);
+                    visual.Health.SetActive(false);
+                    return visual;
+                }
+
                 if (size.x > 1f || size.y > 1f)
                 {
                     // A trodden plot the size of the footprint, so a 2×4 trench reads as 2×4.

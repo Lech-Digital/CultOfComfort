@@ -98,7 +98,7 @@ public sealed class BaseState
             }
 
             var anchor = new GridPosition(b.X, b.Y);
-            var tiles = data.LayoutVersion >= CurrentLayoutVersion ? Footprint.Tiles(spec, anchor, b.Rotated) : new[] { anchor };
+            var tiles = data.LayoutVersion >= 1 ? Footprint.Tiles(spec, anchor, b.Rotated) : new[] { anchor }; // shapes arrived in layout version 1
             state._buildings.Add(new Building(b.Id, b.Type, anchor, b.Level, new DateTimeOffset(b.AsOfUtcTicks, TimeSpan.Zero), tiles, b.Rotated)
             {
                 BufferMilli = b.BufferMilli,

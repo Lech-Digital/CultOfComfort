@@ -35,6 +35,17 @@ namespace CultOfComfort.Client
             }
         }
 
+        public Task QuarantineAsync(CancellationToken ct)
+        {
+            var path = File.Exists(_path) ? _path : File.Exists(_path + ".tmp") ? _path + ".tmp" : null;
+            if (path != null)
+            {
+                File.Copy(path, $"{_path}.unreadable-{DateTime.UtcNow:yyyyMMddHHmmss}", overwrite: true);
+            }
+
+            return Task.CompletedTask;
+        }
+
         public async Task SaveAsync(BaseData data, CancellationToken ct)
         {
             await _gate.WaitAsync(ct);

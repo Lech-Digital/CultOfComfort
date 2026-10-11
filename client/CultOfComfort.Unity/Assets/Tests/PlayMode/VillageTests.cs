@@ -330,5 +330,52 @@ namespace CultOfComfort.Client.Tests
             Assert.IsTrue(lean.Rotated);
             Assert.AreEqual(DisplayStyle.None, root.Q<Button>("rotate").resolvedStyle.display, "placing is over");
         }
+
+        [UnityTest]
+        public IEnumerator Drawer_PickATrackAndTapTiles_LaysRoadAndStaysSelected()
+        {
+            // Arrange
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            Click(root.Q<Button>("card-DirtTrack"));
+            yield return null;
+
+            // Act — roads stay selected: tap, tap.
+            Tap(game, new GridPosition(13, 6));
+            yield return Frames(2);
+            Tap(game, new GridPosition(14, 6));
+            yield return Frames(2);
+
+            // Assert
+            var snapshot = Snapshot(game);
+            Assert.AreEqual(BuildingType.DirtTrack, snapshot.BuildingAt(new GridPosition(13, 6))?.Type);
+            Assert.AreEqual(BuildingType.DirtTrack, snapshot.BuildingAt(new GridPosition(14, 6))?.Type);
+        }
+
+        [UnityTest]
+        public IEnumerator Board_DragWithATrackSelected_PaintsAlongTheFinger()
+        {
+            // Arrange
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            Click(root.Q<Button>("card-DirtTrack"));
+            yield return null;
+
+            // Act — a stroke over (12,6)…(15,6), as the finger would leave it.
+            var paint = typeof(GameController).GetMethod("PaintStroke", BindingFlags.NonPublic | BindingFlags.Instance);
+            paint.Invoke(game, new object[] { new[] { new GridPosition(12, 6), new GridPosition(15, 6) } });
+            yield return Frames(3);
+
+            // Assert — the gap between the two points is filled in.
+            var snapshot = Snapshot(game);
+            foreach (var x in new[] { 12, 13, 14, 15 })
+            {
+                Assert.AreEqual(BuildingType.DirtTrack, snapshot.BuildingAt(new GridPosition(x, 6))?.Type, $"tile ({x},6)");
+            }
+        }
     }
 }

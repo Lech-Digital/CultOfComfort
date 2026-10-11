@@ -48,5 +48,8 @@ namespace CultOfComfort.Client
         Task<BaseData> LoadAsync(CancellationToken ct);
 
         Task SaveAsync(BaseData data, CancellationToken ct);
+
+        /// <summary>Sets an unreadable save aside (a copy) before a fresh village replaces it. Stores without files need nothing.</summary>
+        Task QuarantineAsync(CancellationToken ct) => Task.CompletedTask;
     }
 }
