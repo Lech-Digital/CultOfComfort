@@ -25,22 +25,18 @@ public class BaseStateRulesTests
         outcome.Reason.Should().Be("Can't build there.");
     }
 
-    [Fact]
-    public void Apply_PlaceThatSealsTheRoad_Rejected()
+    [Theory]
+    [InlineData(2, 1)]
+    [InlineData(10, 5)]
+    [InlineData(17, 8)]
+    public void Apply_PlaceOnTheRoad_Rejected(int x, int y)
     {
-        // Arrange — the rock wall at x = 5 leaves y = 8..19 open at Hearth 1; fence (5,8)..(5,18), then try (5,19).
-        var state = NewBase();
-        for (var y = 8; y <= 18; y++)
-        {
-            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WattleFence, new GridPosition(5, y)), T0).Status.Should().Be(CommandStatus.Accepted);
-        }
-
-        // Act
-        var outcome = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WattleFence, new GridPosition(5, 19)), T0);
+        // Act — the raiders' road is fixed: build beside it, never on it.
+        var outcome = NewBase().Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WattleFence, new GridPosition(x, y)), T0);
 
         // Assert
         outcome.Status.Should().Be(CommandStatus.Rejected);
-        outcome.Reason.Should().Contain("seal the road");
+        outcome.Reason.Should().Be("That's the raiders' road. Build beside it.");
     }
 
     [Fact]
@@ -48,7 +44,7 @@ public class BaseStateRulesTests
     {
         // Arrange
         var state = NewBase();
-        var command = new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(4, 6));
+        var command = new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(7, 6));
 
         // Act
         var first = state.Apply(command, T0);
@@ -68,7 +64,7 @@ public class BaseStateRulesTests
         var state = NewBase();
 
         // Act
-        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SaplingFlinger, new GridPosition(4, 6)), T0);
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SaplingFlinger, new GridPosition(7, 6)), T0);
 
         // Assert
         state.Version.Should().Be(0);
@@ -78,7 +74,7 @@ public class BaseStateRulesTests
     public void Apply_FlingerAtHearthOne_RejectedAsLocked()
     {
         // Act
-        var outcome = NewBase().Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SaplingFlinger, new GridPosition(4, 6)), T0);
+        var outcome = NewBase().Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SaplingFlinger, new GridPosition(7, 6)), T0);
 
         // Assert
         outcome.Reason.Should().Be("Sapling Flinger unlocks at Hearth 2.");
@@ -89,11 +85,11 @@ public class BaseStateRulesTests
     {
         // Arrange
         var state = NewBase();
-        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(3, 9)), T0);
-        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(4, 9)), T0.AddSeconds(30));
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(20, 11)), T0);
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(23, 11)), T0.AddSeconds(30));
 
         // Act
-        var outcome = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(6, 9)), T0.AddSeconds(60));
+        var outcome = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(20, 14)), T0.AddSeconds(60));
 
         // Assert
         outcome.Reason.Should().Contain("until the Hearth grows");
@@ -114,7 +110,7 @@ public class BaseStateRulesTests
         // Assert
         snapshot.HearthLevel.Should().Be(2);
         snapshot.Caps.Timber.Should().Be(2500);
-        rich.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SaplingFlinger, new GridPosition(4, 6)), T0.AddMinutes(10)).Status.Should().Be(CommandStatus.Accepted);
+        rich.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SaplingFlinger, new GridPosition(7, 6)), T0.AddMinutes(10)).Status.Should().Be(CommandStatus.Accepted);
     }
 
     [Fact]
@@ -123,7 +119,7 @@ public class BaseStateRulesTests
         // Arrange
         var state = NewBase();
         state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.StorageHut, new GridPosition(3, 9)), T0);
-        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(4, 6)), T0);
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(7, 6)), T0);
         var at = T0.AddMinutes(1);
         var snapshot = state.Snapshot(at);
         var hut = snapshot.Buildings.Single(b => b.Type == BuildingType.StorageHut).Id;
@@ -165,14 +161,14 @@ public class BaseStateRulesTests
     {
         // Arrange
         var state = NewBase();
-        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(4, 6)), T0);
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(7, 6)), T0);
         state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(3, 9)), T0);
 
         // Act
         var layout = state.ToBattleLayout();
 
         // Assert
-        layout.Towers.Should().ContainSingle(t => t.Position == new GridPosition(4, 6));
+        layout.Towers.Should().ContainSingle(t => t.Position == new GridPosition(7, 6));
         layout.Obstacles.Should().Contain(new GridPosition(3, 9));
         layout.Obstacles.Should().NotContain(VillageMap.Demo.Hearth);
         layout.ResolveEnemyPath().Should().NotContain(new GridPosition(3, 9));

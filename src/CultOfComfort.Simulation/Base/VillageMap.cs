@@ -25,6 +25,7 @@ public sealed record VillageMap(
     int SpawnClearance = 0)
 {
     private IReadOnlyList<GridPosition>? _wildTrees;
+    private IReadOnlyList<GridPosition>? _road;
 
     // Declared before Demo: static initialisers run in order, and Demo needs these.
     private static readonly GridPosition[] DemoBoulders =
@@ -61,9 +62,15 @@ public sealed record VillageMap(
     /// </summary>
     public IReadOnlyList<GridPosition> WildTrees => _wildTrees ??= ComputeWildTrees();
 
+    /// <summary>
+    /// The raiders' road: the old track on the bare valley (every rock standing, all land open). It never moves:
+    /// nobody may build on it, and clearing a boulder doesn't open a shortcut.
+    /// </summary>
+    public IReadOnlyList<GridPosition> Road => _road ??= new BattleLayout(Width, Height, Spawn, Hearth, System.Array.Empty<PlacedTower>(), Rocks).ResolveEnemyPath();
+
     private IReadOnlyList<GridPosition> ComputeWildTrees()
     {
-        var road = new HashSet<GridPosition>(ToBattleLayout(System.Array.Empty<PlacedTower>(), System.Array.Empty<GridPosition>()).ResolveEnemyPath());
+        var road = new HashSet<GridPosition>(Road);
         var trees = new List<GridPosition>();
         for (var y = 0; y < Height; y++)
         {
@@ -108,7 +115,7 @@ public sealed record VillageMap(
         int hearthLevel = int.MaxValue, IReadOnlyCollection<GridPosition>? cleared = null)
     {
         var rocks = cleared == null ? Rocks : Rocks.Where(r => !cleared.Contains(r)).ToList();
-        return new(Width, Height, Spawn, Hearth, towers, rocks.Concat(LockedTiles(hearthLevel).Except(Rocks)).Concat(obstacles), null, structures);
+        return new(Width, Height, Spawn, Hearth, towers, rocks.Concat(LockedTiles(hearthLevel).Except(Rocks)).Concat(obstacles), null, structures, Road);
     }
 
     /// <summary>Wild trees still standing: not cut, not on locked land (already forest), not under a building.</summary>
@@ -122,14 +129,13 @@ public sealed record VillageMap(
     public BattleLayout ToBattleLayout(BaseSnapshot snapshot, BuildingTable table)
     {
         var cleared = snapshot.ClearedTerrain ?? System.Array.Empty<GridPosition>();
-        var buildingTiles = new HashSet<GridPosition>(snapshot.Buildings.Select(b => b.Position));
         return ToBattleLayout(
             snapshot.Buildings.Where(b => table.Spec(b.Type).IsTower).Select(b => new PlacedTower(table.Spec(b.Type).Tower!.Value, b.Position)),
-            snapshot.Buildings.Where(b => b.Type != BuildingType.Hearth && !table.Spec(b.Type).IsTower).Select(b => b.Position),
+            snapshot.Buildings.Where(b => b.Type != BuildingType.Hearth && !table.Spec(b.Type).IsTower).SelectMany(b => b.Tiles),
             snapshot.Buildings.Where(b => b.Type != BuildingType.Hearth && table.StructureHealth(b.Type, b.Level) > 0).Select(b =>
             {
                 var health = table.StructureHealth(b.Type, b.Level);
-                return new PlacedStructure(b.Id, b.Position, health, b.Wrecked ? 0 : health);
+                return new PlacedStructure(b.Id, b.Position, health, b.Wrecked ? 0 : health) { Tiles = b.Tiles };
             }),
             snapshot.HearthLevel,
             cleared);

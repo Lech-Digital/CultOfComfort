@@ -20,14 +20,15 @@ public sealed record BaseData(
     long NightStartedAtUtcTicks = 0,
     NightReport? UnseenReport = null,
     IReadOnlyList<CultOfComfort.Simulation.Grid.GridPosition>? ClearedTerrain = null,
-    IReadOnlyList<TreeCutData>? TreeCuts = null);
+    IReadOnlyList<TreeCutData>? TreeCuts = null,
+    int LayoutVersion = 0);
 
 /// <summary>A wild tree cut at <see cref="CutAtUtcTicks"/>; it grows back after the regrow time.</summary>
 public sealed record TreeCutData(int X, int Y, long CutAtUtcTicks);
 
 public sealed record RaidData(int Id, ulong Seed, long WarningEndsAtUtcTicks);
 
-public sealed record BuildingData(int Id, BuildingType Type, int Level, int X, int Y, long? UpgradeEndsAtUtcTicks, long BufferMilli, long AsOfUtcTicks, bool Wrecked = false);
+public sealed record BuildingData(int Id, BuildingType Type, int Level, int X, int Y, long? UpgradeEndsAtUtcTicks, long BufferMilli, long AsOfUtcTicks, bool Wrecked = false, bool Rotated = false);
 
 public sealed class InvalidBaseDataException : Exception
 {

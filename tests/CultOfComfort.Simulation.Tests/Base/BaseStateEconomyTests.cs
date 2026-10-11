@@ -187,7 +187,7 @@ public class BaseStateEconomyTests
         var (state, _) = BaseWithWoodcutter();
 
         // Act
-        var outcome = Send(state, new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(4, 6)), T0.AddSeconds(5));
+        var outcome = Send(state, new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(7, 6)), T0.AddSeconds(5));
 
         // Assert
         outcome.Status.Should().Be(CommandStatus.Accepted);
@@ -202,15 +202,15 @@ public class BaseStateEconomyTests
         // Arrange — starting Timber 500; a Storage Hut costs 100, so place five... use a cheap path: spend down first.
         var state = NewBase();
         var at = T0;
-        Send(state, new PlaceBuilding(Guid.NewGuid(), BuildingType.StorageHut, new GridPosition(3, 9)), at);
+        Send(state, new PlaceBuilding(Guid.NewGuid(), BuildingType.StorageHut, new GridPosition(20, 11)), at);
         at = at.AddMinutes(1);
-        Send(state, new PlaceBuilding(Guid.NewGuid(), BuildingType.CultistHut, new GridPosition(4, 9)), at);
+        Send(state, new PlaceBuilding(Guid.NewGuid(), BuildingType.CultistHut, new GridPosition(23, 11)), at);
         at = at.AddMinutes(2);
-        Send(state, new PlaceBuilding(Guid.NewGuid(), BuildingType.PeatCut, new GridPosition(6, 9)), at);
+        Send(state, new PlaceBuilding(Guid.NewGuid(), BuildingType.PeatCut, new GridPosition(27, 13)), at);
         at = at.AddMinutes(1); // Timber left: 500 − 100 − 120 − 80 = 200; Scrap 370
-        Send(state, new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(7, 9)), at);
+        Send(state, new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(20, 14)), at);
         at = at.AddSeconds(30); // 150 Timber left
-        Send(state, new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(8, 9)), at);
+        Send(state, new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(23, 14)), at);
         at = at.AddSeconds(30); // 100 left
 
         // Act — upgrading the Hearth needs 600 Timber and 50 Scrap.

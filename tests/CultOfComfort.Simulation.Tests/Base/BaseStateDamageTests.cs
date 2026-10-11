@@ -33,7 +33,7 @@ public class BaseStateDamageTests
         fence.Levels[0].Health.Should().Be(50);
         fence.MaxCount(1).Should().Be(int.MaxValue);
         fence.IsTower.Should().BeFalse();
-        BuildingTable.Default.Version.Should().Be("village-2026.10.2");
+        BuildingTable.Default.Version.Should().Be("village-2026.10.3");
     }
 
     [Fact]
@@ -44,12 +44,12 @@ public class BaseStateDamageTests
         state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, Field), T0);
 
         // Act
-        var outcome = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WattleFence, new GridPosition(4, 6)), T0);
+        var outcome = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WattleFence, new GridPosition(7, 6)), T0);
 
         // Assert
         outcome.Status.Should().Be(CommandStatus.Accepted);
         state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.WattleFence).Level.Should().Be(1);
-        state.ToBattleLayout().Obstacles.Should().Contain(new GridPosition(4, 6));
+        state.ToBattleLayout().Obstacles.Should().Contain(new GridPosition(7, 6));
     }
 
     [Fact]
@@ -57,17 +57,19 @@ public class BaseStateDamageTests
     {
         // Arrange — a finished Woodcutter, a tower, and a Storage Hut still being built.
         var (state, woodcutter) = Built(BuildingType.Woodcutter);
-        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(4, 6)), T0);
-        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.StorageHut, new GridPosition(4, 9)), T0);
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(7, 6)), T0);
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.StorageHut, new GridPosition(20, 11)), T0);
 
         // Act
         var structures = state.ToBattleLayout().Structures;
 
         // Assert
         structures.Should().HaveCount(3, "every building but the Hearth");
-        structures.Single(s => s.Id == woodcutter).Should().Be(new PlacedStructure(woodcutter, Field, 60, 60));
-        structures.Single(s => s.Position == new GridPosition(4, 6)).MaxHealth.Should().Be(80);
-        structures.Single(s => s.Position == new GridPosition(4, 9)).MaxHealth.Should().Be(30, "still being built");
+        var lean = structures.Single(s => s.Id == woodcutter);
+        (lean.Position, lean.MaxHealth, lean.Health).Should().Be((Field, 60, 60));
+        lean.Tiles.Should().HaveCount(2, "a lean-to is 2×1");
+        structures.Single(s => s.Position == new GridPosition(7, 6)).MaxHealth.Should().Be(80);
+        structures.Single(s => s.Position == new GridPosition(20, 11)).MaxHealth.Should().Be(30, "still being built");
         VillageMap.Demo.ToBattleLayout(state.Snapshot(T0), BuildingTable.Default).Structures.Should().BeEquivalentTo(structures);
     }
 
@@ -191,7 +193,7 @@ public class BaseStateDamageTests
     public void Demolish_WreckedTower_RefundsNothing()
     {
         // Arrange — a wrecked chute must not become a free repair by demolish-and-rebuild.
-        var (state, id) = Built(BuildingType.SlurryChute, new GridPosition(4, 6));
+        var (state, id) = Built(BuildingType.SlurryChute, new GridPosition(7, 6));
         Wreck(state, id, T0.AddMinutes(1));
 
         // Act

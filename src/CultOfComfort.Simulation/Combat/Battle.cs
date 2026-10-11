@@ -64,7 +64,7 @@ public sealed class Battle
 
         foreach (var s in setup.Layout.Structures)
         {
-            _structures.Add(new Structure(s.Id, s.Position, s.MaxHealth, s.Health));
+            _structures.Add(new Structure(s.Id, s.Position, s.MaxHealth, s.Health, s.Tiles));
         }
     }
 
@@ -581,7 +581,7 @@ public sealed class Battle
         {
             foreach (var structure in _structures)
             {
-                if (!structure.IsWrecked && !enemy.StructuresHit.Contains(structure.Id) && IsNextTo(tile, structure.Position))
+                if (!structure.IsWrecked && !enemy.StructuresHit.Contains(structure.Id) && IsNextTo(tile, structure))
                 {
                     enemy.SmashTargetId = structure.Id;
                     enemy.SmashTicksRemaining = _balance.StructureSwingTicks;
@@ -596,7 +596,7 @@ public sealed class Battle
         }
 
         var target = FindStructure(enemy.SmashTargetId);
-        if (target == null || target.IsWrecked || !IsNextTo(tile, target.Position))
+        if (target == null || target.IsWrecked || !IsNextTo(tile, target))
         {
             enemy.CancelSwing(); // someone else wrecked it, or it was moved away: no point finishing the swing
             return false;
@@ -627,6 +627,20 @@ public sealed class Battle
     }
 
     private static bool IsNextTo(GridPosition a, GridPosition b) => Math.Abs(a.X - b.X) <= 1 && Math.Abs(a.Y - b.Y) <= 1;
+
+    /// <summary>Next to any tile of the structure's footprint.</summary>
+    private static bool IsNextTo(GridPosition tile, Structure structure)
+    {
+        foreach (var part in structure.Tiles)
+        {
+            if (IsNextTo(tile, part))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private Structure? FindStructure(int id)
     {
