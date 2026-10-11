@@ -22,10 +22,9 @@ shows the road tiles bobbing blue. Balance version `2026.10.2`, demo hash `12c3f
 
 - `Enemy` gains `Offset` (`FixVector2`, tiles) from its road point. `Battle.PositionOf(enemy)` = road point + offset, so
   towers, Hot Stones, Phantom Voice and the client all see the real position with no other change.
-- `EnemyStats` gains:
-  - `NoticeRange` — leaves the road when the Prophet is this close to its **road point** (Levy 2, Man-at-arms 1½, Zealot 0 = never).
-  - `Reach` — attacks when this close to the Prophet (Levy ½, Man-at-arms ½). For Zealots the existing `EngageRange`
-    (2½, thrown from the road) stays as-is.
+- `EnemyStats` gains `NoticeRange` — leaves the road when the Prophet is this close to its **road point** (Levy 2,
+  Man-at-arms 1½, Zealot 0 = never). The existing `EngageRange` becomes the **reach** for everyone: melee ½ tile
+  (Levy and Man-at-arms, down from ¾ and 1 — they now walk up to him), Zealot 2½ (thrown from the road).
 - `LeaderStats` gains `LureLeash` = 2½ tiles: a raider whose road point is farther than this from the Prophet walks back.
 - Each tick, per active raider, in the existing order:
   1. **Frightened** (Phantom Voice): walks back onto the road first (offset shrinks), then backwards as today.
@@ -38,7 +37,7 @@ shows the road tiles bobbing blue. Balance version `2026.10.2`, demo hash `12c3f
 - Raiders walk in straight lines and may clip a tower corner; no off-road pathfinding (owner-accepted).
 - Sluice pushback moves the road point back; the offset is kept (they are washed along, then walk on).
 - The offset is part of the state hash. Balance version becomes **`2026.10.3`**; the demo hash changes and is re-pinned
-  (Unity `DeterminismProbe.ExpectedHash`, a .NET golden test) and re-verified on the Pixel.
+  (Unity `DeterminismProbe.ExpectedHash`, pinned by the PlayMode bootstrap test) and re-verified on the Pixel.
 
 ## 2. Explanations (client)
 
@@ -60,7 +59,7 @@ shows the road tiles bobbing blue. Balance version `2026.10.2`, demo hash `12c3f
 - **.NET (xUnit):** lured within notice range leaves the road; attacks only within reach; returns when he walks beyond the
   leash, swoons, or is in revive grace; Zealots never leave the road; the engaged cap holds with lured raiders; a tower
   hits an off-road raider that would be out of range on the road; frightened raiders return to the road first; replay
-  of a lured battle matches the live hash; golden demo hash pinned.
+  of a lured battle matches the live hash; sluice pushback keeps the offset; an off-road raider never advances.
 - **Unity EditMode:** raider status selection (priority, max two); tips store shows each tip once and resets.
 - **Unity PlayMode:** the Settings sheet's Show tips again resets the store; existing suites green.
 - **Device:** Pixel 10 shows the new demo hash as MATCH; 60 fps in a busy Night; a screenshot of a lured raider and of the
