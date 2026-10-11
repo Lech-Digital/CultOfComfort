@@ -236,6 +236,7 @@ public sealed class Battle
         foreach (var enemy in _enemies.Where(e => e.IsActive))
         {
             enemy.PushBack(stats.PushbackTiles);
+            enemy.CancelSwing(); // washed off mid-swing
             enemy.ApplyMud(Tick + stats.MuddiedTicks);
             affected++;
         }
@@ -512,6 +513,7 @@ public sealed class Battle
 
             if (enemy.IsFrightened(Tick))
             {
+                enemy.CancelSwing();
                 // Scramble back onto the road first, then flee back up it.
                 if (enemy.IsOffRoad)
                 {
@@ -527,6 +529,7 @@ public sealed class Battle
 
             if (enemy.HasLeaderSlot)
             {
+                enemy.CancelSwing();
                 if (PositionOf(enemy).DistanceSquaredTo(Leader.Position) <= stats.EngageRange * stats.EngageRange)
                 {
                     FightLeader(enemy, stats);
@@ -563,8 +566,8 @@ public sealed class Battle
     }
 
     /// <summary>
-    /// A raider on the road stops for one swing at each intact structure within a tile of it (one at a time, each at
-    /// most once), then marches on. Returns true while it is busy swinging.
+    /// A raider on the road stops for one swing at each intact structure next to the road tile it is on (whole tiles,
+    /// diagonals included; one at a time, each at most once), then marches on. Returns true while it is busy swinging.
     /// </summary>
     private bool TrySmash(Enemy enemy, EnemyStats stats)
     {
@@ -573,13 +576,12 @@ public sealed class Battle
             return false;
         }
 
+        var tile = RoadTileOf(enemy);
         if (enemy.SmashTargetId < 0)
         {
-            var position = PositionOf(enemy);
             foreach (var structure in _structures)
             {
-                if (!structure.IsWrecked && !enemy.StructuresHit.Contains(structure.Id)
-                    && position.DistanceSquaredTo(structure.Position.ToVector()) <= Fix.One)
+                if (!structure.IsWrecked && !enemy.StructuresHit.Contains(structure.Id) && IsNextTo(tile, structure.Position))
                 {
                     enemy.SmashTargetId = structure.Id;
                     enemy.SmashTicksRemaining = _balance.StructureSwingTicks;
@@ -593,25 +595,50 @@ public sealed class Battle
             }
         }
 
+        var target = FindStructure(enemy.SmashTargetId);
+        if (target == null || target.IsWrecked || !IsNextTo(tile, target.Position))
+        {
+            enemy.CancelSwing(); // someone else wrecked it, or it was moved away: no point finishing the swing
+            return false;
+        }
+
         if (--enemy.SmashTicksRemaining > 0)
         {
             return true;
         }
 
-        var target = _structures.First(s => s.Id == enemy.SmashTargetId);
         enemy.StructuresHit.Add(target.Id);
-        enemy.SmashTargetId = -1;
-        if (!target.IsWrecked)
+        enemy.CancelSwing();
+        var wrecked = target.TakeHit(stats.StructureDamage);
+        _tickEvents.Add(new StructureHit(Tick, target.Id, enemy.Id, stats.StructureDamage, target.Health));
+        if (wrecked)
         {
-            var wrecked = target.TakeHit(stats.StructureDamage);
-            _tickEvents.Add(new StructureHit(Tick, target.Id, enemy.Id, stats.StructureDamage, target.Health));
-            if (wrecked)
-            {
-                _tickEvents.Add(new StructureWrecked(Tick, target.Id));
-            }
+            _tickEvents.Add(new StructureWrecked(Tick, target.Id));
         }
 
         return true;
+    }
+
+    /// <summary>The road tile a raider is on (its distance along the path, rounded to the nearest tile).</summary>
+    private GridPosition RoadTileOf(Enemy enemy)
+    {
+        var index = (enemy.DistanceAlongPath + Fix.Ratio(1, 2)).FloorToInt();
+        return Path[Math.Min(Math.Max(index, 0), Path.Count - 1)];
+    }
+
+    private static bool IsNextTo(GridPosition a, GridPosition b) => Math.Abs(a.X - b.X) <= 1 && Math.Abs(a.Y - b.Y) <= 1;
+
+    private Structure? FindStructure(int id)
+    {
+        foreach (var structure in _structures)
+        {
+            if (structure.Id == id)
+            {
+                return structure;
+            }
+        }
+
+        return null;
     }
 
     private bool IsWreckedAt(GridPosition tile)

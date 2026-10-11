@@ -159,4 +159,99 @@ public class StructureDamageTests
         // Assert
         b.StateHash.Should().Be(a.StateHash);
     }
+
+    /// <summary>A 40-tile corridor with a hut beside every road tile from x = 2 to 30; one raider at the given speed.</summary>
+    private static (Battle Battle, int Huts) LongRoad(Fix tilesPerSecond)
+    {
+        var huts = Enumerable.Range(2, 29).Select(x => new PlacedStructure(x, new GridPosition(x, 0), 60, 60)).ToArray();
+        var layout = new BattleLayout(40, 3, new GridPosition(0, 1), new GridPosition(39, 1), [], huts.Select(h => h.Position), new GridPosition(39, 2), huts);
+        var enemies = new Dictionary<EnemyType, EnemyStats>(BalanceTable.Default.Enemies);
+        enemies[EnemyType.Levy] = enemies[EnemyType.Levy] with { TilesPerSecond = tilesPerSecond };
+        var balance = new BalanceTable { HearthMaxHealth = 100_000, Enemies = enemies, MaxTicks = 20_000 };
+        return (new Battle(new BattleSetup(layout, 42, 1, 1, [], balance)), huts.Length);
+    }
+
+    [Theory]
+    [InlineData(1, 1)]    // Levy pace
+    [InlineData(3, 5)]    // Man-at-arms pace
+    [InlineData(11, 10)]  // Zealot pace
+    public void Step_RaiderAtAnyPaceAlongALongRoad_HitsEveryHutItPasses(int numerator, int denominator)
+    {
+        // Arrange
+        var (battle, huts) = LongRoad(Fix.Ratio(numerator, denominator));
+
+        // Act
+        var hits = RunToEnd(battle).OfType<StructureHit>().Select(h => h.StructureId).ToList();
+
+        // Assert
+        hits.Should().OnlyHaveUniqueItems().And.HaveCount(huts, "a hut beside the road is hit wherever it stands, at any walking pace");
+    }
+
+    [Fact]
+    public void Step_HutDiagonalToTheRoad_IsHit()
+    {
+        // Arrange — the road turns: spawn (0,1) → Hearth (9,1) with a wall forcing a bend; the hut sits diagonally to a road tile.
+        var battle = StartBattle(1, null, new PlacedStructure(5, new GridPosition(4, 0), 60, 60));
+        var path = battle.Path;
+        var diagonal = new PlacedStructure(6, new GridPosition(path[3].X + 1, path[3].Y + 1), 60, 60);
+        var layout = new BattleLayout(10, 3, new GridPosition(0, 1), new GridPosition(9, 1), [], new[] { diagonal.Position }, new GridPosition(9, 0), new[] { diagonal });
+        var diagonalBattle = new Battle(new BattleSetup(layout, 42, 1, 1, [], new BalanceTable { HearthMaxHealth = 100_000 }));
+
+        // Act
+        var hits = RunToEnd(diagonalBattle).OfType<StructureHit>();
+
+        // Assert
+        hits.Should().Contain(h => h.StructureId == 6);
+    }
+
+    [Fact]
+    public void Step_SluiceMidSwing_TheSwingIsCancelledNotLandedFromAfar()
+    {
+        // Arrange — the Prophet waits by the Hearth; wait until the Levy starts swinging at the hut at (5,0).
+        var battle = StartBattle(1, null, new PlacedStructure(1, new GridPosition(5, 0), 60, 60));
+        while (!battle.IsFinished && (battle.Enemies.Count == 0 || battle.Enemies[0].SmashTargetId < 0))
+        {
+            battle.Step();
+        }
+
+        // Act — the sluice washes it three tiles back mid-swing.
+        battle.Intervene(PlayerActionType.OpenSluiceGate);
+        var hits = new List<(StructureHit Hit, Fix X)>();
+        while (!battle.IsFinished && battle.Tick < 1000)
+        {
+            battle.Step();
+            foreach (var hit in battle.LastTickEvents.OfType<StructureHit>())
+            {
+                hits.Add((hit, battle.PositionOf(battle.Enemies[0]).X));
+            }
+        }
+
+        // Assert — when it does hit the hut, it is standing next to it.
+        hits.Should().OnlyContain(h => (h.X - Fix.FromInt(5)).Abs() <= Fix.FromInt(1) + Fix.Ratio(1, 2));
+    }
+
+    [Fact]
+    public void Step_FrightenedMidSwing_TheSwingIsCancelled()
+    {
+        // Arrange — a Levy that ignores the Prophet (no notice range); he stands across the road from the hut at (5,0).
+        var hut = new PlacedStructure(1, new GridPosition(5, 0), 60, 60);
+        var layout = new BattleLayout(10, 3, new GridPosition(0, 1), new GridPosition(9, 1), [], new[] { hut.Position }, new GridPosition(5, 2), new[] { hut });
+        var enemies = new Dictionary<EnemyType, EnemyStats>(BalanceTable.Default.Enemies);
+        enemies[EnemyType.Levy] = enemies[EnemyType.Levy] with { NoticeRange = Fix.Zero, EngageRange = Fix.Zero };
+        var battle = new Battle(new BattleSetup(layout, 42, 1, 1, [], new BalanceTable { HearthMaxHealth = 100_000, Enemies = enemies }));
+        while (!battle.IsFinished && (battle.Enemies.Count == 0 || battle.Enemies[0].SmashTargetId < 0))
+        {
+            battle.Step();
+        }
+
+        // Act
+        battle.Intervene(PlayerActionType.PhantomVoice);
+        battle.Step();
+
+        // Assert
+        battle.Enemies[0].IsFrightened(battle.Tick - 1).Should().BeTrue();
+        battle.Enemies[0].SmashTargetId.Should().Be(-1, "a fright breaks the swing");
+        battle.Enemies[0].SmashTicksRemaining.Should().Be(0);
+    }
 }
+

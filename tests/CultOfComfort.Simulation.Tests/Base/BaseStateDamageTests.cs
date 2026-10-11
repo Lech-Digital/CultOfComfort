@@ -186,4 +186,34 @@ public class BaseStateDamageTests
         BuildingTable.Default.RepairCost(BuildingType.PeatCut, 1).Should().Be(new ResourceBag(8, 0, 1, 0));
         BuildingTable.Default.RepairCost(BuildingType.WattleFence, 1).Should().Be(new ResourceBag(2, 0, 0, 0));
     }
+
+    [Fact]
+    public void Demolish_WreckedTower_RefundsNothing()
+    {
+        // Arrange — a wrecked chute must not become a free repair by demolish-and-rebuild.
+        var (state, id) = Built(BuildingType.SlurryChute, new GridPosition(4, 6));
+        Wreck(state, id, T0.AddMinutes(1));
+
+        // Act
+        state.Apply(new DemolishBuilding(Guid.NewGuid(), id), T0.AddMinutes(1)).Status.Should().Be(CommandStatus.Accepted);
+
+        // Assert
+        state.Snapshot(T0.AddMinutes(1)).Stock.Scrap.Should().Be(380 - 50 + 40, "paid 50, salvaged 40, no refund for the wreck");
+    }
+
+    [Fact]
+    public void Upgrade_WreckedBuilding_Rejected()
+    {
+        // Arrange
+        var (state, id) = Built(BuildingType.Woodcutter);
+        Wreck(state, id, T0.AddMinutes(1));
+
+        // Act
+        var outcome = state.Apply(new UpgradeBuilding(Guid.NewGuid(), id), T0.AddMinutes(1));
+
+        // Assert
+        outcome.Status.Should().Be(CommandStatus.Rejected);
+        outcome.Reason.Should().Contain("repair");
+    }
 }
+

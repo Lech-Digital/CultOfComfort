@@ -52,6 +52,13 @@ public sealed class Enemy
 
     internal HashSet<int> StructuresHit { get; } = new();
 
+    /// <summary>Breaks off a swing in progress (fright, a sluice, the Prophet): it does not count as a hit.</summary>
+    internal void CancelSwing()
+    {
+        SmashTargetId = -1;
+        SmashTicksRemaining = 0;
+    }
+
     /// <summary>Holds one of the Prophet's engaged slots this tick (chasing or fighting him).</summary>
     public bool HasLeaderSlot { get; internal set; }
 

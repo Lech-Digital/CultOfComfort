@@ -273,6 +273,11 @@ public sealed class BaseState
             return CommandOutcome.Reject($"{spec.Name} is as good as it gets.");
         }
 
+        if (building.Wrecked)
+        {
+            return CommandOutcome.Reject("Wrecked — repair it first.");
+        }
+
         if (building.IsUpgrading || Constructing != null)
         {
             return CommandOutcome.Reject("The builder is busy. One thing at a time; he's a cultist, not a crane.");
@@ -310,7 +315,11 @@ public sealed class BaseState
 
         var spec = _table.Spec(building.Type);
         var cost = spec.Levels[building.Level - 1].Cost;
-        _stock += spec.IsTower ? cost : cost.Half();
+        if (!building.Wrecked)
+        {
+            _stock += spec.IsTower ? cost : cost.Half(); // a wreck is worth nothing (else demolish-and-rebuild is a free repair)
+        }
+
         _buildings.Remove(building);
         return CommandOutcome.Accept();
     }
