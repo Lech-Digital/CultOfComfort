@@ -7,9 +7,24 @@ namespace CultOfComfort.Editor
     internal sealed class ArtImportSettings : AssetPostprocessor
     {
         private const string ArtRoot = "Assets/Resources/Art/";
+        private const string UiRoot = "Assets/Resources/UI/";
 
         private void OnPreprocessTexture()
         {
+            if (assetPath.StartsWith(UiRoot))
+            {
+                var ui = (TextureImporter)assetImporter;
+                ui.textureType = TextureImporterType.Default;
+                ui.filterMode = FilterMode.Bilinear;               // parchment and icons are painterly, not swatches
+                ui.mipmapEnabled = false;                          // UI is drawn at ~1:1
+                ui.textureCompression = TextureImporterCompression.Uncompressed;
+                ui.alphaIsTransparency = true;
+                ui.npotScale = TextureImporterNPOTScale.None;
+                ui.wrapMode = TextureWrapMode.Clamp;
+                ui.sRGBTexture = true;
+                return;
+            }
+
             if (assetPath != ArtRoot + "Palette.png")
             {
                 return;
