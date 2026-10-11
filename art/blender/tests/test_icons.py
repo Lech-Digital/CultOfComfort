@@ -8,7 +8,7 @@ import build
 
 ICONS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "icons")
 EXPECTED = ("timber", "scrap", "peat", "devotion", "penny", "comfort", "sluice", "voice", "stones", "speed",
-            "map", "research", "missionaries", "tithes", "shop", "cult", "settings", "portrait_prophet")
+            "map", "research", "missionaries", "tithes", "shop", "cult", "settings", "portrait_prophet", "mud", "swords")
 
 
 class IconTests(unittest.TestCase):

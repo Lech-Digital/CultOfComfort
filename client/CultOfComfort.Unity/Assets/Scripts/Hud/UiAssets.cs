@@ -14,7 +14,7 @@ namespace CultOfComfort.Client
         public static readonly string[] Icons =
         {
             "timber", "scrap", "peat", "devotion", "penny", "comfort", "sluice", "voice", "stones", "speed",
-            "map", "research", "missionaries", "tithes", "shop", "cult", "settings", "portrait_prophet",
+            "map", "research", "missionaries", "tithes", "shop", "cult", "settings", "portrait_prophet", "mud", "swords",
         };
     }
 }
