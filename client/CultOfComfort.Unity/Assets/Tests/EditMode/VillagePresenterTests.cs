@@ -98,5 +98,45 @@ namespace CultOfComfort.Client.Tests
             Assert.IsTrue(VillagePresenter.IsNewer(state.Snapshot(T0.AddSeconds(1)), after));
             Assert.IsTrue(VillagePresenter.IsNewer(after, null));
         }
+    
+        private static (BaseState State, int Id) WreckedWoodcutter()
+        {
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(3, 9)), T0);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+            var id = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Woodcutter).Id;
+            state.Apply(new RecordNightResult(Guid.NewGuid(), 1, 0, new[] { id }), T0);
+            return (state, id);
+        }
+
+        [Test]
+        public void Card_WreckedWoodcutter_OffersRepair()
+        {
+            // Arrange
+            var (state, id) = WreckedWoodcutter();
+
+            // Act
+            var card = VillagePresenter.Card(state.Snapshot(T0), BuildingTable.Default, id);
+
+            // Assert
+            Assert.IsTrue(card.IsWrecked);
+            Assert.AreEqual("Repair · 5 Timber", card.RepairLabel);
+            Assert.IsTrue(card.CanRepair);
+            Assert.AreEqual("Wrecked — repair first", card.UpgradeLabel);
+            Assert.IsFalse(card.CanUpgrade);
+        }
+
+        [Test]
+        public void BuildCards_Fence_IsAvailableAtHearthOne()
+        {
+            // Act
+            var fence = VillagePresenter.BuildCards(Fresh(), BuildingTable.Default).Single(c => c.Type == BuildingType.WattleFence);
+
+            // Assert
+            Assert.IsFalse(fence.Locked);
+            Assert.AreEqual("15 Timber", fence.Cost);
+            Assert.AreEqual("instant", fence.Time);
+            Assert.AreEqual("b_wattle_fence", fence.Icon);
+        }
     }
 }

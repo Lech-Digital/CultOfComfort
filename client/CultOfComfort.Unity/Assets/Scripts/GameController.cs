@@ -83,6 +83,7 @@ namespace CultOfComfort.Client
             _battleView.Announcement += Announce;
             _battleView.Floater += FloatNote;
             _battleView.SkillUsed += ShowFirstUseTip;
+            _battleView.StructureDamaged += (id, fraction, wrecked) => _board.ShowStructureHealth(id, fraction, wrecked);
 
             SetUpCamera();
             SetUpHud();
@@ -204,7 +205,7 @@ namespace CultOfComfort.Client
                     return;
                 }
 
-                if (building.Ready >= 1)
+                if (building.Ready >= 1 && !building.Wrecked) // a wreck always opens its card (to repair it)
                 {
                     var outcome = await SendVillage(new Collect(Guid.NewGuid(), building.Id));
                     if (outcome.Status == CommandStatus.Accepted)
@@ -465,6 +466,7 @@ namespace CultOfComfort.Client
         private async void BackToDusk()
         {
             var stars = _battle?.Result?.Stars ?? 0;
+            var wrecked = _battle?.Structures.Where(s => s.IsWrecked).Select(s => s.Id).ToList() ?? new List<int>();
             var night = _night;
             _battleView.Clear();
             _battle = null;
@@ -475,7 +477,7 @@ namespace CultOfComfort.Client
             Announce("Dawn. Rebuild, rearrange, prepare for tomorrow's disappointment.");
             try
             {
-                var outcome = await SendVillage(new RecordNightResult(Guid.NewGuid(), night, stars));
+                var outcome = await SendVillage(new RecordNightResult(Guid.NewGuid(), night, stars, wrecked));
                 if (outcome.Status == CommandStatus.Accepted && outcome.Collected.Scrap > 0)
                 {
                     Announce($"Dawn. {outcome.Collected.Scrap} Scrap salvaged from Wulfric's dropped horseshoes.");
@@ -591,6 +593,7 @@ namespace CultOfComfort.Client
             _hud.UpgradeClicked += () => SendFromCard(b => b.Type == BuildingType.Hearth ? (BaseCommand)new UpgradeHearth(Guid.NewGuid()) : new UpgradeBuilding(Guid.NewGuid(), b.Id));
             _hud.DemolishClicked += () => SendFromCard(b => new DemolishBuilding(Guid.NewGuid(), b.Id), closeCard: true);
             _hud.FinishNowClicked += () => SendFromCard(_ => new FinishConstructionNow(Guid.NewGuid()));
+            _hud.RepairClicked += () => SendFromCard(b => new RepairBuilding(Guid.NewGuid(), b.Id));
             _hud.BuildingCardClosed += () => _cardBuilding = null;
             _hud.StartNightClicked += StartNight;
             _hud.SluiceClicked += () => _battle?.Intervene(PlayerActionType.OpenSluiceGate);

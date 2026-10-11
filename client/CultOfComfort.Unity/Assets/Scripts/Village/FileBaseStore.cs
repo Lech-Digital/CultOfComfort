@@ -78,7 +78,7 @@ namespace CultOfComfort.Client
             buildings = data.Buildings.Select(b => new BuildingDto
             {
                 id = b.Id, type = b.Type.ToString(), level = b.Level, x = b.X, y = b.Y,
-                upgradeEndsAtTicks = b.UpgradeEndsAtUtcTicks ?? -1, bufferMilli = b.BufferMilli, asOfTicks = b.AsOfUtcTicks,
+                upgradeEndsAtTicks = b.UpgradeEndsAtUtcTicks ?? -1, bufferMilli = b.BufferMilli, asOfTicks = b.AsOfUtcTicks, wrecked = b.Wrecked,
             }).ToList(),
             recentCommands = data.RecentCommands.Select(g => g.ToString()).ToList(),
         });
@@ -113,7 +113,7 @@ namespace CultOfComfort.Client
                     throw new InvalidBaseDataException($"unknown building type '{b.type}'");
                 }
 
-                buildings.Add(new BuildingData(b.id, type, b.level, b.x, b.y, b.upgradeEndsAtTicks < 0 ? (long?)null : b.upgradeEndsAtTicks, b.bufferMilli, b.asOfTicks));
+                buildings.Add(new BuildingData(b.id, type, b.level, b.x, b.y, b.upgradeEndsAtTicks < 0 ? (long?)null : b.upgradeEndsAtTicks, b.bufferMilli, b.asOfTicks, b.wrecked));
             }
 
             var recent = (dto.recentCommands ?? new List<string>()).Select(s => Guid.TryParse(s, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).ToList();
@@ -146,6 +146,7 @@ namespace CultOfComfort.Client
             public long upgradeEndsAtTicks = -1;
             public long bufferMilli;
             public long asOfTicks;
+            public bool wrecked;
         }
     }
 }

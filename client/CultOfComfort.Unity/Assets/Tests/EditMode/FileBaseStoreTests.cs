@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CultOfComfort.Simulation.Base;
@@ -84,6 +85,22 @@ namespace CultOfComfort.Client.Tests
 
             // Act & Assert
             Assert.Throws<InvalidBaseDataException>(() => VillageSaveMapper.FromJson(json));
+        }
+    
+        [Test]
+        public void Mapper_WreckedFlag_RoundTrips()
+        {
+            // Arrange
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WattleFence, new GridPosition(4, 6)), T0);
+            var fence = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.WattleFence).Id;
+            state.Apply(new RecordNightResult(Guid.NewGuid(), 1, 0, new[] { fence }), T0);
+
+            // Act
+            var back = VillageSaveMapper.FromJson(VillageSaveMapper.ToJson(state.ToData()));
+
+            // Assert
+            Assert.IsTrue(BaseState.Restore(BuildingTable.Default, VillageMap.Demo, back).Snapshot(T0).Building(fence).Wrecked);
         }
     }
 }

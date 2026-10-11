@@ -113,6 +113,7 @@ namespace CultOfComfort.Client
         private readonly Button _upgrade;
         private readonly Button _finishNow;
         private readonly Button _demolish;
+        private Button _repair;
         private readonly Button _sluice;
         private readonly Button _voice;
         private readonly Button _stones;
@@ -278,6 +279,7 @@ namespace CultOfComfort.Client
         public event Action UpgradeClicked;
         public event Action DemolishClicked;
         public event Action FinishNowClicked;
+        public event Action RepairClicked;
         public event Action BuildingCardClosed;
         public event Action StartNightClicked;
         public event Action SluiceClicked;
@@ -392,6 +394,9 @@ namespace CultOfComfort.Client
             _upgrade.SetEnabled(card.CanUpgrade);
             Show(_finishNow, card.IsUpgrading && Debug.isDebugBuild);
             Show(_demolish, card.CanDemolish);
+            Show(_repair, card.IsWrecked);
+            _repair.text = card.RepairLabel;
+            _repair.SetEnabled(card.CanRepair);
         }
 
         private void PickCard(BuildCardModel card)
@@ -560,13 +565,15 @@ namespace CultOfComfort.Client
             finishNow.name = "finish-now";
             demolish = ButtonWith("Demolish", () => DemolishClicked?.Invoke(), "plain");
             demolish.name = "demolish";
+            _repair = ButtonWith(string.Empty, () => RepairClicked?.Invoke(), "plain");
+            _repair.name = "repair";
             var close = ButtonWith("Close", () =>
             {
                 Show(_buildingCard, false);
                 BuildingCardClosed?.Invoke();
             }, "plain");
             close.name = "card-close";
-            foreach (var element in new VisualElement[] { title, output, ready, remaining, upgrade, finishNow, demolish, close })
+            foreach (var element in new VisualElement[] { title, output, ready, remaining, _repair, upgrade, finishNow, demolish, close })
             {
                 sheet.Add(element);
             }

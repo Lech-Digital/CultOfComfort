@@ -179,5 +179,33 @@ namespace CultOfComfort.Client.Tests
             // Assert
             Assert.AreEqual(DisplayStyle.Flex, root.Q("building-card").resolvedStyle.display, "you must still be able to upgrade or demolish it");
         }
+    
+        [UnityTest]
+        public IEnumerator Card_RepairAWreckedBuilding_FixesIt()
+        {
+            // Arrange — a finished Woodcutter, wrecked by last Night.
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, _clock.UtcNow);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(3, 9)), _clock.UtcNow);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), _clock.UtcNow);
+            var id = state.Snapshot(_clock.UtcNow).Buildings.Single(b => b.Type == BuildingType.Woodcutter).Id;
+            state.Apply(new RecordNightResult(Guid.NewGuid(), 1, 0, new[] { id }), _clock.UtcNow);
+            var store = new Store { Saved = state.ToData() };
+            VillageComposition.Override = () => new LocalBaseGateway(store, _clock, BuildingTable.Default, VillageMap.Demo, _ => { });
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+
+            // Act
+            Tap(game, new GridPosition(3, 9));
+            yield return Frames(2);
+            Click(root.Q<Button>("repair"));
+            yield return Frames(2);
+
+            // Assert
+            var snapshot = Snapshot(game);
+            Assert.IsFalse(snapshot.Building(id).Wrecked);
+            Assert.AreEqual(450 - 5, snapshot.Stock.Timber, "charged 5 Timber (10% of 50)");
+        }
     }
 }

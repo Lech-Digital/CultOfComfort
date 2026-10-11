@@ -252,3 +252,4 @@
 .landscape .bar { padding: 6px 10px; }
 .landscape .primary { height: 44px; }
 .sheet .sheet-title { white-space: normal; font-size: 19px; }
+.icon-b_wattle_fence { background-image: resource("UI/Icons/b_wattle_fence"); }

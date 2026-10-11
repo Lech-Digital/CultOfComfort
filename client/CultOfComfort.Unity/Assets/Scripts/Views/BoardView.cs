@@ -27,11 +27,14 @@ namespace CultOfComfort.Client
 
         /// <summary>Blender models face +Z; the board camera looks from −Z, so static buildings turn round to face it.</summary>
         private static readonly Quaternion FaceCamera = Quaternion.Euler(0f, 180f, 0f);
+        private static readonly Color Soggy = new Color(0.44f, 0.5f, 0.53f);
+        private MaterialPropertyBlock _block;
 
         public Vector3 HearthPosition { get; private set; }
 
         public void Build(IReadOnlyList<GridPosition> rocks)
         {
+            _block = new MaterialPropertyBlock();
             _root = new GameObject("Board").transform;
             _root.SetParent(transform, false);
             _roadRoot = new GameObject("Road").transform;
@@ -106,7 +109,14 @@ namespace CultOfComfort.Client
 
                 if (visual.Ready != null)
                 {
-                    visual.Ready.enabled = building.Ready >= 1;
+                    visual.Ready.enabled = building.Ready >= 1 && !building.Wrecked;
+                }
+
+                if (visual.Wrecked != building.Wrecked)
+                {
+                    visual.Wrecked = building.Wrecked;
+                    TintBuilding(visual, building.Wrecked);
+                    visual.Health.SetActive(false);
                 }
             }
 
@@ -114,6 +124,45 @@ namespace CultOfComfort.Client
             {
                 _buildings[id].Destroy();
                 _buildings.Remove(id);
+            }
+        }
+
+        /// <summary>During a Night: a health bar over a damaged building; a wreck turns it soggy at once.</summary>
+        public void ShowStructureHealth(int id, float fraction, bool wrecked)
+        {
+            if (!_buildings.TryGetValue(id, out var visual))
+            {
+                return;
+            }
+
+            visual.Health.SetActive(fraction > 0f && fraction < 1f);
+            visual.Health.transform.localScale = new Vector3(0.7f * Mathf.Clamp01(fraction), 0.07f, 0.07f);
+            Shapes.Tint(visual.Health.GetComponent<Renderer>(), fraction > 0.4f ? Palette.HealthGood : Palette.HealthBad, _block);
+            if (wrecked && !visual.Wrecked)
+            {
+                visual.Wrecked = true;
+                TintBuilding(visual, true);
+            }
+        }
+
+        /// <summary>Soggy grey-blue while wrecked; the palette's own colours otherwise.</summary>
+        private void TintBuilding(BuildingVisual visual, bool wrecked)
+        {
+            foreach (var renderer in visual.Root.GetComponentsInChildren<Renderer>())
+            {
+                if (renderer.gameObject == visual.Bar || renderer.gameObject == visual.Health)
+                {
+                    continue;
+                }
+
+                if (wrecked)
+                {
+                    Shapes.Tint(renderer, Soggy, _block);
+                }
+                else
+                {
+                    renderer.SetPropertyBlock(null);
+                }
             }
         }
 
@@ -311,6 +360,7 @@ namespace CultOfComfort.Client
             BuildingType.Cistern => "cistern",
             BuildingType.SlurryChute => "slurry_chute",
             BuildingType.SaplingFlinger => "sapling_flinger",
+            BuildingType.WattleFence => "fence",
             _ => null,
         };
 
@@ -356,6 +406,8 @@ namespace CultOfComfort.Client
 
             visual.Bar = Shapes.Create(PrimitiveType.Cube, Palette.Highlight, new Vector3(0f, 1.5f, 0f), new Vector3(0.7f, 0.07f, 0.07f), visual.Root, "Construction");
             visual.Bar.SetActive(false);
+            visual.Health = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, 1.3f, 0f), new Vector3(0.7f, 0.07f, 0.07f), visual.Root, "Health");
+            visual.Health.SetActive(false);
             var icon = ResourceIcon(building.Type);
             if (icon != null && building.Level > 0 && IconSprites.Get(icon) != null)
             {
@@ -378,6 +430,8 @@ namespace CultOfComfort.Client
             public GameObject Bar;
             public SpriteRenderer Ready;
             public float ReadyHeight;
+            public GameObject Health;
+            public bool Wrecked;
 
             public void Destroy() => UnityEngine.Object.Destroy(Root.gameObject);
         }

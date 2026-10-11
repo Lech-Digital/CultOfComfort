@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using CultOfComfort.Simulation.Balance;
 using CultOfComfort.Simulation.Combat;
 using UnityEngine;
@@ -42,6 +43,9 @@ namespace CultOfComfort.Client
 
         /// <summary>A skill was actually used (never for a rejected order): drives the first-use tips.</summary>
         public event Action<PlayerActionType> SkillUsed;
+
+        /// <summary>A village structure was hit: id, health fraction left, wrecked.</summary>
+        public event Action<int, float, bool> StructureDamaged;
 
         // Unity objects must not be created in field initializers or constructors — Unity owns component construction.
         private void Awake() => _block = new MaterialPropertyBlock();
@@ -336,6 +340,24 @@ namespace CultOfComfort.Client
                     }
 
                     break;
+                case StructureHit hit:
+                {
+                    var structure = _battle.Structures.First(s => s.Id == hit.StructureId);
+                    Floater?.Invoke(Shapes.ToWorld(structure.Position) + Vector3.up * 1.4f, "SMASH!");
+                    StructureDamaged?.Invoke(structure.Id, structure.MaxHealth > 0 ? hit.HealthRemaining / (float)structure.MaxHealth : 0f, false);
+                    break;
+                }
+
+                case StructureWrecked wrecked:
+                {
+                    var structure = _battle.Structures.First(s => s.Id == wrecked.StructureId);
+                    var at = Shapes.ToWorld(structure.Position) + Vector3.up * 0.5f;
+                    var poof = Fx("fx_poof", at) ?? Shapes.Create(PrimitiveType.Sphere, Palette.Linen, at, Vector3.zero, _root, "Wreck");
+                    AddEffect(poof, 0.6f, (go, t) => go.transform.localScale = Vector3.one * (1f - t) * 3f * Mathf.Sqrt(t));
+                    StructureDamaged?.Invoke(structure.Id, 0f, true);
+                    break;
+                }
+
                 case LeaderSwooned _:
                     _shake = 0.15f;
                     Announcement?.Invoke("The Prophet has fainted. Dramatically, into the mud. Back in 10 seconds.");

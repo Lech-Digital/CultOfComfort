@@ -15,6 +15,7 @@ namespace CultOfComfort.Client
     {
         public int BuildingId; public BuildingType Type; public string Title; public string Output; public string Ready;
         public string UpgradeLabel; public bool CanUpgrade; public bool CanDemolish; public bool IsUpgrading; public string Remaining; public bool IsHearth;
+        public bool IsWrecked; public string RepairLabel; public bool CanRepair;
     }
 
     /// <summary>Turns a village snapshot into what the HUD shows. Pure: no Unity, easy to test.</summary>
@@ -29,6 +30,7 @@ namespace CultOfComfort.Client
             BuildingType.CultistHut => "b_cultist_hut",
             BuildingType.Cistern => "b_cistern",
             BuildingType.SlurryChute => "b_slurry_chute",
+            BuildingType.WattleFence => "b_wattle_fence",
             _ => "b_sapling_flinger",
         };
 
@@ -54,15 +56,19 @@ namespace CultOfComfort.Client
             var spec = table.Spec(b.Type);
             var maxed = b.Level >= spec.MaxLevel || spec.IsTower;
             var next = maxed ? null : spec.Levels[b.Level];
-            var upgradeLabel = b.IsUpgrading ? (b.Level == 0 ? "Being built" : "Upgrading") : maxed ? "Max level" : $"Upgrade · {next.Cost} · {Duration(next.BuildSeconds)}";
+            var repair = table.RepairCost(b.Type, b.Level);
+            var upgradeLabel = b.Wrecked ? "Wrecked — repair first" : b.IsUpgrading ? (b.Level == 0 ? "Being built" : "Upgrading") : maxed ? "Max level" : $"Upgrade · {next.Cost} · {Duration(next.BuildSeconds)}";
             return new BuildingCardModel
             {
                 BuildingId = b.Id, Type = b.Type, IsHearth = b.Type == BuildingType.Hearth,
                 Title = b.Level == 0 ? $"{spec.Name} · being built" : $"{spec.Name} · level {b.Level}",
-                Output = b.Level == 0 ? string.Empty : spec.Produces != null ? $"+{b.PerHour} {spec.Produces}/h" : Effect(spec, b.Level),
+                IsWrecked = b.Wrecked,
+                RepairLabel = b.Wrecked ? $"Repair · {repair}" : string.Empty,
+                CanRepair = b.Wrecked && snapshot.Stock.Covers(repair),
+                Output = b.Wrecked ? "Wrecked — produces nothing" : b.Level == 0 ? string.Empty : spec.Produces != null ? $"+{b.PerHour} {spec.Produces}/h" : Effect(spec, b.Level),
                 Ready = spec.Produces != null && b.Level > 0 ? $"{b.Ready}/{b.Capacity} ready" : string.Empty,
                 UpgradeLabel = upgradeLabel,
-                CanUpgrade = !maxed && !b.IsUpgrading && snapshot.ConstructionEndsAtUtc == null && snapshot.Stock.Covers(next.Cost)
+                CanUpgrade = !b.Wrecked && !maxed && !b.IsUpgrading && snapshot.ConstructionEndsAtUtc == null && snapshot.Stock.Covers(next.Cost)
                              && (b.Type == BuildingType.Hearth || b.Level + 1 <= snapshot.HearthLevel),
                 CanDemolish = b.Type != BuildingType.Hearth && !b.IsUpgrading,
                 IsUpgrading = b.IsUpgrading,
