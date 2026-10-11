@@ -12,8 +12,7 @@ namespace CultOfComfort.Simulation.Base;
 /// <param name="SluiceCharges">Extra Open Sluice charges per Night (Cistern).</param>
 /// <param name="Health">How much smashing it takes in a Night before it is wrecked.</param>
 /// <param name="Beds">Villagers it houses.</param>
-/// <param name="MinHearth">The Hearth level this level needs (0 = whatever the building needs).</param>
-public sealed record BuildingLevel(ResourceBag Cost, int BuildSeconds, int PerHour = 0, int StorageBonus = 0, int SluiceCharges = 0, int Health = 0, int Beds = 0, int MinHearth = 0);
+public sealed record BuildingLevel(ResourceBag Cost, int BuildSeconds, int PerHour = 0, int StorageBonus = 0, int SluiceCharges = 0, int Health = 0, int Beds = 0);
 
 /// <param name="MaxCountByHearth">How many may stand at Hearth level 1, 2, 3.</param>
 public sealed record BuildingSpec(
@@ -124,8 +123,11 @@ public sealed class BuildingTable
             new[] { new BuildingLevel(new ResourceBag(0, 0, 70, 0), 0, Health: 80) }, Tower: TowerType.SaplingFlinger),
         [BuildingType.WattleFence] = new(BuildingType.WattleFence, "Wattle Fence", 1, new[] { Unlimited, Unlimited, Unlimited },
             new[] { new BuildingLevel(new ResourceBag(15, 0, 0, 0), 0, Health: 50) }),
-        [BuildingType.WoodenWall] = new(BuildingType.WoodenWall, "Wooden Wall", 1, new[] { Unlimited, Unlimited, Unlimited },
-            new[] { new BuildingLevel(new ResourceBag(30, 0, 0, 0), 0, Health: 250) }),
+        [BuildingType.WoodenWall] = new(BuildingType.WoodenWall, "Wooden Wall", 1, new[] { Unlimited, Unlimited, Unlimited }, new[]
+        {
+            new BuildingLevel(new ResourceBag(30, 0, 0, 0), 0, Health: 250),
+            new BuildingLevel(new ResourceBag(10, 0, 20, 0), 0, Health: 600), // the Stone Wall (level 2 needs Hearth 2)
+        }),
         [BuildingType.Gate] = new(BuildingType.Gate, "Gate", 1, new[] { Unlimited, Unlimited, Unlimited },
             new[] { new BuildingLevel(new ResourceBag(40, 0, 10, 0), 0, Health: 200) }),
         [BuildingType.Cottage] = new(BuildingType.Cottage, "Cottage", 1, new[] { 3, 5, 8 }, new[]

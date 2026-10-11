@@ -68,7 +68,9 @@ namespace CultOfComfort.Client
             var maxed = b.Level >= spec.MaxLevel || spec.IsTower;
             var next = maxed ? null : spec.Levels[b.Level];
             var repair = table.RepairCost(b.Type, b.Level);
-            var upgradeLabel = b.Wrecked ? "Wrecked — repair first" : b.IsUpgrading ? (b.Level == 0 ? "Being built" : "Upgrading") : maxed ? "Max level" : $"Upgrade · {next.Cost} · {Duration(next.BuildSeconds)}";
+            var upgradeLabel = b.Wrecked ? "Wrecked — repair first" : b.IsUpgrading ? (b.Level == 0 ? "Being built" : "Upgrading") : maxed ? "Max level"
+                : b.Type == BuildingType.WoodenWall ? $"Rebuild in stone · {next.Cost}"
+                : next.BuildSeconds == 0 ? $"Upgrade · {next.Cost}" : $"Upgrade · {next.Cost} · {Duration(next.BuildSeconds)}";
             if (b.Type == BuildingType.Tree)
             {
                 return new BuildingCardModel
@@ -84,7 +86,8 @@ namespace CultOfComfort.Client
             {
                 DemolishLabel = b.Type == BuildingType.Stone ? $"Take it away · +{table.Spec(b.Type).Levels[0].Cost}" : "Demolish",
                 BuildingId = b.Id, Type = b.Type, IsHearth = b.Type == BuildingType.Hearth,
-                Title = b.Level == 0 ? $"{spec.Name} · being built" : $"{spec.Name} · level {b.Level}",
+                Title = b.Type == BuildingType.WoodenWall ? (b.Level >= 2 ? "Stone Wall" : "Wooden Wall")
+                    : b.Level == 0 ? $"{spec.Name} · being built" : $"{spec.Name} · level {b.Level}",
                 IsWrecked = b.Wrecked,
                 RepairLabel = b.Wrecked ? $"Repair · {repair}" : string.Empty,
                 CanRepair = b.Wrecked && snapshot.Stock.Covers(repair),

@@ -631,7 +631,10 @@ namespace CultOfComfort.Client
                     Shapes.Create(PrimitiveType.Cube, Palette.Road, new Vector3(0f, 0.012f, 0f), new Vector3(size.x - 0.12f, 0.02f, size.y - 0.12f), visual.Root, "Plot");
                 }
 
-                var model = ArtLibrary.Instantiate(building.Type == BuildingType.Tree && building.Level == 0 ? "bush" : ModelName(building.Type), visual.Root);
+                var modelName = building.Type == BuildingType.Tree && building.Level == 0 ? "bush"
+                    : building.Type == BuildingType.WoodenWall && building.Level >= 2 ? "stone_wall"
+                    : ModelName(building.Type);
+                var model = ArtLibrary.Instantiate(modelName, visual.Root);
                 var grow = Mathf.Min(size.x, size.y); // big footprints get a big model
                 var scale = (building.Type == BuildingType.Stone ? 0.9f : building.Level == 0 ? 0.5f : 0.8f) * grow; // a half-built shell (or a sapling) until it is done
                 if (model != null)

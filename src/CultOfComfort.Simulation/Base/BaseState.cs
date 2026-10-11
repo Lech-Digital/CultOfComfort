@@ -673,7 +673,8 @@ public sealed class BaseState
             return CommandOutcome.Reject("Wrecked — repair it first.");
         }
 
-        if (building.IsUpgrading || Constructing != null)
+        var instant = spec.Levels[building.Level].BuildSeconds == 0; // a wall turned to stone needs no builder
+        if (building.IsUpgrading || (!instant && Constructing != null))
         {
             return CommandOutcome.Reject("The builder is busy. One thing at a time; he's a cultist, not a crane.");
         }
@@ -692,6 +693,11 @@ public sealed class BaseState
         _stock -= cost;
         Materialize(building, now);
         building.UpgradeEndsAtUtc = now.AddSeconds(spec.Levels[building.Level].BuildSeconds);
+        if (instant)
+        {
+            Advance(now);
+        }
+
         return CommandOutcome.Accept();
     }
 

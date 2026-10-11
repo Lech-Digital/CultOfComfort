@@ -42,7 +42,7 @@
 ## C. Stone wall
 
 - The Wooden Wall gets a second level, **Stone Wall**: 10 Timber + 20 Scrap, instant, 600 HP, needs **Hearth 2**
-  (`BuildingLevel.MinHearth`). Upgrade a wall in place from its card. New model `stone_wall`.
+  (the usual rule: level N needs Hearth N), and no builder. Upgrade a wall in place from its card. New model `stone_wall`.
 
 ## Verification
 

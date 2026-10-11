@@ -329,5 +329,27 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("b_cottage", cottage.Icon);
             Assert.AreEqual("2×2", cottage.Size);
         }
+
+        [Test]
+        public void Card_WoodenWall_OffersStoneAndThenIsAStoneWall()
+        {
+            // Arrange — Hearth 2, a wooden wall.
+            var state = BaseState.CreateNew(new BuildingTable { StartingStock = new ResourceBag(2000, 900, 900, 0) }, VillageMap.Demo, T0);
+            state.Apply(new UpgradeHearth(Guid.NewGuid()), T0);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WoodenWall, new GridPosition(13, 4)), T0);
+            var wall = state.Snapshot(T0).BuildingAt(new GridPosition(13, 4)).Id;
+
+            // Act
+            var wooden = VillagePresenter.Card(state.Snapshot(T0), BuildingTable.Default, wall);
+            state.Apply(new UpgradeBuilding(Guid.NewGuid(), wall), T0);
+            var stone = VillagePresenter.Card(state.Snapshot(T0), BuildingTable.Default, wall);
+
+            // Assert
+            Assert.AreEqual("Rebuild in stone · 10 Timber · 20 Scrap", wooden.UpgradeLabel);
+            Assert.IsTrue(wooden.CanUpgrade);
+            Assert.AreEqual("Stone Wall", stone.Title);
+            Assert.AreEqual("Max level", stone.UpgradeLabel);
+        }
     }
 }
