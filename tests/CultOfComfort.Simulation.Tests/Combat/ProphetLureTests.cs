@@ -249,6 +249,43 @@ public class ProphetLureTests
     }
 
     [Fact]
+    public void Step_NewcomerNoticesHimWhileTheCapIsFull_FightersInReachKeepTheirSlots()
+    {
+        // Arrange — a long road past a Prophet parked near its end: Zealots pin him from range while Levies and
+        // men-at-arms arrive later and notice him. A fighter still in reach must never be bumped by a newcomer.
+        var layout = new BattleLayout(12, 5, new GridPosition(0, 2), new GridPosition(11, 2), [], [], new GridPosition(10, 0));
+        var balance = Balance();
+        var bumped = 0;
+        PlayerInput[] inputs = [new(500, PlayerActionType.OpenSluiceGate), new(900, PlayerActionType.OpenSluiceGate)];
+
+        // Act
+        for (var seed = 1UL; seed <= 40; seed++)
+        {
+            var battle = new Battle(new BattleSetup(layout, seed, Budget: 40, WaveCount: 3, inputs, balance));
+            var fighting = new HashSet<int>();
+            while (!battle.IsFinished && battle.Tick < 4000)
+            {
+                battle.Step();
+                foreach (var enemy in battle.Enemies)
+                {
+                    var stats = balance.Enemies[enemy.Type];
+                    var inReach = battle.PositionOf(enemy).DistanceSquaredTo(battle.Leader.Position) <= stats.EngageRange * stats.EngageRange;
+                    var targetable = !battle.Leader.IsIgnoredByEnemies(battle.Tick - 1, balance.Leader.ReviveGraceTicks);
+                    if (fighting.Contains(enemy.Id) && !enemy.IsFightingLeader && enemy.IsActive && inReach && targetable && !enemy.IsFrightened(battle.Tick - 1))
+                    {
+                        bumped++;
+                    }
+                }
+
+                fighting = battle.Enemies.Where(e => e.IsFightingLeader).Select(e => e.Id).ToHashSet();
+            }
+        }
+
+        // Assert
+        bumped.Should().Be(0);
+    }
+
+    [Fact]
     public void Simulate_LuredBattleReplay_MatchesLiveStateHash()
     {
         // Arrange

@@ -480,7 +480,7 @@ public sealed class Battle
 
     private void MoveEnemies()
     {
-        var engaged = 0;
+        AssignLeaderSlots();
         foreach (var enemy in _enemies)
         {
             enemy.IsFightingLeader = false;
@@ -511,9 +511,8 @@ public sealed class Battle
                 continue;
             }
 
-            if (engaged < _balance.Leader.MaxEngaged && WantsLeader(enemy, stats))
+            if (enemy.HasLeaderSlot)
             {
-                engaged++;
                 if (PositionOf(enemy).DistanceSquaredTo(Leader.Position) <= stats.EngageRange * stats.EngageRange)
                 {
                     FightLeader(enemy, stats);
@@ -543,6 +542,42 @@ public sealed class Battle
             _tickEvents.Add(new HearthDamaged(Tick, enemy.Id, enemy.Type, stats.HearthDamage, HearthHealth));
         }
     }
+
+    /// <summary>
+    /// Hands out the Prophet's engaged slots (at most MaxEngaged): raiders that held one last tick keep it first, then
+    /// newcomers in list order — so a raider already fighting is never bumped by one still walking over.
+    /// </summary>
+    private void AssignLeaderSlots()
+    {
+        var engaged = 0;
+        foreach (var enemy in _enemies)
+        {
+            var held = enemy.HasLeaderSlot;
+            enemy.HasLeaderSlot = false;
+            if (held && Contends(enemy) && engaged < _balance.Leader.MaxEngaged)
+            {
+                enemy.HasLeaderSlot = true;
+                engaged++;
+            }
+        }
+
+        foreach (var enemy in _enemies)
+        {
+            if (engaged >= _balance.Leader.MaxEngaged)
+            {
+                return;
+            }
+
+            if (!enemy.HasLeaderSlot && Contends(enemy))
+            {
+                enemy.HasLeaderSlot = true;
+                engaged++;
+            }
+        }
+    }
+
+    private bool Contends(Enemy enemy) =>
+        enemy.IsActive && !enemy.IsFrightened(Tick) && WantsLeader(enemy, _balance.Enemies[enemy.Type]);
 
     /// <summary>
     /// Melee raiders (NoticeRange &gt; 0) leave the road when he is within notice range of their road point and keep
@@ -600,6 +635,7 @@ public sealed class Battle
             _hasher.Add(enemy.SlowedUntilTick);
             _hasher.Add(enemy.FrightenedUntilTick);
             _hasher.Add(enemy.IsFightingLeader ? 1 : 0);
+            _hasher.Add(enemy.HasLeaderSlot ? 1 : 0);
             _hasher.Add(enemy.LeaderAttackCooldownTicksRemaining);
         }
 

@@ -43,6 +43,9 @@ public sealed class Enemy
     public bool IsFightingLeader { get; internal set; }
     public int LeaderAttackCooldownTicksRemaining { get; internal set; }
 
+    /// <summary>Holds one of the Prophet's engaged slots this tick (chasing or fighting him).</summary>
+    public bool HasLeaderSlot { get; internal set; }
+
     public bool IsActive => State == EnemyState.Marching;
 
     public bool IsMuddied(int tick) => tick < MuddiedUntilTick;
