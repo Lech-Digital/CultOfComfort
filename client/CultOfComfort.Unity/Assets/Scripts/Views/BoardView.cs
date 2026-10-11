@@ -546,6 +546,8 @@ namespace CultOfComfort.Client
             BuildingType.SlurryChute => "slurry_chute",
             BuildingType.SaplingFlinger => "sapling_flinger",
             BuildingType.WattleFence => "fence",
+            BuildingType.WoodenWall => "palisade",
+            BuildingType.Gate => "spawn_gate",
             BuildingType.Stone => "rock_b",
             BuildingType.Tree => "oak",
             _ => null,

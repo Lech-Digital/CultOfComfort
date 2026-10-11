@@ -235,5 +235,20 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("2×1", cards.Single(c => c.Type == BuildingType.Woodcutter).Size);
             Assert.AreEqual(string.Empty, cards.Single(c => c.Type == BuildingType.SlurryChute).Size);
         }
+
+        [Test]
+        public void BuildCards_WallAndGate_AvailableAtHearthOneWithTheirIcons()
+        {
+            // Act
+            var cards = VillagePresenter.BuildCards(Fresh(), BuildingTable.Default);
+
+            // Assert
+            var wall = cards.Single(c => c.Type == BuildingType.WoodenWall);
+            var gate = cards.Single(c => c.Type == BuildingType.Gate);
+            Assert.IsFalse(wall.Locked);
+            Assert.AreEqual("30 Timber", wall.Cost);
+            Assert.AreEqual("b_wooden_wall", wall.Icon);
+            Assert.AreEqual("b_gate", gate.Icon);
+        }
     }
 }

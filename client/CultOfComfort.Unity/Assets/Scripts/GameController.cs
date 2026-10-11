@@ -807,8 +807,8 @@ namespace CultOfComfort.Client
             }
         }
 
-        /// <summary>Square things look the same turned, except a fence, which runs one way or the other.</summary>
-        private static bool CanTurn(BuildingSpec spec) => spec.Width != spec.Depth || spec.Type == BuildingType.WattleFence;
+        /// <summary>Square things look the same turned, except fences, walls and gates, which run one way or the other.</summary>
+        private static bool CanTurn(BuildingSpec spec) => spec.Width != spec.Depth || BuildingTable.IsBarrier(spec.Type);
 
         private float Seconds(int readyAtTick) => Mathf.Ceil((readyAtTick - _battle.Tick) / (float)BalanceTable.TicksPerSecond);
 

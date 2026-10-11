@@ -33,6 +33,8 @@ namespace CultOfComfort.Client
             BuildingType.Cistern => "b_cistern",
             BuildingType.SlurryChute => "b_slurry_chute",
             BuildingType.WattleFence => "b_wattle_fence",
+            BuildingType.WoodenWall => "b_wooden_wall",
+            BuildingType.Gate => "b_gate",
             BuildingType.Stone => "b_stone",
             BuildingType.Tree => "b_tree",
             _ => "b_sapling_flinger",
