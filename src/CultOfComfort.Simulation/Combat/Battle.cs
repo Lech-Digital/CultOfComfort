@@ -138,7 +138,11 @@ public sealed class Battle
         Tick++;
     }
 
-    public FixVector2 PositionOf(Enemy enemy)
+    /// <summary>Where it really is: its point on the road plus how far it stepped off it.</summary>
+    public FixVector2 PositionOf(Enemy enemy) => RoadPointOf(enemy) + enemy.Offset;
+
+    /// <summary>Its point on the road (ignoring any offset).</summary>
+    public FixVector2 RoadPointOf(Enemy enemy)
     {
         var distance = Fix.Clamp(enemy.DistanceAlongPath, Fix.Zero, PathLength);
         var index = distance.FloorToInt();
@@ -486,13 +490,6 @@ public sealed class Battle
             }
 
             var stats = _balance.Enemies[enemy.Type];
-            if (!enemy.IsFrightened(Tick) && engaged < _balance.Leader.MaxEngaged && CanEngageLeader(enemy, stats))
-            {
-                engaged++;
-                FightLeader(enemy, stats);
-                continue;
-            }
-
             var step = stats.TilesPerSecond / BalanceTable.TicksPerSecond;
             if (enemy.IsSlowed(Tick))
             {
@@ -501,7 +498,37 @@ public sealed class Battle
 
             if (enemy.IsFrightened(Tick))
             {
-                enemy.PushBack(step);
+                // Scramble back onto the road first, then flee back up it.
+                if (enemy.IsOffRoad)
+                {
+                    enemy.StepOffsetToward(default, step);
+                }
+                else
+                {
+                    enemy.PushBack(step);
+                }
+
+                continue;
+            }
+
+            if (engaged < _balance.Leader.MaxEngaged && WantsLeader(enemy, stats))
+            {
+                engaged++;
+                if (PositionOf(enemy).DistanceSquaredTo(Leader.Position) <= stats.EngageRange * stats.EngageRange)
+                {
+                    FightLeader(enemy, stats);
+                }
+                else
+                {
+                    enemy.StepOffsetToward(Leader.Position - RoadPointOf(enemy), step);
+                }
+
+                continue;
+            }
+
+            if (enemy.IsOffRoad)
+            {
+                enemy.StepOffsetToward(default, step); // walk back to the road before marching on
                 continue;
             }
 
@@ -517,12 +544,27 @@ public sealed class Battle
         }
     }
 
-    private bool CanEngageLeader(Enemy enemy, EnemyStats stats) =>
-        stats.EngageRange > Fix.Zero
-        && !Leader.IsIgnoredByEnemies(Tick, _balance.Leader.ReviveGraceTicks)
-        && PositionOf(enemy).DistanceSquaredTo(Leader.Position) <= stats.EngageRange * stats.EngageRange;
+    /// <summary>
+    /// Melee raiders (NoticeRange &gt; 0) leave the road when he is within notice range of their road point and keep
+    /// chasing until he is beyond the leash; the rest fight from the road within reach.
+    /// </summary>
+    private bool WantsLeader(Enemy enemy, EnemyStats stats)
+    {
+        if (stats.EngageRange <= Fix.Zero || Leader.IsIgnoredByEnemies(Tick, _balance.Leader.ReviveGraceTicks))
+        {
+            return false;
+        }
 
-    /// <summary>Stops on the road and swings (or throws) at the Prophet. Holding them still is what towers like.</summary>
+        if (stats.NoticeRange <= Fix.Zero)
+        {
+            return PositionOf(enemy).DistanceSquaredTo(Leader.Position) <= stats.EngageRange * stats.EngageRange;
+        }
+
+        var range = enemy.IsOffRoad ? Fix.Max(stats.NoticeRange, _balance.Leader.LureLeash) : stats.NoticeRange;
+        return RoadPointOf(enemy).DistanceSquaredTo(Leader.Position) <= range * range;
+    }
+
+    /// <summary>Stops (on or off the road) and swings or throws at the Prophet. Holding them still is what towers like.</summary>
     private void FightLeader(Enemy enemy, EnemyStats stats)
     {
         enemy.IsFightingLeader = true;
@@ -552,6 +594,8 @@ public sealed class Battle
             _hasher.Add((int)enemy.State);
             _hasher.Add(enemy.Health.Raw);
             _hasher.Add(enemy.DistanceAlongPath.Raw);
+            _hasher.Add(enemy.Offset.X.Raw);
+            _hasher.Add(enemy.Offset.Y.Raw);
             _hasher.Add(enemy.MuddiedUntilTick);
             _hasher.Add(enemy.SlowedUntilTick);
             _hasher.Add(enemy.FrightenedUntilTick);

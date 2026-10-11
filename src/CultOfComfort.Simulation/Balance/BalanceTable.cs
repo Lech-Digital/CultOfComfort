@@ -18,9 +18,10 @@ public enum TowerType
     SaplingFlinger,
 }
 
-/// <param name="EngageRange">Stops marching to fight the Prophet when he is this close (tiles). Zero means never.</param>
+/// <param name="EngageRange">Reach: attacks the Prophet from this close (tiles). Zero means never.</param>
 /// <param name="LeaderDamage">Damage per hit on the Prophet.</param>
 /// <param name="LeaderAttackCooldownTicks">Ticks between hits on the Prophet.</param>
+/// <param name="NoticeRange">Leaves the road to chase the Prophet when he is this close to its road point (tiles). Zero means it fights from the road.</param>
 public sealed record EnemyStats(
     Fix MaxHealth,
     Fix TilesPerSecond,
@@ -29,7 +30,8 @@ public sealed record EnemyStats(
     int WaveCost,
     Fix EngageRange = default,
     int LeaderDamage = 0,
-    int LeaderAttackCooldownTicks = 0);
+    int LeaderAttackCooldownTicks = 0,
+    Fix NoticeRange = default);
 
 /// <param name="SplashRadius">Zero means single-target.</param>
 /// <param name="SlowMultiplier">Speed multiplier while slowed; One means no slow.</param>
@@ -53,6 +55,7 @@ public sealed record SluiceGateStats(int Charges, int CooldownTicks, Fix Pushbac
 /// <param name="RegenDelayTicks">Ticks without being hit before he starts recovering.</param>
 /// <param name="RegenIntervalTicks">One health point back every this many ticks.</param>
 /// <param name="ReviveGraceTicks">After getting up, enemies leave him alone this long, so he can walk out of trouble.</param>
+/// <param name="LureLeash">A chasing raider gives up and walks back to the road when he is farther than this from its road point.</param>
 public sealed record LeaderStats(
     Fix TilesPerSecond,
     Fix AttackRange,
@@ -66,7 +69,8 @@ public sealed record LeaderStats(
     int SwoonTicks,
     int RegenDelayTicks,
     int RegenIntervalTicks,
-    int ReviveGraceTicks);
+    int ReviveGraceTicks,
+    Fix LureLeash = default);
 
 /// <summary>Hot Stone Therapy: he lobs heated river stones at a tile near him. Burns, and leaves them muddied.</summary>
 /// <param name="Reach">Furthest target tile from the Prophet (tiles).</param>
@@ -81,7 +85,7 @@ public sealed class BalanceTable
 
     public static BalanceTable Default { get; } = new();
 
-    public string Version { get; init; } = "2026.10.2";
+    public string Version { get; init; } = "2026.10.3";
 
     public int HearthMaxHealth { get; init; } = 100;
 
@@ -96,18 +100,20 @@ public sealed class BalanceTable
             BluntResistance: Fix.Zero,
             HearthDamage: 10,
             WaveCost: 1,
-            EngageRange: Fix.Ratio(3, 4),
+            EngageRange: Fix.Ratio(1, 2),
             LeaderDamage: 3,
-            LeaderAttackCooldownTicks: 20),
+            LeaderAttackCooldownTicks: 20,
+            NoticeRange: Fix.FromInt(2)),
         [EnemyType.ManAtArms] = new(
             MaxHealth: Fix.FromInt(180),
             TilesPerSecond: Fix.Ratio(6, 10),
             BluntResistance: Fix.Ratio(4, 10),
             HearthDamage: 25,
             WaveCost: 3,
-            EngageRange: Fix.One,
+            EngageRange: Fix.Ratio(1, 2),
             LeaderDamage: 10,
-            LeaderAttackCooldownTicks: 24),
+            LeaderAttackCooldownTicks: 24,
+            NoticeRange: Fix.Ratio(3, 2)),
         [EnemyType.Zealot] = new(
             MaxHealth: Fix.FromInt(45),
             TilesPerSecond: Fix.Ratio(11, 10),
@@ -160,7 +166,8 @@ public sealed class BalanceTable
         SwoonTicks: 10 * TicksPerSecond,
         RegenDelayTicks: 3 * TicksPerSecond,
         RegenIntervalTicks: 10,
-        ReviveGraceTicks: 2 * TicksPerSecond);
+        ReviveGraceTicks: 2 * TicksPerSecond,
+        LureLeash: Fix.Ratio(5, 2));
 
     public HotStonesStats HotStones { get; init; } = new(
         CooldownTicks: 20 * TicksPerSecond,

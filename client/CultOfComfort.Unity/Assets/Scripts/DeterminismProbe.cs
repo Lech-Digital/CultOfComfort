@@ -14,7 +14,7 @@ namespace CultOfComfort.Client
     public static class DeterminismProbe
     {
         /// <summary>From `dotnet run --project tools/CultOfComfort.Sandbox` (seed 947, budget 54). Update when the sim changes on purpose.</summary>
-        public const string ExpectedHash = "12c3fe1f0e23fb59";
+        public const string ExpectedHash = "3235167ab097d532";
 
         public static string LastHash { get; private set; }
         public static bool? Matches { get; private set; }

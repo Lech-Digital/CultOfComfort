@@ -34,6 +34,11 @@ public sealed class Enemy
     public Fix SlowMultiplier { get; private set; } = Fix.One;
     public int FrightenedUntilTick { get; private set; }
 
+    /// <summary>How far it has stepped off the road (tiles) to chase the Prophet; zero while on the road.</summary>
+    public FixVector2 Offset { get; private set; }
+
+    public bool IsOffRoad => Offset != default;
+
     /// <summary>True while it has stopped on the road to fight the Prophet.</summary>
     public bool IsFightingLeader { get; internal set; }
     public int LeaderAttackCooldownTicksRemaining { get; internal set; }
@@ -75,5 +80,20 @@ public sealed class Enemy
 
     internal void Frighten(int untilTick) => FrightenedUntilTick = Math.Max(FrightenedUntilTick, untilTick);
 
+    /// <summary>Moves the offset towards <paramref name="target"/>, each axis by at most <paramref name="step"/> (no square roots).</summary>
+    internal void StepOffsetToward(FixVector2 target, Fix step) =>
+        Offset = new FixVector2(Approach(Offset.X, target.X, step), Approach(Offset.Y, target.Y, step));
+
     internal void ReachHearth() => State = EnemyState.ReachedHearth;
+
+    private static Fix Approach(Fix from, Fix to, Fix step)
+    {
+        var delta = to - from;
+        if (delta.Abs() <= step)
+        {
+            return to;
+        }
+
+        return delta > Fix.Zero ? from + step : from - step;
+    }
 }
