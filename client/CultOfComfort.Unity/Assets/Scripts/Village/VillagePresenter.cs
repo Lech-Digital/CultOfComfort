@@ -76,6 +76,28 @@ namespace CultOfComfort.Client
             };
         }
 
+        /// <summary>The marker-pen note on the Tension strip.</summary>
+        public static string TensionNote(BaseSnapshot s)
+        {
+            if (s.RaidWarningEndsAtUtc != null)
+            {
+                var left = Duration((long)(s.RaidWarningEndsAtUtc.Value - s.AsOfUtc).TotalSeconds);
+                return s.TensionState == TensionState.Punitive ? $"Punitive raid · {left}" : $"Wulfric's men are coming · {left}";
+            }
+
+            if (s.ShieldEndsAtUtc != null)
+            {
+                return $"Shielded · {Duration((long)(s.ShieldEndsAtUtc.Value - s.AsOfUtc).TotalSeconds)}";
+            }
+
+            return s.TensionState == TensionState.Calm ? "Calm" : "Uneasy — Wulfric is muttering";
+        }
+
+        /// <summary>The big Day button: face the raid that is coming, or invite a smaller one early.</summary>
+        public static string StartLabel(BaseSnapshot s) => s.RaidWarningEndsAtUtc != null
+            ? $"Face the raid · {Duration((long)(s.RaidWarningEndsAtUtc.Value - s.AsOfUtc).TotalSeconds)} left"
+            : "Light the Lamps (early)";
+
         public static FrameState Frame(BaseSnapshot s) => new FrameState(
             new Reading(s.Stock.Timber, s.Caps.Timber, false),
             new Reading(s.Stock.Scrap, s.Caps.Scrap, false),
@@ -83,7 +105,7 @@ namespace CultOfComfort.Client
             new Reading(s.Stock.Devotion, s.Caps.Devotion, false),
             new Reading(50, 0, true),
             new Reading(42, 0, true),
-            s.HearthLevel, 0.62f, "Wulfric's coming in ~3h", true);
+            s.HearthLevel, s.Tension / 150f, TensionNote(s), false);
 
         /// <summary>
         /// Whether <paramref name="candidate"/> should replace <paramref name="current"/>: a later version, or the same

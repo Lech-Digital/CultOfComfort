@@ -289,6 +289,8 @@ namespace CultOfComfort.Client
         public event Action RecenterClicked;
         public event Action BackToDuskClicked;
         public event Action ResetTipsClicked;
+        public event Action DevRaiseTensionClicked;
+        public event Action DevSkipWarningClicked;
 
         public void SetPortrait(bool portrait)
         {
@@ -424,6 +426,30 @@ namespace CultOfComfort.Client
             _nightStatus.text = state.Status;
         }
 
+        public void SetStartLabel(string text)
+        {
+            var start = _root.Q<Button>("start-night");
+            if (start != null && start.text != text)
+            {
+                start.text = text;
+            }
+        }
+
+        /// <summary>The Dawn card for a Night the village played itself while the player was away.</summary>
+        public void ShowAwayReport(NightReport report)
+        {
+            var won = report.HearthHealth > 0;
+            SetMeter(_hearthValue, _hearthFill, report.HearthHealth, report.HearthMaxHealth);
+            _cardTitle.text = won ? "While you were away… the Hearth held" : "While you were away… the Hearth went cold";
+            _cardSummary.text = $"Stars {report.Stars}/3 · Hearth {report.HearthHealth}/{report.HearthMaxHealth} · {report.Wrecked.Count} wrecked · +{report.Salvage} Scrap";
+            _cardFlavour.text = won
+                ? "The towers did the work. The cult slept through it and calls that faith."
+                : "Wulfric's men came, saw nobody in charge, and helped themselves.";
+            _cardStats.text = $"Played out by the village · hash {report.StateHashHex}";
+            _stamp.EnableInClassList("verified", true);
+            _stamp.EnableInClassList("mismatch", false);
+        }
+
         public void ShowDawn(BattleResult result, BattleResult serverReplay, int commands)
         {
             var won = result.Outcome == BattleOutcome.Won;
@@ -539,6 +565,15 @@ namespace CultOfComfort.Client
             var tips = ButtonWith("Show tips again", () => ResetTipsClicked?.Invoke(), "plain");
             tips.name = "reset-tips";
             sheet.Add(tips);
+            if (Debug.isDebugBuild)
+            {
+                var raise = ButtonWith("Raise Tension +50 (dev)", () => DevRaiseTensionClicked?.Invoke(), "plain");
+                raise.name = "dev-raise-tension";
+                var skip = ButtonWith("Skip the raid warning (dev)", () => DevSkipWarningClicked?.Invoke(), "plain");
+                skip.name = "dev-skip-warning";
+                sheet.Add(raise);
+                sheet.Add(skip);
+            }
             sheet.Add(Text($"Build {Application.version}", "sheet-line", "small"));
             probe = Text(string.Empty, "sheet-line", "small");
             probe.style.display = Debug.isDebugBuild ? DisplayStyle.Flex : DisplayStyle.None;

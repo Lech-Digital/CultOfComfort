@@ -13,6 +13,8 @@ namespace CultOfComfort.Client
     {
         private readonly Dictionary<int, BuildingVisual> _buildings = new Dictionary<int, BuildingVisual>();
         private readonly List<SpriteRenderer> _billboards = new List<SpriteRenderer>();
+        private readonly Dictionary<GridPosition, GameObject> _forest = new Dictionary<GridPosition, GameObject>();
+        private bool _forestBuilt;
         private Transform _hearth;
         private GameObject _hearthModel;
         private int _hearthLevel = 1;
@@ -40,9 +42,9 @@ namespace CultOfComfort.Client
             _roadRoot = new GameObject("Road").transform;
             _roadRoot.SetParent(_root, false);
 
-            for (var y = 0; y < DemoMap.Height; y++)
+            for (var y = 0; y < VillageMap.Demo.Height; y++)
             {
-                for (var x = 0; x < DemoMap.Width; x++)
+                for (var x = 0; x < VillageMap.Demo.Width; x++)
                 {
                     var noise = Mathf.PerlinNoise(x * 0.37f, y * 0.37f);
                     var color = noise > 0.62f ? Palette.Grass : (x + y) % 2 == 0 ? Palette.Ground : Palette.GroundAlt;
@@ -142,6 +144,53 @@ namespace CultOfComfort.Client
             {
                 visual.Wrecked = true;
                 TintBuilding(visual, true);
+            }
+        }
+
+        /// <summary>Locked land is forest with a sign saying when it opens; opening a level clears its trees.</summary>
+        public void SetOpenLevel(int hearthLevel)
+        {
+            foreach (var tile in _forest.Keys.Where(t => VillageMap.Demo.IsOpen(t, hearthLevel)).ToList())
+            {
+                Destroy(_forest[tile]);
+                _forest.Remove(tile);
+            }
+
+            if (_forestBuilt)
+            {
+                return;
+            }
+
+            _forestBuilt = true;
+            var signs = new HashSet<int>();
+            foreach (var tile in VillageMap.Demo.LockedTiles(hearthLevel))
+            {
+                var holder = new GameObject($"Forest {tile}");
+                holder.transform.SetParent(_root, false);
+                holder.transform.localPosition = Shapes.ToWorld(tile);
+                Shapes.Create(PrimitiveType.Cube, Shapes.Hex("#3f4a2b"), new Vector3(0f, 0.02f, 0f), new Vector3(1f, 0.04f, 1f), holder.transform, "Undergrowth");
+                var seed = tile.X * 31 + tile.Y * 17;
+                if (seed % 3 != 1)
+                {
+                    var tree = ArtLibrary.Instantiate(seed % 2 == 0 ? "pine" : "birch", holder.transform);
+                    if (tree != null)
+                    {
+                        tree.transform.localRotation = Quaternion.Euler(0f, seed * 37 % 360, 0f);
+                        tree.transform.localScale = Vector3.one * (0.8f + seed % 3 * 0.1f);
+                    }
+                }
+
+                var opens = VillageMap.Demo.OpensAt(tile);
+                if (signs.Add(opens))
+                {
+                    var sign = ArtLibrary.Instantiate("signpost", holder.transform);
+                    if (sign != null)
+                    {
+                        sign.transform.localRotation = FaceCamera;
+                    }
+                }
+
+                _forest[tile] = holder;
             }
         }
 
@@ -269,9 +318,9 @@ namespace CultOfComfort.Client
                 return; // no nature models yet
             }
 
-            Shapes.Create(PrimitiveType.Cube, Palette.Grass, new Vector3((DemoMap.Width - 1) / 2f, -0.22f, -(DemoMap.Height - 1) / 2f),
-                new Vector3(DemoMap.Width + 10f, 0.2f, DemoMap.Height + 10f), _root, "Apron");
-            foreach (var item in SurroundingsLayout(DemoMap.Width, DemoMap.Height))
+            Shapes.Create(PrimitiveType.Cube, Palette.Grass, new Vector3((VillageMap.Demo.Width - 1) / 2f, -0.22f, -(VillageMap.Demo.Height - 1) / 2f),
+                new Vector3(VillageMap.Demo.Width + 10f, 0.2f, VillageMap.Demo.Height + 10f), _root, "Apron");
+            foreach (var item in SurroundingsLayout(VillageMap.Demo.Width, VillageMap.Demo.Height))
             {
                 Place(item.Model, Shapes.ToWorld(item.Tile) + item.Jitter, item.Yaw, item.Scale);
             }
@@ -304,7 +353,7 @@ namespace CultOfComfort.Client
 
         private void BuildSpawn()
         {
-            var at = Shapes.ToWorld(DemoMap.Spawn);
+            var at = Shapes.ToWorld(VillageMap.Demo.Spawn);
             if (Place("spawn_gate", at, 90f, 1.2f) != null)
             {
                 return; // the banner spans the road, which leaves the spawn heading +X
@@ -317,7 +366,7 @@ namespace CultOfComfort.Client
 
         private void BuildHearth()
         {
-            HearthPosition = Shapes.ToWorld(DemoMap.Hearth);
+            HearthPosition = Shapes.ToWorld(VillageMap.Demo.Hearth);
             var hearth = new GameObject("Hearth").transform;
             hearth.SetParent(_root, false);
             hearth.localPosition = HearthPosition;

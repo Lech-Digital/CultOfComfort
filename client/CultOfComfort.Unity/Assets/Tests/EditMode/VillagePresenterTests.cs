@@ -53,7 +53,8 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual(500, frame.Timber.Value);
             Assert.AreEqual(1000, frame.Timber.Cap);
             Assert.IsFalse(frame.Timber.IsDemo || frame.Peat.IsDemo || frame.Scrap.IsDemo || frame.Devotion.IsDemo);
-            Assert.IsTrue(frame.Pennies.IsDemo && frame.Comfort.IsDemo && frame.TensionIsDemo);
+            Assert.IsTrue(frame.Pennies.IsDemo && frame.Comfort.IsDemo);
+            Assert.IsFalse(frame.TensionIsDemo, "Tension is real since the raids slice");
         }
 
         [Test]
@@ -153,6 +154,31 @@ namespace CultOfComfort.Client.Tests
 
             // Assert
             Assert.AreEqual("Wrecked — won't fire until repaired", card.Output);
+        }
+    
+        [Test]
+        public void TensionNote_States_ReadLikeTheSpec()
+        {
+            // Arrange
+            var calm = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            var raided = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            raided.Apply(new DebugRaiseTension(Guid.NewGuid(), 75), T0);
+            var punitive = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            punitive.Apply(new DebugRaiseTension(Guid.NewGuid(), 110), T0);
+            var shielded = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            shielded.Apply(new BeginNight(Guid.NewGuid()), T0);
+            shielded.Apply(new ResolveNight(Guid.NewGuid(), 1, Array.Empty<CultOfComfort.Simulation.Combat.PlayerInput>()), T0);
+
+            // Act & Assert
+            Assert.AreEqual("Calm", VillagePresenter.TensionNote(calm.Snapshot(T0)));
+            Assert.AreEqual("Wulfric's men are coming · 7h 12m", VillagePresenter.TensionNote(raided.Snapshot(T0.AddMinutes(48))));
+            Assert.AreEqual("Punitive raid · 8h 00m", VillagePresenter.TensionNote(punitive.Snapshot(T0)));
+            Assert.AreEqual("Shielded · 11h 00m", VillagePresenter.TensionNote(shielded.Snapshot(T0.AddHours(1))));
+            Assert.AreEqual("Face the raid · 7h 12m left", VillagePresenter.StartLabel(raided.Snapshot(T0.AddMinutes(48))));
+            Assert.AreEqual("Light the Lamps (early)", VillagePresenter.StartLabel(calm.Snapshot(T0)));
+            var frame = VillagePresenter.Frame(raided.Snapshot(T0));
+            Assert.IsFalse(frame.TensionIsDemo);
+            Assert.AreEqual(75f / 150f, frame.Tension, 0.001f);
         }
     }
 }

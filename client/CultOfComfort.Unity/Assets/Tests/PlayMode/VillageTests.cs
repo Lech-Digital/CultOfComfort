@@ -207,5 +207,79 @@ namespace CultOfComfort.Client.Tests
             Assert.IsFalse(snapshot.Building(id).Wrecked);
             Assert.AreEqual(450 - 5, snapshot.Stock.Timber, "charged 5 Timber (10% of 50)");
         }
+    
+        [UnityTest]
+        public IEnumerator Launch_RaidPlayedItselfWhileAway_ShowsTheReportOnce()
+        {
+            // Arrange — a raid announced long ago; its deadline passed while the app was closed.
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, _clock.UtcNow);
+            state.Apply(new DebugRaiseTension(Guid.NewGuid(), 75), _clock.UtcNow);
+            var store = new Store { Saved = state.ToData() };
+            VillageComposition.Override = () => new LocalBaseGateway(store, _clock, BuildingTable.Default, VillageMap.Demo, _ => { });
+            _clock.UtcNow = _clock.UtcNow.AddDays(2);
+
+            // Act
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(4);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            var shown = root.Q("card").resolvedStyle.display == DisplayStyle.Flex;
+            var title = root.Q("card").Q<Label>(className: "card-title").text;
+            Click(root.Q("card").Q<Button>(className: "primary"));
+            yield return Frames(3);
+
+            // Assert
+            Assert.IsTrue(shown);
+            StringAssert.StartsWith("While you were away", title);
+            Assert.IsNull(Snapshot(game).UnseenReport, "acknowledged");
+            Assert.AreEqual(GamePhase.Dusk, game.Phase);
+        }
+
+        [UnityTest]
+        public IEnumerator Night_FoughtThroughTheVillage_IsVerifiedByItsReplay()
+        {
+            // Arrange
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            Time.timeScale = 20f;
+
+            // Act
+            game.StartNight();
+            var timeout = Time.realtimeSinceStartup + 120f;
+            while (game.Phase != GamePhase.Dawn && Time.realtimeSinceStartup < timeout)
+            {
+                yield return null;
+            }
+
+            yield return Frames(3);
+            Time.timeScale = 1f;
+
+            // Assert
+            Assert.AreEqual(GamePhase.Dawn, game.Phase);
+            Assert.AreEqual(true, game.LastNightVerified);
+            Assert.AreEqual(1, Snapshot(game).LastNightRecorded, "the village resolved it, not the client");
+            Assert.IsNotNull(Snapshot(game).ShieldEndsAtUtc);
+        }
+
+        [UnityTest]
+        public IEnumerator Settings_DevRaiseTension_ShowsTheRaidCountdown()
+        {
+            // Arrange
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+
+            // Act
+            Click(root.Q<Button>("dev-raise-tension"));
+            yield return Frames(2);
+            Click(root.Q<Button>("dev-raise-tension"));
+            yield return Frames(3);
+
+            // Assert
+            var note = root.Q("tension-strip").Q<Label>(className: "marker-note").text; // +50 twice = 100: a Punitive raid
+            Assert.IsTrue(note.Contains("Wulfric's men are coming") || note.Contains("Punitive raid"), note);
+            StringAssert.StartsWith("Face the raid", root.Q<Button>("start-night").text);
+        }
     }
 }
