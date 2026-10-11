@@ -23,13 +23,15 @@ public enum BattleOutcome
 /// <param name="Target">Tile for <see cref="PlayerActionType.MoveLeader"/> and <see cref="PlayerActionType.HotStones"/>; ignored otherwise.</param>
 public readonly record struct PlayerInput(int Tick, PlayerActionType Type, GridPosition Target = default);
 
+/// <param name="ExtraSluiceCharges">Open Sluice charges on top of the balance's (the village's Cisterns).</param>
 public sealed record BattleSetup(
     BattleLayout Layout,
     ulong Seed,
     int Budget,
     int WaveCount,
     IReadOnlyList<PlayerInput> Inputs,
-    BalanceTable? Balance = null);
+    BalanceTable? Balance = null,
+    int ExtraSluiceCharges = 0);
 
 public sealed record BattleResult(
     BattleOutcome Outcome,

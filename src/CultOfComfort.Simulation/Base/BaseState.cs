@@ -45,6 +45,48 @@ public sealed class BaseState
         return state;
     }
 
+    public static BaseState Restore(BuildingTable table, VillageMap map, BaseData data)
+    {
+        var hearths = data.Buildings.Count(b => b.Type == BuildingType.Hearth);
+        if (hearths != 1)
+        {
+            throw new InvalidBaseDataException($"A village needs exactly one Hearth (found {hearths}).");
+        }
+
+        var state = new BaseState(table, map)
+        {
+            Version = data.Version,
+            _stock = data.Stock,
+            _nextId = data.NextId,
+            LastNightRecorded = data.LastNightRecorded,
+        };
+        foreach (var b in data.Buildings.OrderBy(b => b.Type == BuildingType.Hearth ? -1 : b.Id))
+        {
+            if (!table.Specs.TryGetValue(b.Type, out var spec) || b.Level < 0 || b.Level > spec.MaxLevel)
+            {
+                throw new InvalidBaseDataException($"Building {b.Id} has an impossible type or level.");
+            }
+
+            state._buildings.Add(new Building(b.Id, b.Type, new GridPosition(b.X, b.Y), b.Level, new DateTimeOffset(b.AsOfUtcTicks, TimeSpan.Zero))
+            {
+                BufferMilli = b.BufferMilli,
+                UpgradeEndsAtUtc = b.UpgradeEndsAtUtcTicks == null ? null : new DateTimeOffset(b.UpgradeEndsAtUtcTicks.Value, TimeSpan.Zero),
+            });
+        }
+
+        foreach (var id in data.RecentCommands)
+        {
+            state.Remember(id);
+        }
+
+        return state;
+    }
+
+    public BaseData ToData() => new(
+        Version, _stock, _nextId, LastNightRecorded,
+        _buildings.Select(b => new BuildingData(b.Id, b.Type, b.Level, b.Position.X, b.Position.Y, b.UpgradeEndsAtUtc?.UtcTicks, b.BufferMilli, b.AsOfUtc.UtcTicks)).ToList(),
+        _recentOrder.ToList());
+
     public CommandOutcome Apply(BaseCommand command, DateTimeOffset nowUtc)
     {
         if (_recent.Contains(command.CommandId))

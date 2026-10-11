@@ -53,7 +53,7 @@ public sealed class Battle
         WaveCount = setup.WaveCount;
         TotalEnemies = _spawns.Count;
         HearthHealth = _balance.HearthMaxHealth;
-        SluiceChargesLeft = _balance.SluiceGate.Charges;
+        SluiceChargesLeft = _balance.SluiceGate.Charges + setup.ExtraSluiceCharges;
 
         var towerId = 1;
         foreach (var placed in setup.Layout.Towers)
