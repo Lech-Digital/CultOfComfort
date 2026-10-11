@@ -27,7 +27,8 @@ public sealed record BaseSnapshot(
     DateTimeOffset? RaidWarningEndsAtUtc = null,
     DateTimeOffset? ShieldEndsAtUtc = null,
     NightPlan? NightInProgress = null,
-    NightReport? UnseenReport = null)
+    NightReport? UnseenReport = null,
+    IReadOnlyList<GridPosition>? ClearedTerrain = null)
 {
     public DateTimeOffset? ConstructionEndsAtUtc => Buildings.FirstOrDefault(b => b.IsUpgrading)?.UpgradeEndsAtUtc;
 

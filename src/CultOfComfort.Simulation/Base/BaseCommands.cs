@@ -33,6 +33,9 @@ public sealed record ResolveNight(Guid CommandId, int Night, IReadOnlyList<CultO
 /// <summary>The player has seen the latest Night report.</summary>
 public sealed record AcknowledgeReport(Guid CommandId) : BaseCommand(CommandId);
 
+/// <summary>Cuts a wild tree (Timber) or clears a loose boulder (costs Timber, gives Scrap). Walls are bedrock.</summary>
+public sealed record ClearTerrain(Guid CommandId, GridPosition Tile) : BaseCommand(CommandId);
+
 /// <summary>Development only: adds Tension at once. A server refuses this.</summary>
 public sealed record DebugRaiseTension(Guid CommandId, int Amount) : BaseCommand(CommandId);
 

@@ -13,6 +13,8 @@ public enum BuildingType
     SlurryChute,
     SaplingFlinger,
     WattleFence,
+    Stone,
+    Tree,
 }
 
 public enum ResourceType
