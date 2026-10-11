@@ -17,5 +17,20 @@ namespace CultOfComfort.Client.Tests
                 Assert.IsNotNull(font, path);
             }
         }
+
+        [Test]
+        public void KitTextures_EveryListedTexture_LoadsBilinearWithoutMips()
+        {
+            foreach (var name in UiAssets.KitTextures)
+            {
+                // Act
+                var texture = Resources.Load<Texture2D>("UI/Kit/" + name);
+
+                // Assert
+                Assert.IsNotNull(texture, name);
+                Assert.AreEqual(FilterMode.Bilinear, texture.filterMode, name);
+                Assert.AreEqual(1, texture.mipmapCount, name);
+            }
+        }
     }
 }
