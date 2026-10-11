@@ -78,3 +78,28 @@ On startup the client runs `DeterminismProbe`: it replays the Sandbox demo Night
 ### Rules for Unity code
 
 Unity code only *reads* simulation state (`Battle.Enemies`, `Battle.PositionOf`, `Battle.LastTickEvents`) and calls `Battle.Step()` at a fixed 20 Hz; it never feeds floats, physics or `Time.deltaTime` back into the sim. Player actions go through `Battle.Intervene(...)` so they land in the input log.
+
+## Art pipeline
+
+Models are Python scripts run by headless Blender (`art/blender/models/*.py`), not hand-made files.
+Design rules live in `docs/superpowers/specs/2026-10-10-art-direction-and-pipeline-design.md`.
+
+Install Blender 4.5 LTS without sudo (same pattern as Unity):
+
+    curl -fLO https://download.blender.org/release/Blender4.5/blender-4.5.14-macos-arm64.dmg
+    hdiutil attach -nobrowse -mountpoint ./mnt blender-4.5.14-macos-arm64.dmg
+    cp -R ./mnt/Blender.app ~/Applications/ && hdiutil detach ./mnt
+
+Then:
+
+    ./art/build.sh --test        # pipeline tests (inside Blender)
+    ./art/build.sh prophet       # build one asset: FBX → Assets/Resources/Art/Models, previews → art/previews
+    ./art/build.sh --all         # rebuild everything
+
+Override the Blender location with `BLENDER=/path/to/Blender`.
+
+Review tools (Unity batch mode, `-executeMethod`):
+
+- `CultOfComfort.Editor.AnimationShowcase.RenderProphet` / `RenderCast` → frames in `art/previews/anim/`, then `python3 art/make_gifs.py`.
+- `CultOfComfort.Editor.BoardScreenshot.Render` / `RenderVillage` → `art/previews/board_*.png`, `village_*.png`.
+- `python3 art/make_gallery.py` rebuilds the gallery at `art/previews/README.md`.

@@ -20,6 +20,7 @@ namespace CultOfComfort.Client
         private Transform _leader;
         private Transform _umbrella;
         private Transform _leaderBody;
+        private PartAnimator _prophet;
         private Transform _leaderHealth;
         private Renderer _leaderHealthRenderer;
         private Transform _reachRing;
@@ -56,24 +57,40 @@ namespace CultOfComfort.Client
             _leader.SetParent(_root, false);
             Shapes.Create(PrimitiveType.Cylinder, Palette.Highlight, new Vector3(0f, 0.01f, 0f), new Vector3(0.75f, 0.01f, 0.75f), _leader, "Halo (ironic)");
 
+            var model = ArtLibrary.Instantiate("prophet", _leader);
+            if (model != null)
+            {
+                _prophet = model.AddComponent<PartAnimator>();
+                _prophet.Bind();
+            }
+            else
+            {
+                BuildPlaceholderProphet();
+            }
+
+            var bar = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, 1.3f, 0f), new Vector3(0.7f, 0.07f, 0.07f), _leader, "Prophet Health");
+            _leaderHealth = bar.transform;
+            _leaderHealthRenderer = bar.GetComponent<Renderer>();
+            _reachRing = CreateReachRing((float)BalanceTable.Default.HotStones.Reach.ToDouble());
+            _reachRing.gameObject.SetActive(false);
+
+            _leaderCurrent = _leaderPrevious = Shapes.ToWorld(battle.Leader.Position);
+            _leader.localPosition = _leaderCurrent;
+        }
+
+        /// <summary>Primitive stand-in used until art/build.sh has produced the prophet model.</summary>
+        private void BuildPlaceholderProphet()
+        {
             // Body pivots at the feet so swooning tips him over instead of sinking him into the ground.
             _leaderBody = new GameObject("Body").transform;
             _leaderBody.SetParent(_leader, false);
             Shapes.Create(PrimitiveType.Capsule, Palette.Linen, new Vector3(0f, 0.45f, 0f), new Vector3(0.38f, 0.45f, 0.38f), _leaderBody, "Linen Shirt");
             Shapes.Create(PrimitiveType.Sphere, Shapes.Hex("#e0b48f"), new Vector3(0f, 1.0f, 0f), Vector3.one * 0.28f, _leaderBody, "Tired Face");
-            var bar = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, 1.45f, 0f), new Vector3(0.7f, 0.07f, 0.07f), _leader, "Prophet Health");
-            _leaderHealth = bar.transform;
-            _leaderHealthRenderer = bar.GetComponent<Renderer>();
-            _reachRing = CreateReachRing((float)BalanceTable.Default.HotStones.Reach.ToDouble());
-            _reachRing.gameObject.SetActive(false);
             var umbrellaPivot = new GameObject("Umbrella Pivot").transform;
             umbrellaPivot.SetParent(_leaderBody, false);
             umbrellaPivot.localPosition = new Vector3(0.25f, 0.6f, 0f);
             Shapes.Create(PrimitiveType.Cylinder, Shapes.Hex("#1d1d24"), new Vector3(0f, 0.3f, 0f), new Vector3(0.05f, 0.3f, 0.05f), umbrellaPivot, "Umbrella (2024)");
             _umbrella = umbrellaPivot;
-
-            _leaderCurrent = _leaderPrevious = Shapes.ToWorld(battle.Leader.Position);
-            _leader.localPosition = _leaderCurrent;
         }
 
         /// <summary>While aiming Hot Stones: a ring of pebbles around the Prophet marking how far he can throw.</summary>
@@ -95,6 +112,9 @@ namespace CultOfComfort.Client
             _enemies.Clear();
             _effects.Clear();
             _battle = null;
+            _prophet = null;
+            _leaderBody = null;
+            _umbrella = null;
         }
 
         /// <summary>Call immediately before <see cref="Battle.Step"/>.</summary>
@@ -161,8 +181,14 @@ namespace CultOfComfort.Client
                 var position = Vector3.Lerp(visual.Previous, visual.Current, alpha);
                 var heading = visual.Fighting ? _leader.localPosition - position : visual.Current - visual.Previous;
                 heading.y = 0f;
-                var lunge = visual.Fighting ? Mathf.Max(0f, Mathf.Sin(Time.time * 9f + visual.Phase)) * 0.18f : 0f;
-                var bob = Mathf.Abs(Mathf.Sin(Time.time * 12f + visual.Phase)) * 0.06f;
+                var animated = visual.Animator != null;
+                var lunge = visual.Fighting && !animated ? Mathf.Max(0f, Mathf.Sin(Time.time * 9f + visual.Phase)) * 0.18f : 0f;
+                var bob = animated ? 0f : Mathf.Abs(Mathf.Sin(Time.time * 12f + visual.Phase)) * 0.06f;
+                if (animated)
+                {
+                    visual.Animator.IsMoving = !visual.Fighting && (visual.Current - visual.Previous).sqrMagnitude > 0.000001f;
+                }
+
                 visual.Root.localPosition = position + Vector3.up * bob + (heading.sqrMagnitude > 0.0001f ? heading.normalized * lunge : Vector3.zero);
                 if (heading.sqrMagnitude > 0.00001f)
                 {
@@ -170,7 +196,23 @@ namespace CultOfComfort.Client
                 }
 
                 var tint = visual.Frightened ? Palette.Fright : visual.Muddied ? Color.Lerp(visual.BaseColor, Palette.Mud, 0.6f) : visual.BaseColor;
-                Shapes.Tint(visual.Body, tint, _block);
+                // Only touch renderers when the tint changes, and drop the property block when it is neutral:
+                // a renderer with a block falls out of URP's SRP Batcher, and a raider is ~8 renderers.
+                if (tint != visual.LastTint)
+                {
+                    visual.LastTint = tint;
+                    foreach (var renderer in visual.Renderers)
+                    {
+                        if (tint == visual.BaseColor)
+                        {
+                            renderer.SetPropertyBlock(null);
+                        }
+                        else
+                        {
+                            Shapes.Tint(renderer, tint, _block);
+                        }
+                    }
+                }
                 visual.HealthBar.localScale = new Vector3(0.6f * visual.Health, 0.06f, 0.06f);
                 visual.HealthBar.gameObject.SetActive(visual.Health < 0.999f);
                 Shapes.Tint(visual.HealthBarRenderer, visual.Health > 0.4f ? Palette.HealthGood : Palette.HealthBad, _block);
@@ -185,16 +227,27 @@ namespace CultOfComfort.Client
 
             var leader = _battle.Leader;
             var swooning = leader.IsSwooning(_battle.Tick);
-            _leaderTilt = Mathf.MoveTowards(_leaderTilt, swooning ? 1f : 0f, Time.deltaTime * (swooning ? 5f : 2f));
-            _leaderBody.localRotation = Quaternion.Euler(_leaderTilt * 88f, 0f, 0f);
+            if (_prophet != null)
+            {
+                _prophet.IsSwooning = swooning;
+                _prophet.IsMoving = leaderHeading.sqrMagnitude > 0.00001f;
+            }
+            else
+            {
+                _leaderTilt = Mathf.MoveTowards(_leaderTilt, swooning ? 1f : 0f, Time.deltaTime * (swooning ? 5f : 2f));
+                _leaderBody.localRotation = Quaternion.Euler(_leaderTilt * 88f, 0f, 0f);
+            }
             var health = leader.Health / (float)leader.MaxHealth;
             _leaderHealth.localScale = new Vector3(0.7f * health, 0.07f, 0.07f);
             _leaderHealth.gameObject.SetActive(!swooning && health < 0.999f);
             _leaderFlash = Mathf.MoveTowards(_leaderFlash, 0f, Time.deltaTime * 5f);
             Shapes.Tint(_leaderHealthRenderer, Color.Lerp(health > 0.4f ? Palette.HealthGood : Palette.HealthBad, Color.white, _leaderFlash), _block);
 
-            _umbrellaSwing = Mathf.MoveTowards(_umbrellaSwing, 0f, Time.deltaTime * 4f);
-            _umbrella.localRotation = Quaternion.Euler(_umbrellaSwing * 110f, 0f, 0f);
+            if (_umbrella != null)
+            {
+                _umbrellaSwing = Mathf.MoveTowards(_umbrellaSwing, 0f, Time.deltaTime * 4f);
+                _umbrella.localRotation = Quaternion.Euler(_umbrellaSwing * 110f, 0f, 0f);
+            }
 
             for (var i = _effects.Count - 1; i >= 0; i--)
             {
@@ -217,6 +270,7 @@ namespace CultOfComfort.Client
             switch (battleEvent)
             {
                 case TowerFired fired when _enemies.TryGetValue(fired.TargetId, out var target):
+                    target.Animator?.Hit();
                     var tower = _towers[fired.TowerId];
                     var from = Shapes.ToWorld(tower.Position);
                     var to = target.Current;
@@ -231,9 +285,23 @@ namespace CultOfComfort.Client
 
                     break;
                 case LeaderAttacked _:
-                    _umbrellaSwing = 1f;
+                    if (_prophet != null)
+                    {
+                        _prophet.Attack();
+                    }
+                    else
+                    {
+                        _umbrellaSwing = 1f;
+                    }
+
                     break;
                 case LeaderHit hit:
+                    _prophet?.Hit();
+                    if (_enemies.TryGetValue(hit.EnemyId, out var attacker))
+                    {
+                        attacker.Animator?.Attack();
+                    }
+
                     _leaderFlash = 1f;
                     if (hit.Type == EnemyType.Zealot && _enemies.TryGetValue(hit.EnemyId, out var thrower))
                     {
@@ -249,6 +317,11 @@ namespace CultOfComfort.Client
                     Announcement?.Invoke("He's up. Muddy, offended, and back in charge.");
                     break;
                 case HotStonesThrown thrown:
+                    if (thrown.EnemiesAffected == 0)
+                    {
+                        _prophet?.Unimpressed();
+                    }
+
                     SpawnHotStones(_leaderCurrent, Shapes.ToWorld(thrown.Target));
                     Announcement?.Invoke(thrown.EnemiesAffected == 0
                         ? "Hot stones, thrown at nothing. The grass is now exfoliated."
@@ -263,18 +336,25 @@ namespace CultOfComfort.Client
                     Announcement?.Invoke($"Sluice gate opened. {used.EnemiesAffected} soldiers rediscover mud at speed.");
                     break;
                 case InterventionUsed { Type: PlayerActionType.PhantomVoice } used:
+                    if (used.EnemiesAffected == 0)
+                    {
+                        _prophet?.Unimpressed();
+                    }
+
                     SpawnShout();
                     Announcement?.Invoke(used.EnemiesAffected == 0
                         ? "He shouted into a tin can at nobody. The cultists exchanged looks."
                         : $"A disembodied voice told {used.EnemiesAffected} soldiers to go home. They did.");
                     break;
                 case InputRejected rejected:
+                    _prophet?.Annoyed(); // he takes refusals personally
                     Announcement?.Invoke(rejected.Reason);
                     break;
                 case WaveStarted wave:
                     Announcement?.Invoke($"Wave {wave.Wave} of {_battle.WaveCount}. Lord Wulfric remains unconvinced.");
                     break;
                 case HearthDamaged damaged:
+                    _prophet?.Unimpressed();
                     _shake = 0.25f;
                     Announcement?.Invoke(damaged.Type switch
                     {
@@ -289,8 +369,41 @@ namespace CultOfComfort.Client
             }
         }
 
+        private static string ModelName(EnemyType type) => type switch
+        {
+            EnemyType.ManAtArms => "manatarms",
+            EnemyType.Zealot => "zealot",
+            _ => "levy",
+        };
+
         private EnemyVisual CreateEnemy(Enemy enemy)
         {
+            var model = ArtLibrary.Instantiate(ModelName(enemy.Type), null);
+            if (model != null)
+            {
+                var modelRoot = new GameObject($"{enemy.Type} #{enemy.Id}").transform;
+                modelRoot.SetParent(_root, false);
+                model.transform.SetParent(modelRoot, false);
+                var animator = model.AddComponent<PartAnimator>();
+                animator.Bind();
+                var modelBar = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, 1.1f, 0f), new Vector3(0.6f, 0.06f, 0.06f), modelRoot, "Health");
+                var start = Shapes.ToWorld(_battle.PositionOf(enemy));
+                modelRoot.localPosition = start;
+                return new EnemyVisual
+                {
+                    Root = modelRoot,
+                    Renderers = model.GetComponentsInChildren<Renderer>(),
+                    Animator = animator,
+                    HealthBar = modelBar.transform,
+                    HealthBarRenderer = modelBar.GetComponent<Renderer>(),
+                    BaseColor = Color.white, // the palette texture carries the colour; tints multiply it
+                    Previous = start,
+                    Current = start,
+                    Health = 1f,
+                    Phase = enemy.Id * 1.7f,
+                };
+            }
+
             var heavy = enemy.Type == EnemyType.ManAtArms;
             var zealot = enemy.Type == EnemyType.Zealot;
             var color = heavy ? Palette.ManAtArms : zealot ? Palette.Zealot : Palette.Levy;
@@ -320,7 +433,7 @@ namespace CultOfComfort.Client
             return new EnemyVisual
             {
                 Root = root,
-                Body = body.GetComponent<Renderer>(),
+                Renderers = new[] { body.GetComponent<Renderer>() },
                 HealthBar = bar.transform,
                 HealthBarRenderer = bar.GetComponent<Renderer>(),
                 BaseColor = color,
@@ -333,7 +446,7 @@ namespace CultOfComfort.Client
 
         private void SpawnRock(Vector3 from, Vector3 to, bool critical)
         {
-            var rock = Shapes.Create(PrimitiveType.Sphere, Palette.Stone, from, Vector3.one * 0.16f, _root, "Flung Rock");
+            var rock = Fx("fx_rock", from) ?? Shapes.Create(PrimitiveType.Sphere, Palette.Stone, from, Vector3.one * 0.16f, _root, "Flung Rock");
             var start = from + Vector3.up * 1f;
             AddEffect(rock, 0.3f, (go, t) =>
             {
@@ -349,14 +462,15 @@ namespace CultOfComfort.Client
 
         private void SpawnMudSplat(Vector3 from, Vector3 to)
         {
-            var glob = Shapes.Create(PrimitiveType.Sphere, Palette.Mud, from, Vector3.one * 0.25f, _root, "Slurry");
+            var glob = Fx("fx_mud_glob", from) ?? Shapes.Create(PrimitiveType.Sphere, Palette.Mud, from, Vector3.one * 0.25f, _root, "Slurry");
             var start = from + Vector3.up * 1f;
             AddEffect(glob, 0.25f, (go, t) => go.transform.localPosition = Vector3.Lerp(start, to, t) + Vector3.up * Mathf.Sin(t * Mathf.PI) * 0.8f);
-            var splat = Shapes.Create(PrimitiveType.Cylinder, Palette.Mud, to + Vector3.up * 0.02f, Vector3.zero, _root, "Splat");
+            var splatModel = Fx("fx_splat", to + Vector3.up * 0.01f);
+            var splat = splatModel ?? Shapes.Create(PrimitiveType.Cylinder, Palette.Mud, to + Vector3.up * 0.02f, Vector3.zero, _root, "Splat");
             AddEffect(splat, 0.9f, (go, t) =>
             {
                 var size = t < 0.3f ? t / 0.3f * 2f : 2f;
-                go.transform.localScale = new Vector3(size, 0.01f, size);
+                go.transform.localScale = splatModel != null ? new Vector3(size * 0.55f, 1f, size * 0.55f) : new Vector3(size, 0.01f, size);
                 go.SetActive(t > 0.25f);
             });
         }
@@ -385,7 +499,7 @@ namespace CultOfComfort.Client
 
         private void SpawnHymnal(Vector3 from, Vector3 to)
         {
-            var book = Shapes.Create(PrimitiveType.Cube, Shapes.Hex("#3b2a1c"), from, new Vector3(0.16f, 0.06f, 0.2f), _root, "Hymnal");
+            var book = Fx("fx_hymnal", from) ?? Shapes.Create(PrimitiveType.Cube, Shapes.Hex("#3b2a1c"), from, new Vector3(0.16f, 0.06f, 0.2f), _root, "Hymnal");
             var start = from + Vector3.up * 0.6f;
             var end = to + Vector3.up * 0.8f;
             AddEffect(book, 0.45f, (go, t) =>
@@ -401,7 +515,7 @@ namespace CultOfComfort.Client
             for (var i = 0; i < 4; i++)
             {
                 var offset = Quaternion.Euler(0f, i * 90f + 45f, 0f) * Vector3.forward * (i == 0 ? 0f : 0.45f);
-                var stone = Shapes.Create(PrimitiveType.Sphere, Palette.HotStone, from, Vector3.one * 0.2f, _root, "Hot Stone");
+                var stone = Fx("fx_hot_stone", from) ?? Shapes.Create(PrimitiveType.Sphere, Palette.HotStone, from, Vector3.one * 0.2f, _root, "Hot Stone");
                 var start = from + Vector3.up * 1.1f;
                 var end = to + offset + Vector3.up * 0.1f;
                 var delay = i * 0.06f;
@@ -438,8 +552,22 @@ namespace CultOfComfort.Client
 
         private void SpawnPoof(Vector3 at)
         {
-            var poof = Shapes.Create(PrimitiveType.Sphere, Shapes.Hex("#c9bfae"), at + Vector3.up * 0.3f, Vector3.zero, _root, "Poof");
-            AddEffect(poof, 0.4f, (go, t) => go.transform.localScale = Vector3.one * (1f - t) * 0.7f * Mathf.Sqrt(t));
+            var poofModel = Fx("fx_poof", at);
+            var poof = poofModel ?? Shapes.Create(PrimitiveType.Sphere, Shapes.Hex("#c9bfae"), at + Vector3.up * 0.3f, Vector3.zero, _root, "Poof");
+            var poofSize = poofModel != null ? 2.4f : 0.7f; // the model is ~0.35 m across, the primitive 1 m
+            AddEffect(poof, 0.45f, (go, t) => go.transform.localScale = Vector3.one * (1f - t) * poofSize * Mathf.Sqrt(t));
+        }
+
+        /// <summary>A pipeline effect model at <paramref name="at"/>, or null so the caller falls back to a primitive.</summary>
+        private GameObject Fx(string model, Vector3 at)
+        {
+            var go = ArtLibrary.Instantiate(model, _root);
+            if (go != null)
+            {
+                go.transform.localPosition = at;
+            }
+
+            return go;
         }
 
         private void AddEffect(GameObject target, float lifetime, Action<GameObject, float> update) =>
@@ -448,10 +576,12 @@ namespace CultOfComfort.Client
         private sealed class EnemyVisual
         {
             public Transform Root;
-            public Renderer Body;
+            public Renderer[] Renderers;
+            public PartAnimator Animator;
             public Transform HealthBar;
             public Renderer HealthBarRenderer;
             public Color BaseColor;
+            public Color LastTint = new Color(-1f, -1f, -1f); // "never tinted": the first frame always applies
             public Vector3 Previous;
             public Vector3 Current;
             public float Health;

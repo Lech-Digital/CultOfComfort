@@ -9,3 +9,10 @@ TestResults/
 
 # Brainstorming companion scratch
 .superpowers/
+
+# Python bytecode (Blender art pipeline)
+__pycache__/
+*.pyc
+
+# Raw animation frames (GIFs are committed instead)
+art/previews/anim/*/

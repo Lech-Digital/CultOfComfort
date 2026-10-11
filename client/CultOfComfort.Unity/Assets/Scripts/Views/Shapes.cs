@@ -34,7 +34,8 @@ namespace CultOfComfort.Client
 
         public static Material Material(Color color)
         {
-            if (Materials.TryGetValue(color, out var material))
+            // Unity null: materials made with `new Material` die when a scene is unloaded (editor tools reopen scenes).
+            if (Materials.TryGetValue(color, out var material) && material != null)
             {
                 return material;
             }

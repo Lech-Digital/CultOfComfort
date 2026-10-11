@@ -15,6 +15,11 @@ namespace CultOfComfort.Client
         private GameObject _cursor;
         private GameObject _leaderMarker;
         private Light _hearthLight;
+        private Transform _hearthFire;
+        private Transform _hearthSteam;
+
+        /// <summary>Blender models face +Z; the board camera looks from −Z, so static buildings turn round to face it.</summary>
+        private static readonly Quaternion FaceCamera = Quaternion.Euler(0f, 180f, 0f);
 
         public Vector3 HearthPosition { get; private set; }
 
@@ -38,11 +43,16 @@ namespace CultOfComfort.Client
             foreach (var rock in rocks)
             {
                 var seed = rock.X * 31 + rock.Y * 17;
-                var go = Shapes.Create(PrimitiveType.Sphere, Palette.Rock, Shapes.ToWorld(rock, 0.3f),
-                    new Vector3(0.85f, 0.6f + seed % 3 * 0.12f, 0.8f), _root, "Rock");
-                go.transform.localRotation = Quaternion.Euler(0f, seed * 37 % 360, 8f);
+                var model = Place(seed % 2 == 0 ? "rock_a" : "rock_b", Shapes.ToWorld(rock), seed * 37 % 360, 1.35f + seed % 3 * 0.1f);
+                if (model == null)
+                {
+                    var go = Shapes.Create(PrimitiveType.Sphere, Palette.Rock, Shapes.ToWorld(rock, 0.3f),
+                        new Vector3(0.85f, 0.6f + seed % 3 * 0.12f, 0.8f), _root, "Rock");
+                    go.transform.localRotation = Quaternion.Euler(0f, seed * 37 % 360, 8f);
+                }
             }
 
+            BuildSurroundings();
             BuildSpawn();
             BuildHearth();
 
@@ -101,12 +111,86 @@ namespace CultOfComfort.Client
 
         public void SetHearthWarmth(float fraction)
         {
-            _hearthLight.intensity = Mathf.Lerp(0.2f, 3.5f, fraction) * (1f + Mathf.Sin(Time.time * 6f) * 0.06f);
+            var flicker = 1f + Mathf.Sin(Time.time * 6f) * 0.06f;
+            _hearthLight.intensity = Mathf.Lerp(0.2f, 3.5f, fraction) * flicker;
+            if (_hearthFire != null)
+            {
+                // The brazier shrinks to embers as the Hearth goes cold.
+                _hearthFire.localScale = Vector3.one * Mathf.Lerp(0.25f, 1f, fraction) * (1f + Mathf.Sin(Time.time * 11f) * 0.08f);
+            }
+
+            if (_hearthSteam != null)
+            {
+                _hearthSteam.localScale = Vector3.one * (0.9f + Mathf.Sin(Time.time * 1.3f) * 0.1f);
+            }
+        }
+
+        /// <summary>Instantiates a pipeline model on the board, or returns null so the caller can fall back.</summary>
+        private GameObject Place(string model, Vector3 position, float yaw, float scale = 1f)
+        {
+            var go = ArtLibrary.Instantiate(model, _root);
+            if (go != null)
+            {
+                go.transform.localPosition = position;
+                go.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+                go.transform.localScale = Vector3.one * scale;
+            }
+
+            return go;
+        }
+
+        /// <summary>
+        /// A grass apron and a deterministic scatter of trees and bushes around the board, outside the playable
+        /// tiles: scenery only, never in the way of a road or a tap.
+        /// </summary>
+        private void BuildSurroundings()
+        {
+            if (!ArtLibrary.Exists("pine"))
+            {
+                return; // no nature models yet
+            }
+
+            Shapes.Create(PrimitiveType.Cube, Palette.Grass, new Vector3((DemoMap.Width - 1) / 2f, -0.22f, -(DemoMap.Height - 1) / 2f),
+                new Vector3(DemoMap.Width + 10f, 0.2f, DemoMap.Height + 10f), _root, "Apron");
+            foreach (var item in SurroundingsLayout(DemoMap.Width, DemoMap.Height))
+            {
+                Place(item.Model, Shapes.ToWorld(item.Tile) + item.Jitter, item.Yaw, item.Scale);
+            }
+        }
+
+        /// <summary>Deterministic scenery placement around (never on) a width × height board.</summary>
+        public static List<(string Model, GridPosition Tile, Vector3 Jitter, float Yaw, float Scale)> SurroundingsLayout(int width, int height)
+        {
+            var layout = new List<(string, GridPosition, Vector3, float, float)>();
+            string[] nature = { "pine", "pine", "oak", "birch", "bush", "pine", "dead_tree", "stump", "rock_b", "bush" };
+            for (var y = -3; y < height + 3; y++)
+            {
+                for (var x = -3; x < width + 3; x++)
+                {
+                    var inside = x >= 0 && y >= 0 && x < width && y < height;
+                    var hash = (x * 73856093) ^ (y * 19349663);
+                    if (inside || (hash & 7) != 1) // ~1 in 8 tiles: a ring of trees, not a wall (≈27 on the demo map)
+                    {
+                        continue;
+                    }
+
+                    var jitter = new Vector3((hash >> 4 & 15) / 30f - 0.25f, 0f, (hash >> 8 & 15) / 30f - 0.25f);
+                    var pick = nature[(hash >> 12 & 0x7fff) % nature.Length];
+                    layout.Add((pick, new GridPosition(x, y), jitter, hash >> 16 & 359, 1f + (hash >> 20 & 3) * 0.12f));
+                }
+            }
+
+            return layout;
         }
 
         private void BuildSpawn()
         {
             var at = Shapes.ToWorld(DemoMap.Spawn);
+            if (Place("spawn_gate", at, 90f, 1.2f) != null)
+            {
+                return; // the banner spans the road, which leaves the spawn heading +X
+            }
+
             Shapes.Create(PrimitiveType.Cylinder, Palette.Wood, at + new Vector3(0f, 0.5f, 0.35f), new Vector3(0.12f, 0.5f, 0.12f), _root, "Gate Post");
             Shapes.Create(PrimitiveType.Cylinder, Palette.Wood, at + new Vector3(0f, 0.5f, -0.35f), new Vector3(0.12f, 0.5f, 0.12f), _root, "Gate Post");
             Shapes.Create(PrimitiveType.Cube, Palette.Wood, at + new Vector3(0f, 0.95f, 0f), new Vector3(0.12f, 0.1f, 0.9f), _root, "Gate Beam");
@@ -118,13 +202,28 @@ namespace CultOfComfort.Client
             var hearth = new GameObject("Hearth").transform;
             hearth.SetParent(_root, false);
             hearth.localPosition = HearthPosition;
+            var model = ArtLibrary.Instantiate("hearth_l1", hearth);
+            if (model != null)
+            {
+                model.transform.localRotation = FaceCamera;
+                model.transform.localScale = Vector3.one * 0.8f; // fits its tile; the columns still tower over the cultists
+                _hearthFire = ArtLibrary.FindPart(model.transform, "Fire");
+                _hearthSteam = ArtLibrary.FindPart(model.transform, "Steam");
+                AddHearthLight(hearth);
+                return;
+            }
+
             Shapes.Create(PrimitiveType.Cube, Palette.Hearth, new Vector3(0f, 0.35f, 0f), new Vector3(0.85f, 0.7f, 0.85f), hearth, "Bathhouse");
             var roof = Shapes.Create(PrimitiveType.Cube, Shapes.Hex("#4a3c30"), new Vector3(0f, 0.85f, 0f), new Vector3(0.7f, 0.7f, 0.7f), hearth, "Roof");
             roof.transform.localRotation = Quaternion.Euler(45f, 0f, 0f);
             roof.transform.localScale = new Vector3(0.95f, 0.5f, 0.5f);
             Shapes.Create(PrimitiveType.Cube, Palette.Ember, new Vector3(0f, 0.25f, -0.43f), new Vector3(0.3f, 0.35f, 0.02f), hearth, "Glowing Door");
             Shapes.Create(PrimitiveType.Cylinder, Palette.Rock, new Vector3(0.25f, 1.1f, 0.1f), new Vector3(0.14f, 0.25f, 0.14f), hearth, "Chimney");
+            AddHearthLight(hearth);
+        }
 
+        private void AddHearthLight(Transform hearth)
+        {
             var lightGo = new GameObject("Hearth Glow");
             lightGo.transform.SetParent(hearth, false);
             lightGo.transform.localPosition = new Vector3(0f, 1.2f, -0.6f);
@@ -140,6 +239,13 @@ namespace CultOfComfort.Client
             var root = new GameObject(tower.Type.ToString()).transform;
             root.SetParent(_root, false);
             root.localPosition = Shapes.ToWorld(tower.Position);
+
+            var model = ArtLibrary.Instantiate(tower.Type == TowerType.SlurryChute ? "slurry_chute" : "sapling_flinger", root);
+            if (model != null)
+            {
+                model.transform.localRotation = FaceCamera;
+                return root.gameObject;
+            }
 
             if (tower.Type == TowerType.SlurryChute)
             {

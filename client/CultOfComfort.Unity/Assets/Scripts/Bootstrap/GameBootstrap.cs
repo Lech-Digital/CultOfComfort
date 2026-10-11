@@ -28,6 +28,10 @@ namespace CultOfComfort.Client
             var root = new GameObject("Cult of Comfort");
             SceneManager.MoveGameObjectToScene(root, scene);
             root.AddComponent<GameController>();
+            if (Debug.isDebugBuild)
+            {
+                root.AddComponent<FrameRateLogger>();
+            }
         }
     }
 }

@@ -37,15 +37,15 @@ Replace the placeholder primitives with a real, coherent look **designed togethe
 ### Shape rules
 
 1. **Medieval things are wonky, 2024 things are perfect.** Logs, walls and roofs lean 2–4° with uneven edges; cone, tarp and umbrella are crisp geometry.
-2. **Chunky, small bevels, flat-shaded facets.** No detail smaller than ~1/10 of a tile.
+2. **Chunky, small bevels.** Clothes, buildings and props are flat-shaded facets; **skin (heads, hands) is smooth-shaded** so people read as friendly humans, not carvings. No detail smaller than ~1/10 of a tile.
 3. **Silhouette first.** Levy = hood + pitchfork; Man-at-arms = pointed nasal helmet + kite shield; Zealot = tonsure + book; Prophet = tallest + umbrella.
 4. **Scale:** 1 tile = 1 m. Locals ≈ 0.8 m, Prophet ≈ 1.0 m, towers 1.5–2 m, Hearth L1 ≈ 2 tiles wide.
-5. **Deadpan faces:** dot eyes, one-line mouth; the Prophet has eyebags. Expression comes from posture.
+5. **Friendly, human faces** (owner review of the first Prophet: faceted heads and rectangle features read as scary): round smooth head, rounded eyes with a small highlight, eyebrows that carry the expression, ears, a small round nose, a short soft mouth. Deadpan humour comes from brows and posture, never from creepy features.
 6. **Teams:** Wulfric's side carries red & gold; the cult wears linen and junk-neon.
 
 ### Budgets
 
-- ≤ 1,500 triangles per character, ≤ 3,000 per building, ≤ 300 per prop/effect.
+- ≤ 2,200 triangles per character (raised from 1,500 after the Prophet review: smooth friendly faces cost ~2k; 30 units on screen ≈ 60k triangles, trivial for the target phones), ≤ 3,000 per building, ≤ 600 per tree/bush/rock (round canopies; ~20 per map), ≤ 300 per other prop/effect.
 - One opaque material (palette texture) plus one emissive variant; GPU instancing on.
 - Performance on the Pixel 10 development build: steady 60 fps in Dusk, ≥ 50 fps during a busy Night.
 
