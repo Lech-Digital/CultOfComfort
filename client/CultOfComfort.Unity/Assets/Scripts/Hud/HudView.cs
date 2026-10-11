@@ -103,6 +103,7 @@ namespace CultOfComfort.Client
         private readonly VisualElement _duskBar;
         private readonly VisualElement _nightBar;
         private readonly ScrollView _drawer;
+        private readonly Button _rotate;
         private readonly Dictionary<BuildingType, Button> _cards = new Dictionary<BuildingType, Button>();
         private string _cardsSignature;
         private readonly VisualElement _buildingCard;
@@ -215,6 +216,10 @@ namespace CultOfComfort.Client
             _settings = BuildSettings(out _probe);
             _buildingCard = BuildBuildingCard(out _buildingTitle, out _buildingOutput, out _buildingReady, out _buildingRemaining, out _upgrade, out _finishNow, out _demolish);
             _card = BuildCard(out _cardTitle, out _cardSummary, out _cardFlavour, out _cardStats, out _stamp);
+            _rotate = ButtonWith("Rotate", () => RotateClicked?.Invoke(), "plain", "rotate-button");
+            _rotate.name = "rotate";
+            Show(_rotate, false);
+            centre.Add(_rotate);
             centre.Add(_toast);
             centre.Add(_lockedNote);
             middle.Add(_sideLeft);
@@ -287,6 +292,9 @@ namespace CultOfComfort.Client
         public event Action StonesClicked;
         public event Action SpeedClicked;
         public event Action RecenterClicked;
+
+        /// <summary>Turn the building being placed a quarter.</summary>
+        public event Action RotateClicked;
         public event Action BackToDuskClicked;
         public event Action ResetTipsClicked;
         public event Action DevRaiseTensionClicked;
@@ -359,7 +367,7 @@ namespace CultOfComfort.Client
                     button.Add(Icon(card.Icon, "card-icon"));
                     button.Add(Text(card.Name, "card-name"));
                     button.Add(Text(card.Cost, "card-cost"));
-                    button.Add(Text(card.Time, "card-time"));
+                    button.Add(Text(string.IsNullOrEmpty(card.Size) ? card.Time : $"{card.Time} · {card.Size}", "card-time"));
                     button.Add(Text(card.LockText, "card-lock"));
                     foreach (var child in button.Children())
                     {
@@ -376,6 +384,9 @@ namespace CultOfComfort.Client
                 pair.Value.EnableInClassList("selected", pair.Key == selected);
             }
         }
+
+        /// <summary>The Rotate button shows while a building that can turn is being placed.</summary>
+        public void ShowRotate(bool visible) => Show(_rotate, visible);
 
         /// <summary>Shows the parchment card for a building, or hides it (null).</summary>
         public void ShowBuildingCard(BuildingCardModel card)

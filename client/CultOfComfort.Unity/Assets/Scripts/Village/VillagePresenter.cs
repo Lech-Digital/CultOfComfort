@@ -9,6 +9,7 @@ namespace CultOfComfort.Client
     {
         public BuildingType Type; public string Name; public string Icon; public string Cost; public string Time;
         public bool Locked; public string LockText; public bool Affordable;
+        public string Size = string.Empty; // "2×4"; empty for a 1×1
     }
 
     public sealed class BuildingCardModel
@@ -50,6 +51,7 @@ namespace CultOfComfort.Client
                     Locked = locked,
                     LockText = snapshot.HearthLevel < spec.UnlockHearth ? $"Hearth {spec.UnlockHearth}" : locked ? "Max built" : string.Empty,
                     Affordable = snapshot.Stock.Covers(cost),
+                    Size = spec.Width == 1 && spec.Depth == 1 ? string.Empty : $"{spec.Width}×{spec.Depth}",
                 };
             }).ToList();
 

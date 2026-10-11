@@ -92,7 +92,7 @@ namespace CultOfComfort.Client.Tests
         {
             // Arrange
             var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
-            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WattleFence, new GridPosition(4, 6)), T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WattleFence, new GridPosition(7, 6)), T0);
             var fence = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.WattleFence).Id;
             state.Apply(new RecordNightResult(Guid.NewGuid(), 1, 0, new[] { fence }), T0);
 
@@ -108,7 +108,7 @@ namespace CultOfComfort.Client.Tests
         {
             // Arrange — a raid that played itself out (report), then a new Night begun.
             var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
-            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(4, 6)), T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(7, 6)), T0);
             state.Apply(new DebugRaiseTension(Guid.NewGuid(), 75), T0);
             state.Snapshot(T0.AddDays(1));
             state.Apply(new BeginNight(Guid.NewGuid()), T0.AddDays(1));
@@ -144,6 +144,23 @@ namespace CultOfComfort.Client.Tests
             CollectionAssert.Contains(back.Snapshot(T0.AddHours(1)).ClearedTerrain.ToList(), new GridPosition(8, 4));
             CollectionAssert.Contains(back.Snapshot(T0.AddHours(1)).ClearedTerrain.ToList(), tree);
             CollectionAssert.DoesNotContain(back.Snapshot(T0.AddHours(9)).ClearedTerrain.ToList(), tree, "it grew back");
+        }
+
+        [Test]
+        public void Mapper_RotatedBuildingAndLayoutVersion_RoundTrip()
+        {
+            // Arrange
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(13, 5), true), T0);
+
+            // Act
+            var data = VillageSaveMapper.FromJson(VillageSaveMapper.ToJson(state.ToData()));
+
+            // Assert
+            Assert.AreEqual(BaseState.CurrentLayoutVersion, data.LayoutVersion);
+            var lean = BaseState.Restore(BuildingTable.Default, VillageMap.Demo, data).Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Woodcutter);
+            Assert.IsTrue(lean.Rotated);
+            CollectionAssert.AreEquivalent(new[] { new GridPosition(13, 5), new GridPosition(13, 6) }, lean.Tiles.ToList());
         }
     }
 }

@@ -261,3 +261,4 @@
 .landscape .sheet .sheet-line { font-size: 11px; margin-top: 1px; }
 .icon-b_stone { background-image: resource("UI/Icons/b_stone"); }
 .icon-b_tree { background-image: resource("UI/Icons/b_tree"); }
+.rotate-button { position: absolute; right: 12px; bottom: 12px; width: 92px; height: 44px; font-size: 15px; }

@@ -233,4 +233,32 @@ public class FootprintTests
             hut.Tiles.Should().NotContain(t => Map.Road.Contains(t) || Map.Rocks.Contains(t) || Map.IsInSpawnClearance(t));
         }
     }
+
+    [Fact]
+    public void PlacementProblem_FromASnapshot_AgreesWithTheVillage()
+    {
+        // Arrange — the client's cursor hint must say what the village would say.
+        var state = RichBase();
+        Place(state, BuildingType.WattleFence, 21, 14);
+        var snapshot = state.Snapshot(T0);
+        var table = BuildingTable.Default;
+        var cases = new (BuildingType Type, int X, int Y, bool Rotated)[]
+        {
+            (BuildingType.PeatCut, 20, 12, false), (BuildingType.PeatCut, 24, 12, false), (BuildingType.Woodcutter, 16, 5, false),
+            (BuildingType.Woodcutter, 13, 5, true), (BuildingType.CultistHut, 28, 3, false), (BuildingType.StorageHut, 1, 2, false),
+            (BuildingType.SlurryChute, 5, 3, false), (BuildingType.WattleFence, 2, 1, false), (BuildingType.Stone, 4, 21, false),
+        };
+
+        foreach (var (type, x, y, rotated) in cases)
+        {
+            // Act
+            var hint = Map.PlacementProblem(snapshot, table.Spec(type), new GridPosition(x, y), rotated);
+            var actual = RichBase();
+            Place(actual, BuildingType.WattleFence, 21, 14);
+            var outcome = Place(actual, type, x, y, rotated);
+
+            // Assert
+            hint.Should().Be(outcome.Status == CommandStatus.Accepted ? null : outcome.Reason, $"{type} at ({x},{y}) rotated={rotated}");
+        }
+    }
 }

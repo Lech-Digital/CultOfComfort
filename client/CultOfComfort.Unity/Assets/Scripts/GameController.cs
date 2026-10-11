@@ -51,6 +51,7 @@ namespace CultOfComfort.Client
         private BaseSnapshot _snapshot;
         private long _roadVersion = -1;
         private BuildingType? _buildSelection;
+        private bool _placeRotated;
         private int? _cardBuilding;
         private GridPosition? _cardTerrain;
         private NightPlan _plan;
@@ -149,7 +150,15 @@ namespace CultOfComfort.Client
             var hasPointer = _gestures.TryGetPendingTap(out var hover) || (!_gestures.IsDragging && PointerInput.TryGetHover(out hover) && !IsOverUi(hover));
             if (hasPointer && TryScreenToTile(hover, out var hoverTile))
             {
-                _board.ShowCursor(hoverTile, LooksBuildable(hoverTile));
+                if (_buildSelection != null)
+                {
+                    var spec = BuildingTable.Default.Spec(_buildSelection.Value);
+                    _board.ShowFootprintCursor(Footprint.Tiles(spec, hoverTile, _placeRotated), LooksBuildable(hoverTile));
+                }
+                else
+                {
+                    _board.ShowCursor(hoverTile, LooksBuildable(hoverTile));
+                }
             }
             else
             {
@@ -168,7 +177,7 @@ namespace CultOfComfort.Client
             }
         }
 
-        /// <summary>A quick local hint for the cursor; the gateway has the final word (e.g. sealing the road).</summary>
+        /// <summary>A quick local hint for the cursor (the village's own rule, from the snapshot); the gateway has the final word.</summary>
         private bool LooksBuildable(GridPosition tile)
         {
             if (_snapshot == null)
@@ -181,11 +190,7 @@ namespace CultOfComfort.Client
                 return _snapshot.BuildingAt(tile) != null;
             }
 
-            var map = VillageMap.Demo;
-            var cleared = _snapshot.ClearedTerrain ?? Array.Empty<GridPosition>();
-            return map.IsOpen(tile, _snapshot.HearthLevel) && tile != map.Spawn && tile != map.Hearth && !map.IsInSpawnClearance(tile)
-                   && (!_rocks.Contains(tile) || (map.IsBoulder(tile) && cleared.Contains(tile)))
-                   && (!map.WildTrees.Contains(tile) || cleared.Contains(tile)) && _snapshot.BuildingAt(tile) == null;
+            return VillageMap.Demo.PlacementProblem(_snapshot, BuildingTable.Default.Spec(_buildSelection.Value), tile, _placeRotated) == null;
         }
 
         /// <summary>Build with the selected card, otherwise collect from a building or open its card.</summary>
@@ -197,7 +202,7 @@ namespace CultOfComfort.Client
                 if (_buildSelection != null)
                 {
                     var type = _buildSelection.Value;
-                    var outcome = await SendVillage(new PlaceBuilding(Guid.NewGuid(), type, tile));
+                    var outcome = await SendVillage(new PlaceBuilding(Guid.NewGuid(), type, tile, _placeRotated));
                     if (outcome.Status == CommandStatus.Accepted && !BuildingTable.Default.Spec(type).IsTower)
                     {
                         _buildSelection = null; // one building per pick; towers stay selected for a row of them
@@ -396,6 +401,7 @@ namespace CultOfComfort.Client
             }
 
             _hud.SetBuildCards(VillagePresenter.BuildCards(_snapshot, BuildingTable.Default), _buildSelection);
+            _hud.ShowRotate(_buildSelection != null && CanTurn(BuildingTable.Default.Spec(_buildSelection.Value)));
             _hud.SetStartLabel(VillagePresenter.StartLabel(_snapshot));
             var hasCard = _cardBuilding != null && _snapshot.Buildings.Any(b => b.Id == _cardBuilding.Value);
             var terrainCard = _cardTerrain != null ? VillagePresenter.TerrainCard(_snapshot, VillageMap.Demo, BuildingTable.Default, _cardTerrain.Value) : null;
@@ -696,9 +702,15 @@ namespace CultOfComfort.Client
             root.styleSheets.Add(Resources.Load<StyleSheet>("UI/Hud"));
 
             _hud = new HudView(root);
+            _hud.RotateClicked += () =>
+            {
+                _placeRotated = !_placeRotated;
+                RefreshVillage();
+            };
             _hud.BuildCardSelected += type =>
             {
                 _buildSelection = type;
+                _placeRotated = false;
                 _cardBuilding = null;
                 RefreshVillage();
             };
@@ -794,6 +806,9 @@ namespace CultOfComfort.Client
                 _rig.Reset();
             }
         }
+
+        /// <summary>Square things look the same turned, except a fence, which runs one way or the other.</summary>
+        private static bool CanTurn(BuildingSpec spec) => spec.Width != spec.Depth || spec.Type == BuildingType.WattleFence;
 
         private float Seconds(int readyAtTick) => Mathf.Ceil((readyAtTick - _battle.Tick) / (float)BalanceTable.TicksPerSecond);
 

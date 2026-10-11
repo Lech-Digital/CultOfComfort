@@ -118,6 +118,57 @@ public sealed record VillageMap(
         return new(Width, Height, Spawn, Hearth, towers, rocks.Concat(LockedTiles(hearthLevel).Except(Rocks)).Concat(obstacles), null, structures, Road);
     }
 
+    /// <summary>
+    /// Why a building's shape can't stand at <paramref name="anchor"/> in this snapshot (null: it can) — the same rule
+    /// the village applies, for a cursor hint before the command is sent. Costs, limits and the builder aren't checked.
+    /// </summary>
+    public string? PlacementProblem(BaseSnapshot snapshot, BuildingSpec spec, GridPosition anchor, bool rotated)
+    {
+        var tiles = Footprint.Tiles(spec, anchor, rotated);
+        var cleared = snapshot.ClearedTerrain ?? System.Array.Empty<GridPosition>();
+        var road = new HashSet<GridPosition>(Road);
+        var locked = tiles.Where(t => Contains(t) && !IsOpen(t, snapshot.HearthLevel)).Select(t => (GridPosition?)t).FirstOrDefault();
+        if (locked != null)
+        {
+            return $"That land opens at Hearth {OpensAt(locked.Value)}.";
+        }
+
+        if (tiles.Any(t => !Contains(t) || t == Spawn || t == Hearth))
+        {
+            return "Can't build there.";
+        }
+
+        if (tiles.Any(road.Contains))
+        {
+            return "That's the raiders' road. Build beside it.";
+        }
+
+        foreach (var tile in tiles)
+        {
+            if (snapshot.BuildingAt(tile) != null || IsBedrock(tile))
+            {
+                return "Can't build there.";
+            }
+
+            if (IsInSpawnClearance(tile))
+            {
+                return "Too close to where the raiders come in.";
+            }
+
+            if (IsBoulder(tile) && !cleared.Contains(tile))
+            {
+                return "Clear the boulder first.";
+            }
+
+            if (WildTrees.Contains(tile) && !cleared.Contains(tile))
+            {
+                return "Cut the tree down first.";
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>Wild trees still standing: not cut, not on locked land (already forest), not under a building.</summary>
     public IEnumerable<GridPosition> StandingWildTrees(IReadOnlyCollection<GridPosition> cleared, ISet<GridPosition> buildingTiles, int hearthLevel) =>
         WildTrees.Where(t => !cleared.Contains(t) && !buildingTiles.Contains(t) && IsOpen(t, hearthLevel));

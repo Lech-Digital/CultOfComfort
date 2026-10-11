@@ -349,14 +349,35 @@ namespace CultOfComfort.Client
             }
         }
 
-        public void ShowCursor(GridPosition? tile, bool valid)
+        public void ShowCursor(GridPosition? tile, bool valid) =>
+            ShowFootprintCursor(tile.HasValue ? new[] { tile.Value } : null, valid);
+
+        /// <summary>The placement cursor covers the whole footprint of what is being placed.</summary>
+        public void ShowFootprintCursor(IReadOnlyList<GridPosition> tiles, bool valid)
         {
-            _cursor.SetActive(tile.HasValue);
-            if (tile.HasValue)
+            _cursor.SetActive(tiles != null && tiles.Count > 0);
+            if (tiles != null && tiles.Count > 0)
             {
-                _cursor.transform.localPosition = Shapes.ToWorld(tile.Value, 0.03f);
+                var (centre, size) = FootprintBox(tiles);
+                _cursor.transform.localPosition = centre + new Vector3(0f, 0.03f, 0f);
+                _cursor.transform.localScale = new Vector3(size.x - 0.05f, 0.05f, size.y - 0.05f);
                 _cursor.GetComponent<Renderer>().sharedMaterial = Shapes.Material(valid ? Palette.Highlight : Palette.Invalid);
             }
+        }
+
+        /// <summary>Centre (world, on the ground) and size (x, z in tiles) of a set of tiles.</summary>
+        public static (Vector3 Centre, Vector2 Size) FootprintBox(IReadOnlyList<GridPosition> tiles)
+        {
+            int minX = int.MaxValue, minY = int.MaxValue, maxX = int.MinValue, maxY = int.MinValue;
+            foreach (var t in tiles)
+            {
+                minX = Mathf.Min(minX, t.X);
+                minY = Mathf.Min(minY, t.Y);
+                maxX = Mathf.Max(maxX, t.X);
+                maxY = Mathf.Max(maxY, t.Y);
+            }
+
+            return (new Vector3((minX + maxX) / 2f, 0f, -(minY + maxY) / 2f), new Vector2(maxX - minX + 1, maxY - minY + 1));
         }
 
         public void ShowLeaderDestination(GridPosition? tile)
@@ -556,12 +577,20 @@ namespace CultOfComfort.Client
             {
                 visual.Root = new GameObject(building.Type.ToString()).transform;
                 visual.Root.SetParent(_root, false);
-                visual.Root.localPosition = Shapes.ToWorld(building.Position);
+                var (centre, size) = FootprintBox(building.Tiles);
+                visual.Root.localPosition = centre;
+                if (size.x > 1f || size.y > 1f)
+                {
+                    // A trodden plot the size of the footprint, so a 2×4 trench reads as 2×4.
+                    Shapes.Create(PrimitiveType.Cube, Palette.Road, new Vector3(0f, 0.012f, 0f), new Vector3(size.x - 0.12f, 0.02f, size.y - 0.12f), visual.Root, "Plot");
+                }
+
                 var model = ArtLibrary.Instantiate(building.Type == BuildingType.Tree && building.Level == 0 ? "bush" : ModelName(building.Type), visual.Root);
-                var scale = building.Type == BuildingType.Stone ? 0.9f : building.Level == 0 ? 0.5f : 0.8f; // a half-built shell (or a sapling) until it is done
+                var grow = Mathf.Min(size.x, size.y); // big footprints get a big model
+                var scale = (building.Type == BuildingType.Stone ? 0.9f : building.Level == 0 ? 0.5f : 0.8f) * grow; // a half-built shell (or a sapling) until it is done
                 if (model != null)
                 {
-                    model.transform.localRotation = FaceCamera;
+                    model.transform.localRotation = building.Rotated ? Quaternion.Euler(0f, 90f, 0f) * FaceCamera : FaceCamera;
                     model.transform.localScale = Vector3.one * scale;
                 }
                 else
