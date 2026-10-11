@@ -11,6 +11,7 @@
 
 - [x] 2026-10-11 — **Art direction + pipeline:** Muddy Satire / Marchlands / Golden Mud / Manuscript+Junk (spec `docs/superpowers/specs/2026-10-10-art-direction-and-pipeline-design.md`); Blender-scripted assets (`art/`), 65 models (Prophet, raiders, villagers, creatures, Hearth L1–L3, towers, village, nature, 2024 junk, effects); code-driven comic animation (`PartAnimator`); board, raiders, towers and effects use the models with primitive fallback. Gallery: `art/previews/README.md`.
 - [x] 2026-10-11 — **HUD kit + game frame** (spec `docs/superpowers/specs/2026-10-11-hud-kit-and-game-frame-design.md`): Pillow-generated parchment/notes/tape/hazard/stamps, 18 Blender-rendered icons, IM Fell + Permanent Marker, layout C on parchment with locked shortcuts and demo-marked placeholders.
+- [x] 2026-10-11 — **The Prophet as bait + skill feedback** (spec `docs/superpowers/specs/2026-10-11-prophet-bait-and-skill-feedback-design.md`): melee raiders leave the road to fight him (balance 2026.10.3, demo hash `1ddcdf5947cfcaba`); raider status icons, rising notes, sweeping flood, first-use tips.
 
 ## Next Sessions
 
