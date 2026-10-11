@@ -41,6 +41,7 @@ namespace CultOfComfort.Client
         private readonly List<Vector2> _pointers = new List<Vector2>();
         private Camera _camera;
         private UIDocument _document;
+        private readonly TipBook _tips = new TipBook(new PlayerPrefsTipStore());
         private CameraRig _rig;
         private GestureRecognizer _gestures;
         private GestureFrame _gesture;
@@ -76,6 +77,7 @@ namespace CultOfComfort.Client
             _battleView = gameObject.AddComponent<BattleView>();
             _battleView.Announcement += Announce;
             _battleView.Floater += FloatNote;
+            _battleView.SkillUsed += ShowFirstUseTip;
 
             SetUpCamera();
             SetUpHud();
@@ -370,6 +372,15 @@ namespace CultOfComfort.Client
 
         private void Announce(string text) => _hud.Announce(text, Time.time);
 
+        private void ShowFirstUseTip(PlayerActionType skill)
+        {
+            var tip = _tips.Take(skill);
+            if (tip != null)
+            {
+                _hud.Announce(tip, Time.time, 7f, prophet: true);
+            }
+        }
+
         /// <summary>Projects a world point into the HUD panel and floats a note there.</summary>
         private void FloatNote(Vector3 world, string text)
         {
@@ -413,6 +424,11 @@ namespace CultOfComfort.Client
             _hud.SpeedClicked += () => _speed = _speed == 1 ? 2 : _speed == 2 ? 4 : 1;
             _hud.RecenterClicked += () => _rig.Reset();
             _hud.BackToDuskClicked += BackToDusk;
+            _hud.ResetTipsClicked += () =>
+            {
+                _tips.Reset();
+                Announce("Tips are back. The Prophet clears his throat.");
+            };
             _hud.ShowPhase(_phase);
         }
 

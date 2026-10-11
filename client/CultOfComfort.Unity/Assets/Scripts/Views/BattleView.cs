@@ -41,6 +41,9 @@ namespace CultOfComfort.Client
         /// <summary>A short note to float over a raider: world position, text (spec: Floating notes).</summary>
         public event Action<Vector3, string> Floater;
 
+        /// <summary>A skill was actually used (never for a rejected order): drives the first-use tips.</summary>
+        public event Action<PlayerActionType> SkillUsed;
+
         // Unity objects must not be created in field initializers or constructors — Unity owns component construction.
         private void Awake() => _block = new MaterialPropertyBlock();
 
@@ -354,6 +357,7 @@ namespace CultOfComfort.Client
                     Announcement?.Invoke(thrown.EnemiesAffected == 0
                         ? "Hot stones, thrown at nothing. The grass is now exfoliated."
                         : $"Hot Stone Therapy for {thrown.EnemiesAffected}. Unrequested, unrefundable.");
+                    SkillUsed?.Invoke(PlayerActionType.HotStones); // after the announcement, so a first-use tip wins the toast
                     break;
                 case EnemySpawned { Type: EnemyType.Zealot } when !_zealotAnnounced:
                     _zealotAnnounced = true;
@@ -363,6 +367,7 @@ namespace CultOfComfort.Client
                     SpawnFlood();
                     FloatOver(_ => true, "washed back!");
                     Announcement?.Invoke($"Sluice gate opened. {used.EnemiesAffected} soldiers rediscover mud at speed.");
+                    SkillUsed?.Invoke(PlayerActionType.OpenSluiceGate); // after the announcement, so a first-use tip wins the toast
                     break;
                 case InterventionUsed { Type: PlayerActionType.PhantomVoice } used:
                     if (used.EnemiesAffected == 0)
@@ -375,6 +380,7 @@ namespace CultOfComfort.Client
                     Announcement?.Invoke(used.EnemiesAffected == 0
                         ? "He shouted into a tin can at nobody. The cultists exchanged looks."
                         : $"A disembodied voice told {used.EnemiesAffected} soldiers to go home. They did.");
+                    SkillUsed?.Invoke(PlayerActionType.PhantomVoice); // after the announcement, so a first-use tip wins the toast
                     break;
                 case InputRejected rejected:
                     _prophet?.Annoyed(); // he takes refusals personally

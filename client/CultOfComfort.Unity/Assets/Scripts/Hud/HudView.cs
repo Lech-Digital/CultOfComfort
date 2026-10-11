@@ -280,6 +280,7 @@ namespace CultOfComfort.Client
         public event Action SpeedClicked;
         public event Action RecenterClicked;
         public event Action BackToDuskClicked;
+        public event Action ResetTipsClicked;
 
         public void SetPortrait(bool portrait)
         {
@@ -455,6 +456,9 @@ namespace CultOfComfort.Client
             recenter.name = "recenter";
             sheet.Add(recenter);
             sheet.Add(Text("Sound: there is no sound yet.", "sheet-line"));
+            var tips = ButtonWith("Show tips again", () => ResetTipsClicked?.Invoke(), "plain");
+            tips.name = "reset-tips";
+            sheet.Add(tips);
             sheet.Add(Text($"Build {Application.version}", "sheet-line", "small"));
             probe = Text(string.Empty, "sheet-line", "small");
             probe.style.display = Debug.isDebugBuild ? DisplayStyle.Flex : DisplayStyle.None;

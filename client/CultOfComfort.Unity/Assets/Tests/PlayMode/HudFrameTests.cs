@@ -181,6 +181,44 @@ namespace CultOfComfort.Client.Tests
         }
 
         [UnityTest]
+        public IEnumerator Settings_ShowTipsAgain_RaisesReset()
+        {
+            // Arrange
+            var (hud, root) = PhoneHud(portrait: true);
+            var raised = false;
+            hud.ResetTipsClicked += () => raised = true;
+            yield return null;
+
+            // Act
+            Click(root.Q<Button>("reset-tips"));
+
+            // Assert
+            Assert.IsTrue(raised);
+        }
+
+        [UnityTest]
+        public IEnumerator Tips_FirstSluice_TheTipIsWhatStaysOnScreen()
+        {
+            // Arrange
+            PlayerPrefs.DeleteKey("tip.sluice");
+            yield return LoadGame();
+            var game = Object.FindAnyObjectByType<GameController>();
+            var root = Root();
+            game.StartNight();
+            yield return null;
+
+            // Act
+            Click(root.Q<Button>("sluice"));
+            for (var i = 0; i < 10; i++)
+            {
+                yield return null;
+            }
+
+            // Assert
+            StringAssert.Contains("washed three tiles back", root.Q<Label>("toast").text, "the first-use tip must not be overwritten by the announcement");
+        }
+
+        [UnityTest]
         public IEnumerator Frame_Dusk_ShowsPillsPortraitTensionAndShortcuts()
         {
             // Arrange & Act
