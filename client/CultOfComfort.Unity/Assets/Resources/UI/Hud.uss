@@ -69,11 +69,11 @@
 .pill-note.demo > .demo-tag { color: #a8432c; }
 
 .identity { flex-direction: row; align-items: center; margin-top: 2px; }
-.portrait {
+.avatar {
     width: 58px; height: 58px; border-radius: 29px;
     background-color: #6d4c2f; border-color: #d9b45a; border-width: 3px;
-    overflow: hidden;
 }
+.avatar-clip { flex-grow: 1; border-radius: 26px; overflow: hidden; }
 .portrait-face { width: 100%; height: 100%; }
 .hearth-badge {
     position: absolute; right: -2px; bottom: -2px;
@@ -145,16 +145,22 @@
     color: #2b2215; rotate: -1.5deg;
 }
 .locked-note {
-    max-width: 78%; margin-top: 10px; padding: 14px 16px; white-space: normal; font-size: 14px;
+    width: 78%; /* a fixed width: with only max-width, wrapped text is measured too short and spills out */ margin-top: 10px; padding: 14px 16px; white-space: normal; font-size: 14px;
     background-image: resource("UI/Kit/note_pink");
     rotate: 2deg;
 }
 
-.sheet { width: 260px; margin-top: 10px; align-items: stretch; }
+.sheet { position: absolute; top: 18%; width: 260px; align-self: center; align-items: stretch; }
 .sheet-title, .card-title { -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC"); color: #7a1f1a; font-size: 22px; margin: 0 0 6px 0; padding: 0; }
 .sheet-line, .card-line { white-space: normal; margin: 3px 0 0 0; padding: 0; }
 
-.card { max-width: 420px; margin-top: 30px; align-items: stretch; }
+.card { position: absolute; width: 90%; max-width: 440px; align-self: center; align-items: stretch; }
+.portrait .card { top: 22%; }
+.landscape .card { top: 3%; padding: 8px 16px; }
+.landscape .card .card-title { font-size: 18px; margin-bottom: 2px; }
+.landscape .stamp { height: 44px; margin: 2px 0; }
+.landscape .frame { flex-direction: row; align-items: center; }
+.landscape .pills { flex-grow: 1; }
 .stamp { height: 74px; margin: 8px 0; -unity-background-scale-mode: scale-to-fit; }
 .stamp.verified { background-image: resource("UI/Kit/stamp_verified"); }
 .stamp.mismatch { background-image: resource("UI/Kit/stamp_mismatch"); }

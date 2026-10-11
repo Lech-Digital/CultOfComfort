@@ -123,7 +123,7 @@ namespace CultOfComfort.Client
             var pills = Container("pills");
             foreach (var (key, icon) in new[] { ("timber", "timber"), ("scrap", "scrap"), ("peat", "peat"), ("devotion", "devotion"), ("pennies", "penny") })
             {
-                var pill = Container(key == "pennies" ? "pill-note" : "pill");
+                var pill = Surface(key == "pennies" ? "pill-note" : "pill");
                 pill.name = $"pill-{key}";
                 pill.Add(Icon(icon));
                 var value = Text(string.Empty, "pill-value");
@@ -135,14 +135,16 @@ namespace CultOfComfort.Client
 
             frame.Add(pills);
             var identity = Container("identity");
-            var portrait = Container("portrait");
+            var portrait = Surface("avatar"); // not "portrait": that class is the root's orientation flag
             portrait.name = "portrait";
-            portrait.Add(Icon("portrait_prophet", "portrait-face"));
+            var clip = Container("avatar-clip"); // round mask for the face only, so the badge is not clipped
+            clip.Add(Icon("portrait_prophet", "portrait-face"));
+            portrait.Add(clip);
             _hearthBadge = Text("1", "hearth-badge");
             _hearthBadge.name = "hearth-badge";
             portrait.Add(_hearthBadge);
             identity.Add(portrait);
-            var label = Container("id-label");
+            var label = Surface("id-label");
             label.Add(Container("tape"));
             _hearthLine = Text("Hearth Lv 1", "id-title");
             _comfort = Text(string.Empty, "id-line");
@@ -159,7 +161,7 @@ namespace CultOfComfort.Client
 
             _tensionStrip = Container("strip");
             _tensionStrip.name = "tension-strip";
-            var tape = Container("hazard-track");
+            var tape = Surface("hazard-track");
             _tensionCover = Container("hazard-cover");
             tape.Add(_tensionCover);
             _tensionStrip.Add(tape);
@@ -196,8 +198,6 @@ namespace CultOfComfort.Client
             _card = BuildCard(out _cardTitle, out _cardSummary, out _cardFlavour, out _cardStats, out _stamp);
             centre.Add(_toast);
             centre.Add(_lockedNote);
-            centre.Add(_settings);
-            centre.Add(_card);
             middle.Add(_sideLeft);
             middle.Add(centre);
             middle.Add(_sideRight);
@@ -254,6 +254,8 @@ namespace CultOfComfort.Client
             _root.Add(_top);
             _root.Add(middle);
             _root.Add(_bar);
+            _root.Add(_card);      // overlays, added last so they draw over the bar
+            _root.Add(_settings);
             SetPortrait(false);
             Show(_settings, false);
         }
@@ -276,7 +278,7 @@ namespace CultOfComfort.Client
         public void ShowPhase(GamePhase phase)
         {
             Show(_tensionStrip, phase == GamePhase.Dusk);
-            Show(_waveStrip, phase != GamePhase.Dusk);
+            Show(_waveStrip, phase == GamePhase.Night);
             Show(_sideLeft, phase == GamePhase.Dusk);
             Show(_sideRight, phase == GamePhase.Dusk);
             Show(_duskBar, phase == GamePhase.Dusk);
@@ -300,7 +302,7 @@ namespace CultOfComfort.Client
             SetPill("pennies", frame.Pennies);
             _hearthBadge.text = frame.HearthLevel.ToString();
             _hearthLine.text = $"Hearth Lv {frame.HearthLevel}";
-            _comfort.text = $"Comfort {frame.Comfort.Value}";
+            _comfort.text = frame.Comfort.IsDemo ? $"Comfort {frame.Comfort.Value} · demo" : $"Comfort {frame.Comfort.Value}";
             _comfort.EnableInClassList("demo", frame.Comfort.IsDemo);
             _tensionCover.style.width = Length.Percent((1f - Mathf.Clamp01(frame.Tension)) * 100f);
             _tensionNote.text = frame.TensionIsDemo ? $"TENSION — {frame.TensionNote} (demo)" : $"TENSION — {frame.TensionNote}";
@@ -501,7 +503,7 @@ namespace CultOfComfort.Client
         {
             var row = Container("meter");
             row.Add(Text(name, "meter-label"));
-            var track = Container("meter-track");
+            var track = Surface("meter-track");
             var fill = Container("meter-fill");
             fill.name = fillName;
             track.Add(fill);
@@ -548,6 +550,14 @@ namespace CultOfComfort.Client
         private static VisualElement Container(string className)
         {
             var element = new VisualElement { pickingMode = PickingMode.Ignore };
+            element.AddToClassList(className);
+            return element;
+        }
+
+        /// <summary>A drawn piece of the frame (pill, portrait, tape): blocks world taps, unlike plain layout containers.</summary>
+        private static VisualElement Surface(string className)
+        {
+            var element = new VisualElement();
             element.AddToClassList(className);
             return element;
         }

@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using CultOfComfort.Simulation.Balance;
+using CultOfComfort.Simulation.Combat;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -58,6 +59,105 @@ namespace CultOfComfort.Client.Tests
             return (hud, root);
         }
 
+        /// <summary>A HudView rendered at Pixel 10 size and density (2424×1080 px at 2.625×), portrait or landscape.</summary>
+        private (HudView Hud, VisualElement Root) PhoneHud(bool portrait)
+        {
+            var (hud, root) = StandaloneHud();
+            var settings = _host.GetComponent<UIDocument>().panelSettings;
+            settings.targetTexture = portrait ? new RenderTexture(1080, 2424, 0) : new RenderTexture(2424, 1080, 0);
+            settings.scaleMode = PanelScaleMode.ConstantPixelSize;
+            settings.scale = 2.625f;
+            hud.SetPortrait(portrait);
+            return (hud, root);
+        }
+
+        [UnityTest]
+        public IEnumerator Landscape_DawnCard_BackToDuskFitsOnScreen()
+        {
+            // Arrange
+            var (hud, root) = PhoneHud(portrait: false);
+            hud.UpdateFrame(DemoEconomy.Frame(380, 1));
+            var result = new BattleResult(BattleOutcome.Lost, 0, 0, 100, 2000, 3, 10, 0x0123456789abcdefUL);
+
+            // Act
+            hud.ShowPhase(GamePhase.Dawn);
+            hud.ShowDawn(result, result, 10);
+            yield return null;
+            yield return null;
+
+            // Assert
+            var button = root.Q("card").Q<Button>(className: "primary");
+            Assert.LessOrEqual(button.worldBound.yMax, root.worldBound.yMax + 0.5f, "Back to Dusk must be reachable in landscape.");
+        }
+
+        [UnityTest]
+        public IEnumerator Landscape_SettingsAtNight_CloseIsAboveTheBar()
+        {
+            // Arrange
+            var (hud, root) = PhoneHud(portrait: false);
+            hud.ShowPhase(GamePhase.Night);
+            yield return null;
+
+            // Act
+            Click(root.Q<Button>("settings-button"));
+            yield return null;
+            yield return null;
+
+            // Assert
+            var close = root.Q("settings-sheet").Query<Button>(className: "plain").Last();
+            Assert.LessOrEqual(close.worldBound.yMax, root.Q(className: "bar").worldBound.yMin + 0.5f, "The night bar must not cover Close.");
+        }
+
+        [UnityTest]
+        public IEnumerator Portrait_HearthBadge_SitsOutsideTheClippedFace()
+        {
+            // Arrange & Act
+            var (_, root) = PhoneHud(portrait: true);
+            yield return null;
+
+            // Assert
+            var badge = root.Q("hearth-badge");
+            Assert.IsNotNull(root.Q("portrait").Q(className: "avatar-clip"), "The face is clipped by its own wrapper.");
+            Assert.IsFalse(badge.parent.ClassListContains("avatar-clip"), "The badge must not be inside the clip.");
+        }
+
+        [UnityTest]
+        public IEnumerator Frame_TapOnAPillsDrawnEdge_HitsTheUi()
+        {
+            // Arrange
+            var (hud, root) = PhoneHud(portrait: true);
+            hud.UpdateFrame(DemoEconomy.Frame(380, 1));
+            yield return null;
+            yield return null;
+
+            // Act
+            var pill = root.Q("pill-timber").worldBound;
+            var picked = root.panel.Pick(new Vector2(pill.xMin + 2f, pill.center.y));
+
+            // Assert
+            Assert.IsNotNull(picked, "A tap on a pill must not fall through to the board.");
+        }
+
+        [UnityTest]
+        public IEnumerator LockedNote_LongNote_TextFitsInsideTheNote()
+        {
+            // Arrange
+            var (hud, root) = PhoneHud(portrait: true);
+            hud.ShowPhase(GamePhase.Dusk);
+
+            // Act
+            hud.ShowLockedNote("research", Time.time);
+            hud.Tick(Time.time);
+            yield return null;
+            yield return null;
+
+            // Assert
+            var note = root.Q<Label>("locked-note");
+            var content = note.contentRect;
+            var text = note.MeasureTextSize(note.text, content.width, VisualElement.MeasureMode.Exactly, 0f, VisualElement.MeasureMode.Undefined);
+            Assert.LessOrEqual(text.y, content.height + 0.5f);
+        }
+
         [UnityTest]
         public IEnumerator Frame_Dusk_ShowsPillsPortraitTensionAndShortcuts()
         {
@@ -87,6 +187,8 @@ namespace CultOfComfort.Client.Tests
             {
                 Assert.IsTrue(root.Q(name).ClassListContains("demo"), name);
             }
+
+            StringAssert.Contains("demo", root.Q<Label>("comfort").text, "Comfort's demo mark must be visible, not just a colour.");
 
             Assert.IsFalse(root.Q("pill-scrap").ClassListContains("demo"));
         }
@@ -189,6 +291,24 @@ namespace CultOfComfort.Client.Tests
             // Assert
             Assert.AreEqual(FlexDirection.Column, portrait);
             Assert.AreEqual(FlexDirection.Row, landscape);
+        }
+
+        [UnityTest]
+        public IEnumerator Orientation_Portrait_RootStillFillsTheScreen()
+        {
+            // Arrange: the root carries the orientation class "portrait" — no other style may hijack it.
+            var (hud, root) = StandaloneHud();
+            hud.ShowPhase(GamePhase.Dusk);
+
+            // Act
+            hud.SetPortrait(true);
+            yield return null;
+            yield return null;
+
+            // Assert
+            var panel = root.panel.visualTree.worldBound;
+            Assert.AreEqual(panel.width, root.worldBound.width, 1f);
+            Assert.AreEqual(panel.height, root.worldBound.height, 1f);
         }
 
         [UnityTest]
