@@ -15,6 +15,14 @@ public sealed record VillageMap(int Width, int Height, GridPosition Spawn, GridP
     public BattleLayout ToBattleLayout(IEnumerable<PlacedTower> towers, IEnumerable<GridPosition> obstacles) =>
         new(Width, Height, Spawn, Hearth, towers, Rocks.Concat(obstacles));
 
+    /// <summary>
+    /// The locked Night layout for a village snapshot: towers fight, every other building is in the way. Pure, so a
+    /// remote gateway derives it from the server's snapshot exactly as the device does.
+    /// </summary>
+    public BattleLayout ToBattleLayout(BaseSnapshot snapshot, BuildingTable table) => ToBattleLayout(
+        snapshot.Buildings.Where(b => table.Spec(b.Type).IsTower).Select(b => new PlacedTower(table.Spec(b.Type).Tower!.Value, b.Position)),
+        snapshot.Buildings.Where(b => b.Type != BuildingType.Hearth && !table.Spec(b.Type).IsTower).Select(b => b.Position));
+
     private static IReadOnlyList<GridPosition> DemoRocks()
     {
         var rocks = new List<GridPosition>();

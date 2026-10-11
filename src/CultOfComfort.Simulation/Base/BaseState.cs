@@ -79,7 +79,61 @@ public sealed class BaseState
             state.Remember(id);
         }
 
+        state.Validate();
         return state;
+    }
+
+    /// <summary>Rejects a save that no sequence of commands could have produced (hand-edited or corrupted).</summary>
+    private void Validate()
+    {
+        void Fail(string reason) => throw new InvalidBaseDataException(reason);
+
+        if (_stock.Timber < 0 || _stock.Peat < 0 || _stock.Scrap < 0 || _stock.Devotion < 0)
+        {
+            Fail("negative stock");
+        }
+
+        if (_buildings.Select(b => b.Id).Distinct().Count() != _buildings.Count || _buildings.Any(b => b.Id >= _nextId && b.Id != HearthId))
+        {
+            Fail("building ids collide");
+        }
+
+        if (Hearth.Position != _map.Hearth || Hearth.Level < 1)
+        {
+            Fail("the Hearth is not where (or what) it should be");
+        }
+
+        if (_buildings.Count(b => b.IsUpgrading) > 1)
+        {
+            Fail("two constructions at once");
+        }
+
+        var tiles = new HashSet<GridPosition>();
+        foreach (var b in _buildings)
+        {
+            var spec = _table.Spec(b.Type);
+            var minLevel = b.Type == BuildingType.Hearth || spec.IsTower ? 1 : 0;
+            if (b.Level < minLevel || b.Level > spec.MaxLevel || b.BufferMilli < 0
+                || (b.Level == 0 && !b.IsUpgrading) || (b.IsUpgrading && (spec.IsTower || b.Level >= spec.MaxLevel)))
+            {
+                Fail($"building {b.Id} is in an impossible state");
+            }
+
+            if (!tiles.Add(b.Position) || (b.Type != BuildingType.Hearth
+                && (!_map.Contains(b.Position) || b.Position == _map.Spawn || b.Position == _map.Hearth || _map.Rocks.Contains(b.Position))))
+            {
+                Fail($"building {b.Id} stands somewhere it cannot");
+            }
+        }
+
+        try
+        {
+            ToBattleLayout().Validate();
+        }
+        catch (InvalidLayoutException e)
+        {
+            Fail("the road is sealed: " + e.Message);
+        }
     }
 
     public BaseData ToData() => new(
@@ -147,6 +201,7 @@ public sealed class BaseState
     public BattleLayout ToBattleLayout() => _map.ToBattleLayout(
         _buildings.Where(b => _table.Spec(b.Type).IsTower).Select(b => new PlacedTower(_table.Spec(b.Type).Tower!.Value, b.Position)),
         _buildings.Where(b => b.Type != BuildingType.Hearth && !_table.Spec(b.Type).IsTower).Select(b => b.Position));
+    // (VillageMap.ToBattleLayout(snapshot, table) is the same rule from a snapshot, for gateways.)
 
     // ---------------- commands ----------------
 
@@ -347,7 +402,10 @@ public sealed class BaseState
         Materialize(building, endedAt);
         building.Level++;
         building.UpgradeEndsAtUtc = null;
-        building.AsOfUtc = endedAt;
+        if (endedAt > building.AsOfUtc)
+        {
+            building.AsOfUtc = endedAt; // never backwards: time already counted is never counted again
+        }
     }
 
     private int Rate(Building b)
