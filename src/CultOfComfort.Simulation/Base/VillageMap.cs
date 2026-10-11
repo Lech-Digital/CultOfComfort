@@ -25,24 +25,26 @@ public sealed record VillageMap(
     int SpawnClearance = 0)
 {
     private IReadOnlyList<GridPosition>? _wildTrees;
+    private IReadOnlyList<GridPosition>? _road;
 
     // Declared before Demo: static initialisers run in order, and Demo needs these.
     private static readonly GridPosition[] DemoBoulders =
     {
         new(1, 6), new(2, 9), new(8, 4), new(14, 1), new(16, 4), new(8, 0),
         new(20, 5), new(14, 16), new(26, 12), new(7, 18),
+        new(34, 8), new(20, 23), new(42, 18), new(31, 28), new(8, 27), new(45, 4),
     };
 
     /// <summary>
-    /// The muddy valley. Building the village is the heart of the game, so there is room: 18×14 open at Hearth 1,
-    /// 24×18 at Hearth 2, the whole 30×20 at Hearth 3. The road between spawn and Hearth never changes.
+    /// The muddy valley. Building the village is the heart of the game, so there is room: 30×20 open at Hearth 1,
+    /// 38×26 at Hearth 2, the whole 48×32 at Hearth 3. The road between spawn and Hearth never changes.
     /// </summary>
-    public static VillageMap Demo { get; } = new(30, 20, new GridPosition(0, 1), new GridPosition(17, 9), DemoRocks(), new[]
+    public static VillageMap Demo { get; } = new(48, 32, new GridPosition(0, 1), new GridPosition(17, 9), DemoRocks(), new[]
     {
-        new MapZone(0, 14, 23, 17, 2),
-        new MapZone(18, 0, 23, 13, 2),
-        new MapZone(0, 18, 23, 19, 3),
-        new MapZone(24, 0, 29, 19, 3),
+        new MapZone(0, 20, 37, 25, 2),
+        new MapZone(30, 0, 37, 19, 2),
+        new MapZone(0, 26, 47, 31, 3),
+        new MapZone(38, 0, 47, 25, 3),
     }, DemoBoulders, SpawnClearance: 3);
 
     /// <summary>Rock that can never be cleared: the walls that shape the raiders' road.</summary>
@@ -60,9 +62,15 @@ public sealed record VillageMap(
     /// </summary>
     public IReadOnlyList<GridPosition> WildTrees => _wildTrees ??= ComputeWildTrees();
 
+    /// <summary>
+    /// The raiders' road: the old track on the bare valley (every rock standing, all land open). It never moves:
+    /// nobody may build on it, and clearing a boulder doesn't open a shortcut.
+    /// </summary>
+    public IReadOnlyList<GridPosition> Road => _road ??= new BattleLayout(Width, Height, Spawn, Hearth, System.Array.Empty<PlacedTower>(), Rocks).ResolveEnemyPath();
+
     private IReadOnlyList<GridPosition> ComputeWildTrees()
     {
-        var road = new HashSet<GridPosition>(ToBattleLayout(System.Array.Empty<PlacedTower>(), System.Array.Empty<GridPosition>()).ResolveEnemyPath());
+        var road = new HashSet<GridPosition>(Road);
         var trees = new List<GridPosition>();
         for (var y = 0; y < Height; y++)
         {
@@ -107,7 +115,58 @@ public sealed record VillageMap(
         int hearthLevel = int.MaxValue, IReadOnlyCollection<GridPosition>? cleared = null)
     {
         var rocks = cleared == null ? Rocks : Rocks.Where(r => !cleared.Contains(r)).ToList();
-        return new(Width, Height, Spawn, Hearth, towers, rocks.Concat(LockedTiles(hearthLevel).Except(Rocks)).Concat(obstacles), null, structures);
+        return new(Width, Height, Spawn, Hearth, towers, rocks.Concat(LockedTiles(hearthLevel).Except(Rocks)).Concat(obstacles), null, structures, Road);
+    }
+
+    /// <summary>
+    /// Why a building's shape can't stand at <paramref name="anchor"/> in this snapshot (null: it can) — the same rule
+    /// the village applies, for a cursor hint before the command is sent. Costs, limits and the builder aren't checked.
+    /// </summary>
+    public string? PlacementProblem(BaseSnapshot snapshot, BuildingSpec spec, GridPosition anchor, bool rotated)
+    {
+        var tiles = Footprint.Tiles(spec, anchor, rotated);
+        var cleared = snapshot.ClearedTerrain ?? System.Array.Empty<GridPosition>();
+        var road = new HashSet<GridPosition>(Road);
+        var locked = tiles.Where(t => Contains(t) && !IsOpen(t, snapshot.HearthLevel)).Select(t => (GridPosition?)t).FirstOrDefault();
+        if (locked != null)
+        {
+            return $"That land opens at Hearth {OpensAt(locked.Value)}.";
+        }
+
+        if (tiles.Any(t => !Contains(t) || t == Spawn || t == Hearth))
+        {
+            return "Can't build there.";
+        }
+
+        if (tiles.Any(road.Contains))
+        {
+            return "That's the raiders' road. Build beside it.";
+        }
+
+        foreach (var tile in tiles)
+        {
+            if (snapshot.BuildingAt(tile) != null || IsBedrock(tile))
+            {
+                return "Can't build there.";
+            }
+
+            if (IsInSpawnClearance(tile))
+            {
+                return "Too close to where the raiders come in.";
+            }
+
+            if (IsBoulder(tile) && !cleared.Contains(tile))
+            {
+                return "Clear the boulder first.";
+            }
+
+            if (WildTrees.Contains(tile) && !cleared.Contains(tile))
+            {
+                return "Cut the tree down first.";
+            }
+        }
+
+        return null;
     }
 
     /// <summary>Wild trees still standing: not cut, not on locked land (already forest), not under a building.</summary>
@@ -121,14 +180,16 @@ public sealed record VillageMap(
     public BattleLayout ToBattleLayout(BaseSnapshot snapshot, BuildingTable table)
     {
         var cleared = snapshot.ClearedTerrain ?? System.Array.Empty<GridPosition>();
-        var buildingTiles = new HashSet<GridPosition>(snapshot.Buildings.Select(b => b.Position));
         return ToBattleLayout(
             snapshot.Buildings.Where(b => table.Spec(b.Type).IsTower).Select(b => new PlacedTower(table.Spec(b.Type).Tower!.Value, b.Position)),
-            snapshot.Buildings.Where(b => b.Type != BuildingType.Hearth && !table.Spec(b.Type).IsTower).Select(b => b.Position),
+            snapshot.Buildings.Where(b => b.Type != BuildingType.Hearth && !table.Spec(b.Type).IsTower).SelectMany(b => b.Tiles),
             snapshot.Buildings.Where(b => b.Type != BuildingType.Hearth && table.StructureHealth(b.Type, b.Level) > 0).Select(b =>
             {
                 var health = table.StructureHealth(b.Type, b.Level);
-                return new PlacedStructure(b.Id, b.Position, health, b.Wrecked ? 0 : health);
+                return new PlacedStructure(b.Id, b.Position, health, b.Wrecked ? 0 : health)
+                {
+                    Tiles = b.Tiles, Barrier = BuildingTable.IsBarrier(b.Type), Gate = b.Type == BuildingType.Gate,
+                };
             }),
             snapshot.HearthLevel,
             cleared);
@@ -143,7 +204,7 @@ public sealed record VillageMap(
         }
 
         // The eastern wall runs to the southern edge, so the land that opens at Hearth 2 is no shortcut for raiders.
-        for (var y = 3; y <= 19; y++)
+        for (var y = 3; y <= 31; y++)
         {
             rocks.Add(new GridPosition(11, y));
         }
@@ -155,6 +216,8 @@ public sealed record VillageMap(
 
             // A few boulders out in the new land, so it isn't a parade ground.
             new GridPosition(20, 5), new GridPosition(14, 16), new GridPosition(26, 12), new GridPosition(7, 18),
+            new GridPosition(34, 8), new GridPosition(20, 23), new GridPosition(42, 18), new GridPosition(31, 28),
+            new GridPosition(8, 27), new GridPosition(45, 4),
         });
         return rocks;
     }

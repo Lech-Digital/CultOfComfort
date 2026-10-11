@@ -124,7 +124,7 @@ public class NightTests
         Begin(state, T0);
 
         // Act
-        var outcome = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(4, 6)), T0);
+        var outcome = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(7, 6)), T0);
 
         // Assert
         outcome.Status.Should().Be(CommandStatus.Rejected);

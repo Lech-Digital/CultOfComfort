@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using CultOfComfort.Simulation.Grid;
 using CultOfComfort.Simulation.Balance;
 using CultOfComfort.Simulation.Numerics;
 
@@ -51,6 +52,36 @@ public sealed class Enemy
     public int SmashTargetId { get; internal set; } = -1;
 
     internal HashSet<int> StructuresHit { get; } = new();
+
+    /// <summary>The structure it left the road for, or −1 while it marches.</summary>
+    public int RaidTargetId { get; internal set; } = -1;
+
+    /// <summary>Its walk from the road to the target (tiles); walked back the same way afterwards.</summary>
+    internal List<GridPosition>? RaidRoute { get; set; }
+
+    /// <summary>Index into <see cref="RaidRoute"/> it is walking to (−1 = back on its road point).</summary>
+    internal int RaidStep { get; set; }
+
+    internal bool RaidReturning { get; set; }
+
+    internal bool IsRaiding => RaidRoute != null;
+
+    internal void StartRaid(int targetId, List<GridPosition> route)
+    {
+        RaidTargetId = targetId;
+        RaidRoute = route;
+        RaidStep = 0;
+        RaidReturning = false;
+    }
+
+    /// <summary>Gives up the raid (fright, the Prophet, a wrecked target): it heads straight back to the road.</summary>
+    internal void EndRaid()
+    {
+        RaidTargetId = -1;
+        RaidRoute = null;
+        RaidStep = 0;
+        RaidReturning = false;
+    }
 
     /// <summary>Breaks off a swing in progress (fright, a sluice, the Prophet): it does not count as a hit.</summary>
     internal void CancelSwing()

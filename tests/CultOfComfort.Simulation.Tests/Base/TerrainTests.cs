@@ -22,7 +22,7 @@ public class TerrainTests
         var trees = Map.WildTrees;
 
         // Assert
-        trees.Count.Should().BeInRange(30, 90);
+        trees.Count.Should().BeInRange(70, 200);
         trees.Should().NotIntersectWith(road);
         trees.Should().NotIntersectWith(Map.Rocks);
         trees.Should().OnlyContain(t => !Map.IsInSpawnClearance(t) && Math.Max(Math.Abs(t.X - Map.Hearth.X), Math.Abs(t.Y - Map.Hearth.Y)) > 1);
@@ -31,7 +31,7 @@ public class TerrainTests
     [Fact]
     public void Demo_Boulders_AreLooseRocksAndTheWallsAreBedrock()
     {
-        Map.Boulders.Should().HaveCount(10);
+        Map.Boulders.Should().HaveCount(16);
         Map.IsBedrock(new GridPosition(5, 3)).Should().BeTrue();
         Map.IsBedrock(new GridPosition(8, 4)).Should().BeFalse();
     }
@@ -95,7 +95,7 @@ public class TerrainTests
 
     [Theory]
     [InlineData(5, 3, "That's bedrock. It was here before the Romans and it will be here after the Prophet.")]
-    [InlineData(20, 5, "That land opens at Hearth 2.")]
+    [InlineData(34, 8, "That land opens at Hearth 2.")]
     [InlineData(10, 10, "Nothing to clear there.")]
     public void ClearTerrain_WallLockedOrEmpty_Rejected(int x, int y, string reason)
     {
@@ -115,13 +115,13 @@ public class TerrainTests
         state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(6, 9)), T0);
 
         // Act
-        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Stone, new GridPosition(4, 6)), T0).Status.Should().Be(CommandStatus.Accepted);
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Stone, new GridPosition(7, 6)), T0).Status.Should().Be(CommandStatus.Accepted);
         state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Tree, new GridPosition(3, 9)), T0).Status.Should().Be(CommandStatus.Accepted);
 
         // Assert
         state.Snapshot(T0).Stock.Should().Be(new ResourceBag(500 - 50 - 5, 60, 370, 0));
         var layout = state.ToBattleLayout();
-        layout.IsBlocked(new GridPosition(4, 6)).Should().BeTrue();
+        layout.IsBlocked(new GridPosition(7, 6)).Should().BeTrue();
         layout.IsBlocked(new GridPosition(3, 9)).Should().BeTrue();
         layout.Structures.Should().OnlyContain(st => st.Position == new GridPosition(6, 9), "raiders don't smash stones or trees");
     }
@@ -131,7 +131,7 @@ public class TerrainTests
     {
         // Arrange
         var state = NewBase();
-        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Stone, new GridPosition(4, 6)), T0);
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Stone, new GridPosition(7, 6)), T0);
         var id = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Stone).Id;
 
         // Act

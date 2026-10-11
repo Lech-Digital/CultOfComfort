@@ -90,7 +90,7 @@ namespace CultOfComfort.Client.Tests
             // Arrange
             var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
             var before = state.Snapshot(T0);
-            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(4, 6)), T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(7, 6)), T0);
             var after = state.Snapshot(T0);
 
             // Act & Assert
@@ -145,7 +145,7 @@ namespace CultOfComfort.Client.Tests
         {
             // Arrange
             var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
-            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(4, 6)), T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(7, 6)), T0);
             var id = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.SlurryChute).Id;
             state.Apply(new RecordNightResult(Guid.NewGuid(), 1, 0, new[] { id }), T0);
 
@@ -222,6 +222,33 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("Tree · grown", grown.Title);
             Assert.AreEqual("Cut it down · +15 Timber", grown.DemolishLabel);
             Assert.IsFalse(grown.CanUpgrade);
+        }
+
+        [Test]
+        public void BuildCards_Shapes_ShowTheirSize()
+        {
+            // Act
+            var cards = VillagePresenter.BuildCards(Fresh(), BuildingTable.Default);
+
+            // Assert — a 1×1 says nothing; bigger ones say how much room they need.
+            Assert.AreEqual("2×4", cards.Single(c => c.Type == BuildingType.PeatCut).Size);
+            Assert.AreEqual("2×1", cards.Single(c => c.Type == BuildingType.Woodcutter).Size);
+            Assert.AreEqual(string.Empty, cards.Single(c => c.Type == BuildingType.SlurryChute).Size);
+        }
+
+        [Test]
+        public void BuildCards_WallAndGate_AvailableAtHearthOneWithTheirIcons()
+        {
+            // Act
+            var cards = VillagePresenter.BuildCards(Fresh(), BuildingTable.Default);
+
+            // Assert
+            var wall = cards.Single(c => c.Type == BuildingType.WoodenWall);
+            var gate = cards.Single(c => c.Type == BuildingType.Gate);
+            Assert.IsFalse(wall.Locked);
+            Assert.AreEqual("30 Timber", wall.Cost);
+            Assert.AreEqual("b_wooden_wall", wall.Icon);
+            Assert.AreEqual("b_gate", gate.Icon);
         }
     }
 }

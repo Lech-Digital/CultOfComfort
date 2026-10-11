@@ -34,7 +34,7 @@ public class StructureDamageTests
     [Fact]
     public void Defaults_Balance_HasStructureDamagePerRaider()
     {
-        BalanceTable.Default.Version.Should().Be("2026.10.4");
+        BalanceTable.Default.Version.Should().Be("2026.10.5");
         BalanceTable.Default.StructureSwingTicks.Should().Be(16);
         BalanceTable.Default.Enemies[EnemyType.Levy].StructureDamage.Should().Be(15);
         BalanceTable.Default.Enemies[EnemyType.ManAtArms].StructureDamage.Should().Be(40);
@@ -138,7 +138,7 @@ public class StructureDamageTests
         while (!battle.IsFinished && battle.Tick < 600)
         {
             battle.Step();
-            smashedWhileHunting |= battle.LastTickEvents.OfType<StructureHit>().Any() && battle.Enemies.Any(e => e.IsFightingLeader || e.IsOffRoad);
+            smashedWhileHunting |= battle.LastTickEvents.OfType<StructureHit>().Any(h => battle.Enemies.First(e => e.Id == h.EnemyId) is { } e && (e.IsFightingLeader || e.HasLeaderSlot));
         }
 
         // Assert

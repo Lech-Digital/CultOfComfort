@@ -22,7 +22,9 @@ public sealed record BuildingSpec(
     IReadOnlyList<BuildingLevel> Levels,
     ResourceType? Produces = null,
     TowerType? Tower = null,
-    bool UsesBuilder = true)
+    bool UsesBuilder = true,
+    int Width = 1,
+    int Depth = 1)
 {
     public bool IsTower => Tower != null;
 
@@ -38,7 +40,7 @@ public sealed class BuildingTable
 
     public static BuildingTable Default { get; } = new();
 
-    public string Version { get; init; } = "village-2026.10.2";
+    public string Version { get; init; } = "village-2026.10.3";
 
     /// <summary>Health of a building whose first level is still being built.</summary>
     public int UnderConstructionHealth { get; init; } = 30;
@@ -80,36 +82,40 @@ public sealed class BuildingTable
             new BuildingLevel(new ResourceBag(50, 0, 0, 0), 30, PerHour: 100, Health: 60),
             new BuildingLevel(new ResourceBag(150, 0, 10, 0), 5 * 60, PerHour: 170, Health: 90),
             new BuildingLevel(new ResourceBag(400, 0, 40, 0), 20 * 60, PerHour: 260, Health: 120),
-        }, Produces: ResourceType.Timber),
+        }, Produces: ResourceType.Timber, Width: 2, Depth: 1),
         [BuildingType.PeatCut] = new(BuildingType.PeatCut, "Peat Cut", 1, new[] { 1, 2, 3 }, new[]
         {
             new BuildingLevel(new ResourceBag(80, 0, 10, 0), 60, PerHour: 25, Health: 60),
             new BuildingLevel(new ResourceBag(200, 0, 30, 0), 8 * 60, PerHour: 45, Health: 90),
             new BuildingLevel(new ResourceBag(500, 0, 80, 0), 30 * 60, PerHour: 70, Health: 120),
-        }, Produces: ResourceType.Peat),
+        }, Produces: ResourceType.Peat, Width: 2, Depth: 4),
         [BuildingType.StorageHut] = new(BuildingType.StorageHut, "Storage Hut", 1, new[] { 1, 2, 3 }, new[]
         {
             new BuildingLevel(new ResourceBag(100, 0, 0, 0), 60, StorageBonus: 500, Health: 60),
             new BuildingLevel(new ResourceBag(300, 0, 0, 0), 10 * 60, StorageBonus: 1000, Health: 90),
             new BuildingLevel(new ResourceBag(800, 0, 50, 0), 40 * 60, StorageBonus: 2000, Health: 120),
-        }),
+        }, Width: 2, Depth: 2),
         [BuildingType.CultistHut] = new(BuildingType.CultistHut, "Cultist Hut", 1, new[] { 1, 2, 3 }, new[]
         {
             new BuildingLevel(new ResourceBag(120, 0, 0, 0), 2 * 60, PerHour: 4, Health: 60),
             new BuildingLevel(new ResourceBag(350, 50, 0, 0), 12 * 60, PerHour: 8, Health: 90),
             new BuildingLevel(new ResourceBag(900, 150, 0, 0), 45 * 60, PerHour: 14, Health: 120),
-        }, Produces: ResourceType.Devotion),
+        }, Produces: ResourceType.Devotion, Width: 3, Depth: 2),
         [BuildingType.Cistern] = new(BuildingType.Cistern, "Cistern", 2, new[] { 0, 1, 2 }, new[]
         {
             new BuildingLevel(new ResourceBag(150, 0, 30, 0), 2 * 60, SluiceCharges: 1, Health: 80),
             new BuildingLevel(new ResourceBag(400, 0, 100, 0), 15 * 60, SluiceCharges: 2, Health: 120),
-        }),
+        }, Width: 2, Depth: 2),
         [BuildingType.SlurryChute] = new(BuildingType.SlurryChute, "Slurry Chute", 1, new[] { Unlimited, Unlimited, Unlimited },
             new[] { new BuildingLevel(new ResourceBag(0, 0, 50, 0), 0, Health: 80) }, Tower: TowerType.SlurryChute),
         [BuildingType.SaplingFlinger] = new(BuildingType.SaplingFlinger, "Sapling Flinger", 2, new[] { Unlimited, Unlimited, Unlimited },
             new[] { new BuildingLevel(new ResourceBag(0, 0, 70, 0), 0, Health: 80) }, Tower: TowerType.SaplingFlinger),
         [BuildingType.WattleFence] = new(BuildingType.WattleFence, "Wattle Fence", 1, new[] { Unlimited, Unlimited, Unlimited },
             new[] { new BuildingLevel(new ResourceBag(15, 0, 0, 0), 0, Health: 50) }),
+        [BuildingType.WoodenWall] = new(BuildingType.WoodenWall, "Wooden Wall", 1, new[] { Unlimited, Unlimited, Unlimited },
+            new[] { new BuildingLevel(new ResourceBag(30, 0, 0, 0), 0, Health: 250) }),
+        [BuildingType.Gate] = new(BuildingType.Gate, "Gate", 1, new[] { Unlimited, Unlimited, Unlimited },
+            new[] { new BuildingLevel(new ResourceBag(40, 0, 10, 0), 0, Health: 200) }),
         [BuildingType.Stone] = new(BuildingType.Stone, "Stone", 1, new[] { Unlimited, Unlimited, Unlimited },
             new[] { new BuildingLevel(new ResourceBag(0, 0, 10, 0), 0) }),
         [BuildingType.Tree] = new(BuildingType.Tree, "Tree", 1, new[] { Unlimited, Unlimited, Unlimited },
@@ -126,6 +132,9 @@ public sealed class BuildingTable
         var repair = new ResourceBag(Tenth(cost.Timber), Tenth(cost.Peat), Tenth(cost.Scrap), Tenth(cost.Devotion));
         return repair.IsZero ? new ResourceBag(1, 0, 0, 0) : repair;
     }
+
+    /// <summary>Fences, walls and gates: raiders who can't get round them hack through.</summary>
+    public static bool IsBarrier(BuildingType type) => type is BuildingType.WattleFence or BuildingType.WoodenWall or BuildingType.Gate;
 
     /// <summary>A building's health in a Night: its level's, or a flimsy frame while the first level is being built.</summary>
     public int StructureHealth(BuildingType type, int level)

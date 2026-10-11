@@ -118,27 +118,28 @@ namespace CultOfComfort.Client.Tests
         }
 
         [UnityTest]
-        public IEnumerator Night_BuildingOnTheRoad_RaidersWalkAroundIt()
+        public IEnumerator Board_BuildOnTheRoad_RefusedAndTheNightKeepsTheRoad()
         {
-            // Arrange
+            // Arrange — the raiders' road is the valley's old track: nobody builds on it, so it never moves.
             yield return SceneManager.LoadSceneAsync("SampleScene");
             yield return Frames(3);
             var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
             var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
-            var before = VillageMap.Demo.ToBattleLayout(Array.Empty<PlacedTower>(), Array.Empty<GridPosition>()).ResolveEnemyPath();
-            var onRoad = before[before.Count / 2];
-            Click(root.Q<Button>("card-StorageHut"));
+            var road = VillageMap.Demo.Road;
+            var onRoad = road[road.Count / 2];
+            Click(root.Q<Button>("card-WattleFence"));
             yield return null;
-            Tap(game, onRoad);
-            yield return Frames(2);
 
             // Act
+            Tap(game, onRoad);
+            yield return Frames(2);
             game.StartNight();
             yield return null;
             var battle = (CultOfComfort.Simulation.Combat.Battle)typeof(GameController).GetField("_battle", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(game);
 
             // Assert
-            CollectionAssert.DoesNotContain(battle.Path.ToList(), onRoad);
+            Assert.IsNull(Snapshot(game).BuildingAt(onRoad));
+            CollectionAssert.AreEqual(road.ToList(), battle.Path.ToList());
         }
     
         [UnityTest]
@@ -303,6 +304,31 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("Wild tree", title);
             Assert.AreEqual(515, Snapshot(game).Stock.Timber);
             CollectionAssert.Contains(Snapshot(game).ClearedTerrain.ToList(), tree);
+        }
+
+        [UnityTest]
+        public IEnumerator Drawer_RotateThenPlaceALeanTo_StandsTurned()
+        {
+            // Arrange
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            Click(root.Q<Button>("card-Woodcutter"));
+            yield return null;
+            Assert.AreEqual(DisplayStyle.Flex, root.Q<Button>("rotate").resolvedStyle.display, "Rotate shows while placing");
+
+            // Act
+            Click(root.Q<Button>("rotate"));
+            yield return null;
+            Tap(game, new GridPosition(13, 5));
+            yield return Frames(2);
+
+            // Assert
+            var lean = Snapshot(game).BuildingAt(new GridPosition(13, 6));
+            Assert.IsNotNull(lean, "a turned lean-to runs north–south");
+            Assert.IsTrue(lean.Rotated);
+            Assert.AreEqual(DisplayStyle.None, root.Q<Button>("rotate").resolvedStyle.display, "placing is over");
         }
     }
 }

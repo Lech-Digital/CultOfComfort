@@ -12,6 +12,9 @@ namespace CultOfComfort.Simulation.Base;
 /// </summary>
 public sealed class BaseState
 {
+    /// <summary>Saves before footprints (layout version 0) are migrated on load: every building finds room for its shape.</summary>
+    public const int CurrentLayoutVersion = 1;
+
     private const int RememberedCommands = 64;
     private const int HearthId = 0;
 
@@ -32,6 +35,8 @@ public sealed class BaseState
     private NightReport? _unseenReport;
     private readonly List<GridPosition> _cleared = new(); // boulders, gone for good
     private readonly Dictionary<GridPosition, DateTimeOffset> _treeCuts = new();
+    private HashSet<GridPosition> _road => _roadTiles ??= new HashSet<GridPosition>(_map.Road);
+    private HashSet<GridPosition>? _roadTiles;
     private DateTimeOffset _now;
 
     private BaseState(BuildingTable table, VillageMap map)
@@ -91,7 +96,9 @@ public sealed class BaseState
                 throw new InvalidBaseDataException($"Building {b.Id} has an impossible type or level.");
             }
 
-            state._buildings.Add(new Building(b.Id, b.Type, new GridPosition(b.X, b.Y), b.Level, new DateTimeOffset(b.AsOfUtcTicks, TimeSpan.Zero))
+            var anchor = new GridPosition(b.X, b.Y);
+            var tiles = data.LayoutVersion >= CurrentLayoutVersion ? Footprint.Tiles(spec, anchor, b.Rotated) : new[] { anchor };
+            state._buildings.Add(new Building(b.Id, b.Type, anchor, b.Level, new DateTimeOffset(b.AsOfUtcTicks, TimeSpan.Zero), tiles, b.Rotated)
             {
                 BufferMilli = b.BufferMilli,
                 UpgradeEndsAtUtc = b.UpgradeEndsAtUtcTicks == null ? null : new DateTimeOffset(b.UpgradeEndsAtUtcTicks.Value, TimeSpan.Zero),
@@ -117,8 +124,80 @@ public sealed class BaseState
             state._treeCuts[new GridPosition(cut.X, cut.Y)] = new DateTimeOffset(cut.CutAtUtcTicks, TimeSpan.Zero);
         }
 
+        if (data.LayoutVersion < CurrentLayoutVersion)
+        {
+            state.MigrateLayout();
+        }
+
         state.Validate();
         return state;
+    }
+
+    /// <summary>
+    /// An old save's buildings were all 1×1 and could stand on the road. Each, in id order, keeps its anchor if its
+    /// shape fits, else turns, else takes the nearest spot (up to 4 tiles away) that fits; with no room it is taken
+    /// down and everything paid for it comes back.
+    /// </summary>
+    private void MigrateLayout()
+    {
+        var old = _buildings.ToList();
+        _buildings.Clear();
+        _buildings.Add(old.Single(b => b.Type == BuildingType.Hearth));
+        foreach (var b in old.Where(b => b.Type != BuildingType.Hearth).OrderBy(b => b.Id))
+        {
+            var spec = _table.Spec(b.Type);
+            (GridPosition Anchor, bool Rotated)? spot = null;
+            foreach (var candidate in Candidates(b.Position))
+            {
+                if (FitProblem(spec, candidate.Anchor, candidate.Rotated, checkTrees: false) == null)
+                {
+                    spot = candidate;
+                    break;
+                }
+            }
+
+            if (spot == null)
+            {
+                ResourceBag paid = default;
+                var levelsPaid = Math.Min(b.Level + (b.IsUpgrading ? 1 : 0), spec.MaxLevel);
+                for (var level = 0; level < levelsPaid; level++)
+                {
+                    paid += spec.Levels[level].Cost;
+                }
+
+                _stock += paid;
+                continue;
+            }
+
+            var (anchor, rotated) = spot.Value;
+            _buildings.Add(new Building(b.Id, b.Type, anchor, b.Level, b.AsOfUtc, Footprint.Tiles(spec, anchor, rotated), rotated)
+            {
+                BufferMilli = b.BufferMilli,
+                UpgradeEndsAtUtc = b.UpgradeEndsAtUtc,
+                Wrecked = b.Wrecked,
+            });
+        }
+    }
+
+    private static IEnumerable<(GridPosition Anchor, bool Rotated)> Candidates(GridPosition origin)
+    {
+        for (var radius = 0; radius <= 4; radius++)
+        {
+            for (var dy = -radius; dy <= radius; dy++)
+            {
+                for (var dx = -radius; dx <= radius; dx++)
+                {
+                    if (Math.Max(Math.Abs(dx), Math.Abs(dy)) != radius)
+                    {
+                        continue;
+                    }
+
+                    var anchor = new GridPosition(origin.X + dx, origin.Y + dy);
+                    yield return (anchor, false);
+                    yield return (anchor, true);
+                }
+            }
+        }
     }
 
     /// <summary>Rejects a save that no sequence of commands could have produced (hand-edited or corrupted).</summary>
@@ -162,11 +241,14 @@ public sealed class BaseState
                 Fail($"building {b.Id} is in an impossible state");
             }
 
-            if (!tiles.Add(b.Position) || (b.Type != BuildingType.Hearth
-                && (!_map.IsOpen(b.Position, HearthLevel) || b.Position == _map.Spawn || b.Position == _map.Hearth
-                    || _map.IsBedrock(b.Position) || (_map.IsBoulder(b.Position) && !_cleared.Contains(b.Position)))))
+            foreach (var tile in b.Tiles)
             {
-                Fail($"building {b.Id} stands somewhere it cannot");
+                if (!tiles.Add(tile) || (b.Type != BuildingType.Hearth
+                    && (!_map.IsOpen(tile, HearthLevel) || tile == _map.Spawn || tile == _map.Hearth || _road.Contains(tile)
+                        || _map.IsBedrock(tile) || (_map.IsBoulder(tile) && !_cleared.Contains(tile)))))
+                {
+                    Fail($"building {b.Id} stands somewhere it cannot");
+                }
             }
         }
 
@@ -182,7 +264,7 @@ public sealed class BaseState
 
     public BaseData ToData() => new(
         Version, _stock, _nextId, LastNightRecorded,
-        _buildings.Select(b => new BuildingData(b.Id, b.Type, b.Level, b.Position.X, b.Position.Y, b.UpgradeEndsAtUtc?.UtcTicks, b.BufferMilli, b.AsOfUtc.UtcTicks, b.Wrecked)).ToList(),
+        _buildings.Select(b => new BuildingData(b.Id, b.Type, b.Level, b.Position.X, b.Position.Y, b.UpgradeEndsAtUtc?.UtcTicks, b.BufferMilli, b.AsOfUtc.UtcTicks, b.Wrecked, b.Rotated)).ToList(),
         _recentOrder.ToList(),
         _tensionMilli,
         _tensionAsOf.UtcTicks,
@@ -193,7 +275,8 @@ public sealed class BaseState
         _nightStartedAt.UtcTicks,
         _unseenReport,
         _cleared.ToList(),
-        _treeCuts.Select(c => new TreeCutData(c.Key.X, c.Key.Y, c.Value.UtcTicks)).ToList());
+        _treeCuts.Select(c => new TreeCutData(c.Key.X, c.Key.Y, c.Value.UtcTicks)).ToList(),
+        CurrentLayoutVersion);
 
     public CommandOutcome Apply(BaseCommand command, DateTimeOffset nowUtc)
     {
@@ -242,7 +325,7 @@ public sealed class BaseState
         Advance(nowUtc);
         _now = nowUtc;
         var views = _buildings.Select(b => new BuildingView(
-            b.Id, b.Type, b.Level, b.Position, (int)(Buffer(b, nowUtc) / 1000), (int)(CapacityMilli(b) / 1000), Rate(b), b.UpgradeEndsAtUtc, b.Wrecked)).ToList();
+            b.Id, b.Type, b.Level, b.Position, (int)(Buffer(b, nowUtc) / 1000), (int)(CapacityMilli(b) / 1000), Rate(b), b.UpgradeEndsAtUtc, b.Wrecked, b.Rotated, b.Tiles)).ToList();
         var tension = TensionValue(nowUtc);
         return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
             tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport, _cleared.Concat(_treeCuts.Keys.Where(t => !IsWildTreeStanding(t))).ToList());
@@ -270,14 +353,16 @@ public sealed class BaseState
     /// <summary>The locked layout for a Night: towers fight, every other building is in the way.</summary>
     public BattleLayout ToBattleLayout()
     {
-        var buildingTiles = new HashSet<GridPosition>(_buildings.Select(b => b.Position));
         return _map.ToBattleLayout(
             _buildings.Where(b => _table.Spec(b.Type).IsTower).Select(b => new PlacedTower(_table.Spec(b.Type).Tower!.Value, b.Position)),
-            _buildings.Where(b => b.Type != BuildingType.Hearth && !_table.Spec(b.Type).IsTower).Select(b => b.Position),
+            _buildings.Where(b => b.Type != BuildingType.Hearth && !_table.Spec(b.Type).IsTower).SelectMany(b => b.Tiles),
             _buildings.Where(b => b.Type != BuildingType.Hearth && _table.StructureHealth(b.Type, b.Level) > 0).Select(b =>
             {
                 var health = _table.StructureHealth(b.Type, b.Level);
-                return new PlacedStructure(b.Id, b.Position, health, b.Wrecked ? 0 : health);
+                return new PlacedStructure(b.Id, b.Position, health, b.Wrecked ? 0 : health)
+                {
+                    Tiles = b.Tiles, Barrier = BuildingTable.IsBarrier(b.Type), Gate = b.Type == BuildingType.Gate,
+                };
             }),
             HearthLevel,
             _cleared);
@@ -311,7 +396,7 @@ public sealed class BaseState
             return CommandOutcome.Reject("The builder is busy. One thing at a time; he's a cultist, not a crane.");
         }
 
-        var reason = PlacementProblem(command.Position);
+        var reason = FitProblem(spec, command.Position, command.Rotated, checkTrees: true);
         if (reason != null)
         {
             return CommandOutcome.Reject(reason);
@@ -324,7 +409,8 @@ public sealed class BaseState
         }
 
         _stock -= cost;
-        var building = new Building(_nextId++, command.Type, command.Position, instant ? 1 : 0, now);
+        var building = new Building(_nextId++, command.Type, command.Position, instant ? 1 : 0, now,
+            Footprint.Tiles(spec, command.Position, command.Rotated), command.Rotated);
         if (!instant)
         {
             building.UpgradeEndsAtUtc = now.AddSeconds(spec.Levels[0].BuildSeconds);
@@ -500,7 +586,7 @@ public sealed class BaseState
     // ---------------- terrain ----------------
 
     private bool IsWildTreeStanding(GridPosition tile) =>
-        _map.WildTrees.Contains(tile) && _buildings.All(b => b.Position != tile)
+        _map.WildTrees.Contains(tile) && _buildings.All(b => !b.Tiles.Contains(tile))
         && (!_treeCuts.TryGetValue(tile, out var cut) || cut.AddHours(_table.WildTreeRegrowHours) <= _now);
 
     private CommandOutcome Clear(GridPosition tile)
@@ -547,42 +633,55 @@ public sealed class BaseState
 
     // ---------------- rules ----------------
 
-    private string? PlacementProblem(GridPosition tile)
+    /// <summary>Why the building's shape can't stand there (null: it can). Every tile must be free and buildable.</summary>
+    private string? FitProblem(BuildingSpec spec, GridPosition anchor, bool rotated, bool checkTrees)
     {
-        if (_map.Contains(tile) && !_map.IsOpen(tile, HearthLevel))
+        var tiles = Footprint.Tiles(spec, anchor, rotated);
+        foreach (var tile in tiles)
         {
-            return $"That land opens at Hearth {_map.OpensAt(tile)}.";
+            if (_map.Contains(tile) && !_map.IsOpen(tile, HearthLevel))
+            {
+                return $"That land opens at Hearth {_map.OpensAt(tile)}.";
+            }
         }
 
-        if (!_map.Contains(tile) || tile == _map.Spawn || tile == _map.Hearth || _buildings.Any(b => b.Position == tile) || _map.IsBedrock(tile))
+        foreach (var tile in tiles)
         {
-            return "Can't build there.";
+            if (!_map.Contains(tile) || tile == _map.Spawn || tile == _map.Hearth)
+            {
+                return "Can't build there.";
+            }
         }
 
-        if (_map.IsInSpawnClearance(tile))
+        foreach (var tile in tiles)
         {
-            return "Too close to where the raiders come in.";
+            if (_road.Contains(tile))
+            {
+                return "That's the raiders' road. Build beside it.";
+            }
         }
 
-        if (_map.IsBoulder(tile) && !_cleared.Contains(tile))
+        foreach (var tile in tiles)
         {
-            return "Clear the boulder first.";
-        }
+            if (!_map.Contains(tile) || tile == _map.Spawn || tile == _map.Hearth || _buildings.Any(b => b.Tiles.Contains(tile)) || _map.IsBedrock(tile))
+            {
+                return "Can't build there.";
+            }
 
-        if (IsWildTreeStanding(tile))
-        {
-            return "Cut the tree down first.";
-        }
+            if (_map.IsInSpawnClearance(tile))
+            {
+                return "Too close to where the raiders come in.";
+            }
 
-        try
-        {
-            var layout = ToBattleLayout();
-            var buildings = _buildings.Where(b => b.Type != BuildingType.Hearth && !_table.Spec(b.Type).IsTower).Select(b => b.Position);
-            _map.ToBattleLayout(layout.Towers, buildings.Append(tile), null, HearthLevel).Validate();
-        }
-        catch (InvalidLayoutException)
-        {
-            return "That would seal the road. The Bishop's lawyers would have a field day.";
+            if (_map.IsBoulder(tile) && !_cleared.Contains(tile))
+            {
+                return "Clear the boulder first.";
+            }
+
+            if (checkTrees && IsWildTreeStanding(tile))
+            {
+                return "Cut the tree down first.";
+            }
         }
 
         return null;

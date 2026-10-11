@@ -79,7 +79,7 @@ namespace CultOfComfort.Client
             buildings = data.Buildings.Select(b => new BuildingDto
             {
                 id = b.Id, type = b.Type.ToString(), level = b.Level, x = b.X, y = b.Y,
-                upgradeEndsAtTicks = b.UpgradeEndsAtUtcTicks ?? -1, bufferMilli = b.BufferMilli, asOfTicks = b.AsOfUtcTicks, wrecked = b.Wrecked,
+                upgradeEndsAtTicks = b.UpgradeEndsAtUtcTicks ?? -1, bufferMilli = b.BufferMilli, asOfTicks = b.AsOfUtcTicks, wrecked = b.Wrecked, rotated = b.Rotated,
             }).ToList(),
             recentCommands = data.RecentCommands.Select(g => g.ToString()).ToList(),
             tensionMilli = data.TensionMilli,
@@ -95,6 +95,7 @@ namespace CultOfComfort.Client
             report = data.UnseenReport == null ? new ReportDto() : ToDto(data.UnseenReport),
             cleared = (data.ClearedTerrain ?? Array.Empty<GridPosition>()).Select(t => new TileDto { x = t.X, y = t.Y }).ToList(),
             treeCuts = (data.TreeCuts ?? Array.Empty<TreeCutData>()).Select(c => new TreeCutDto { x = c.X, y = c.Y, ticks = c.CutAtUtcTicks }).ToList(),
+            layoutVersion = data.LayoutVersion,
         });
 
         private static NightDto ToDto(NightPlan plan) => new NightDto
@@ -165,7 +166,7 @@ namespace CultOfComfort.Client
                     throw new InvalidBaseDataException($"unknown building type '{b.type}'");
                 }
 
-                buildings.Add(new BuildingData(b.id, type, b.level, b.x, b.y, b.upgradeEndsAtTicks < 0 ? (long?)null : b.upgradeEndsAtTicks, b.bufferMilli, b.asOfTicks, b.wrecked));
+                buildings.Add(new BuildingData(b.id, type, b.level, b.x, b.y, b.upgradeEndsAtTicks < 0 ? (long?)null : b.upgradeEndsAtTicks, b.bufferMilli, b.asOfTicks, b.wrecked, b.rotated));
             }
 
             var recent = (dto.recentCommands ?? new List<string>()).Select(s => Guid.TryParse(s, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).ToList();
@@ -176,7 +177,8 @@ namespace CultOfComfort.Client
                 dto.nightStartedAtTicks,
                 dto.hasReport ? FromDto(dto.report) : null,
                 (dto.cleared ?? new List<TileDto>()).Select(t => new GridPosition(t.x, t.y)).ToList(),
-                (dto.treeCuts ?? new List<TreeCutDto>()).Select(c => new TreeCutData(c.x, c.y, c.ticks)).ToList());
+                (dto.treeCuts ?? new List<TreeCutDto>()).Select(c => new TreeCutData(c.x, c.y, c.ticks)).ToList(),
+                dto.layoutVersion);
         }
 
         [Serializable]
@@ -205,6 +207,7 @@ namespace CultOfComfort.Client
             public ReportDto report;
             public List<TileDto> cleared;
             public List<TreeCutDto> treeCuts;
+            public int layoutVersion; // 0 in saves from before building shapes: the village migrates them
         }
 
         [Serializable]
@@ -288,6 +291,7 @@ namespace CultOfComfort.Client
             public long bufferMilli;
             public long asOfTicks;
             public bool wrecked;
+            public bool rotated;
         }
     }
 }

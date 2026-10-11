@@ -249,6 +249,27 @@ namespace CultOfComfort.Client.Tests
         }
 
         [UnityTest]
+        public IEnumerator Day_Start_HomeViewIsTheVillageNotTheWholeValley()
+        {
+            // Arrange & Act
+            yield return LoadGame();
+            var game = Object.FindAnyObjectByType<GameController>();
+            for (var i = 0; i < 8; i++)
+            {
+                yield return null;
+            }
+
+            // Assert — the Hearth is on screen and big enough to tap; the far corner of the valley is not.
+            var camera = (Camera)typeof(GameController).GetField("_camera", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(game);
+            var map = CultOfComfort.Simulation.Base.VillageMap.Demo;
+            var hearth = camera.WorldToViewportPoint(Shapes.ToWorld(map.Hearth));
+            var far = camera.WorldToViewportPoint(Shapes.ToWorld(new CultOfComfort.Simulation.Grid.GridPosition(map.Width - 1, map.Height - 1)));
+            Assert.That(hearth.x, Is.InRange(0f, 1f));
+            Assert.That(hearth.y, Is.InRange(0f, 1f));
+            Assert.IsFalse(far.x is >= 0f and <= 1f && far.y is >= 0f and <= 1f, $"zoomed out to the whole valley ({far})");
+        }
+
+        [UnityTest]
         public IEnumerator Tips_AnnouncementDuringTheTip_DoesNotReplaceIt()
         {
             // Arrange — the tip is marked seen when taken, so anything that replaced it would lose it for good.

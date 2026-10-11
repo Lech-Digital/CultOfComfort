@@ -87,7 +87,10 @@ public sealed class BalanceTable
 
     public static BalanceTable Default { get; } = new();
 
-    public string Version { get; init; } = "2026.10.4";
+    public string Version { get; init; } = "2026.10.5";
+
+    /// <summary>A raider leaves the road for a structure it hasn't hit this many tiles away (whole tiles, diagonals count).</summary>
+    public int RaidRange { get; init; } = 3;
 
     /// <summary>How long a raider stops to swing at a building or tower beside the road.</summary>
     public int StructureSwingTicks { get; init; } = 16;

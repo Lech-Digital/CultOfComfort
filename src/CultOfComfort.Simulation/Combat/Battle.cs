@@ -64,7 +64,7 @@ public sealed class Battle
 
         foreach (var s in setup.Layout.Structures)
         {
-            _structures.Add(new Structure(s.Id, s.Position, s.MaxHealth, s.Health));
+            _structures.Add(new Structure(s.Id, s.Position, s.MaxHealth, s.Health, s.Tiles, s.Barrier));
         }
     }
 
@@ -235,6 +235,7 @@ public sealed class Battle
         var affected = 0;
         foreach (var enemy in _enemies.Where(e => e.IsActive))
         {
+            enemy.EndRaid(); // washed out of the field, too: it walks back to the road and starts again
             enemy.PushBack(stats.PushbackTiles);
             enemy.CancelSwing(); // washed off mid-swing
             enemy.ApplyMud(Tick + stats.MuddiedTicks);
@@ -514,6 +515,7 @@ public sealed class Battle
             if (enemy.IsFrightened(Tick))
             {
                 enemy.CancelSwing();
+                enemy.EndRaid();
                 // Scramble back onto the road first, then flee back up it.
                 if (enemy.IsOffRoad)
                 {
@@ -530,6 +532,7 @@ public sealed class Battle
             if (enemy.HasLeaderSlot)
             {
                 enemy.CancelSwing();
+                enemy.EndRaid();
                 if (PositionOf(enemy).DistanceSquaredTo(Leader.Position) <= stats.EngageRange * stats.EngageRange)
                 {
                     FightLeader(enemy, stats);
@@ -542,7 +545,13 @@ public sealed class Battle
                 continue;
             }
 
-            if (!enemy.IsOffRoad && TrySmash(enemy, stats))
+            if (enemy.IsRaiding)
+            {
+                FollowRaid(enemy, stats, step);
+                continue;
+            }
+
+            if (!enemy.IsOffRoad && (TrySmash(enemy, stats) || TryStartRaid(enemy, stats)))
             {
                 continue;
             }
@@ -581,7 +590,7 @@ public sealed class Battle
         {
             foreach (var structure in _structures)
             {
-                if (!structure.IsWrecked && !enemy.StructuresHit.Contains(structure.Id) && IsNextTo(tile, structure.Position))
+                if (!structure.IsWrecked && !enemy.StructuresHit.Contains(structure.Id) && IsNextTo(tile, structure))
                 {
                     enemy.SmashTargetId = structure.Id;
                     enemy.SmashTicksRemaining = _balance.StructureSwingTicks;
@@ -596,7 +605,7 @@ public sealed class Battle
         }
 
         var target = FindStructure(enemy.SmashTargetId);
-        if (target == null || target.IsWrecked || !IsNextTo(tile, target.Position))
+        if (target == null || target.IsWrecked || !IsNextTo(tile, target))
         {
             enemy.CancelSwing(); // someone else wrecked it, or it was moved away: no point finishing the swing
             return false;
@@ -619,6 +628,230 @@ public sealed class Battle
         return true;
     }
 
+    /// <summary>
+    /// From the road, a raider eyes the nearest intact structure it hasn't hit within <see cref="BalanceTable.RaidRange"/>
+    /// and walks round whatever is in the way to stand beside it. If only barriers stand in the way, it goes for the first
+    /// barrier on its way instead (one blow per barrier per raider). Returns true when it sets off.
+    /// </summary>
+    private bool TryStartRaid(Enemy enemy, EnemyStats stats)
+    {
+        if (stats.StructureDamage <= 0 || _structures.Count == 0)
+        {
+            return false;
+        }
+
+        var from = RoadTileOf(enemy);
+        var range = _balance.RaidRange;
+        Structure? best = null;
+        var bestDistance = int.MaxValue;
+        foreach (var structure in _structures)
+        {
+            if (structure.IsWrecked || enemy.StructuresHit.Contains(structure.Id))
+            {
+                continue;
+            }
+
+            var distance = DistanceTo(from, structure);
+            if (distance >= 2 && distance <= range && (distance < bestDistance || (distance == bestDistance && structure.Id < best!.Id)))
+            {
+                best = structure;
+                bestDistance = distance;
+            }
+        }
+
+        if (best == null)
+        {
+            return false;
+        }
+
+        var maxSteps = range * 3;
+        var route = FindRaidRoute(from, best, t => IsPassable(t), maxSteps);
+        if (route != null)
+        {
+            enemy.StartRaid(best.Id, route);
+            return true;
+        }
+
+        // Walled off: walk up to the first barrier this raider hasn't hit yet on the way, and hack at that.
+        var through = FindRaidRoute(from, best, t => IsPassable(t) || IsUnhitBarrier(enemy, t), maxSteps);
+        if (through == null)
+        {
+            return false;
+        }
+
+        var cut = through.FindIndex(t => !IsPassable(t));
+        var barrier = BarrierAt(through[cut])!;
+        enemy.StartRaid(barrier.Id, through.GetRange(0, cut));
+        return true;
+    }
+
+    /// <summary>Walks the raid route, swings once at the target, then walks the route back and steps onto the road.</summary>
+    private void FollowRaid(Enemy enemy, EnemyStats stats, Fix step)
+    {
+        var route = enemy.RaidRoute!;
+        var target = FindStructure(enemy.RaidTargetId);
+        if (!enemy.RaidReturning && (target == null || target.IsWrecked))
+        {
+            enemy.CancelSwing();
+            enemy.RaidReturning = true;
+            enemy.RaidStep = Math.Min(enemy.RaidStep, route.Count) - 1;
+        }
+
+        if (!enemy.RaidReturning)
+        {
+            if (enemy.RaidStep < route.Count)
+            {
+                WalkTo(enemy, route[enemy.RaidStep], step, () => enemy.RaidStep++);
+                return;
+            }
+
+            // Only swing standing beside it: anything that moved it (the road under it) sends it back to its spot.
+            var spot = route.Count == 0 ? RoadPointOf(enemy) : route[route.Count - 1].ToVector();
+            if (RoadPointOf(enemy) + enemy.Offset != spot || (route.Count == 0 && !IsNextTo(RoadTileOf(enemy), target!)))
+            {
+                enemy.CancelSwing();
+                if (route.Count == 0)
+                {
+                    enemy.EndRaid();
+                }
+                else
+                {
+                    enemy.RaidStep = route.Count - 1;
+                }
+
+                return;
+            }
+
+            if (enemy.SmashTargetId != target!.Id)
+            {
+                enemy.SmashTargetId = target.Id;
+                enemy.SmashTicksRemaining = _balance.StructureSwingTicks;
+            }
+
+            if (--enemy.SmashTicksRemaining > 0)
+            {
+                return;
+            }
+
+            enemy.StructuresHit.Add(target.Id);
+            enemy.CancelSwing();
+            var wrecked = target.TakeHit(stats.StructureDamage);
+            _tickEvents.Add(new StructureHit(Tick, target.Id, enemy.Id, stats.StructureDamage, target.Health));
+            if (wrecked)
+            {
+                _tickEvents.Add(new StructureWrecked(Tick, target.Id));
+            }
+
+            enemy.RaidReturning = true;
+            enemy.RaidStep = route.Count - 2; // it stands on the last tile; walk back from the one before
+            return;
+        }
+
+        if (enemy.RaidStep >= 0)
+        {
+            WalkTo(enemy, route[enemy.RaidStep], step, () => enemy.RaidStep--);
+            return;
+        }
+
+        enemy.StepOffsetToward(default, step);
+        if (!enemy.IsOffRoad)
+        {
+            enemy.EndRaid();
+        }
+    }
+
+    private void WalkTo(Enemy enemy, GridPosition tile, Fix step, Action arrived)
+    {
+        var offset = tile.ToVector() - RoadPointOf(enemy);
+        enemy.StepOffsetToward(offset, step);
+        if (enemy.Offset == offset)
+        {
+            arrived();
+        }
+    }
+
+    /// <summary>Shortest walk (4-way, at most <paramref name="maxSteps"/>) from a road tile to a tile beside the structure.</summary>
+    private List<GridPosition>? FindRaidRoute(GridPosition from, Structure target, Func<GridPosition, bool> passable, int maxSteps)
+    {
+        var previous = new Dictionary<GridPosition, GridPosition> { [from] = from };
+        var frontier = new Queue<(GridPosition Tile, int Steps)>();
+        frontier.Enqueue((from, 0));
+        while (frontier.Count > 0)
+        {
+            var (tile, steps) = frontier.Dequeue();
+            if (tile != from && IsNextTo(tile, target) && passable(tile) && !InFootprint(tile, target))
+            {
+                var route = new List<GridPosition>();
+                for (var t = tile; t != from; t = previous[t])
+                {
+                    route.Add(t);
+                }
+
+                route.Reverse();
+                return route;
+            }
+
+            if (steps == maxSteps)
+            {
+                continue;
+            }
+
+            foreach (var next in new[] { new GridPosition(tile.X + 1, tile.Y), new GridPosition(tile.X, tile.Y + 1), new GridPosition(tile.X, tile.Y - 1), new GridPosition(tile.X - 1, tile.Y) })
+            {
+                if (!previous.ContainsKey(next) && _layout.IsInBounds(next) && next != _layout.Hearth && passable(next))
+                {
+                    previous[next] = tile;
+                    frontier.Enqueue((next, steps + 1));
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Open ground, the road, or a barrier someone already broke.</summary>
+    private bool IsPassable(GridPosition tile) => !_layout.IsBlocked(tile) || BarrierAt(tile) is { IsWrecked: true };
+
+    private bool IsUnhitBarrier(Enemy enemy, GridPosition tile) => BarrierAt(tile) is { IsWrecked: false } b && !enemy.StructuresHit.Contains(b.Id);
+
+    private Structure? BarrierAt(GridPosition tile)
+    {
+        foreach (var structure in _structures)
+        {
+            if (structure.IsBarrier && InFootprint(tile, structure))
+            {
+                return structure;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool InFootprint(GridPosition tile, Structure structure)
+    {
+        foreach (var part in structure.Tiles)
+        {
+            if (part == tile)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Whole-tile distance (diagonals count one) from a tile to the nearest tile of a structure.</summary>
+    private static int DistanceTo(GridPosition tile, Structure structure)
+    {
+        var best = int.MaxValue;
+        foreach (var part in structure.Tiles)
+        {
+            best = Math.Min(best, Math.Max(Math.Abs(part.X - tile.X), Math.Abs(part.Y - tile.Y)));
+        }
+
+        return best;
+    }
+
     /// <summary>The road tile a raider is on (its distance along the path, rounded to the nearest tile).</summary>
     private GridPosition RoadTileOf(Enemy enemy)
     {
@@ -627,6 +860,20 @@ public sealed class Battle
     }
 
     private static bool IsNextTo(GridPosition a, GridPosition b) => Math.Abs(a.X - b.X) <= 1 && Math.Abs(a.Y - b.Y) <= 1;
+
+    /// <summary>Next to any tile of the structure's footprint.</summary>
+    private static bool IsNextTo(GridPosition tile, Structure structure)
+    {
+        foreach (var part in structure.Tiles)
+        {
+            if (IsNextTo(tile, part))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private Structure? FindStructure(int id)
     {
@@ -753,6 +1000,9 @@ public sealed class Battle
                 _hasher.Add(enemy.SmashTicksRemaining);
                 _hasher.Add(enemy.SmashTargetId);
                 _hasher.Add(enemy.StructuresHit.Count);
+                _hasher.Add(enemy.RaidTargetId);
+                _hasher.Add(enemy.RaidStep);
+                _hasher.Add(enemy.RaidReturning ? 1 : 0);
             }
             _hasher.Add(enemy.LeaderAttackCooldownTicksRemaining);
         }

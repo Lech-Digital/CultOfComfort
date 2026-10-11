@@ -85,7 +85,7 @@ public class BaseStateHardeningTests
     {
         // Arrange
         var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
-        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(4, 6)), T0);
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(7, 6)), T0);
         state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(3, 9)), T0);
 
         // Act

@@ -293,21 +293,5 @@ namespace CultOfComfort.Client.Tests
             // Assert
             Assert.Greater(umbrella.bounds.max.y, 1.05f);
         }
-
-        [Test]
-        public void SurroundingsLayout_DemoMap_KeepsTheForestRingWithinBudget()
-        {
-            // Act — reviewer finding: the scatter placed 157 models (ruling: about 20 trees).
-            var layout = BoardView.SurroundingsLayout(DemoMap.Width, DemoMap.Height);
-
-            // Assert
-            Assert.LessOrEqual(layout.Count, 40);
-            Assert.GreaterOrEqual(layout.Count, 15);
-            foreach (var item in layout)
-            {
-                var inside = item.Tile.X >= 0 && item.Tile.Y >= 0 && item.Tile.X < DemoMap.Width && item.Tile.Y < DemoMap.Height;
-                Assert.IsFalse(inside, $"{item.Model} at {item.Tile} would block the board");
-            }
-        }
     }
 }

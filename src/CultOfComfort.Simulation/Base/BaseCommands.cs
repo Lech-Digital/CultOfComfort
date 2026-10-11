@@ -7,7 +7,9 @@ namespace CultOfComfort.Simulation.Base;
 /// <summary>An intent sent to whoever holds authority over the village (the device today, the server later).</summary>
 public abstract record BaseCommand(Guid CommandId);
 
-public sealed record PlaceBuilding(Guid CommandId, BuildingType Type, GridPosition Position) : BaseCommand(CommandId);
+/// <param name="Position">The anchor: the footprint's lowest x and y.</param>
+/// <param name="Rotated">Turned a quarter: width and depth swap.</param>
+public sealed record PlaceBuilding(Guid CommandId, BuildingType Type, GridPosition Position, bool Rotated = false) : BaseCommand(CommandId);
 
 public sealed record UpgradeBuilding(Guid CommandId, int BuildingId) : BaseCommand(CommandId);
 

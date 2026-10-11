@@ -54,7 +54,7 @@ namespace CultOfComfort.Client.Tests
             var gateway = Gateway(store, new FakeClock());
 
             // Act
-            var result = await gateway.SendAsync(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(4, 6)), CancellationToken.None);
+            var result = await gateway.SendAsync(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(7, 6)), CancellationToken.None);
 
             // Assert
             Assert.AreEqual(CommandStatus.Accepted, result.Outcome.Status);
