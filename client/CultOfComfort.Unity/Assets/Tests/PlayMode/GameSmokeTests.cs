@@ -50,6 +50,17 @@ namespace CultOfComfort.Client.Tests
             // Assert
             Assert.AreEqual(GamePhase.Dawn, game.Phase, "The Night should finish.");
             Assert.AreEqual(true, game.LastNightVerified, "Server-style replay of the input log should match the live result.");
+            yield return null;
+            var root = Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            Assert.AreEqual(DisplayStyle.Flex, root.Q("stamp").resolvedStyle.display, "Dawn shows the verdict stamp.");
+
+            // Back to Dusk restores the frame (Review Focus 4).
+            game.GetType().GetMethod("BackToDusk", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(game, null);
+            yield return null;
+            yield return null;
+            Assert.AreEqual(GamePhase.Dusk, game.Phase);
+            Assert.AreEqual(DisplayStyle.Flex, root.Q("tension-strip").resolvedStyle.display);
+            Assert.AreEqual(DisplayStyle.Flex, root.Q("side-left").resolvedStyle.display);
         }
 
         [UnityTest]
@@ -100,9 +111,9 @@ namespace CultOfComfort.Client.Tests
 
             // Assert
             Assert.IsTrue(duskVisible, "Dusk should show the Light the Lamps button.");
-            Assert.AreEqual(DisplayStyle.None, startNight.parent.resolvedStyle.display, "The build bar hides at night.");
-            Assert.AreEqual(DisplayStyle.Flex, sluice.parent.parent.resolvedStyle.display, "The skill bar shows at night.");
-            StringAssert.StartsWith("Open Sluice", sluice.text);
+            Assert.AreEqual(DisplayStyle.None, root.Q("dusk-bar").resolvedStyle.display, "The build bar hides at night.");
+            Assert.AreEqual(DisplayStyle.Flex, root.Q("night-bar").resolvedStyle.display, "The skill bar shows at night.");
+            StringAssert.StartsWith("Open Sluice", sluice.Q<Label>(className: "skill-text").text);
         }
     }
 }

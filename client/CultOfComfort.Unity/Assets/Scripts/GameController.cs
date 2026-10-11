@@ -144,7 +144,7 @@ namespace CultOfComfort.Client
 
             if (!CanToggle(tile, out var reason))
             {
-                Announce(reason);
+                _hud.Announce(reason, Time.time, prophet: true);
                 return;
             }
 
@@ -403,6 +403,7 @@ namespace CultOfComfort.Client
         private void UpdateHud()
         {
             _hud.Tick(Time.time);
+            _hud.UpdateFrame(DemoEconomy.Frame(_scrap, 1));
             if (_phase == GamePhase.Dusk)
             {
                 var probe = DeterminismProbe.Matches switch
@@ -428,7 +429,7 @@ namespace CultOfComfort.Client
                 _hud.UpdateNight(new NightHudState(
                     _night, _battle.HearthHealth, _battle.HearthMaxHealth, leader.Health, leader.MaxHealth,
                     sluice, _battle.IsSluiceReady, voice, _battle.IsVoiceReady, stones, _battle.IsHotStonesReady || _aimingStones, _aimingStones, _speed,
-                    $"Wave {Mathf.Max(1, _battle.CurrentWave)}/{_battle.WaveCount} · {alive} on the road · {hint}"));
+                    _battle.CurrentWave, _battle.WaveCount, alive, hint));
             }
         }
 
