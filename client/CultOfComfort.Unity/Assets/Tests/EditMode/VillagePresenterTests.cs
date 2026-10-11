@@ -176,6 +176,7 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("Shielded · 11h 00m", VillagePresenter.TensionNote(shielded.Snapshot(T0.AddHours(1))));
             Assert.AreEqual("Face the raid · 7h 12m left", VillagePresenter.StartLabel(raided.Snapshot(T0.AddMinutes(48))));
             Assert.AreEqual("Light the Lamps (early)", VillagePresenter.StartLabel(calm.Snapshot(T0)));
+            Assert.AreEqual("Shielded · 11h 00m", VillagePresenter.StartLabel(shielded.Snapshot(T0.AddHours(1))), "no early Night during the shield");
             var frame = VillagePresenter.Frame(raided.Snapshot(T0));
             Assert.IsFalse(frame.TensionIsDemo);
             Assert.AreEqual(75f / 150f, frame.Tension, 0.001f);

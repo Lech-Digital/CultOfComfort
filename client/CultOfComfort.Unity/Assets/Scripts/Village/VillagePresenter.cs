@@ -96,7 +96,9 @@ namespace CultOfComfort.Client
         /// <summary>The big Day button: face the raid that is coming, or invite a smaller one early.</summary>
         public static string StartLabel(BaseSnapshot s) => s.RaidWarningEndsAtUtc != null
             ? $"Face the raid · {Duration((long)(s.RaidWarningEndsAtUtc.Value - s.AsOfUtc).TotalSeconds)} left"
-            : "Light the Lamps (early)";
+            : s.ShieldEndsAtUtc != null
+                ? $"Shielded · {Duration((long)(s.ShieldEndsAtUtc.Value - s.AsOfUtc).TotalSeconds)}"
+                : "Light the Lamps (early)";
 
         public static FrameState Frame(BaseSnapshot s) => new FrameState(
             new Reading(s.Stock.Timber, s.Caps.Timber, false),
