@@ -19,8 +19,15 @@ namespace CultOfComfort.Client.Tests
         private const int Height = 2424;
         private const float Scale = 2.625f; // ~420 dpi / 160 reference dpi
 
+        [SetUp]
+        public void SetUp() => TestVillage.Use();
+
         [TearDown]
-        public void TearDown() => Time.timeScale = 1f;
+        public void TearDown()
+        {
+            Time.timeScale = 1f;
+            TestVillage.Reset();
+        }
 
         [UnityTest]
         public IEnumerator HudCapture_Portrait_WritesPngs() => Capture(true);

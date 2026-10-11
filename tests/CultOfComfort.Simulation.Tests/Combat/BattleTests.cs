@@ -202,4 +202,17 @@ public class BattleTests
         // Assert
         act.Should().Throw<InvalidOperationException>();
     }
+
+    [Fact]
+    public void Constructor_ExtraSluiceCharges_AddsToTheBalanceCharges()
+    {
+        // Arrange
+        var setup = Setup(TestLayouts.Corridor()) with { ExtraSluiceCharges = 2 };
+
+        // Act
+        var battle = new Battle(setup);
+
+        // Assert
+        battle.SluiceChargesLeft.Should().Be(BalanceTable.Default.SluiceGate.Charges + 2);
+    }
 }

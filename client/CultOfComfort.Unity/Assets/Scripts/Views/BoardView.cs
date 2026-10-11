@@ -1,5 +1,8 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using CultOfComfort.Simulation.Balance;
+using CultOfComfort.Simulation.Base;
 using CultOfComfort.Simulation.Grid;
 using UnityEngine;
 
@@ -8,7 +11,11 @@ namespace CultOfComfort.Client
     /// <summary>Static scenery: ground, rocks, the Hearth, towers, the road preview and the tile cursor.</summary>
     public sealed class BoardView : MonoBehaviour
     {
-        private readonly Dictionary<GridPosition, GameObject> _towers = new Dictionary<GridPosition, GameObject>();
+        private readonly Dictionary<int, BuildingVisual> _buildings = new Dictionary<int, BuildingVisual>();
+        private readonly List<SpriteRenderer> _billboards = new List<SpriteRenderer>();
+        private Transform _hearth;
+        private GameObject _hearthModel;
+        private int _hearthLevel = 1;
         private readonly List<GameObject> _roadTiles = new List<GameObject>();
         private Transform _root;
         private Transform _roadRoot;
@@ -62,17 +69,51 @@ namespace CultOfComfort.Client
             _leaderMarker.SetActive(false);
         }
 
-        public void SetTowers(IEnumerable<PlacedTower> towers)
+        /// <summary>
+        /// Shows the village: one visual per building id, rebuilt only when its type or level changes; a construction
+        /// bar over anything being built; a resource icon over producers with something to collect.
+        /// </summary>
+        public void SetBuildings(IReadOnlyList<BuildingView> buildings, int hearthLevel, BuildingTable table, DateTimeOffset now)
         {
-            foreach (var go in _towers.Values)
+            if (hearthLevel != _hearthLevel)
             {
-                Destroy(go);
+                SwapHearthModel(hearthLevel);
             }
 
-            _towers.Clear();
-            foreach (var tower in towers)
+            var seen = new HashSet<int>();
+            foreach (var building in buildings)
             {
-                _towers[tower.Position] = CreateTower(tower);
+                seen.Add(building.Id);
+                if (!_buildings.TryGetValue(building.Id, out var visual) || visual.Level != building.Level)
+                {
+                    if (visual != null)
+                    {
+                        visual.Destroy();
+                    }
+
+                    visual = CreateBuilding(building);
+                    _buildings[building.Id] = visual;
+                }
+
+                var spec = table.Spec(building.Type);
+                visual.Bar.SetActive(building.IsUpgrading);
+                if (building.IsUpgrading)
+                {
+                    var total = Mathf.Max(1f, spec.Levels[building.Level].BuildSeconds);
+                    var left = Mathf.Clamp((float)(building.UpgradeEndsAtUtc.Value - now).TotalSeconds, 0f, total);
+                    visual.Bar.transform.localScale = new Vector3(0.7f * (1f - left / total), 0.07f, 0.07f);
+                }
+
+                if (visual.Ready != null)
+                {
+                    visual.Ready.enabled = building.Ready >= 1;
+                }
+            }
+
+            foreach (var id in _buildings.Keys.Where(id => !seen.Contains(id)).ToList())
+            {
+                _buildings[id].Destroy();
+                _buildings.Remove(id);
             }
         }
 
@@ -106,6 +147,26 @@ namespace CultOfComfort.Client
             if (tile.HasValue)
             {
                 _leaderMarker.transform.localPosition = Shapes.ToWorld(tile.Value, 0.03f);
+            }
+        }
+
+        private void LateUpdate()
+        {
+            var camera = Camera.main;
+            if (camera == null)
+            {
+                return;
+            }
+
+            // Collect icons face the camera and bob gently.
+            var bob = Mathf.Sin(Time.time * 3f) * 0.06f;
+            foreach (var visual in _buildings.Values)
+            {
+                if (visual.Ready != null && visual.Ready.enabled)
+                {
+                    visual.Ready.transform.rotation = camera.transform.rotation;
+                    visual.Ready.transform.localPosition = new Vector3(0f, visual.ReadyHeight + bob, 0f);
+                }
             }
         }
 
@@ -202,13 +263,9 @@ namespace CultOfComfort.Client
             var hearth = new GameObject("Hearth").transform;
             hearth.SetParent(_root, false);
             hearth.localPosition = HearthPosition;
-            var model = ArtLibrary.Instantiate("hearth_l1", hearth);
-            if (model != null)
+            _hearth = hearth;
+            if (SwapHearthModel(1))
             {
-                model.transform.localRotation = FaceCamera;
-                model.transform.localScale = Vector3.one * 0.8f; // fits its tile; the columns still tower over the cultists
-                _hearthFire = ArtLibrary.FindPart(model.transform, "Fire");
-                _hearthSteam = ArtLibrary.FindPart(model.transform, "Steam");
                 AddHearthLight(hearth);
                 return;
             }
@@ -220,6 +277,109 @@ namespace CultOfComfort.Client
             Shapes.Create(PrimitiveType.Cube, Palette.Ember, new Vector3(0f, 0.25f, -0.43f), new Vector3(0.3f, 0.35f, 0.02f), hearth, "Glowing Door");
             Shapes.Create(PrimitiveType.Cylinder, Palette.Rock, new Vector3(0.25f, 1.1f, 0.1f), new Vector3(0.14f, 0.25f, 0.14f), hearth, "Chimney");
             AddHearthLight(hearth);
+        }
+
+        /// <summary>The Hearth grows by accretion: level 1 ruin, level 2 banya, level 3 upper floor.</summary>
+        private bool SwapHearthModel(int level)
+        {
+            var model = ArtLibrary.Instantiate($"hearth_l{Mathf.Clamp(level, 1, 3)}", _hearth);
+            if (model == null)
+            {
+                return false;
+            }
+
+            if (_hearthModel != null)
+            {
+                Destroy(_hearthModel);
+            }
+
+            _hearthModel = model;
+            _hearthLevel = level;
+            model.transform.localRotation = FaceCamera;
+            model.transform.localScale = Vector3.one * 0.8f; // fits its tile; the columns still tower over the cultists
+            _hearthFire = ArtLibrary.FindPart(model.transform, "Fire");
+            _hearthSteam = ArtLibrary.FindPart(model.transform, "Steam");
+            return true;
+        }
+
+        private static string ModelName(BuildingType type) => type switch
+        {
+            BuildingType.Woodcutter => "woodcutter",
+            BuildingType.PeatCut => "peat_cut",
+            BuildingType.StorageHut => "storage_hut",
+            BuildingType.CultistHut => "cultist_hut",
+            BuildingType.Cistern => "cistern",
+            BuildingType.SlurryChute => "slurry_chute",
+            BuildingType.SaplingFlinger => "sapling_flinger",
+            _ => null,
+        };
+
+        private static string ResourceIcon(BuildingType type) => type switch
+        {
+            BuildingType.Woodcutter => "timber",
+            BuildingType.PeatCut => "peat",
+            BuildingType.CultistHut => "devotion",
+            _ => null,
+        };
+
+        private BuildingVisual CreateBuilding(BuildingView building)
+        {
+            var visual = new BuildingVisual { Level = building.Level, Type = building.Type };
+            if (building.Type == BuildingType.Hearth)
+            {
+                visual.Root = new GameObject("Hearth works").transform;
+                visual.Root.SetParent(_root, false);
+                visual.Root.localPosition = Shapes.ToWorld(building.Position);
+            }
+            else if (building.Type == BuildingType.SlurryChute || building.Type == BuildingType.SaplingFlinger)
+            {
+                var tower = building.Type == BuildingType.SlurryChute ? TowerType.SlurryChute : TowerType.SaplingFlinger;
+                visual.Root = CreateTower(new PlacedTower(tower, building.Position)).transform;
+            }
+            else
+            {
+                visual.Root = new GameObject(building.Type.ToString()).transform;
+                visual.Root.SetParent(_root, false);
+                visual.Root.localPosition = Shapes.ToWorld(building.Position);
+                var model = ArtLibrary.Instantiate(ModelName(building.Type), visual.Root);
+                var scale = building.Level == 0 ? 0.5f : 0.8f; // a half-built shell until the builder is done
+                if (model != null)
+                {
+                    model.transform.localRotation = FaceCamera;
+                    model.transform.localScale = Vector3.one * scale;
+                }
+                else
+                {
+                    Shapes.Create(PrimitiveType.Cube, Palette.Wood, new Vector3(0f, 0.3f * scale, 0f), new Vector3(0.8f, 0.6f, 0.8f) * scale, visual.Root, "Building");
+                }
+            }
+
+            visual.Bar = Shapes.Create(PrimitiveType.Cube, Palette.Highlight, new Vector3(0f, 1.5f, 0f), new Vector3(0.7f, 0.07f, 0.07f), visual.Root, "Construction");
+            visual.Bar.SetActive(false);
+            var icon = ResourceIcon(building.Type);
+            if (icon != null && building.Level > 0 && IconSprites.Get(icon) != null)
+            {
+                visual.Ready = new GameObject("Ready").AddComponent<SpriteRenderer>();
+                visual.Ready.sprite = IconSprites.Get(icon);
+                visual.Ready.sortingOrder = 10;
+                visual.Ready.transform.SetParent(visual.Root, false);
+                visual.ReadyHeight = 1.3f;
+                visual.Ready.enabled = false;
+            }
+
+            return visual;
+        }
+
+        private sealed class BuildingVisual
+        {
+            public Transform Root;
+            public BuildingType Type;
+            public int Level;
+            public GameObject Bar;
+            public SpriteRenderer Ready;
+            public float ReadyHeight;
+
+            public void Destroy() => UnityEngine.Object.Destroy(Root.gameObject);
         }
 
         private void AddHearthLight(Transform hearth)

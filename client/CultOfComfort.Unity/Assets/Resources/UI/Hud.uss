@@ -196,15 +196,8 @@
 }
 .dusk-bar, .night-bar { flex-direction: column; }
 .landscape .dusk-bar { flex-direction: row; align-items: center; }
-.towers { flex-direction: row; }
-.portrait .towers { margin-bottom: 8px; }
-.tower { flex-grow: 1; height: 58px; margin-right: 8px; padding: 6px 8px; justify-content: center; }
 .tilt-left { rotate: -2deg; }
 .tilt-right { rotate: 2deg; }
-.tower-name { font-size: 15px; padding: 0; -unity-text-align: middle-center; }
-.tower-cost { font-size: 12px; padding: 0; -unity-text-align: middle-center; color: #5a3d1e; }
-.tower.selected { scale: 1.06 1.06; border-color: #c9862e; border-width: 3px; }
-.tower.unaffordable .tower-cost { color: #a8322a; }
 .actions { flex-direction: row; align-items: center; flex-grow: 1; }
 .actions > .primary { flex-grow: 1; margin: 0 8px; }
 .bar-shortcut { margin-bottom: 0; }
@@ -226,3 +219,36 @@
     -unity-font-definition: resource("UI/Fonts/PermanentMarker");
     color: #ffe066; font-size: 15px; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95);
 }
+
+/* ---------- village: build drawer ---------- */
+
+.drawer { height: 116px; flex-grow: 1; flex-shrink: 1; }
+.portrait .drawer { margin-bottom: 8px; }
+.build-card { width: 100px; height: 108px; margin-right: 8px; padding: 4px 4px 8px 4px; align-items: center; justify-content: flex-start; }
+.card-icon { width: 36px; height: 36px; flex-shrink: 0; }
+.card-name { font-size: 10px; padding: 0; -unity-text-align: middle-center; white-space: normal; }
+.card-cost { font-size: 9px; padding: 0; color: #5a3d1e; -unity-text-align: middle-center; white-space: normal; }
+.card-time { position: absolute; top: 7px; left: 12px; font-size: 9px; padding: 0; color: #5a3d1e; }
+.card-lock { display: none; position: absolute; top: 7px; right: 12px; font-size: 9px; color: #a8322a; padding: 0; }
+.build-card.locked { opacity: 0.6; }
+.build-card.locked > .card-lock { display: flex; }
+.build-card.unaffordable .card-cost { color: #a8322a; }
+.build-card.selected { scale: 1.06 1.06; border-color: #c9862e; border-width: 3px; }
+.icon-b_hearth { background-image: resource("UI/Icons/b_hearth"); }
+.icon-b_woodcutter { background-image: resource("UI/Icons/b_woodcutter"); }
+.icon-b_peat_cut { background-image: resource("UI/Icons/b_peat_cut"); }
+.icon-b_storage_hut { background-image: resource("UI/Icons/b_storage_hut"); }
+.icon-b_cultist_hut { background-image: resource("UI/Icons/b_cultist_hut"); }
+.icon-b_cistern { background-image: resource("UI/Icons/b_cistern"); }
+.icon-b_slurry_chute { background-image: resource("UI/Icons/b_slurry_chute"); }
+.icon-b_sapling_flinger { background-image: resource("UI/Icons/b_sapling_flinger"); }
+
+/* landscape is short: a compact drawer so the board keeps most of the screen */
+.landscape .drawer { height: 78px; }
+.landscape .build-card { width: 84px; height: 72px; padding: 2px 3px 4px 3px; }
+.landscape .card-icon { width: 26px; height: 26px; }
+.landscape .card-name { font-size: 9px; }
+.landscape .card-cost { font-size: 8px; }
+.landscape .bar { padding: 6px 10px; }
+.landscape .primary { height: 44px; }
+.sheet .sheet-title { white-space: normal; font-size: 19px; }

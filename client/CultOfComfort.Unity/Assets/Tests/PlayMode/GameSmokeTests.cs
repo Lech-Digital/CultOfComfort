@@ -9,9 +9,13 @@ namespace CultOfComfort.Client.Tests
 {
     public class GameSmokeTests
     {
+        [SetUp]
+        public void SetUp() => TestVillage.Use();
+
         [TearDown]
         public void TearDown()
         {
+            TestVillage.Reset();
             Time.timeScale = 1f;
             Time.captureDeltaTime = 0f;
         }
