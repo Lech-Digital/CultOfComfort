@@ -3,6 +3,7 @@
 #   ./art/build.sh prophet            build one asset (export + previews)
 #   ./art/build.sh --all              build every asset in art/blender/models
 #   ./art/build.sh --no-preview NAME  export only
+#   ./art/build.sh --icons [NAME…]    render HUD icons (all if none named)
 #   ./art/build.sh --test             run the pipeline tests inside Blender
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"

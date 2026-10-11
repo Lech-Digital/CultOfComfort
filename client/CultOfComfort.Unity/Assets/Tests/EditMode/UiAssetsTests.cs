@@ -32,5 +32,19 @@ namespace CultOfComfort.Client.Tests
                 Assert.AreEqual(1, texture.mipmapCount, name);
             }
         }
+
+        [Test]
+        public void Icons_EveryListedIcon_LoadsWithAlpha()
+        {
+            foreach (var name in UiAssets.Icons)
+            {
+                // Act
+                var texture = Resources.Load<Texture2D>("UI/Icons/" + name);
+
+                // Assert
+                Assert.IsNotNull(texture, name);
+                Assert.AreEqual(128, texture.width, name);
+            }
+        }
     }
 }
