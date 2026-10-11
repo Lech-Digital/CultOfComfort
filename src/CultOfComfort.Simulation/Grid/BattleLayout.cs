@@ -8,6 +8,9 @@ namespace CultOfComfort.Simulation.Grid;
 
 public readonly record struct PlacedTower(TowerType Type, GridPosition Position);
 
+/// <summary>A village building or tower raiders can smash. It sits on a tower or obstacle tile; it adds no blocking itself.</summary>
+public readonly record struct PlacedStructure(int Id, GridPosition Position, int MaxHealth, int Health);
+
 /// <summary>Immutable snapshot of a base as it stands when the Night starts (the "locked layout").</summary>
 public sealed class BattleLayout
 {
@@ -20,7 +23,8 @@ public sealed class BattleLayout
         GridPosition hearth,
         IEnumerable<PlacedTower> towers,
         IEnumerable<GridPosition> obstacles,
-        GridPosition? leaderStart = null)
+        GridPosition? leaderStart = null,
+        IEnumerable<PlacedStructure>? structures = null)
     {
         Width = width;
         Height = height;
@@ -28,6 +32,7 @@ public sealed class BattleLayout
         Hearth = hearth;
         Towers = towers.ToList();
         Obstacles = obstacles.ToList();
+        Structures = structures?.ToList() ?? new List<PlacedStructure>();
         _blocked = new HashSet<GridPosition>(Obstacles.Concat(Towers.Select(t => t.Position)));
         LeaderStart = leaderStart ?? FindDefaultLeaderStart();
     }
@@ -38,6 +43,9 @@ public sealed class BattleLayout
     public GridPosition Hearth { get; }
     public IReadOnlyList<PlacedTower> Towers { get; }
     public IReadOnlyList<GridPosition> Obstacles { get; }
+
+    /// <summary>What raiders can smash during the Night (empty for layouts without a village).</summary>
+    public IReadOnlyList<PlacedStructure> Structures { get; }
 
     /// <summary>Where the cult leader stands when the Night begins. Defaults to a free tile beside the Hearth.</summary>
     public GridPosition LeaderStart { get; }

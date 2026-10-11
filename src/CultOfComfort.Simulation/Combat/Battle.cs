@@ -22,6 +22,7 @@ public sealed class Battle
     private readonly List<PlayerInput> _inputLog = new();
     private readonly List<Enemy> _enemies = new();
     private readonly List<Tower> _towers = new();
+    private readonly List<Structure> _structures = new();
     private readonly List<BattleEvent> _tickEvents = new();
     private readonly Fnv1aHasher _hasher = new();
     private int _nextSpawnIndex;
@@ -60,7 +61,15 @@ public sealed class Battle
         {
             _towers.Add(new Tower(towerId++, placed.Type, placed.Position));
         }
+
+        foreach (var s in setup.Layout.Structures)
+        {
+            _structures.Add(new Structure(s.Id, s.Position, s.MaxHealth, s.Health));
+        }
     }
+
+    /// <summary>The village's buildings and towers as they stand (or lie) right now.</summary>
+    public IReadOnlyList<Structure> Structures => _structures;
 
     /// <summary>The next tick to be simulated.</summary>
     public int Tick { get; private set; }
@@ -381,6 +390,11 @@ public sealed class Battle
     {
         foreach (var tower in _towers)
         {
+            if (IsWreckedAt(tower.Position))
+            {
+                continue; // a wrecked tower is firewood
+            }
+
             if (tower.CooldownTicksRemaining > 0)
             {
                 tower.CooldownTicksRemaining--;
@@ -525,6 +539,11 @@ public sealed class Battle
                 continue;
             }
 
+            if (!enemy.IsOffRoad && TrySmash(enemy, stats))
+            {
+                continue;
+            }
+
             if (enemy.IsOffRoad)
             {
                 enemy.StepOffsetToward(default, step); // walk back to the road before marching on
@@ -541,6 +560,71 @@ public sealed class Battle
             HearthHealth = Math.Max(0, HearthHealth - stats.HearthDamage);
             _tickEvents.Add(new HearthDamaged(Tick, enemy.Id, enemy.Type, stats.HearthDamage, HearthHealth));
         }
+    }
+
+    /// <summary>
+    /// A raider on the road stops for one swing at each intact structure within a tile of it (one at a time, each at
+    /// most once), then marches on. Returns true while it is busy swinging.
+    /// </summary>
+    private bool TrySmash(Enemy enemy, EnemyStats stats)
+    {
+        if (stats.StructureDamage <= 0 || _structures.Count == 0)
+        {
+            return false;
+        }
+
+        if (enemy.SmashTargetId < 0)
+        {
+            var position = PositionOf(enemy);
+            foreach (var structure in _structures)
+            {
+                if (!structure.IsWrecked && !enemy.StructuresHit.Contains(structure.Id)
+                    && position.DistanceSquaredTo(structure.Position.ToVector()) <= Fix.One)
+                {
+                    enemy.SmashTargetId = structure.Id;
+                    enemy.SmashTicksRemaining = _balance.StructureSwingTicks;
+                    break;
+                }
+            }
+
+            if (enemy.SmashTargetId < 0)
+            {
+                return false;
+            }
+        }
+
+        if (--enemy.SmashTicksRemaining > 0)
+        {
+            return true;
+        }
+
+        var target = _structures.First(s => s.Id == enemy.SmashTargetId);
+        enemy.StructuresHit.Add(target.Id);
+        enemy.SmashTargetId = -1;
+        if (!target.IsWrecked)
+        {
+            var wrecked = target.TakeHit(stats.StructureDamage);
+            _tickEvents.Add(new StructureHit(Tick, target.Id, enemy.Id, stats.StructureDamage, target.Health));
+            if (wrecked)
+            {
+                _tickEvents.Add(new StructureWrecked(Tick, target.Id));
+            }
+        }
+
+        return true;
+    }
+
+    private bool IsWreckedAt(GridPosition tile)
+    {
+        foreach (var structure in _structures)
+        {
+            if (structure.IsWrecked && structure.Position == tile)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -636,6 +720,13 @@ public sealed class Battle
             _hasher.Add(enemy.FrightenedUntilTick);
             _hasher.Add(enemy.IsFightingLeader ? 1 : 0);
             _hasher.Add(enemy.HasLeaderSlot ? 1 : 0);
+            if (_structures.Count > 0)
+            {
+                // Only villages have structures: layouts without them (the demo) keep their historic hashes.
+                _hasher.Add(enemy.SmashTicksRemaining);
+                _hasher.Add(enemy.SmashTargetId);
+                _hasher.Add(enemy.StructuresHit.Count);
+            }
             _hasher.Add(enemy.LeaderAttackCooldownTicksRemaining);
         }
 
@@ -644,6 +735,11 @@ public sealed class Battle
         foreach (var tower in _towers)
         {
             _hasher.Add(tower.CooldownTicksRemaining);
+        }
+
+        foreach (var structure in _structures)
+        {
+            _hasher.Add(structure.Health);
         }
     }
 
