@@ -219,7 +219,6 @@ namespace CultOfComfort.Client
             _rotate = ButtonWith("Rotate", () => RotateClicked?.Invoke(), "plain", "rotate-button");
             _rotate.name = "rotate";
             Show(_rotate, false);
-            centre.Add(_rotate);
             centre.Add(_toast);
             centre.Add(_lockedNote);
             middle.Add(_sideLeft);
@@ -235,6 +234,7 @@ namespace CultOfComfort.Client
             _drawer.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
             _drawer.verticalScrollerVisibility = ScrollerVisibility.Hidden;
             _duskBar.Add(_drawer);
+            _duskBar.Add(_rotate); // floats just above the cards while placing
             var actions = Container("actions");
             actions.Add(Shortcut(LockedFeatures.Get("shop"), "bar-shortcut"));
             var start = ButtonWith("Light the Lamps", () => StartNightClicked?.Invoke(), "primary");
@@ -367,7 +367,8 @@ namespace CultOfComfort.Client
                     button.Add(Icon(card.Icon, "card-icon"));
                     button.Add(Text(card.Name, "card-name"));
                     button.Add(Text(card.Cost, "card-cost"));
-                    button.Add(Text(string.IsNullOrEmpty(card.Size) ? card.Time : $"{card.Time} · {card.Size}", "card-time"));
+                    button.Add(Text(card.Time, "card-time"));
+                    button.Add(Text(card.Size, "card-size"));
                     button.Add(Text(card.LockText, "card-lock"));
                     foreach (var child in button.Children())
                     {
