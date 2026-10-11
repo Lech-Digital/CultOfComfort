@@ -9,18 +9,15 @@ namespace CultOfComfort.Client
     /// <summary>
     /// The one door to the village (inbound port). <see cref="LocalBaseGateway"/> runs the rules on the device; a
     /// remote gateway will post the same commands to /api/base/sync. Nothing above this interface changes then.
+    /// Contract: <see cref="LoadAsync"/> is called often (twice a second, and before every tap) and must be cheap — a
+    /// remote gateway serves it from a local projection (a <c>BaseState</c> mirror fed by server snapshots) and syncs
+    /// in the background. Everything else the client needs (Night layout, sluice bonus) is derived from the snapshot.
     /// </summary>
     public interface IBaseGateway
     {
         Task<BaseSnapshot> LoadAsync(CancellationToken ct);
 
         Task<CommandResult> SendAsync(BaseCommand command, CancellationToken ct);
-
-        /// <summary>The Night layout for the village as last loaded or changed.</summary>
-        BattleLayout CurrentLayout { get; }
-
-        /// <summary>Extra Open Sluice charges from Cisterns.</summary>
-        int SluiceBonus { get; }
     }
 
     public sealed class CommandResult

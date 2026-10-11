@@ -54,13 +54,13 @@ namespace CultOfComfort.Client
             var spec = table.Spec(b.Type);
             var maxed = b.Level >= spec.MaxLevel || spec.IsTower;
             var next = maxed ? null : spec.Levels[b.Level];
-            var upgradeLabel = maxed ? "Max level" : $"Upgrade · {next.Cost} · {Duration(next.BuildSeconds)}";
+            var upgradeLabel = b.IsUpgrading ? (b.Level == 0 ? "Being built" : "Upgrading") : maxed ? "Max level" : $"Upgrade · {next.Cost} · {Duration(next.BuildSeconds)}";
             return new BuildingCardModel
             {
                 BuildingId = b.Id, Type = b.Type, IsHearth = b.Type == BuildingType.Hearth,
                 Title = b.Level == 0 ? $"{spec.Name} · being built" : $"{spec.Name} · level {b.Level}",
-                Output = spec.Produces != null ? $"+{b.PerHour} {spec.Produces}/h" : Effect(spec, b.Level),
-                Ready = spec.Produces != null ? $"{b.Ready}/{b.Capacity} ready" : string.Empty,
+                Output = b.Level == 0 ? string.Empty : spec.Produces != null ? $"+{b.PerHour} {spec.Produces}/h" : Effect(spec, b.Level),
+                Ready = spec.Produces != null && b.Level > 0 ? $"{b.Ready}/{b.Capacity} ready" : string.Empty,
                 UpgradeLabel = upgradeLabel,
                 CanUpgrade = !maxed && !b.IsUpgrading && snapshot.ConstructionEndsAtUtc == null && snapshot.Stock.Covers(next.Cost)
                              && (b.Type == BuildingType.Hearth || b.Level + 1 <= snapshot.HearthLevel),
@@ -78,6 +78,13 @@ namespace CultOfComfort.Client
             new Reading(50, 0, true),
             new Reading(42, 0, true),
             s.HearthLevel, 0.62f, "Wulfric's coming in ~3h", true);
+
+        /// <summary>
+        /// Whether <paramref name="candidate"/> should replace <paramref name="current"/>: a later version, or the same
+        /// version seen later. A slow read that started before a command must not roll the screen back.
+        /// </summary>
+        public static bool IsNewer(BaseSnapshot candidate, BaseSnapshot current) =>
+            current == null || candidate.Version > current.Version || (candidate.Version == current.Version && candidate.AsOfUtc >= current.AsOfUtc);
 
         public static string Duration(long seconds)
         {

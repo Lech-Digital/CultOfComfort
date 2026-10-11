@@ -465,5 +465,23 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual(0f, root.Q("hearth-fill").resolvedStyle.width, 0.01f);
             Assert.AreEqual(0f, root.Q("prophet-fill").resolvedStyle.width, 0.01f);
         }
+    
+        [UnityTest]
+        public IEnumerator Landscape_DayBarWithBuildCards_LeavesMostOfTheScreenForTheBoard()
+        {
+            // Arrange
+            var (hud, root) = PhoneHud(portrait: false);
+            hud.ShowPhase(GamePhase.Dusk);
+            var snapshot = CultOfComfort.Simulation.Base.BaseState.CreateNew(CultOfComfort.Simulation.Base.BuildingTable.Default, CultOfComfort.Simulation.Base.VillageMap.Demo, System.DateTimeOffset.UtcNow).Snapshot(System.DateTimeOffset.UtcNow);
+
+            // Act
+            hud.SetBuildCards(VillagePresenter.BuildCards(snapshot, CultOfComfort.Simulation.Base.BuildingTable.Default), null);
+            yield return null;
+            yield return null;
+
+            // Assert
+            var bar = root.Q(className: "bar").worldBound.height;
+            Assert.LessOrEqual(bar / root.worldBound.height, 0.3f, "landscape is short: the bar may take at most 30% of it");
+        }
     }
 }

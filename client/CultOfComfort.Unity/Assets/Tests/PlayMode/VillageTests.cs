@@ -140,5 +140,44 @@ namespace CultOfComfort.Client.Tests
             // Assert
             CollectionAssert.DoesNotContain(battle.Path.ToList(), onRoad);
         }
+    
+        [UnityTest]
+        public IEnumerator Launch_SaveWithThreeNightsPlayed_NextNightIsFour()
+        {
+            // Arrange
+            var store = new Store { Saved = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, _clock.UtcNow).ToData() with { LastNightRecorded = 3 } };
+            VillageComposition.Override = () => new LocalBaseGateway(store, _clock, BuildingTable.Default, VillageMap.Demo, _ => { });
+
+            // Act
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+
+            // Assert
+            Assert.AreEqual(4, (int)typeof(GameController).GetField("_night", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(game));
+        }
+
+        [UnityTest]
+        public IEnumerator Board_TapAProducerWhileStorageIsFull_OpensItsCard()
+        {
+            // Arrange — a finished Woodcutter with output ready and Timber already at the cap.
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, _clock.UtcNow);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(3, 9)), _clock.UtcNow);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), _clock.UtcNow);
+            var store = new Store { Saved = state.ToData() with { Stock = new ResourceBag(1000, 60, 380, 0) } };
+            VillageComposition.Override = () => new LocalBaseGateway(store, _clock, BuildingTable.Default, VillageMap.Demo, _ => { });
+            _clock.UtcNow = _clock.UtcNow.AddHours(2);
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+
+            // Act
+            Tap(game, new GridPosition(3, 9));
+            yield return Frames(3);
+
+            // Assert
+            Assert.AreEqual(DisplayStyle.Flex, root.Q("building-card").resolvedStyle.display, "you must still be able to upgrade or demolish it");
+        }
     }
 }

@@ -59,5 +59,31 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual(data.Stock, back.Stock);
             Assert.IsNull(await new FileBaseStore(path + ".missing").LoadAsync(CancellationToken.None));
         }
+    
+        [Test]
+        public async Task FileStore_OnlyTheTempFileSurvived_LoadsIt()
+        {
+            // Arrange — the app died between removing the old save and moving the new one in.
+            var path = Path.Combine(Path.GetTempPath(), $"village-{Guid.NewGuid()}.json");
+            var data = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0).ToData();
+            File.WriteAllText(path + ".tmp", VillageSaveMapper.ToJson(data));
+
+            // Act
+            var back = await new FileBaseStore(path).LoadAsync(CancellationToken.None);
+
+            // Assert
+            Assert.IsNotNull(back);
+            Assert.AreEqual(data.Stock, back.Stock);
+        }
+
+        [Test]
+        public void Mapper_UnknownFormat_Throws()
+        {
+            // Arrange
+            var json = VillageSaveMapper.ToJson(BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0).ToData()).Replace("\"format\":1", "\"format\":99");
+
+            // Act & Assert
+            Assert.Throws<InvalidBaseDataException>(() => VillageSaveMapper.FromJson(json));
+        }
     }
 }

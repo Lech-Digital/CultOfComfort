@@ -2,7 +2,6 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using CultOfComfort.Simulation.Base;
-using CultOfComfort.Simulation.Grid;
 
 namespace CultOfComfort.Client
 {
@@ -15,6 +14,7 @@ namespace CultOfComfort.Client
         private readonly VillageMap _map;
         private readonly Action<string> _warn;
         private BaseState _state;
+        private Task _loading;
 
         public LocalBaseGateway(IBaseStore store, IClock clock, BuildingTable table, VillageMap map, Action<string> warn)
         {
@@ -24,10 +24,6 @@ namespace CultOfComfort.Client
             _map = map;
             _warn = warn;
         }
-
-        public BattleLayout CurrentLayout => _state?.ToBattleLayout() ?? _map.ToBattleLayout(Array.Empty<PlacedTower>(), Array.Empty<GridPosition>());
-
-        public int SluiceBonus => _state?.SluiceBonus ?? 0;
 
         public async Task<BaseSnapshot> LoadAsync(CancellationToken ct)
         {
@@ -48,19 +44,17 @@ namespace CultOfComfort.Client
             return new CommandResult(outcome, _state.Snapshot(now));
         }
 
-        private async Task EnsureLoadedAsync(CancellationToken ct)
-        {
-            if (_state != null)
-            {
-                return;
-            }
+        /// <summary>Loads once: overlapping first calls share the same load, so a command can't be lost to a second restore.</summary>
+        private Task EnsureLoadedAsync(CancellationToken ct) => _loading ??= LoadOnceAsync(ct);
 
+        private async Task LoadOnceAsync(CancellationToken ct)
+        {
             try
             {
                 var data = await _store.LoadAsync(ct);
                 _state = data == null ? BaseState.CreateNew(_table, _map, _clock.UtcNow) : BaseState.Restore(_table, _map, data);
             }
-            catch (InvalidBaseDataException e)
+            catch (Exception e) when (e is InvalidBaseDataException || e is System.IO.IOException)
             {
                 _warn($"Village save unreadable ({e.Message}); starting a fresh village.");
                 _state = BaseState.CreateNew(_table, _map, _clock.UtcNow);

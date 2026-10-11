@@ -182,7 +182,7 @@ namespace CultOfComfort.Client
         {
             try
             {
-                _snapshot = await _village.LoadAsync(_cts.Token); // a tap always sees what is ready right now
+                Accept(await _village.LoadAsync(_cts.Token)); // a tap always sees what is ready right now
                 if (_buildSelection != null)
                 {
                     var type = _buildSelection.Value;
@@ -212,7 +212,12 @@ namespace CultOfComfort.Client
                         FloatNote(Shapes.ToWorld(tile) + Vector3.up * 1.4f, $"+{outcome.Collected}");
                     }
 
-                    return;
+                    // Storage full (rejected) or only part of it fitted: open the card so it can still be upgraded or demolished.
+                    var after = _snapshot.Buildings.FirstOrDefault(b => b.Id == building.Id);
+                    if (outcome.Status == CommandStatus.Accepted && (after == null || after.Ready < 1))
+                    {
+                        return;
+                    }
                 }
 
                 _cardBuilding = building.Id;
@@ -221,13 +226,17 @@ namespace CultOfComfort.Client
             catch (OperationCanceledException)
             {
             }
+            catch (Exception e)
+            {
+                VillageFailed(e);
+            }
         }
 
         /// <summary>Every village change goes through the gateway (device today, server later).</summary>
         private async Task<CommandOutcome> SendVillage(BaseCommand command)
         {
             var result = await _village.SendAsync(command, _cts.Token);
-            _snapshot = result.Snapshot;
+            Accept(result.Snapshot);
             if (result.Outcome.Status == CommandStatus.Rejected)
             {
                 Say(result.Outcome.Reason, prophet: true);
@@ -241,12 +250,32 @@ namespace CultOfComfort.Client
         {
             try
             {
-                _snapshot = await _village.LoadAsync(_cts.Token);
+                Accept(await _village.LoadAsync(_cts.Token));
+                _night = _snapshot.LastNightRecorded + 1; // carry on where the save left off
                 RefreshVillage();
+            }
+            catch (Exception e) when (!(e is OperationCanceledException))
+            {
+                VillageFailed(e);
             }
             catch (OperationCanceledException)
             {
             }
+        }
+
+        /// <summary>Takes a snapshot only if it is newer than what is on screen (a slow read must not roll it back).</summary>
+        private void Accept(BaseSnapshot snapshot)
+        {
+            if (VillagePresenter.IsNewer(snapshot, _snapshot))
+            {
+                _snapshot = snapshot;
+            }
+        }
+
+        private void VillageFailed(Exception e)
+        {
+            Debug.LogException(e);
+            Say("The village didn't answer. The Prophet taps the tin can and tries again.", prophet: true);
         }
 
         private async void RefreshSnapshot()
@@ -255,12 +284,16 @@ namespace CultOfComfort.Client
             {
                 if (_village != null)
                 {
-                    _snapshot = await _village.LoadAsync(_cts.Token);
+                    Accept(await _village.LoadAsync(_cts.Token));
                     RefreshVillage();
                 }
             }
             catch (OperationCanceledException)
             {
+            }
+            catch (Exception e)
+            {
+                VillageFailed(e);
             }
         }
 
@@ -283,6 +316,10 @@ namespace CultOfComfort.Client
             catch (OperationCanceledException)
             {
             }
+            catch (Exception e)
+            {
+                VillageFailed(e);
+            }
         }
 
         /// <summary>Pushes the latest snapshot into the board and the HUD; the road only when the layout changed.</summary>
@@ -297,7 +334,7 @@ namespace CultOfComfort.Client
             if (_snapshot.Version != _roadVersion)
             {
                 _roadVersion = _snapshot.Version;
-                _board.ShowRoad(_village.CurrentLayout.ResolveEnemyPath());
+                _board.ShowRoad(VillageMap.Demo.ToBattleLayout(_snapshot, BuildingTable.Default).ResolveEnemyPath());
             }
 
             _hud.SetBuildCards(VillagePresenter.BuildCards(_snapshot, BuildingTable.Default), _buildSelection);
@@ -310,9 +347,10 @@ namespace CultOfComfort.Client
             _buildSelection = null;
             _cardBuilding = null;
             _hud.ShowBuildingCard(null);
-            _setup = new BattleSetup(_village.CurrentLayout, (ulong)(946 + _night), RaidBudget, RaidWaves, new List<PlayerInput>())
+            var layout = _snapshot != null ? VillageMap.Demo.ToBattleLayout(_snapshot, BuildingTable.Default) : VillageMap.Demo.ToBattleLayout(Array.Empty<PlacedTower>(), Array.Empty<GridPosition>());
+            _setup = new BattleSetup(layout, (ulong)(946 + _night), RaidBudget, RaidWaves, new List<PlayerInput>())
             {
-                ExtraSluiceCharges = _village.SluiceBonus,
+                ExtraSluiceCharges = _snapshot?.SluiceBonus ?? 0,
             };
             _battle = new Battle(_setup);
             _battleView.Begin(_battle);
@@ -445,6 +483,10 @@ namespace CultOfComfort.Client
             }
             catch (OperationCanceledException)
             {
+            }
+            catch (Exception e)
+            {
+                VillageFailed(e);
             }
         }
 

@@ -242,3 +242,13 @@
 .icon-b_cistern { background-image: resource("UI/Icons/b_cistern"); }
 .icon-b_slurry_chute { background-image: resource("UI/Icons/b_slurry_chute"); }
 .icon-b_sapling_flinger { background-image: resource("UI/Icons/b_sapling_flinger"); }
+
+/* landscape is short: a compact drawer so the board keeps most of the screen */
+.landscape .drawer { height: 78px; }
+.landscape .build-card { width: 84px; height: 72px; padding: 2px 3px 4px 3px; }
+.landscape .card-icon { width: 26px; height: 26px; }
+.landscape .card-name { font-size: 9px; }
+.landscape .card-cost { font-size: 8px; }
+.landscape .bar { padding: 6px 10px; }
+.landscape .primary { height: 44px; }
+.sheet .sheet-title { white-space: normal; font-size: 19px; }

@@ -64,5 +64,39 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("1h 05m", VillagePresenter.Duration(3900));
             Assert.AreEqual("0s", VillagePresenter.Duration(-4));
         }
+    
+        [Test]
+        public void Card_BuildingUnderConstruction_SaysBeingBuiltInsteadOfAnUpgrade()
+        {
+            // Arrange
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(3, 9)), T0);
+            var snapshot = state.Snapshot(T0.AddSeconds(5));
+            var id = snapshot.Buildings.Single(b => b.Type == BuildingType.Woodcutter).Id;
+
+            // Act
+            var card = VillagePresenter.Card(snapshot, BuildingTable.Default, id);
+
+            // Assert
+            Assert.AreEqual("Being built", card.UpgradeLabel);
+            Assert.AreEqual(string.Empty, card.Output);
+            Assert.AreEqual(string.Empty, card.Ready);
+        }
+
+        [Test]
+        public void IsNewer_OlderVersionOrTime_IsIgnored()
+        {
+            // Arrange
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            var before = state.Snapshot(T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(4, 6)), T0);
+            var after = state.Snapshot(T0);
+
+            // Act & Assert
+            Assert.IsTrue(VillagePresenter.IsNewer(after, before));
+            Assert.IsFalse(VillagePresenter.IsNewer(before, after), "a slow poll from before a command must not roll the UI back");
+            Assert.IsTrue(VillagePresenter.IsNewer(state.Snapshot(T0.AddSeconds(1)), after));
+            Assert.IsTrue(VillagePresenter.IsNewer(after, null));
+        }
     }
 }

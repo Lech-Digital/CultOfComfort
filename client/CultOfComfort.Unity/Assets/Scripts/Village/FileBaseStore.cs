@@ -13,17 +13,20 @@ namespace CultOfComfort.Client
     public sealed class FileBaseStore : IBaseStore
     {
         private readonly string _path;
+        private readonly SemaphoreSlim _gate = new SemaphoreSlim(1, 1);
 
         public FileBaseStore(string path) => _path = path;
 
         public async Task<BaseData> LoadAsync(CancellationToken ct)
         {
-            if (!File.Exists(_path))
+            // A save interrupted between removing the old file and moving the new one in leaves only the complete .tmp.
+            var path = File.Exists(_path) ? _path : File.Exists(_path + ".tmp") ? _path + ".tmp" : null;
+            if (path == null)
             {
                 return null;
             }
 
-            using (var reader = new StreamReader(_path))
+            using (var reader = new StreamReader(path))
             {
                 var json = await reader.ReadToEndAsync();
                 ct.ThrowIfCancellationRequested();
@@ -33,25 +36,36 @@ namespace CultOfComfort.Client
 
         public async Task SaveAsync(BaseData data, CancellationToken ct)
         {
-            var temp = _path + ".tmp";
-            using (var writer = new StreamWriter(temp, false))
+            await _gate.WaitAsync(ct);
+            try
             {
-                await writer.WriteAsync(VillageSaveMapper.ToJson(data));
-            }
+                var temp = _path + ".tmp";
+                var bytes = System.Text.Encoding.UTF8.GetBytes(VillageSaveMapper.ToJson(data));
+                using (var stream = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    await stream.WriteAsync(bytes, 0, bytes.Length, ct);
+                    stream.Flush(true); // on the disk before the old save goes away
+                }
 
-            ct.ThrowIfCancellationRequested();
-            if (File.Exists(_path))
+                if (File.Exists(_path))
+                {
+                    File.Delete(_path); // File.Replace is unreliable on Mono/Android; LoadAsync falls back to the .tmp
+                }
+
+                File.Move(temp, _path);
+            }
+            finally
             {
-                File.Delete(_path); // File.Replace is unreliable on Mono/Android; the .tmp is complete before this
+                _gate.Release();
             }
-
-            File.Move(temp, _path);
         }
     }
 
     /// <summary>Anti-corruption mapping between <see cref="BaseData"/> and the JSON save.</summary>
     public static class VillageSaveMapper
     {
+        private const int CurrentFormat = 1;
+
         public static string ToJson(BaseData data) => JsonUtility.ToJson(new VillageSaveDto
         {
             version = data.Version,
@@ -86,6 +100,11 @@ namespace CultOfComfort.Client
                 throw new InvalidBaseDataException("empty save");
             }
 
+            if (dto.format != CurrentFormat)
+            {
+                throw new InvalidBaseDataException($"save format {dto.format} is not {CurrentFormat}");
+            }
+
             var buildings = new List<BuildingData>();
             foreach (var b in dto.buildings)
             {
@@ -104,7 +123,7 @@ namespace CultOfComfort.Client
         [Serializable]
         private sealed class VillageSaveDto
         {
-            public int format = 1;
+            public int format = CurrentFormat;
             public long version;
             public int timber;
             public int peat;

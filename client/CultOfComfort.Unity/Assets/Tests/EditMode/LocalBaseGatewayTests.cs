@@ -19,7 +19,16 @@ namespace CultOfComfort.Client.Tests
             public BaseData Saved;
             public int Saves;
             public bool ThrowOnLoad;
-            public Task<BaseData> LoadAsync(CancellationToken ct) => ThrowOnLoad ? throw new InvalidBaseDataException("corrupt") : Task.FromResult(Saved);
+            public bool ThrowIo;
+            public int Loads;
+            public TaskCompletionSource<BaseData> Pending;
+            public Task<BaseData> LoadAsync(CancellationToken ct)
+            {
+                Loads++;
+                if (ThrowIo) throw new System.IO.IOException("disk on fire");
+                if (ThrowOnLoad) throw new InvalidBaseDataException("corrupt");
+                return Pending != null ? Pending.Task : Task.FromResult(Saved);
+            }
             public Task SaveAsync(BaseData data, CancellationToken ct) { Saved = data; Saves++; return Task.CompletedTask; }
         }
 
@@ -51,7 +60,7 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual(CommandStatus.Accepted, result.Outcome.Status);
             Assert.AreEqual(330, result.Snapshot.Stock.Scrap);
             Assert.AreEqual(1, store.Saves);
-            Assert.AreEqual(1, gateway.CurrentLayout.Towers.Count);
+            Assert.AreEqual(1, VillageMap.Demo.ToBattleLayout(result.Snapshot, BuildingTable.Default).Towers.Count);
         }
 
         [Test]
@@ -91,6 +100,37 @@ namespace CultOfComfort.Client.Tests
 
             // Act
             var snapshot = await Gateway(new MemoryStore { ThrowOnLoad = true }, new FakeClock(), _ => warnings++).LoadAsync(CancellationToken.None);
+
+            // Assert
+            Assert.AreEqual(1, snapshot.HearthLevel);
+            Assert.AreEqual(1, warnings);
+        }
+    
+        [Test]
+        public async Task LoadAsync_TwoFirstLoadsAtOnce_ReadTheStoreOnce()
+        {
+            // Arrange — the store answers slowly, as a disk (or a server) would.
+            var store = new MemoryStore { Pending = new TaskCompletionSource<BaseData>() };
+            var gateway = Gateway(store, new FakeClock());
+
+            // Act
+            var first = gateway.LoadAsync(CancellationToken.None);
+            var second = gateway.LoadAsync(CancellationToken.None);
+            store.Pending.SetResult(null);
+            await Task.WhenAll(first, second);
+
+            // Assert
+            Assert.AreEqual(1, store.Loads);
+        }
+
+        [Test]
+        public async Task LoadAsync_StoreThrowsIOException_StartsFreshAndWarns()
+        {
+            // Arrange
+            var warnings = 0;
+
+            // Act
+            var snapshot = await Gateway(new MemoryStore { ThrowIo = true }, new FakeClock(), _ => warnings++).LoadAsync(CancellationToken.None);
 
             // Assert
             Assert.AreEqual(1, snapshot.HearthLevel);
