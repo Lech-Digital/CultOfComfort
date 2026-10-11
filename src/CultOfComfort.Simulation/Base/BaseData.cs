@@ -15,7 +15,10 @@ public sealed record BaseData(
     long TensionAsOfUtcTicks = 0,
     long? ShieldEndsAtUtcTicks = null,
     int NextRaidId = 1,
-    RaidData? Raid = null);
+    RaidData? Raid = null,
+    NightPlan? NightInProgress = null,
+    long NightStartedAtUtcTicks = 0,
+    NightReport? UnseenReport = null);
 
 public sealed record RaidData(int Id, ulong Seed, long WarningEndsAtUtcTicks);
 

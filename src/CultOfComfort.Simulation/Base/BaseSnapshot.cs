@@ -25,7 +25,9 @@ public sealed record BaseSnapshot(
     int Tension = 0,
     TensionState TensionState = TensionState.Calm,
     DateTimeOffset? RaidWarningEndsAtUtc = null,
-    DateTimeOffset? ShieldEndsAtUtc = null)
+    DateTimeOffset? ShieldEndsAtUtc = null,
+    NightPlan? NightInProgress = null,
+    NightReport? UnseenReport = null)
 {
     public DateTimeOffset? ConstructionEndsAtUtc => Buildings.FirstOrDefault(b => b.IsUpgrading)?.UpgradeEndsAtUtc;
 
