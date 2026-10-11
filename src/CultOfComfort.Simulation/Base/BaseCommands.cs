@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using CultOfComfort.Simulation.Grid;
 
 namespace CultOfComfort.Simulation.Base;
@@ -17,7 +18,10 @@ public sealed record DemolishBuilding(Guid CommandId, int BuildingId) : BaseComm
 /// <param name="BuildingId">Null collects from every producer.</param>
 public sealed record Collect(Guid CommandId, int? BuildingId) : BaseCommand(CommandId);
 
-public sealed record RecordNightResult(Guid CommandId, int Night, int Stars) : BaseCommand(CommandId);
+/// <param name="WreckedBuildingIds">Buildings smashed to nothing in the Night (structure ids are building ids).</param>
+public sealed record RecordNightResult(Guid CommandId, int Night, int Stars, IReadOnlyList<int>? WreckedBuildingIds = null) : BaseCommand(CommandId);
+
+public sealed record RepairBuilding(Guid CommandId, int BuildingId) : BaseCommand(CommandId);
 
 /// <summary>Development only: completes the running construction. A server refuses (or charges for) this.</summary>
 public sealed record FinishConstructionNow(Guid CommandId) : BaseCommand(CommandId);

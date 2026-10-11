@@ -71,6 +71,7 @@ public sealed class BaseState
             {
                 BufferMilli = b.BufferMilli,
                 UpgradeEndsAtUtc = b.UpgradeEndsAtUtcTicks == null ? null : new DateTimeOffset(b.UpgradeEndsAtUtcTicks.Value, TimeSpan.Zero),
+                Wrecked = b.Wrecked,
             });
         }
 
@@ -138,7 +139,7 @@ public sealed class BaseState
 
     public BaseData ToData() => new(
         Version, _stock, _nextId, LastNightRecorded,
-        _buildings.Select(b => new BuildingData(b.Id, b.Type, b.Level, b.Position.X, b.Position.Y, b.UpgradeEndsAtUtc?.UtcTicks, b.BufferMilli, b.AsOfUtc.UtcTicks)).ToList(),
+        _buildings.Select(b => new BuildingData(b.Id, b.Type, b.Level, b.Position.X, b.Position.Y, b.UpgradeEndsAtUtc?.UtcTicks, b.BufferMilli, b.AsOfUtc.UtcTicks, b.Wrecked)).ToList(),
         _recentOrder.ToList());
 
     public CommandOutcome Apply(BaseCommand command, DateTimeOffset nowUtc)
@@ -156,8 +157,9 @@ public sealed class BaseState
             UpgradeHearth _ => Upgrade(Hearth, nowUtc),
             DemolishBuilding demolish => Demolish(demolish.BuildingId),
             Collect collect => DoCollect(collect.BuildingId, nowUtc),
-            RecordNightResult night => RecordNight(night),
+            RecordNightResult night => RecordNight(night, nowUtc),
             FinishConstructionNow _ => FinishNow(nowUtc),
+            RepairBuilding repair => Repair(repair.BuildingId, nowUtc),
             _ => CommandOutcome.Reject("Unknown order."),
         };
 
@@ -174,7 +176,7 @@ public sealed class BaseState
     {
         Advance(nowUtc);
         var views = _buildings.Select(b => new BuildingView(
-            b.Id, b.Type, b.Level, b.Position, (int)(Buffer(b, nowUtc) / 1000), (int)(CapacityMilli(b) / 1000), Rate(b), b.UpgradeEndsAtUtc)).ToList();
+            b.Id, b.Type, b.Level, b.Position, (int)(Buffer(b, nowUtc) / 1000), (int)(CapacityMilli(b) / 1000), Rate(b), b.UpgradeEndsAtUtc, b.Wrecked)).ToList();
         return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded);
     }
 
@@ -185,7 +187,7 @@ public sealed class BaseState
             var cap = _table.HearthStorageCaps[HearthLevel - 1];
             foreach (var b in _buildings)
             {
-                if (b.Level > 0)
+                if (b.Level > 0 && !b.Wrecked)
                 {
                     cap += _table.Spec(b.Type).Levels[b.Level - 1].StorageBonus;
                 }
@@ -195,12 +197,17 @@ public sealed class BaseState
         }
     }
 
-    public int SluiceBonus => _buildings.Where(b => b.Level > 0).Sum(b => _table.Spec(b.Type).Levels[b.Level - 1].SluiceCharges);
+    public int SluiceBonus => _buildings.Where(b => b.Level > 0 && !b.Wrecked).Sum(b => _table.Spec(b.Type).Levels[b.Level - 1].SluiceCharges);
 
     /// <summary>The locked layout for a Night: towers fight, every other building is in the way.</summary>
     public BattleLayout ToBattleLayout() => _map.ToBattleLayout(
         _buildings.Where(b => _table.Spec(b.Type).IsTower).Select(b => new PlacedTower(_table.Spec(b.Type).Tower!.Value, b.Position)),
-        _buildings.Where(b => b.Type != BuildingType.Hearth && !_table.Spec(b.Type).IsTower).Select(b => b.Position));
+        _buildings.Where(b => b.Type != BuildingType.Hearth && !_table.Spec(b.Type).IsTower).Select(b => b.Position),
+        _buildings.Where(b => b.Type != BuildingType.Hearth).Select(b =>
+        {
+            var health = _table.StructureHealth(b.Type, b.Level);
+            return new PlacedStructure(b.Id, b.Position, health, b.Wrecked ? 0 : health);
+        }));
     // (VillageMap.ToBattleLayout(snapshot, table) is the same rule from a snapshot, for gateways.)
 
     // ---------------- commands ----------------
@@ -223,7 +230,8 @@ public sealed class BaseState
             return CommandOutcome.Reject($"No room for another {spec.Name} until the Hearth grows.");
         }
 
-        if (!spec.IsTower && Constructing != null)
+        var instant = spec.IsTower || spec.Levels[0].BuildSeconds == 0;
+        if (!instant && Constructing != null)
         {
             return CommandOutcome.Reject("The builder is busy. One thing at a time; he's a cultist, not a crane.");
         }
@@ -241,8 +249,8 @@ public sealed class BaseState
         }
 
         _stock -= cost;
-        var building = new Building(_nextId++, command.Type, command.Position, spec.IsTower ? 1 : 0, now);
-        if (!spec.IsTower)
+        var building = new Building(_nextId++, command.Type, command.Position, instant ? 1 : 0, now);
+        if (!instant)
         {
             building.UpgradeEndsAtUtc = now.AddSeconds(spec.Levels[0].BuildSeconds);
         }
@@ -341,7 +349,7 @@ public sealed class BaseState
         return CommandOutcome.Accept(gained);
     }
 
-    private CommandOutcome RecordNight(RecordNightResult night)
+    private CommandOutcome RecordNight(RecordNightResult night, DateTimeOffset now)
     {
         if (night.Night <= LastNightRecorded)
         {
@@ -351,7 +359,36 @@ public sealed class BaseState
         var salvage = Math.Min(_table.Salvage(night.Stars), Math.Max(0, Caps.Scrap - _stock.Scrap));
         _stock += new ResourceBag(0, 0, salvage, 0);
         LastNightRecorded = night.Night;
+        foreach (var id in night.WreckedBuildingIds ?? Array.Empty<int>())
+        {
+            var building = Find(id);
+            if (building != null && building.Type != BuildingType.Hearth)
+            {
+                Materialize(building, now);
+                building.Wrecked = true;
+            }
+        }
         return CommandOutcome.Accept(new ResourceBag(0, 0, salvage, 0));
+    }
+
+    private CommandOutcome Repair(int id, DateTimeOffset now)
+    {
+        var building = Find(id);
+        if (building == null || !building.Wrecked)
+        {
+            return CommandOutcome.Reject(building == null ? "That building is gone." : "It isn't broken. Yet.");
+        }
+
+        var cost = _table.RepairCost(building.Type, building.Level);
+        if (!_stock.Covers(cost))
+        {
+            return CommandOutcome.Reject($"Need {_stock.Missing(cost)} more.");
+        }
+
+        _stock -= cost;
+        Materialize(building, now); // nothing accrued while wrecked; production restarts from now
+        building.Wrecked = false;
+        return CommandOutcome.Accept();
     }
 
     private CommandOutcome FinishNow(DateTimeOffset now)
@@ -408,13 +445,17 @@ public sealed class BaseState
         }
     }
 
-    private int Rate(Building b)
+    /// <summary>What it produces now: nothing while being built or wrecked.</summary>
+    private int Rate(Building b) => b.Wrecked ? 0 : LevelRate(b);
+
+    private int LevelRate(Building b)
     {
         var spec = _table.Spec(b.Type);
         return spec.Produces == null || b.Level == 0 ? 0 : spec.Levels[b.Level - 1].PerHour;
     }
 
-    private long CapacityMilli(Building b) => Rate(b) * (long)_table.BufferHours * 1000;
+    /// <summary>How much it can hold: set by its level, so a wreck keeps what was already made.</summary>
+    private long CapacityMilli(Building b) => LevelRate(b) * (long)_table.BufferHours * 1000;
 
     private long Buffer(Building b, DateTimeOffset at)
     {

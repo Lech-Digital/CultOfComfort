@@ -12,8 +12,8 @@ public sealed record VillageMap(int Width, int Height, GridPosition Spawn, GridP
 
     public bool Contains(GridPosition tile) => tile.X >= 0 && tile.Y >= 0 && tile.X < Width && tile.Y < Height;
 
-    public BattleLayout ToBattleLayout(IEnumerable<PlacedTower> towers, IEnumerable<GridPosition> obstacles) =>
-        new(Width, Height, Spawn, Hearth, towers, Rocks.Concat(obstacles));
+    public BattleLayout ToBattleLayout(IEnumerable<PlacedTower> towers, IEnumerable<GridPosition> obstacles, IEnumerable<PlacedStructure>? structures = null) =>
+        new(Width, Height, Spawn, Hearth, towers, Rocks.Concat(obstacles), null, structures);
 
     /// <summary>
     /// The locked Night layout for a village snapshot: towers fight, every other building is in the way. Pure, so a
@@ -21,7 +21,12 @@ public sealed record VillageMap(int Width, int Height, GridPosition Spawn, GridP
     /// </summary>
     public BattleLayout ToBattleLayout(BaseSnapshot snapshot, BuildingTable table) => ToBattleLayout(
         snapshot.Buildings.Where(b => table.Spec(b.Type).IsTower).Select(b => new PlacedTower(table.Spec(b.Type).Tower!.Value, b.Position)),
-        snapshot.Buildings.Where(b => b.Type != BuildingType.Hearth && !table.Spec(b.Type).IsTower).Select(b => b.Position));
+        snapshot.Buildings.Where(b => b.Type != BuildingType.Hearth && !table.Spec(b.Type).IsTower).Select(b => b.Position),
+        snapshot.Buildings.Where(b => b.Type != BuildingType.Hearth).Select(b =>
+        {
+            var health = table.StructureHealth(b.Type, b.Level);
+            return new PlacedStructure(b.Id, b.Position, health, b.Wrecked ? 0 : health);
+        }));
 
     private static IReadOnlyList<GridPosition> DemoRocks()
     {
