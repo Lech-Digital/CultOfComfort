@@ -56,7 +56,8 @@ namespace CultOfComfort.Client
             }
             catch (Exception e) when (e is InvalidBaseDataException || e is System.IO.IOException)
             {
-                _warn($"Village save unreadable ({e.Message}); starting a fresh village.");
+                _warn($"Village save unreadable ({e.Message}); keeping a copy and starting a fresh village.");
+                await _store.QuarantineAsync(ct);
                 _state = BaseState.CreateNew(_table, _map, _clock.UtcNow);
             }
         }

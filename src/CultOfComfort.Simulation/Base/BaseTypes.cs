@@ -17,6 +17,10 @@ public enum BuildingType
     Tree,
     WoodenWall,
     Gate,
+    DirtTrack,
+    PlankWalk,
+    CobbledRoad,
+    Cottage,
 }
 
 public enum ResourceType

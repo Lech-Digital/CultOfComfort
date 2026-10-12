@@ -140,9 +140,9 @@ namespace CultOfComfort.Client
             var frame = Container("frame");
             frame.name = "frame";
             var pills = Container("pills");
-            foreach (var (key, icon) in new[] { ("timber", "timber"), ("scrap", "scrap"), ("peat", "peat"), ("devotion", "devotion"), ("pennies", "penny") })
+            foreach (var (key, icon) in new[] { ("timber", "timber"), ("scrap", "scrap"), ("peat", "peat"), ("devotion", "devotion"), ("pennies", "penny"), ("people", "cult") })
             {
-                var pill = Surface(key == "pennies" ? "pill-note" : "pill");
+                var pill = Surface(key == "pennies" || key == "people" ? "pill-note" : "pill");
                 pill.name = $"pill-{key}";
                 pill.Add(Icon(icon));
                 var value = Text(string.Empty, "pill-value");
@@ -331,6 +331,9 @@ namespace CultOfComfort.Client
             SetPill("peat", frame.Peat);
             SetPill("devotion", frame.Devotion);
             SetPill("pennies", frame.Pennies);
+            SetPill("people", frame.People);
+            _pills["peat"].Pill.EnableInClassList("cold", frame.Cold);
+            _pills["people"].Pill.EnableInClassList("cold", frame.Cold);
             _hearthBadge.text = frame.HearthLevel.ToString();
             _hearthLine.text = $"Hearth Lv {frame.HearthLevel}";
             _comfort.text = frame.Comfort.IsDemo ? $"Comfort {frame.Comfort.Value} · demo" : $"Comfort {frame.Comfort.Value}";

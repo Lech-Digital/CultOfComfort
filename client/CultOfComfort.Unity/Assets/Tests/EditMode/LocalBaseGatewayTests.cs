@@ -30,6 +30,8 @@ namespace CultOfComfort.Client.Tests
                 return Pending != null ? Pending.Task : Task.FromResult(Saved);
             }
             public Task SaveAsync(BaseData data, CancellationToken ct) { Saved = data; Saves++; return Task.CompletedTask; }
+            public int Quarantined;
+            public Task QuarantineAsync(CancellationToken ct) { Quarantined++; return Task.CompletedTask; }
         }
 
         private static LocalBaseGateway Gateway(MemoryStore store, FakeClock clock, Action<string> warn = null) =>
@@ -135,6 +137,19 @@ namespace CultOfComfort.Client.Tests
             // Assert
             Assert.AreEqual(1, snapshot.HearthLevel);
             Assert.AreEqual(1, warnings);
+        }
+
+        [Test]
+        public async Task LoadAsync_SaveTheRulesReject_IsSetAsideBeforeAFreshStart()
+        {
+            // Arrange — a save the village refuses: it must never be overwritten by the fresh village's first save.
+            var store = new MemoryStore { ThrowOnLoad = true };
+
+            // Act
+            await Gateway(store, new FakeClock()).LoadAsync(CancellationToken.None);
+
+            // Assert
+            Assert.AreEqual(1, store.Quarantined);
         }
     }
 }

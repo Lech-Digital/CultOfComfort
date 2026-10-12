@@ -21,8 +21,10 @@ namespace CultOfComfort.Client
     public readonly struct FrameState
     {
         public FrameState(Reading timber, Reading scrap, Reading peat, Reading devotion, Reading pennies, Reading comfort,
-            int hearthLevel, float tension, string tensionNote, bool tensionIsDemo)
+            int hearthLevel, float tension, string tensionNote, bool tensionIsDemo, Reading people = default, bool cold = false)
         {
+            People = people;
+            Cold = cold;
             Timber = timber;
             Scrap = scrap;
             Peat = peat;
@@ -42,6 +44,12 @@ namespace CultOfComfort.Client
         public Reading Pennies { get; }
         public Reading Comfort { get; }
         public int HearthLevel { get; }
+
+        /// <summary>Villagers (value) and beds (cap).</summary>
+        public Reading People { get; }
+
+        /// <summary>The Peat ran out: nobody works.</summary>
+        public bool Cold { get; }
 
         /// <summary>0..1: how close the next raid is.</summary>
         public float Tension { get; }

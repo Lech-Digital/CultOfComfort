@@ -182,7 +182,7 @@ public sealed record VillageMap(
         var cleared = snapshot.ClearedTerrain ?? System.Array.Empty<GridPosition>();
         return ToBattleLayout(
             snapshot.Buildings.Where(b => table.Spec(b.Type).IsTower).Select(b => new PlacedTower(table.Spec(b.Type).Tower!.Value, b.Position)),
-            snapshot.Buildings.Where(b => b.Type != BuildingType.Hearth && !table.Spec(b.Type).IsTower).SelectMany(b => b.Tiles),
+            snapshot.Buildings.Where(b => b.Type != BuildingType.Hearth && !table.Spec(b.Type).IsTower && !BuildingTable.IsRoad(b.Type)).SelectMany(b => b.Tiles),
             snapshot.Buildings.Where(b => b.Type != BuildingType.Hearth && table.StructureHealth(b.Type, b.Level) > 0).Select(b =>
             {
                 var health = table.StructureHealth(b.Type, b.Level);

@@ -52,6 +52,7 @@ namespace CultOfComfort.Client
         private long _roadVersion = -1;
         private BuildingType? _buildSelection;
         private bool _placeRotated;
+        private readonly List<GridPosition> _stroke = new List<GridPosition>(); // road tiles under the finger
         private int? _cardBuilding;
         private GridPosition? _cardTerrain;
         private NightPlan _plan;
@@ -125,9 +126,32 @@ namespace CultOfComfort.Client
             PointerInput.GetPressedPointers(_pointers);
             _gesture = _gestures.Update(_pointers, IsOverUi);
 
+            // With a road picked, one finger paints; two fingers still pan and zoom.
+            var painting = _phase == GamePhase.Dusk && _buildSelection != null && BuildingTable.IsRoad(_buildSelection.Value) && _pointers.Count == 1;
             if (_gesture.Panned)
             {
-                _rig.Pan(_gesture.PanFrom, _gesture.PanTo);
+                if (painting && TryScreenToTile(_gesture.PanFrom, out var from) && TryScreenToTile(_gesture.PanTo, out var to))
+                {
+                    if (_stroke.Count == 0)
+                    {
+                        _stroke.Add(from);
+                    }
+
+                    ExtendStroke(_stroke, to);
+                    ShowStroke();
+                }
+                else if (!painting)
+                {
+                    _rig.Pan(_gesture.PanFrom, _gesture.PanTo);
+                }
+            }
+
+            if (_stroke.Count > 0 && _pointers.Count == 0)
+            {
+                var stroke = _stroke.ToArray();
+                _stroke.Clear();
+                _board.ShowPaintPreview(null, _ => true);
+                PaintStroke(stroke);
             }
 
             if (_gesture.Pinched)
@@ -193,6 +217,51 @@ namespace CultOfComfort.Client
             return VillageMap.Demo.PlacementProblem(_snapshot, BuildingTable.Default.Spec(_buildSelection.Value), tile, _placeRotated) == null;
         }
 
+        /// <summary>Adds tiles from the stroke's last tile to <paramref name="to"/>, one orthogonal step at a time (no diagonal gaps).</summary>
+        private static void ExtendStroke(List<GridPosition> stroke, GridPosition to)
+        {
+            var last = stroke[stroke.Count - 1];
+            while (last != to)
+            {
+                last = last.X != to.X ? new GridPosition(last.X + Math.Sign(to.X - last.X), last.Y) : new GridPosition(last.X, last.Y + Math.Sign(to.Y - last.Y));
+                if (!stroke.Contains(last))
+                {
+                    stroke.Add(last);
+                }
+            }
+        }
+
+        private void ShowStroke()
+        {
+            var spec = BuildingTable.Default.Spec(_buildSelection.Value);
+            _board.ShowPaintPreview(_stroke, t => _snapshot == null || VillageMap.Demo.PlacementProblem(_snapshot, spec, t, false) == null
+                                                   || BuildingTable.IsRoad(_snapshot.BuildingAt(t)?.Type ?? BuildingType.Hearth));
+        }
+
+        /// <summary>Lays the selected road along a stroke (its points joined up), in one command.</summary>
+        private async void PaintStroke(IReadOnlyList<GridPosition> points)
+        {
+            if (_buildSelection == null || !BuildingTable.IsRoad(_buildSelection.Value) || points.Count == 0)
+            {
+                return;
+            }
+
+            var tiles = new List<GridPosition> { points[0] };
+            for (var i = 1; i < points.Count; i++)
+            {
+                ExtendStroke(tiles, points[i]);
+            }
+
+            try
+            {
+                await SendVillage(new PlaceRoad(Guid.NewGuid(), _buildSelection.Value, tiles));
+            }
+            catch (Exception e)
+            {
+                VillageFailed(e);
+            }
+        }
+
         /// <summary>Build with the selected card, otherwise collect from a building or open its card.</summary>
         private async void HandleDayTap(GridPosition tile)
         {
@@ -202,11 +271,22 @@ namespace CultOfComfort.Client
                 if (_buildSelection != null)
                 {
                     var type = _buildSelection.Value;
+                    if (BuildingTable.IsRoad(type))
+                    {
+                        await SendVillage(new PlaceRoad(Guid.NewGuid(), type, new[] { tile })); // roads stay picked: keep tapping or drag
+                        return;
+                    }
+
                     var outcome = await SendVillage(new PlaceBuilding(Guid.NewGuid(), type, tile, _placeRotated));
                     if (outcome.Status == CommandStatus.Accepted && !BuildingTable.Default.Spec(type).IsTower)
                     {
                         _buildSelection = null; // one building per pick; towers stay selected for a row of them
                         RefreshVillage();
+                        var placed = _snapshot.BuildingAt(tile);
+                        if (placed != null && !placed.Connected)
+                        {
+                            Say("Not connected yet. Paint a road from it to the Hearth, or to the raiders' road.", prophet: false);
+                        }
                     }
 
                     return;

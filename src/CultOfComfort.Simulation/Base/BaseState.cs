@@ -13,7 +13,7 @@ namespace CultOfComfort.Simulation.Base;
 public sealed class BaseState
 {
     /// <summary>Saves before footprints (layout version 0) are migrated on load: every building finds room for its shape.</summary>
-    public const int CurrentLayoutVersion = 1;
+    public const int CurrentLayoutVersion = 3;
 
     private const int RememberedCommands = 64;
     private const int HearthId = 0;
@@ -37,6 +37,12 @@ public sealed class BaseState
     private readonly Dictionary<GridPosition, DateTimeOffset> _treeCuts = new();
     private HashSet<GridPosition> _road => _roadTiles ??= new HashSet<GridPosition>(_map.Road);
     private HashSet<GridPosition>? _roadTiles;
+    private HashSet<GridPosition>? _network; // village road network, rebuilt after any building change
+    private int _population;
+    private DateTimeOffset _populationAsOf; // the next villager arrives an arrival interval after this
+    private DateTimeOffset _upkeepAsOf;     // Peat burned up to here
+    private long _upkeepMilli;              // a part-burned Peat
+    private bool _cold;                     // the Peat ran out: nobody works until there is Peat again
     private DateTimeOffset _now;
 
     private BaseState(BuildingTable table, VillageMap map)
@@ -58,7 +64,10 @@ public sealed class BaseState
 
     public static BaseState CreateNew(BuildingTable table, VillageMap map, DateTimeOffset nowUtc)
     {
-        var state = new BaseState(table, map) { _stock = table.StartingStock, _tensionAsOf = nowUtc };
+        var state = new BaseState(table, map)
+        {
+            _stock = table.StartingStock, _tensionAsOf = nowUtc, _population = table.HearthBeds, _populationAsOf = nowUtc, _upkeepAsOf = nowUtc,
+        };
         state._buildings.Add(new Building(HearthId, BuildingType.Hearth, map.Hearth, 1, nowUtc));
         return state;
     }
@@ -88,6 +97,11 @@ public sealed class BaseState
             _night = data.NightInProgress,
             _nightStartedAt = new DateTimeOffset(data.NightStartedAtUtcTicks, TimeSpan.Zero),
             _unseenReport = data.UnseenReport,
+            _population = data.Population,
+            _populationAsOf = new DateTimeOffset(data.PopulationAsOfUtcTicks, TimeSpan.Zero),
+            _upkeepAsOf = new DateTimeOffset(data.UpkeepAsOfUtcTicks, TimeSpan.Zero),
+            _upkeepMilli = data.UpkeepMilli,
+            _cold = data.Cold,
         };
         foreach (var b in data.Buildings.OrderBy(b => b.Type == BuildingType.Hearth ? -1 : b.Id))
         {
@@ -97,7 +111,7 @@ public sealed class BaseState
             }
 
             var anchor = new GridPosition(b.X, b.Y);
-            var tiles = data.LayoutVersion >= CurrentLayoutVersion ? Footprint.Tiles(spec, anchor, b.Rotated) : new[] { anchor };
+            var tiles = data.LayoutVersion >= 1 ? Footprint.Tiles(spec, anchor, b.Rotated) : new[] { anchor }; // shapes arrived in layout version 1
             state._buildings.Add(new Building(b.Id, b.Type, anchor, b.Level, new DateTimeOffset(b.AsOfUtcTicks, TimeSpan.Zero), tiles, b.Rotated)
             {
                 BufferMilli = b.BufferMilli,
@@ -124,9 +138,24 @@ public sealed class BaseState
             state._treeCuts[new GridPosition(cut.X, cut.Y)] = new DateTimeOffset(cut.CutAtUtcTicks, TimeSpan.Zero);
         }
 
-        if (data.LayoutVersion < CurrentLayoutVersion)
+        if (data.LayoutVersion < 1)
         {
             state.MigrateLayout();
+        }
+
+        if (data.LayoutVersion < 2)
+        {
+            state.LayRoadsToEverything();
+        }
+
+        if (data.LayoutVersion < 3)
+        {
+            // From before villagers: the beds are full and the clocks start at the save's latest moment.
+            var latest = new DateTimeOffset(data.Buildings.Select(b => b.AsOfUtcTicks).Append(state._tensionAsOf.UtcTicks).Max(), TimeSpan.Zero);
+            state._population = state.Beds();
+            state._populationAsOf = state._upkeepAsOf = latest;
+            state._upkeepMilli = 0;
+            state._cold = false;
         }
 
         state.Validate();
@@ -179,6 +208,141 @@ public sealed class BaseState
         }
     }
 
+    /// <summary>
+    /// A save from before village roads: every building that isn't connected gets the shortest free Dirt Track to the
+    /// network over open, buildable land, so nothing that worked yesterday stops today.
+    /// </summary>
+    private void LayRoadsToEverything()
+    {
+        var track = _table.Spec(BuildingType.DirtTrack);
+        foreach (var b in _buildings.Where(b => b.Type != BuildingType.Hearth && !BuildingTable.IsRoad(b.Type)).OrderBy(b => b.Id).ToList())
+        {
+            if (IsConnected(b))
+            {
+                continue;
+            }
+
+            var network = Network();
+            var footprint = new HashSet<GridPosition>(b.Tiles);
+            var previous = new Dictionary<GridPosition, GridPosition>();
+            var frontier = new Queue<GridPosition>();
+            foreach (var start in b.Tiles.SelectMany(Neighbours).Where(t => !footprint.Contains(t) && FitProblem(track, t, false, checkTrees: false) == null))
+            {
+                if (previous.TryAdd(start, start))
+                {
+                    frontier.Enqueue(start);
+                }
+            }
+
+            while (frontier.Count > 0)
+            {
+                var tile = frontier.Dequeue();
+                if (Neighbours(tile).Any(n => network.Contains(n)))
+                {
+                    for (var t = tile; ; t = previous[t])
+                    {
+                        _buildings.Add(new Building(_nextId++, BuildingType.DirtTrack, t, 1, _now, new[] { t }));
+                        if (previous[t] == t)
+                        {
+                            break;
+                        }
+                    }
+
+                    _network = null;
+                    break;
+                }
+
+                foreach (var next in Neighbours(tile))
+                {
+                    if (!previous.ContainsKey(next) && FitProblem(track, next, false, checkTrees: false) == null)
+                    {
+                        previous[next] = tile;
+                        frontier.Enqueue(next);
+                    }
+                }
+            }
+        }
+    }
+
+    private static IEnumerable<GridPosition> Neighbours(GridPosition t)
+    {
+        yield return new GridPosition(t.X + 1, t.Y);
+        yield return new GridPosition(t.X - 1, t.Y);
+        yield return new GridPosition(t.X, t.Y + 1);
+        yield return new GridPosition(t.X, t.Y - 1);
+    }
+
+    /// <summary>
+    /// The road network: from the Hearth along village roads, gates and the raiders' old track (it is a road, too).
+    /// Walls and everything else cut it.
+    /// </summary>
+    private HashSet<GridPosition> Network()
+    {
+        if (_network != null)
+        {
+            return _network;
+        }
+
+        var carriers = new HashSet<GridPosition>(_road);
+        foreach (var b in _buildings.Where(b => BuildingTable.IsRoad(b.Type) || b.Type == BuildingType.Gate))
+        {
+            carriers.UnionWith(b.Tiles);
+        }
+
+        var network = new HashSet<GridPosition> { _map.Hearth };
+        var frontier = new Queue<GridPosition>();
+        frontier.Enqueue(_map.Hearth);
+        while (frontier.Count > 0)
+        {
+            foreach (var next in Neighbours(frontier.Dequeue()))
+            {
+                if (carriers.Contains(next) && network.Add(next))
+                {
+                    frontier.Enqueue(next);
+                }
+            }
+        }
+
+        return _network = network;
+    }
+
+    /// <summary>A building works only when a tile beside it is on the road network (or it stands by the Hearth).</summary>
+    private bool IsConnected(Building b)
+    {
+        if (b.Type == BuildingType.Hearth || BuildingTable.IsRoad(b.Type))
+        {
+            return true;
+        }
+
+        var network = Network();
+        return b.Tiles.SelectMany(Neighbours).Any(n => network.Contains(n) && !b.Tiles.Contains(n));
+    }
+
+    /// <summary>Best road bonus (percent) among the road tiles beside it.</summary>
+    private int RoadBonus(Building b)
+    {
+        var best = 0;
+        foreach (var n in b.Tiles.SelectMany(Neighbours))
+        {
+            var road = _buildings.FirstOrDefault(o => BuildingTable.IsRoad(o.Type) && o.Position == n);
+            if (road != null)
+            {
+                best = Math.Max(best, BuildingTable.RoadBonusPercent(road.Type));
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>Settles every producer up to <paramref name="at"/>: done before anything that changes production.</summary>
+    private void MaterializeAll(DateTimeOffset at)
+    {
+        foreach (var b in _buildings)
+        {
+            Materialize(b, at);
+        }
+    }
+
     private static IEnumerable<(GridPosition Anchor, bool Rotated)> Candidates(GridPosition origin)
     {
         for (var radius = 0; radius <= 4; radius++)
@@ -213,6 +377,11 @@ public sealed class BaseState
         if (_stock.Timber < 0 || _stock.Peat < 0 || _stock.Scrap < 0 || _stock.Devotion < 0)
         {
             Fail("negative stock");
+        }
+
+        if (_population < 0 || _population > Beds() || _upkeepMilli < 0 || _upkeepMilli >= 1000)
+        {
+            Fail("impossible villagers");
         }
 
         if (_buildings.Select(b => b.Id).Distinct().Count() != _buildings.Count || _buildings.Any(b => b.Id >= _nextId && b.Id != HearthId))
@@ -276,7 +445,12 @@ public sealed class BaseState
         _unseenReport,
         _cleared.ToList(),
         _treeCuts.Select(c => new TreeCutData(c.Key.X, c.Key.Y, c.Value.UtcTicks)).ToList(),
-        CurrentLayoutVersion);
+        CurrentLayoutVersion,
+        _population,
+        _populationAsOf.UtcTicks,
+        _upkeepAsOf.UtcTicks,
+        _upkeepMilli,
+        _cold);
 
     public CommandOutcome Apply(BaseCommand command, DateTimeOffset nowUtc)
     {
@@ -287,7 +461,8 @@ public sealed class BaseState
 
         Advance(nowUtc);
         _now = nowUtc;
-        if (_night != null && command is PlaceBuilding or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain)
+        MaterializeAll(nowUtc); // whatever this command changes, production up to now was earned under the old rules
+        if (_night != null && command is PlaceBuilding or PlaceRoad or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain)
         {
             return CommandOutcome.Reject("Not now — there's a Night on.") with { Version = Version };
         }
@@ -299,6 +474,7 @@ public sealed class BaseState
             AcknowledgeReport _ => Acknowledge(),
             ClearTerrain clear => Clear(clear.Tile),
             PlaceBuilding place => Place(place, nowUtc),
+            PlaceRoad road => PaintRoad(road, nowUtc),
             UpgradeBuilding upgrade => Upgrade(Find(upgrade.BuildingId), nowUtc),
             UpgradeHearth _ => Upgrade(Hearth, nowUtc),
             DemolishBuilding demolish => Demolish(demolish.BuildingId),
@@ -311,6 +487,8 @@ public sealed class BaseState
             _ => CommandOutcome.Reject("Unknown order."),
         };
 
+        _network = null;
+        SettlePeople(nowUtc);
         if (outcome.Status == CommandStatus.Accepted)
         {
             Version++;
@@ -325,10 +503,12 @@ public sealed class BaseState
         Advance(nowUtc);
         _now = nowUtc;
         var views = _buildings.Select(b => new BuildingView(
-            b.Id, b.Type, b.Level, b.Position, (int)(Buffer(b, nowUtc) / 1000), (int)(CapacityMilli(b) / 1000), Rate(b), b.UpgradeEndsAtUtc, b.Wrecked, b.Rotated, b.Tiles)).ToList();
+            b.Id, b.Type, b.Level, b.Position, (int)(Buffer(b, nowUtc) / 1000), (int)(CapacityMilli(b) / 1000), Rate(b), b.UpgradeEndsAtUtc, b.Wrecked, b.Rotated, b.Tiles, IsConnected(b),
+            IsStaffed(b) ? _table.Spec(b.Type).Workers : 0, _table.Spec(b.Type).Workers)).ToList();
         var tension = TensionValue(nowUtc);
         return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
-            tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport, _cleared.Concat(_treeCuts.Keys.Where(t => !IsWildTreeStanding(t))).ToList());
+            tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport, _cleared.Concat(_treeCuts.Keys.Where(t => !IsWildTreeStanding(t))).ToList(),
+            _population, Beds(), _cold);
     }
 
     public ResourceBag Caps
@@ -338,7 +518,7 @@ public sealed class BaseState
             var cap = _table.HearthStorageCaps[HearthLevel - 1];
             foreach (var b in _buildings)
             {
-                if (b.Level > 0 && !b.Wrecked)
+                if (b.Level > 0 && !b.Wrecked && IsConnected(b))
                 {
                     cap += _table.Spec(b.Type).Levels[b.Level - 1].StorageBonus;
                 }
@@ -348,14 +528,14 @@ public sealed class BaseState
         }
     }
 
-    public int SluiceBonus => _buildings.Where(b => b.Level > 0 && !b.Wrecked).Sum(b => _table.Spec(b.Type).Levels[b.Level - 1].SluiceCharges);
+    public int SluiceBonus => _buildings.Where(b => b.Level > 0 && !b.Wrecked && IsConnected(b)).Sum(b => _table.Spec(b.Type).Levels[b.Level - 1].SluiceCharges);
 
     /// <summary>The locked layout for a Night: towers fight, every other building is in the way.</summary>
     public BattleLayout ToBattleLayout()
     {
         return _map.ToBattleLayout(
             _buildings.Where(b => _table.Spec(b.Type).IsTower).Select(b => new PlacedTower(_table.Spec(b.Type).Tower!.Value, b.Position)),
-            _buildings.Where(b => b.Type != BuildingType.Hearth && !_table.Spec(b.Type).IsTower).SelectMany(b => b.Tiles),
+            _buildings.Where(b => b.Type != BuildingType.Hearth && !_table.Spec(b.Type).IsTower && !BuildingTable.IsRoad(b.Type)).SelectMany(b => b.Tiles),
             _buildings.Where(b => b.Type != BuildingType.Hearth && _table.StructureHealth(b.Type, b.Level) > 0).Select(b =>
             {
                 var health = _table.StructureHealth(b.Type, b.Level);
@@ -421,6 +601,60 @@ public sealed class BaseState
         return CommandOutcome.Accept();
     }
 
+    private CommandOutcome PaintRoad(PlaceRoad command, DateTimeOffset now)
+    {
+        if (!BuildingTable.IsRoad(command.Type))
+        {
+            return CommandOutcome.Reject("That isn't a road.");
+        }
+
+        var spec = _table.Spec(command.Type);
+        if (HearthLevel < spec.UnlockHearth)
+        {
+            return CommandOutcome.Reject($"{spec.Name} unlocks at Hearth {spec.UnlockHearth}.");
+        }
+
+        var cost = spec.Levels[0].Cost;
+        string? firstProblem = null;
+        var placed = 0;
+        foreach (var tile in command.Tiles.Distinct())
+        {
+            var existing = _buildings.FirstOrDefault(b => b.Tiles.Contains(tile));
+            string? problem;
+            if (existing != null && BuildingTable.IsRoad(existing.Type))
+            {
+                problem = BuildingTable.RoadRank(existing.Type) >= BuildingTable.RoadRank(command.Type) ? "There's already as good a road there." : null;
+            }
+            else
+            {
+                problem = FitProblem(spec, tile, false, checkTrees: true);
+            }
+
+            if (problem == null && !_stock.Covers(cost))
+            {
+                problem = $"Need {_stock.Missing(cost)} more.";
+            }
+
+            if (problem != null)
+            {
+                firstProblem ??= problem;
+                continue;
+            }
+
+            if (existing != null)
+            {
+                _buildings.Remove(existing); // the better road goes down over the old one
+            }
+
+            _stock -= cost;
+            _buildings.Add(new Building(_nextId++, command.Type, tile, 1, now, new[] { tile }));
+            placed++;
+        }
+
+        _network = null;
+        return placed > 0 ? CommandOutcome.Accept() : CommandOutcome.Reject(firstProblem ?? "Nowhere to put it.");
+    }
+
     private CommandOutcome Upgrade(Building? building, DateTimeOffset now)
     {
         if (building == null)
@@ -439,7 +673,8 @@ public sealed class BaseState
             return CommandOutcome.Reject("Wrecked — repair it first.");
         }
 
-        if (building.IsUpgrading || Constructing != null)
+        var instant = spec.Levels[building.Level].BuildSeconds == 0; // a wall turned to stone needs no builder
+        if (building.IsUpgrading || (!instant && Constructing != null))
         {
             return CommandOutcome.Reject("The builder is busy. One thing at a time; he's a cultist, not a crane.");
         }
@@ -458,6 +693,11 @@ public sealed class BaseState
         _stock -= cost;
         Materialize(building, now);
         building.UpgradeEndsAtUtc = now.AddSeconds(spec.Levels[building.Level].BuildSeconds);
+        if (instant)
+        {
+            Advance(now);
+        }
+
         return CommandOutcome.Accept();
     }
 
@@ -701,11 +941,35 @@ public sealed class BaseState
             var crossing = Due(_raid == null && _night == null ? HostileCrossing() : null, now);
             var deadline = Due(_raid != null && _night == null ? _raid.WarningEndsAtUtc : (DateTimeOffset?)null, now);
             var abandoned = Due(_night != null ? _nightStartedAt.AddMinutes(_table.Tension.AbandonedNightMinutes) : (DateTimeOffset?)null, now);
-            var next = Earliest(construction, crossing, deadline, abandoned);
+            var arrival = Due(_population < Beds() ? _populationAsOf.AddMinutes(_table.VillagerArrivalMinutes) : (DateTimeOffset?)null, now);
+            var runsOut = Due(PeatRunsOutAt(), now);
+            var next = Earliest(construction, crossing, deadline, abandoned, arrival, runsOut);
             if (next == null)
             {
+                MaterializeUpkeep(now);
+                SettlePeople(now);
                 return;
             }
+
+            // Everything earned or burned up to this moment counts under the rules before it.
+            MaterializeAll(next.Value);
+            MaterializeUpkeep(next.Value);
+            if (next == arrival)
+            {
+                _population++;
+                _populationAsOf = arrival!.Value;
+                continue;
+            }
+
+            if (next == runsOut)
+            {
+                _stock = new ResourceBag(_stock.Timber, 0, _stock.Scrap, _stock.Devotion);
+                _upkeepMilli = 0;
+                _cold = true;
+                continue;
+            }
+
+            SettlePeople(next.Value); // a full village's arrival clock waits at each event
 
             if (next == construction)
             {
@@ -732,6 +996,8 @@ public sealed class BaseState
             {
                 ResolveAt(Array.Empty<PlayerInput>(), abandoned!.Value, whileAway: true);
             }
+
+            SettlePeople(next.Value); // beds may have been built or wrecked
         }
     }
 
@@ -946,7 +1212,105 @@ public sealed class BaseState
     }
 
     /// <summary>What it produces now: nothing while being built or wrecked.</summary>
-    private int Rate(Building b) => b.Wrecked ? 0 : LevelRate(b);
+    private int Rate(Building b) => b.Wrecked || _cold || !IsConnected(b) || !IsStaffed(b) ? 0 : LevelRate(b) * (100 + RoadBonus(b)) / 100;
+
+    // ---------------- villagers ----------------
+
+    /// <summary>The Hearth's beds plus every connected, finished, intact cottage's.</summary>
+    private int Beds() => _table.HearthBeds + _buildings
+        .Where(b => b.Level > 0 && !b.Wrecked && _table.Spec(b.Type).Levels[b.Level - 1].Beds > 0 && IsConnected(b))
+        .Sum(b => _table.Spec(b.Type).Levels[b.Level - 1].Beds);
+
+    /// <summary>
+    /// Villagers crew connected, finished, intact producers in building order; one that can't get its full crew gets
+    /// none (the next, smaller one may still be crewed).
+    /// </summary>
+    private bool IsStaffed(Building building)
+    {
+        var need = _table.Spec(building.Type).Workers;
+        if (need == 0)
+        {
+            return true;
+        }
+
+        var free = _population;
+        foreach (var b in _buildings.OrderBy(b => b.Id))
+        {
+            var workers = _table.Spec(b.Type).Workers;
+            if (workers == 0 || b.Level == 0 || b.Wrecked || !IsConnected(b))
+            {
+                continue;
+            }
+
+            var crewed = free >= workers;
+            if (crewed)
+            {
+                free -= workers;
+            }
+
+            if (b == building)
+            {
+                return crewed;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Burns Peat for every villager up to <paramref name="at"/> (nothing while cold: there's nothing to burn).</summary>
+    private void MaterializeUpkeep(DateTimeOffset at)
+    {
+        if (at <= _upkeepAsOf)
+        {
+            return;
+        }
+
+        if (!_cold && _population > 0)
+        {
+            var seconds = (at.UtcTicks - _upkeepAsOf.UtcTicks) / TimeSpan.TicksPerSecond;
+            var burned = _upkeepMilli + _population * _table.PeatPerVillagerPerHour * 1000L * seconds / 3600;
+            var whole = (int)Math.Min(burned / 1000, _stock.Peat);
+            _stock -= new ResourceBag(0, whole, 0, 0);
+            _upkeepMilli = whole < burned / 1000 ? 0 : burned - whole * 1000L;
+        }
+
+        _upkeepAsOf = at;
+    }
+
+    /// <summary>When the Peat in storage runs out at today's burn (null: it won't, or it already has).</summary>
+    private DateTimeOffset? PeatRunsOutAt()
+    {
+        var perHour = _population * _table.PeatPerVillagerPerHour;
+        if (_cold || perHour <= 0)
+        {
+            return null;
+        }
+
+        var milliLeft = _stock.Peat * 1000L - _upkeepMilli;
+        var seconds = (milliLeft * 3600 + perHour * 1000L - 1) / (perHour * 1000L); // round up: it's gone at the end of that second
+        return _upkeepAsOf.AddSeconds(Math.Max(0, seconds));
+    }
+
+    /// <summary>After anything that changes beds or Peat: extra villagers leave; Peat back in storage warms everyone up.</summary>
+    private void SettlePeople(DateTimeOffset at)
+    {
+        var beds = Beds();
+        if (_population > beds)
+        {
+            _population = beds;
+        }
+
+        if (_population >= beds && at > _populationAsOf)
+        {
+            _populationAsOf = at; // full: the next newcomer comes an interval after a bed frees up
+        }
+
+        if (_cold && _stock.Peat > 0)
+        {
+            _cold = false;
+            _upkeepAsOf = at > _upkeepAsOf ? at : _upkeepAsOf;
+        }
+    }
 
     private int LevelRate(Building b)
     {

@@ -250,5 +250,106 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("b_wooden_wall", wall.Icon);
             Assert.AreEqual("b_gate", gate.Icon);
         }
+
+        [Test]
+        public void Card_UnconnectedBuilding_SaysToBuildARoad()
+        {
+            // Arrange — a lean-to out in the field, nowhere near a road.
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(20, 14)), T0);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+            var id = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Woodcutter).Id;
+
+            // Act
+            var card = VillagePresenter.Card(state.Snapshot(T0), BuildingTable.Default, id);
+
+            // Assert
+            Assert.AreEqual("Not connected — build a road to it", card.Output);
+        }
+
+        [Test]
+        public void BuildCards_Roads_TrackAtHearthOnePlanksAndCobblesLater()
+        {
+            // Act
+            var cards = VillagePresenter.BuildCards(Fresh(), BuildingTable.Default);
+
+            // Assert
+            var track = cards.Single(c => c.Type == BuildingType.DirtTrack);
+            Assert.IsFalse(track.Locked);
+            Assert.AreEqual("b_dirt_track", track.Icon);
+            Assert.AreEqual("Hearth 2", cards.Single(c => c.Type == BuildingType.PlankWalk).LockText);
+            Assert.AreEqual("Hearth 3", cards.Single(c => c.Type == BuildingType.CobbledRoad).LockText);
+        }
+
+        [Test]
+        public void Card_ProducerWithoutACrew_SaysWhoIsMissing()
+        {
+            // Arrange — a peat trench (crew 2) built first takes both villagers; the lean-to beside the road gets none.
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.PeatCut, new GridPosition(12, 3), true), T0);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(15, 5)), T0);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+            var snapshot = state.Snapshot(T0);
+
+            // Act
+            var lean = VillagePresenter.Card(snapshot, BuildingTable.Default, snapshot.Buildings.Single(b => b.Type == BuildingType.Woodcutter).Id);
+            var peat = VillagePresenter.Card(snapshot, BuildingTable.Default, snapshot.Buildings.Single(b => b.Type == BuildingType.PeatCut).Id);
+
+            // Assert
+            Assert.AreEqual("Needs 1 villager — build a Cottage", lean.Output);
+            StringAssert.Contains("Crew 2/2", peat.Ready);
+        }
+
+        [Test]
+        public void Frame_Villagers_ShowPeopleAndBedsAndTheCold()
+        {
+            // Arrange — 2 Peat for 2 villagers: cold after an hour.
+            var table = new BuildingTable { StartingStock = new ResourceBag(500, 2, 380, 0) };
+            var state = BaseState.CreateNew(table, VillageMap.Demo, T0);
+
+            // Act
+            var warm = VillagePresenter.Frame(state.Snapshot(T0));
+            var cold = VillagePresenter.Frame(state.Snapshot(T0.AddHours(2)));
+
+            // Assert
+            Assert.AreEqual(2, warm.People.Value);
+            Assert.AreEqual(2, warm.People.Cap);
+            Assert.IsFalse(warm.Cold);
+            Assert.IsTrue(cold.Cold);
+        }
+
+        [Test]
+        public void BuildCards_Cottage_HasItsIconAndBeds()
+        {
+            // Act
+            var cottage = VillagePresenter.BuildCards(Fresh(), BuildingTable.Default).Single(c => c.Type == BuildingType.Cottage);
+
+            // Assert
+            Assert.AreEqual("b_cottage", cottage.Icon);
+            Assert.AreEqual("2×2", cottage.Size);
+        }
+
+        [Test]
+        public void Card_WoodenWall_OffersStoneAndThenIsAStoneWall()
+        {
+            // Arrange — Hearth 2, a wooden wall.
+            var state = BaseState.CreateNew(new BuildingTable { StartingStock = new ResourceBag(2000, 900, 900, 0) }, VillageMap.Demo, T0);
+            state.Apply(new UpgradeHearth(Guid.NewGuid()), T0);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WoodenWall, new GridPosition(13, 4)), T0);
+            var wall = state.Snapshot(T0).BuildingAt(new GridPosition(13, 4)).Id;
+
+            // Act
+            var wooden = VillagePresenter.Card(state.Snapshot(T0), BuildingTable.Default, wall);
+            state.Apply(new UpgradeBuilding(Guid.NewGuid(), wall), T0);
+            var stone = VillagePresenter.Card(state.Snapshot(T0), BuildingTable.Default, wall);
+
+            // Assert
+            Assert.AreEqual("Rebuild in stone · 10 Timber · 20 Scrap", wooden.UpgradeLabel);
+            Assert.IsTrue(wooden.CanUpgrade);
+            Assert.AreEqual("Stone Wall", stone.Title);
+            Assert.AreEqual("Max level", stone.UpgradeLabel);
+        }
     }
 }
