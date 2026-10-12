@@ -16,6 +16,9 @@ namespace CultOfComfort.Client
         private readonly Dictionary<MapZone, GameObject> _zones = new Dictionary<MapZone, GameObject>();
         private readonly Dictionary<GridPosition, GameObject> _rocks = new Dictionary<GridPosition, GameObject>();
         private readonly List<GameObject> _paintGhosts = new List<GameObject>();
+        private GameObject _ghost;
+        private string _ghostKey;
+        private int? _hiddenBuilding;
         private readonly Dictionary<GridPosition, GameObject> _wildTrees = new Dictionary<GridPosition, GameObject>();
         private readonly List<Transform> _water = new List<Transform>();
         private Transform _hearth;
@@ -94,19 +97,28 @@ namespace CultOfComfort.Client
             }
 
             var seen = new HashSet<int>();
+            var barriers = new HashSet<GridPosition>(buildings.Where(b => BuildingTable.IsBarrier(b.Type)).SelectMany(b => b.Tiles));
             foreach (var building in buildings)
             {
                 seen.Add(building.Id);
-                if (!_buildings.TryGetValue(building.Id, out var visual) || visual.Level != building.Level)
+                var mask = Joins(building.Type) ? WallJoints.Mask(building.Position, barriers) : WallLink.None;
+                if (!_buildings.TryGetValue(building.Id, out var visual) || visual.Level != building.Level
+                    || (Joins(building.Type) && visual.Mask != mask) || visual.Anchor != building.Position || visual.Rotated != building.Rotated) // moved, turned or re-joined
                 {
                     if (visual != null)
                     {
                         visual.Destroy();
                     }
 
-                    visual = CreateBuilding(building);
+                    visual = CreateBuilding(building, mask);
+                    visual.Mask = mask;
+                    visual.Anchor = building.Position;
+                    visual.Rotated = building.Rotated;
+                    visual.Wrecked = false;
                     _buildings[building.Id] = visual;
                 }
+
+                visual.Root.gameObject.SetActive(building.Id != _hiddenBuilding);
 
                 var spec = table.Spec(building.Type);
                 visual.Bar.SetActive(building.IsUpgrading);
@@ -569,7 +581,7 @@ namespace CultOfComfort.Client
             BuildingType.SaplingFlinger => "sapling_flinger",
             BuildingType.WattleFence => "fence",
             BuildingType.WoodenWall => "palisade",
-            BuildingType.Gate => "spawn_gate",
+            BuildingType.Gate => "gate_wood",
             BuildingType.DirtTrack => "road_dirt",
             BuildingType.PlankWalk => "road_planks",
             BuildingType.CobbledRoad => "road_cobbles",
@@ -587,7 +599,99 @@ namespace CultOfComfort.Client
             _ => null,
         };
 
-        private BuildingVisual CreateBuilding(BuildingView building)
+        /// <summary>Fences and walls draw themselves from their neighbours (gates stand alone).</summary>
+        private static bool Joins(BuildingType type) => type == BuildingType.WattleFence || type == BuildingType.WoodenWall;
+
+        private static string BarrierModel(BuildingType type, int level) =>
+            type == BuildingType.WattleFence ? "fence" : level >= 2 ? "stone_wall" : "palisade";
+
+        private static string GateModel(int level) => level >= 3 ? "gatehouse" : level == 2 ? "gate_iron" : "gate_wood";
+
+        /// <summary>A post in the middle and a half-length segment towards every joined neighbour; a lone piece is a full segment.</summary>
+        private void BuildJoined(Transform root, BuildingView building, WallLink mask)
+        {
+            var model = BarrierModel(building.Type, building.Level);
+            if (mask == WallLink.None)
+            {
+                var whole = ArtLibrary.Instantiate(model, root);
+                if (whole != null)
+                {
+                    whole.transform.localRotation = building.Rotated ? Quaternion.Euler(0f, 90f, 0f) * FaceCamera : FaceCamera;
+                }
+
+                return;
+            }
+
+            foreach (var (link, offset, yaw) in new[]
+            {
+                (WallLink.East, new Vector3(0.25f, 0f, 0f), 0f), (WallLink.West, new Vector3(-0.25f, 0f, 0f), 0f),
+                (WallLink.North, new Vector3(0f, 0f, 0.25f), 90f), (WallLink.South, new Vector3(0f, 0f, -0.25f), 90f),
+            })
+            {
+                if ((mask & link) == 0)
+                {
+                    continue;
+                }
+
+                var half = ArtLibrary.Instantiate(model, root);
+                if (half != null)
+                {
+                    half.transform.localPosition = offset;
+                    half.transform.localRotation = Quaternion.Euler(0f, yaw, 0f) * FaceCamera;
+                    half.transform.localScale = new Vector3(0.52f, 1f, 1f);
+                }
+            }
+
+            var stone = building.Type == BuildingType.WoodenWall && building.Level >= 2;
+            var height = building.Type == BuildingType.WattleFence ? 0.5f : stone ? 0.72f : 1f;
+            Shapes.Create(PrimitiveType.Cylinder, stone ? Palette.Rock : Palette.Wood, new Vector3(0f, height / 2f, 0f),
+                new Vector3(stone ? 0.3f : 0.14f, height / 2f, stone ? 0.3f : 0.14f), root, "Post");
+        }
+
+        /// <summary>The see-through-in-spirit ghost of what is being placed or moved (null type: none).</summary>
+        public void ShowGhost(BuildingType? type, int level, IReadOnlyList<GridPosition> tiles, bool rotated, bool valid)
+        {
+            if (type == null)
+            {
+                if (_ghost != null)
+                {
+                    Destroy(_ghost);
+                    _ghost = null;
+                }
+
+                ShowCursor(null, false);
+                return;
+            }
+
+            var key = $"{type}:{level}:{rotated}";
+            if (_ghost == null || _ghostKey != key)
+            {
+                if (_ghost != null)
+                {
+                    Destroy(_ghost);
+                }
+
+                _ghostKey = key;
+                _ghost = new GameObject("Ghost");
+                _ghost.transform.SetParent(_root, false);
+                var (_, size) = FootprintBox(tiles);
+                var name = type == BuildingType.Gate ? GateModel(level) : ModelName(type.Value) ?? "fence";
+                var model = ArtLibrary.Instantiate(name, _ghost.transform);
+                if (model != null)
+                {
+                    model.transform.localRotation = rotated ? Quaternion.Euler(0f, 90f, 0f) * FaceCamera : FaceCamera;
+                    model.transform.localScale = Vector3.one * 0.8f * Mathf.Min(size.x, size.y);
+                }
+            }
+
+            _ghost.transform.localPosition = FootprintBox(tiles).Centre + new Vector3(0f, 0.05f, 0f);
+            ShowFootprintCursor(tiles, valid);
+        }
+
+        /// <summary>The building being moved hides; its ghost stands in for it.</summary>
+        public void HideBuilding(int? id) => _hiddenBuilding = id;
+
+        private BuildingVisual CreateBuilding(BuildingView building, WallLink mask)
         {
             var visual = new BuildingVisual { Level = building.Level, Type = building.Type };
             if (building.Type == BuildingType.Hearth)
@@ -625,16 +729,20 @@ namespace CultOfComfort.Client
                     return visual;
                 }
 
-                if (size.x > 1f || size.y > 1f)
+                if (Joins(building.Type))
+                {
+                    BuildJoined(visual.Root, building, mask);
+                }
+                else if (size.x > 1f || size.y > 1f)
                 {
                     // A trodden plot the size of the footprint, so a 2×4 trench reads as 2×4.
                     Shapes.Create(PrimitiveType.Cube, Palette.Road, new Vector3(0f, 0.012f, 0f), new Vector3(size.x - 0.12f, 0.02f, size.y - 0.12f), visual.Root, "Plot");
                 }
 
                 var modelName = building.Type == BuildingType.Tree && building.Level == 0 ? "bush"
-                    : building.Type == BuildingType.WoodenWall && building.Level >= 2 ? "stone_wall"
+                    : building.Type == BuildingType.Gate ? GateModel(building.Level)
                     : ModelName(building.Type);
-                var model = ArtLibrary.Instantiate(modelName, visual.Root);
+                var model = Joins(building.Type) ? null : ArtLibrary.Instantiate(modelName, visual.Root);
                 var grow = Mathf.Min(size.x, size.y); // big footprints get a big model
                 var scale = (building.Type == BuildingType.Stone ? 0.9f : building.Level == 0 ? 0.5f : 0.8f) * grow; // a half-built shell (or a sapling) until it is done
                 if (model != null)
@@ -642,7 +750,7 @@ namespace CultOfComfort.Client
                     model.transform.localRotation = building.Rotated ? Quaternion.Euler(0f, 90f, 0f) * FaceCamera : FaceCamera;
                     model.transform.localScale = Vector3.one * scale;
                 }
-                else
+                else if (!Joins(building.Type))
                 {
                     Shapes.Create(PrimitiveType.Cube, Palette.Wood, new Vector3(0f, 0.3f * scale, 0f), new Vector3(0.8f, 0.6f, 0.8f) * scale, visual.Root, "Building");
                 }
@@ -676,6 +784,9 @@ namespace CultOfComfort.Client
             public float ReadyHeight;
             public GameObject Health;
             public bool Wrecked;
+            public WallLink Mask = (WallLink)(-1);
+            public GridPosition Anchor;
+            public bool Rotated;
 
             public void Destroy() => UnityEngine.Object.Destroy(Root.gameObject);
         }

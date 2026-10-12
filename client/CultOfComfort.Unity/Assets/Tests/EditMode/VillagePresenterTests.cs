@@ -351,5 +351,46 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("Stone Wall", stone.Title);
             Assert.AreEqual("Max level", stone.UpgradeLabel);
         }
+
+        [Test]
+        public void RepairAllLabel_WreckedBuildings_SumsTheirRepairs()
+        {
+            // Arrange
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WattleFence, new GridPosition(13, 6)), T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WattleFence, new GridPosition(14, 6)), T0);
+            var ids = state.Snapshot(T0).Buildings.Where(b => b.Type == BuildingType.WattleFence).Select(b => b.Id).ToList();
+            var before = VillagePresenter.RepairAllLabel(state.Snapshot(T0), BuildingTable.Default);
+            state.Apply(new RecordNightResult(Guid.NewGuid(), 1, 0, ids), T0);
+
+            // Act
+            var label = VillagePresenter.RepairAllLabel(state.Snapshot(T0), BuildingTable.Default);
+
+            // Assert
+            Assert.IsNull(before, "nothing to repair, no button");
+            Assert.AreEqual("Repair all (2) · 4 Timber", label);
+        }
+
+        [Test]
+        public void Card_Gate_NamedByItsLevel()
+        {
+            // Arrange — Hearth 2 and a gate.
+            var state = BaseState.CreateNew(new BuildingTable { StartingStock = new ResourceBag(2000, 900, 900, 0) }, VillageMap.Demo, T0);
+            state.Apply(new UpgradeHearth(Guid.NewGuid()), T0);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Gate, new GridPosition(10, 5)), T0);
+            var gate = state.Snapshot(T0).BuildingAt(new GridPosition(10, 5)).Id;
+
+            // Act
+            var wooden = VillagePresenter.Card(state.Snapshot(T0), BuildingTable.Default, gate);
+            state.Apply(new UpgradeBuilding(Guid.NewGuid(), gate), T0);
+            var iron = VillagePresenter.Card(state.Snapshot(T0), BuildingTable.Default, gate);
+
+            // Assert
+            Assert.AreEqual("Wooden Gate", wooden.Title);
+            Assert.AreEqual("Bind it with iron · 120 Timber · 60 Scrap", wooden.UpgradeLabel);
+            Assert.AreEqual("Iron-bound Gate", iron.Title);
+            Assert.IsTrue(iron.CanMove);
+        }
     }
 }

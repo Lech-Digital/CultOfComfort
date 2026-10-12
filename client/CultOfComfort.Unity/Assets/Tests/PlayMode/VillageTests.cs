@@ -43,22 +43,38 @@ namespace CultOfComfort.Client.Tests
         private static void Tap(GameController game, GridPosition tile) =>
             typeof(GameController).GetMethod("HandleDayTap", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(game, new object[] { tile });
 
+        private static PlacementTool Tool(GameController game) =>
+            (PlacementTool)typeof(GameController).GetField("_tool", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(game);
+
+        /// <summary>Drags the ghost so its anchor lands on <paramref name="tile"/>, as a finger would.</summary>
+        private static void GhostTo(GameController game, GridPosition tile)
+        {
+            var tool = Tool(game);
+            tool.TryGrab(tool.Anchor, BuildingTable.Default);
+            tool.DragTo(tile);
+            tool.Release();
+        }
+
         private static BaseSnapshot Snapshot(GameController game) =>
             (BaseSnapshot)typeof(GameController).GetField("_snapshot", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(game);
 
         [UnityTest]
-        public IEnumerator Drawer_PickWoodcutterThenTapAField_BuildsItAndChargesTimber()
+        public IEnumerator Drawer_PickWoodcutterGhostThenConfirm_BuildsItAndChargesTimber()
         {
             // Arrange
             yield return SceneManager.LoadSceneAsync("SampleScene");
             yield return Frames(3);
             var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
             var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            Click(root.Q<Button>("card-Woodcutter"));
+            yield return Frames(2);
+            GhostTo(game, new GridPosition(3, 9));
+            yield return null;
+            Assert.IsNull(Snapshot(game).BuildingAt(new GridPosition(3, 9)), "a ghost isn't a building");
+            Assert.AreEqual(DisplayStyle.Flex, root.Q("ghost-actions").resolvedStyle.display);
 
             // Act
-            Click(root.Q<Button>("card-Woodcutter"));
-            yield return null;
-            Tap(game, new GridPosition(3, 9));
+            Click(root.Q<Button>("ghost-confirm"));
             yield return Frames(2);
 
             // Assert
@@ -66,6 +82,33 @@ namespace CultOfComfort.Client.Tests
             Assert.IsNotNull(snapshot.BuildingAt(new GridPosition(3, 9)));
             Assert.AreEqual(450, snapshot.Stock.Timber);
             Assert.AreEqual("450/1k", root.Q("pill-timber").Q<Label>(className: "pill-value").text);
+            Assert.AreEqual(DisplayStyle.None, root.Q("ghost-actions").resolvedStyle.display, "the ghost is gone");
+        }
+
+        [UnityTest]
+        public IEnumerator Drawer_PickThenCancelOrTapTheGround_BuildsNothing()
+        {
+            // Arrange
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+
+            // Act — ✗, then a stray tap on empty ground.
+            Click(root.Q<Button>("card-Cottage"));
+            yield return Frames(2);
+            Click(root.Q<Button>("ghost-cancel"));
+            yield return Frames(2);
+            var afterCancel = Tool(game);
+            Click(root.Q<Button>("card-Cottage"));
+            yield return Frames(2);
+            Tap(game, new GridPosition(25, 15));
+            yield return Frames(2);
+
+            // Assert
+            Assert.IsNull(afterCancel);
+            Assert.IsNull(Tool(game), "tapping empty ground puts the ghost away");
+            Assert.IsFalse(Snapshot(game).Buildings.Any(b => b.Type == BuildingType.Cottage));
         }
 
         [UnityTest]
@@ -77,9 +120,10 @@ namespace CultOfComfort.Client.Tests
             var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
             var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
             Click(root.Q<Button>("card-Woodcutter"));
-            yield return null;
-            Tap(game, new GridPosition(3, 9));
-            yield return null;
+            yield return Frames(2);
+            GhostTo(game, new GridPosition(3, 9));
+            Click(root.Q<Button>("ghost-confirm"));
+            yield return Frames(2);
             _clock.UtcNow = _clock.UtcNow.AddHours(1).AddSeconds(30);
 
             // Act
@@ -307,7 +351,7 @@ namespace CultOfComfort.Client.Tests
         }
 
         [UnityTest]
-        public IEnumerator Drawer_RotateThenPlaceALeanTo_StandsTurned()
+        public IEnumerator Drawer_RotateTheGhostThenConfirm_StandsTurned()
         {
             // Arrange
             yield return SceneManager.LoadSceneAsync("SampleScene");
@@ -315,20 +359,76 @@ namespace CultOfComfort.Client.Tests
             var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
             var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
             Click(root.Q<Button>("card-Woodcutter"));
-            yield return null;
-            Assert.AreEqual(DisplayStyle.Flex, root.Q<Button>("rotate").resolvedStyle.display, "Rotate shows while placing");
+            yield return Frames(2);
+            Assert.AreEqual(DisplayStyle.Flex, root.Q<Button>("ghost-rotate").resolvedStyle.display, "↻ shows for things that turn");
 
             // Act
-            Click(root.Q<Button>("rotate"));
+            Click(root.Q<Button>("ghost-rotate"));
+            GhostTo(game, new GridPosition(13, 5));
             yield return null;
-            Tap(game, new GridPosition(13, 5));
+            Click(root.Q<Button>("ghost-confirm"));
             yield return Frames(2);
 
             // Assert
             var lean = Snapshot(game).BuildingAt(new GridPosition(13, 6));
             Assert.IsNotNull(lean, "a turned lean-to runs north–south");
             Assert.IsTrue(lean.Rotated);
-            Assert.AreEqual(DisplayStyle.None, root.Q<Button>("rotate").resolvedStyle.display, "placing is over");
+        }
+
+        [UnityTest]
+        public IEnumerator Card_Move_SetsTheBuildingDownElsewhere()
+        {
+            // Arrange — a lean-to by the road; open its card.
+            var store = new Store();
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, _clock.UtcNow);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(15, 5)), _clock.UtcNow);
+            store.Saved = state.ToData();
+            VillageComposition.Override = () => new LocalBaseGateway(store, _clock, BuildingTable.Default, VillageMap.Demo, _ => { });
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            Tap(game, new GridPosition(15, 5));
+            yield return Frames(2);
+
+            // Act
+            Click(root.Q<Button>("move"));
+            yield return null;
+            GhostTo(game, new GridPosition(13, 6));
+            Click(root.Q<Button>("ghost-confirm"));
+            yield return Frames(2);
+
+            // Assert
+            var snapshot = Snapshot(game);
+            Assert.IsNull(snapshot.BuildingAt(new GridPosition(15, 5)));
+            Assert.AreEqual(BuildingType.Woodcutter, snapshot.BuildingAt(new GridPosition(13, 6))?.Type);
+        }
+
+        [UnityTest]
+        public IEnumerator RepairAll_Wrecks_OneTapFixesThem()
+        {
+            // Arrange — two wrecked fences.
+            var store = new Store();
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, _clock.UtcNow);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WattleFence, new GridPosition(13, 6)), _clock.UtcNow);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WattleFence, new GridPosition(14, 6)), _clock.UtcNow);
+            state.Apply(new RecordNightResult(Guid.NewGuid(), 1, 0, state.Snapshot(_clock.UtcNow).Buildings.Where(b => b.Type == BuildingType.WattleFence).Select(b => b.Id).ToList()), _clock.UtcNow);
+            store.Saved = state.ToData();
+            VillageComposition.Override = () => new LocalBaseGateway(store, _clock, BuildingTable.Default, VillageMap.Demo, _ => { });
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var button = root.Q<Button>("repair-all");
+            Assert.AreEqual("Repair all (2) · 4 Timber", button.text);
+
+            // Act
+            Click(button);
+            yield return Frames(2);
+
+            // Assert
+            Assert.IsFalse(Snapshot(game).Buildings.Any(b => b.Wrecked));
+            Assert.AreEqual(DisplayStyle.None, button.resolvedStyle.display);
         }
 
         [UnityTest]
@@ -341,6 +441,8 @@ namespace CultOfComfort.Client.Tests
             var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
             Click(root.Q<Button>("card-DirtTrack"));
             yield return null;
+
+            Assert.AreEqual(DisplayStyle.Flex, root.Q<Button>("paint-done").resolvedStyle.display, "Done ends the paint tool");
 
             // Act — roads stay selected: tap, tap.
             Tap(game, new GridPosition(13, 6));
