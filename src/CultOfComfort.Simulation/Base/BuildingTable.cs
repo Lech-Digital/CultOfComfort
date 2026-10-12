@@ -67,6 +67,11 @@ public sealed class BuildingTable
 
     public int BoulderScrap { get; init; } = 10;
 
+    /// <summary>How many gates may stand on the raiders' road at Hearth level 1, 2, 3.</summary>
+    public IReadOnlyList<int> RoadGatesByHearth { get; init; } = new[] { 1, 2, 3 };
+
+    public int RoadGates(int hearthLevel) => RoadGatesByHearth[Math.Min(Math.Max(hearthLevel, 1), RoadGatesByHearth.Count) - 1];
+
     /// <summary>Beds in the Hearth itself (a new village starts with them filled).</summary>
     public int HearthBeds { get; init; } = 2;
 
@@ -128,8 +133,12 @@ public sealed class BuildingTable
             new BuildingLevel(new ResourceBag(30, 0, 0, 0), 0, Health: 250),
             new BuildingLevel(new ResourceBag(10, 0, 20, 0), 0, Health: 600), // the Stone Wall (level 2 needs Hearth 2)
         }),
-        [BuildingType.Gate] = new(BuildingType.Gate, "Gate", 1, new[] { Unlimited, Unlimited, Unlimited },
-            new[] { new BuildingLevel(new ResourceBag(40, 0, 10, 0), 0, Health: 200) }),
+        [BuildingType.Gate] = new(BuildingType.Gate, "Gate", 1, new[] { Unlimited, Unlimited, Unlimited }, new[]
+        {
+            new BuildingLevel(new ResourceBag(40, 0, 10, 0), 0, Health: 200),   // Wooden Gate
+            new BuildingLevel(new ResourceBag(120, 0, 60, 0), 0, Health: 450),  // Iron-bound Gate (Hearth 2)
+            new BuildingLevel(new ResourceBag(300, 0, 200, 0), 0, Health: 900), // Gatehouse (Hearth 3)
+        }),
         [BuildingType.Cottage] = new(BuildingType.Cottage, "Cottage", 1, new[] { 3, 5, 8 }, new[]
         {
             new BuildingLevel(new ResourceBag(60, 0, 0, 0), 60, Health: 60, Beds: 4),
@@ -157,6 +166,9 @@ public sealed class BuildingTable
         var repair = new ResourceBag(Tenth(cost.Timber), Tenth(cost.Peat), Tenth(cost.Scrap), Tenth(cost.Devotion));
         return repair.IsZero ? new ResourceBag(1, 0, 0, 0) : repair;
     }
+
+    /// <summary>Things laid tile by tile with a drag: roads, fences and walls.</summary>
+    public static bool IsPaintable(BuildingType type) => IsRoad(type) || type is BuildingType.WattleFence or BuildingType.WoodenWall;
 
     /// <summary>Village roads: painted tile by tile, they connect buildings to the Hearth.</summary>
     public static bool IsRoad(BuildingType type) => type is BuildingType.DirtTrack or BuildingType.PlankWalk or BuildingType.CobbledRoad;

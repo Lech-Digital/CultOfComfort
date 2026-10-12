@@ -34,7 +34,7 @@ public class StructureDamageTests
     [Fact]
     public void Defaults_Balance_HasStructureDamagePerRaider()
     {
-        BalanceTable.Default.Version.Should().Be("2026.10.5");
+        BalanceTable.Default.Version.Should().Be("2026.10.6");
         BalanceTable.Default.StructureSwingTicks.Should().Be(16);
         BalanceTable.Default.Enemies[EnemyType.Levy].StructureDamage.Should().Be(15);
         BalanceTable.Default.Enemies[EnemyType.ManAtArms].StructureDamage.Should().Be(40);

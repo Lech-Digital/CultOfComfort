@@ -17,6 +17,8 @@ public sealed class Battle
     private readonly BalanceTable _balance;
     private readonly BattleLayout _layout;
     private readonly PcgRandom _combatRandom;
+    private readonly ulong _seed;
+    private readonly List<(int Index, Structure Gate)> _roadBlockers = new(); // barriers standing on the road, nearest first
     private readonly IReadOnlyList<SpawnEntry> _spawns;
     private readonly List<PlayerInput> _pendingInputs;
     private readonly List<PlayerInput> _inputLog = new();
@@ -46,6 +48,7 @@ public sealed class Battle
         _layout = setup.Layout;
         Leader = new CultLeader(setup.Layout.LeaderStart, _balance.Leader.MaxHealth);
         _combatRandom = new PcgRandom(setup.Seed, RandomStreams.Combat);
+        _seed = setup.Seed;
         _spawns = WaveGenerator.Generate(setup.Budget, setup.WaveCount, setup.Seed, _balance);
         _pendingInputs = setup.Inputs.OrderBy(input => input.Tick).ToList();
 
@@ -65,6 +68,15 @@ public sealed class Battle
         foreach (var s in setup.Layout.Structures)
         {
             _structures.Add(new Structure(s.Id, s.Position, s.MaxHealth, s.Health, s.Tiles, s.Barrier));
+        }
+
+        for (var i = 1; i < Path.Count; i++)
+        {
+            var gate = _structures.FirstOrDefault(st => st.IsBarrier && st.Tiles.Contains(Path[i]));
+            if (gate != null)
+            {
+                _roadBlockers.Add((i, gate));
+            }
         }
     }
 
@@ -180,6 +192,7 @@ public sealed class Battle
             }
 
             var enemy = new Enemy(_nextEnemyId++, spawn.Type, spawn.Wave, _balance.Enemies[spawn.Type].MaxHealth);
+            enemy.WallBreaker = Roll(enemy.Id) < _balance.Enemies[spawn.Type].WallBreakerPercent;
             _enemies.Add(enemy);
             _tickEvents.Add(new EnemySpawned(Tick, enemy.Id, enemy.Type, spawn.Wave));
         }
@@ -562,6 +575,23 @@ public sealed class Battle
                 continue;
             }
 
+            // A gate across the road: walk up to it, then hack until it falls.
+            var blocker = RoadBlockerAhead(enemy);
+            if (blocker != null)
+            {
+                var stop = Fix.FromInt(blocker.Value.Index - 1);
+                if (enemy.DistanceAlongPath + step >= stop)
+                {
+                    if (enemy.DistanceAlongPath < stop)
+                    {
+                        enemy.Advance(stop - enemy.DistanceAlongPath);
+                    }
+
+                    BashRoadGate(enemy, stats, blocker.Value.Gate);
+                    continue;
+                }
+            }
+
             enemy.Advance(step);
             if (enemy.DistanceAlongPath < PathLength)
             {
@@ -646,9 +676,9 @@ public sealed class Battle
         var bestDistance = int.MaxValue;
         foreach (var structure in _structures)
         {
-            if (structure.IsWrecked || enemy.StructuresHit.Contains(structure.Id))
+            if (structure.IsWrecked || enemy.StructuresHit.Contains(structure.Id) || (structure.IsBarrier && !enemy.WallBreaker))
             {
-                continue;
+                continue; // only wall-breakers go out of their way for a fence or a wall
             }
 
             var distance = DistanceTo(from, structure);
@@ -683,6 +713,53 @@ public sealed class Battle
         var barrier = BarrierAt(through[cut])!;
         enemy.StartRaid(barrier.Id, through.GetRange(0, cut));
         return true;
+    }
+
+    /// <summary>The nearest intact barrier standing on the road ahead of the raider, with its index on the path.</summary>
+    private (Structure Gate, int Index)? RoadBlockerAhead(Enemy enemy)
+    {
+        foreach (var (index, gate) in _roadBlockers)
+        {
+            if (!gate.IsWrecked && Fix.FromInt(index) > enemy.DistanceAlongPath)
+            {
+                return (gate, index);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Hacks at a gate across the road: every swing lands, again and again, until it falls.</summary>
+    private void BashRoadGate(Enemy enemy, EnemyStats stats, Structure gate)
+    {
+        if (enemy.SmashTargetId != gate.Id)
+        {
+            enemy.SmashTargetId = gate.Id;
+            enemy.SmashTicksRemaining = _balance.StructureSwingTicks;
+        }
+
+        if (--enemy.SmashTicksRemaining > 0)
+        {
+            return;
+        }
+
+        enemy.CancelSwing();
+        var wrecked = gate.TakeHit(stats.StructureDamage);
+        _tickEvents.Add(new StructureHit(Tick, gate.Id, enemy.Id, stats.StructureDamage, gate.Health));
+        if (wrecked)
+        {
+            _tickEvents.Add(new StructureWrecked(Tick, gate.Id));
+        }
+    }
+
+    /// <summary>A number 0–99 from the seed and an id: the same raider rolls the same on every replay.</summary>
+    private int Roll(int id)
+    {
+        var h = _seed ^ ((ulong)id * 0x9E3779B97F4A7C15UL);
+        h ^= h >> 33;
+        h *= 0xFF51AFD7ED558CCDUL;
+        h ^= h >> 33;
+        return (int)(h % 100);
     }
 
     /// <summary>Walks the raid route, swings once at the target, then walks the route back and steps onto the road.</summary>
@@ -1003,6 +1080,7 @@ public sealed class Battle
                 _hasher.Add(enemy.RaidTargetId);
                 _hasher.Add(enemy.RaidStep);
                 _hasher.Add(enemy.RaidReturning ? 1 : 0);
+                _hasher.Add(enemy.WallBreaker ? 1 : 0);
             }
             _hasher.Add(enemy.LeaderAttackCooldownTicksRemaining);
         }

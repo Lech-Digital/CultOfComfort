@@ -254,7 +254,7 @@ namespace CultOfComfort.Client
 
             try
             {
-                await SendVillage(new PlaceRoad(Guid.NewGuid(), _buildSelection.Value, tiles));
+                await SendVillage(new PaintTiles(Guid.NewGuid(), _buildSelection.Value, tiles));
             }
             catch (Exception e)
             {
@@ -273,7 +273,7 @@ namespace CultOfComfort.Client
                     var type = _buildSelection.Value;
                     if (BuildingTable.IsRoad(type))
                     {
-                        await SendVillage(new PlaceRoad(Guid.NewGuid(), type, new[] { tile })); // roads stay picked: keep tapping or drag
+                        await SendVillage(new PaintTiles(Guid.NewGuid(), type, new[] { tile })); // roads stay picked: keep tapping or drag
                         return;
                     }
 
