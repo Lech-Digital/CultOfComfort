@@ -237,6 +237,41 @@ namespace CultOfComfort.Client
             return true;
         }
 
+        /// <summary>This village's recovery code (a new one each time; the last one shown is the one that works), or null offline.</summary>
+        public async Task<string> RecoveryCodeAsync(CancellationToken ct)
+        {
+            var token = await EnsureAccountAsync(ct);
+            return token == null ? null : await _api.RecoveryCodeAsync(token, ct);
+        }
+
+        /// <summary>
+        /// Moves this device onto the village a recovery code belongs to: the new token replaces this one, and whatever
+        /// this device had queued is dropped (it belonged to the other village). False: unknown code or offline.
+        /// </summary>
+        public async Task<bool> RecoverAsync(string code, CancellationToken ct)
+        {
+            var account = await _api.RecoverAsync(code, ct);
+            if (account == null || string.IsNullOrEmpty(account.token))
+            {
+                return false;
+            }
+
+            _credentials.Save(account.token);
+            await _gate.WaitAsync(ct);
+            try
+            {
+                _pending.Clear();
+                _version = -1;
+                _lastServerVillage = null;
+            }
+            finally
+            {
+                _gate.Release();
+            }
+
+            return await SyncNowAsync(ct);
+        }
+
         /// <summary>BeginNight: the server deals the raid, so the queue goes first and the answer is the server's.</summary>
         private async Task<CommandResult> SendThroughServerAsync(BaseCommand command, CancellationToken ct)
         {

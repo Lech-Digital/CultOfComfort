@@ -73,7 +73,7 @@ internal static class VillageEndpoints
         });
     }
 
-    private static async Task<Guid?> PlayerAsync(HttpContext http, IVillageService villages, CancellationToken ct)
+    internal static async Task<Guid?> PlayerAsync(HttpContext http, IVillageService villages, CancellationToken ct)
     {
         var header = http.Request.Headers.Authorization.ToString();
         return header.StartsWith("Bearer ", StringComparison.Ordinal) ? await villages.AuthenticateAsync(header["Bearer ".Length..].Trim(), ct) : null;

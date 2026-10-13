@@ -35,6 +35,12 @@ namespace CultOfComfort.Client
         Task<ApiReply> GetAsync(string token, CancellationToken ct);
 
         Task<ApiReply> SyncAsync(string token, SyncRequestDto request, CancellationToken ct);
+
+        /// <summary>A fresh recovery code for this village, or null (no connection, or not signed in).</summary>
+        Task<string> RecoveryCodeAsync(string token, CancellationToken ct);
+
+        /// <summary>A token for the village the code belongs to, or null (unknown code, or no connection).</summary>
+        Task<GuestDto> RecoverAsync(string code, CancellationToken ct);
     }
 
     /// <summary>Outbound port: where the guest token lives on the device.</summary>

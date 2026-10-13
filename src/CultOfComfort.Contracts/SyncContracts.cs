@@ -90,4 +90,25 @@ public sealed class GuestDto
     public string token;
 }
 
+/// <summary>POST /api/auth/recovery-code: the code that brings this village back on another device.</summary>
+[Serializable]
+public sealed class RecoveryCodeDto
+{
+    public string code;
+}
+
+/// <summary>POST /api/auth/recover: a recovery code typed on a new device.</summary>
+[Serializable]
+public sealed class RecoverRequestDto
+{
+    public string code;
+}
+
+/// <summary>POST /api/auth/google: a Google ID token from the device's sign-in.</summary>
+[Serializable]
+public sealed class GoogleSignInDto
+{
+    public string idToken;
+}
+
 #pragma warning restore SA1307, SA1401, CS8618

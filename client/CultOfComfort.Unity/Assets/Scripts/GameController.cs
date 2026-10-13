@@ -141,6 +141,44 @@ namespace CultOfComfort.Client
             _intro.Play(_camera, _document.panelSettings);
         }
 
+        private async void ShowVillageCode()
+        {
+            if (!(_village is RemoteBaseGateway remote))
+            {
+                _hud.ShowVillageCode("This village lives on this device only.");
+                return;
+            }
+
+            _hud.ShowVillageCode("Asking the server…");
+            var code = await remote.RecoveryCodeAsync(_cts.Token);
+            if (code == null)
+            {
+                _hud.ShowVillageCode("No connection. Try again when you're online.");
+                return;
+            }
+
+            GUIUtility.systemCopyBuffer = code;
+            _hud.ShowVillageCode($"{code}\nCopied. Write it down: type it on a new phone to bring this village back. (Showing a new code retires the old one.)");
+        }
+
+        private async void RecoverVillage(string code)
+        {
+            if (!(_village is RemoteBaseGateway remote) || string.IsNullOrWhiteSpace(code))
+            {
+                return;
+            }
+
+            _hud.ShowVillageCode("Looking for that village…");
+            var moved = await remote.RecoverAsync(code.Trim(), _cts.Token);
+            _hud.ShowRecoverResult(moved, moved ? "Welcome back. The village is yours again on this phone." : "No village with that code (or no connection).");
+            if (moved)
+            {
+                _snapshot = null; // the recovered village may be at a lower version: don't let "newer only" keep the old one up
+                _roadVersion = -1;
+                RefreshSnapshot();
+            }
+        }
+
         /// <summary>Raised when the first-launch intro ends (played out or skipped).</summary>
         public event Action IntroFinished;
 
@@ -1273,6 +1311,8 @@ namespace CultOfComfort.Client
             };
             _hud.GhostConfirmClicked += ConfirmTool;
             _hud.ReplayIntroClicked += () => PlayIntro(VillageComposition.CreateIntroProgress());
+            _hud.VillageCodeClicked += ShowVillageCode;
+            _hud.RecoverClicked += RecoverVillage;
             _hud.GhostCancelClicked += CancelTool;
             _hud.GhostRotateClicked += () => _tool?.Rotate();
             _hud.PaintDoneClicked += () =>

@@ -8,7 +8,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // ---- Composition root ------------------------------------------------------------------------
 var villageOptions = builder.Configuration.GetSection(VillageOptions.SectionName).Get<VillageOptions>() ?? new VillageOptions();
-builder.Services.AddVillageGame(villageOptions);
+var accountOptions = builder.Configuration.GetSection(AccountOptions.SectionName).Get<AccountOptions>() ?? new AccountOptions();
+builder.Services.AddVillageGame(villageOptions, accountOptions);
 builder.Services.AddVillageStorage(builder.Configuration.GetConnectionString("Db") ?? "Data Source=/data/cultofcomfort.db");
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.IncludeFields = true); // the shared contract DTOs are fields
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 256 * 1024); // a sync batch is small; a Night's input log too
@@ -40,6 +41,7 @@ await app.Services.EnsureVillageStorageAsync(app.Lifetime.ApplicationStopping);
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", game = "cult-of-comfort" }));
 app.MapVillageEndpoints();
+app.MapAuthEndpoints();
 
 app.Run();
 

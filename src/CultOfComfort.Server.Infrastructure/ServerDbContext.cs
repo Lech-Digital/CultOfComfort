@@ -7,6 +7,8 @@ internal sealed class PlayerRow
     public Guid Id { get; set; }
     public string TokenHash { get; set; } = string.Empty;
     public DateTimeOffset CreatedAtUtc { get; set; }
+    public string? RecoveryCodeHash { get; set; }
+    public string? GoogleSubject { get; set; }
 }
 
 /// <summary>A village is one document (the shared save format) plus its version, for the optimistic check.</summary>
@@ -31,6 +33,8 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
             e.ToTable("players");
             e.HasKey(p => p.Id);
             e.HasIndex(p => p.TokenHash).IsUnique();
+            e.HasIndex(p => p.RecoveryCodeHash).IsUnique();
+            e.HasIndex(p => p.GoogleSubject).IsUnique();
             // SQLite has no DateTimeOffset type: store UTC ticks, which also sort correctly.
             e.Property(p => p.CreatedAtUtc).HasConversion(v => v.UtcTicks, v => new DateTimeOffset(v, TimeSpan.Zero));
         });
