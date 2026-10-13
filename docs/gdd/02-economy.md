@@ -68,3 +68,12 @@ Baseline net income for a "fully built for its level" economy:
 | Cultist outfits | Cosmetic | E.g., muddy rags → neat linen & cotton stand-collar shirts |
 | Hearth / building skins | Cosmetic | Minimalist, clean (whitewashed, oiled oak) |
 | Node banners | Cosmetic | Shown on world map nodes where player is Patron |
+
+
+## Implemented (2026-10-14, village-2026.10.6)
+
+- **Comfort** = Hearth (10 / 20 / 35) + each finished, intact building's Comfort (Cottage +4/+6, Cultist Hut +3/+5/+8, Bathhouse +40/+70) − Squalor (Midden Sorter −10/−15, plus −5 for every home, meaning a Cottage, Cultist Hut or Bathhouse, within 3 tiles of it). Shown in the HUD frame.
+- **Devotion** producers make × (1 + Comfort / 200), kept between ×½ and ×3.
+- **Midden Sorter** (Hearth 2, 2×2, 1 worker): 12 / 22 Scrap/h. The placement puzzle is keeping it away from homes.
+- **Bathhouse** (Hearth 3, 3×3, 2 workers): 15 / 25 Devotion/h and +40 / +70 Comfort. It burns 10 / 15 Peat/h on top of the villagers' upkeep.
+- **Bishop** (Hearth 3 raids): slow (0.4 tiles/s) and tough (320 HP), and blesses raiders within 3 tiles (a Priest blesses within 2). The laser pointer frightens him off ("it's a miracle") instead of blinding him.

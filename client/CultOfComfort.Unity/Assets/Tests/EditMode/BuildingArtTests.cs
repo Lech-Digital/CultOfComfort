@@ -44,6 +44,8 @@ namespace CultOfComfort.Client.Tests
         [TestCase(BuildingType.CultistHut, 3)]
         [TestCase(BuildingType.Cistern, 2)]
         [TestCase(BuildingType.Cottage, 2)]
+        [TestCase(BuildingType.MiddenSorter, 2)]
+        [TestCase(BuildingType.Bathhouse, 2)]
         public void ModelName_EveryUpgradeLevel_HasItsOwnRedesign(BuildingType type, int maxLevel)
         {
             // Assert

@@ -171,3 +171,29 @@ public class RelicTests
         withEmptyRelics.StateHash.Should().Be(result.StateHash);
     }
 }
+
+public class BishopTests
+{
+    [Fact]
+    public void Roster_HearthThree_BringsTheChurchWithABishop()
+    {
+        // Act
+        var roster = CultOfComfort.Simulation.Waves.RaidRoster.ForHearth(3)!;
+
+        // Assert
+        roster.Mix.Should().Contain(m => m.Type == EnemyType.Bishop);
+    }
+
+    [Fact]
+    public void Stats_Bishop_IsSlowAndTough()
+    {
+        // Act
+        var bishop = BalanceTable.Default.Enemies[EnemyType.Bishop];
+        var levy = BalanceTable.Default.Enemies[EnemyType.Levy];
+
+        // Assert
+        bishop.TilesPerSecond.Should().BeLessThan(levy.TilesPerSecond);
+        bishop.MaxHealth.Should().BeGreaterThan(BalanceTable.Default.Enemies[EnemyType.Priest].MaxHealth);
+        BalanceTable.Default.BishopBlessingRadius.Should().BeGreaterThan(BalanceTable.Default.BlessingRadius);
+    }
+}

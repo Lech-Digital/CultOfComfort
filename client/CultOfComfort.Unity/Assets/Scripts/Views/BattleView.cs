@@ -535,6 +535,7 @@ namespace CultOfComfort.Client
                         EnemyType.Peasant => $"A peasant fiddled with the Hearth. −{damaged.Damage}. \"Just looking!\"",
                         EnemyType.Priest => $"A priest sprinkled cold water on the Hearth. −{damaged.Damage}. Sacrilege.",
                         EnemyType.Lord => $"Lord Wulfric kicked the Hearth personally. −{damaged.Damage}. Very undignified.",
+                        EnemyType.Bishop => $"The Bishop excommunicated the Hearth. −{damaged.Damage}. It took it personally.",
                         _ => $"A levy kicked the Hearth. −{damaged.Damage} warmth.",
                     });
                     break;
@@ -553,7 +554,8 @@ namespace CultOfComfort.Client
             EnemyType.Goat => "goat",
             EnemyType.Boar => "pig",
             EnemyType.Peasant => id % 2 == 0 ? "villager_woman" : "herbwife",
-            EnemyType.Priest => "bishop",
+            EnemyType.Priest => "friar_odo",
+            EnemyType.Bishop => "bishop",
             EnemyType.Lord => "lord_wulfric",
             _ => "levy",
         };
@@ -568,6 +570,7 @@ namespace CultOfComfort.Client
             EnemyType.Peasant => "Nosy locals. They won't fight; they just poke your buildings to see what happens.",
             EnemyType.Priest => "Priests. Their blessing makes the soldiers around them harder to hurt. Get them first.",
             EnemyType.Lord => "LORD WULFRIC. In person. He is not amused.",
+            EnemyType.Bishop => "A Bishop. Slow, sure, and blessing everyone near him. Point the laser at him: he'll take it for a miracle.",
             _ => null,
         };
 
@@ -583,6 +586,10 @@ namespace CultOfComfort.Client
                 if (lord)
                 {
                     model.transform.localScale *= 1.35f; // the boss should look like one
+                }
+                else if (enemy.Type == EnemyType.Bishop)
+                {
+                    model.transform.localScale *= 1.2f; // the mitre adds the rest
                 }
 
                 var animator = model.AddComponent<PartAnimator>();

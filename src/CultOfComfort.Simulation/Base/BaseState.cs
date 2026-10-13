@@ -515,7 +515,7 @@ public sealed partial class BaseState
         var tension = TensionValue(nowUtc);
         return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
             tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport, _cleared.Concat(_treeCuts.Keys.Where(t => !IsWildTreeStanding(t))).ToList(),
-            _population, Beds(), _cold, ErrandNow());
+            _population, Beds(), _cold, ErrandNow(), Comfort());
     }
 
     public ResourceBag Caps
@@ -1296,9 +1296,69 @@ public sealed partial class BaseState
 
     /// <summary>What it produces now: nothing while being built or wrecked.</summary>
     // Cold stops every trade but peat cutting: the cutters are how the village warms up again.
-    private int Rate(Building b) => b.Wrecked || (_cold && _table.Spec(b.Type).Produces != ResourceType.Peat) || !IsConnected(b) || !IsStaffed(b)
-        ? 0
-        : LevelRate(b) * (100 + RoadBonus(b)) / 100;
+    private int Rate(Building b)
+    {
+        if (b.Wrecked || (_cold && _table.Spec(b.Type).Produces != ResourceType.Peat) || !IsConnected(b) || !IsStaffed(b))
+        {
+            return 0;
+        }
+
+        var rate = LevelRate(b) * (100 + RoadBonus(b)) / 100;
+        return _table.Spec(b.Type).Produces == ResourceType.Devotion ? DevotionWithComfort(rate) : rate;
+    }
+
+    // ---------------- comfort ----------------
+
+    /// <summary>Devotion × (1 + Comfort / 200), kept between half and three times (GDD Economy).</summary>
+    private int DevotionWithComfort(int rate)
+    {
+        var scaled = (long)rate * (_table.ComfortPerDoubleDevotion + Comfort()) / _table.ComfortPerDoubleDevotion;
+        return (int)Math.Max(rate / 2, Math.Min(rate * 3L, scaled));
+    }
+
+    /// <summary>
+    /// The village's Comfort: the Hearth's, plus every finished, intact building's (homes and baths add, middens
+    /// subtract), minus extra Squalor for each home a midden stands beside.
+    /// </summary>
+    public int Comfort()
+    {
+        var comfort = _table.HearthComfort[Math.Min(Math.Max(HearthLevel, 1), _table.HearthComfort.Count) - 1];
+        var standing = _buildings.Where(b => b.Level > 0 && !b.Wrecked && b.Type != BuildingType.Hearth).ToList();
+        foreach (var b in standing)
+        {
+            comfort += _table.Spec(b.Type).Levels[b.Level - 1].Comfort;
+        }
+
+        foreach (var midden in standing.Where(b => b.Type == BuildingType.MiddenSorter))
+        {
+            var homes = standing.Count(h => IsHome(h.Type) && Gap(midden, h) <= _table.SqualorRange);
+            comfort -= homes * _table.SqualorNearHome;
+        }
+
+        return comfort;
+    }
+
+    private static bool IsHome(BuildingType type) => type is BuildingType.Cottage or BuildingType.CultistHut or BuildingType.Bathhouse;
+
+    /// <summary>Tiles between two footprints (0: touching or overlapping; diagonals count as one).</summary>
+    private static int Gap(Building a, Building b)
+    {
+        var best = int.MaxValue;
+        foreach (var p in a.Tiles)
+        {
+            foreach (var q in b.Tiles)
+            {
+                best = Math.Min(best, Math.Max(Math.Abs(p.X - q.X), Math.Abs(p.Y - q.Y)) - 1);
+            }
+        }
+
+        return Math.Max(0, best);
+    }
+
+    /// <summary>Peat burned per hour: every villager's fire, and every standing bathhouse's stove.</summary>
+    private int PeatBurnPerHour() => _population * _table.PeatPerVillagerPerHour + _buildings
+        .Where(b => b.Level > 0 && !b.Wrecked && _table.Spec(b.Type).Levels[b.Level - 1].PeatPerHour > 0)
+        .Sum(b => _table.Spec(b.Type).Levels[b.Level - 1].PeatPerHour);
 
     // ---------------- villagers ----------------
 
@@ -1351,10 +1411,10 @@ public sealed partial class BaseState
             return;
         }
 
-        if (!_cold && _population > 0)
+        if (!_cold && PeatBurnPerHour() > 0)
         {
             var seconds = (at.UtcTicks - _upkeepAsOf.UtcTicks) / TimeSpan.TicksPerSecond;
-            var burned = _upkeepMilli + _population * _table.PeatPerVillagerPerHour * 1000L * seconds / 3600;
+            var burned = _upkeepMilli + PeatBurnPerHour() * 1000L * seconds / 3600;
             var whole = (int)Math.Min(burned / 1000, _stock.Peat);
             _stock -= new ResourceBag(0, whole, 0, 0);
             _upkeepMilli = whole < burned / 1000 ? 0 : burned - whole * 1000L;
@@ -1366,7 +1426,7 @@ public sealed partial class BaseState
     /// <summary>When the Peat in storage runs out at today's burn (null: it won't, or it already has).</summary>
     private DateTimeOffset? PeatRunsOutAt()
     {
-        var perHour = _population * _table.PeatPerVillagerPerHour;
+        var perHour = PeatBurnPerHour();
         if (_cold || perHour <= 0)
         {
             return null;

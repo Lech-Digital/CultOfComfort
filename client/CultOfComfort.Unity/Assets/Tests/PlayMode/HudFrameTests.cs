@@ -343,7 +343,7 @@ namespace CultOfComfort.Client.Tests
             var root = Root();
 
             // Assert — pennies and Comfort are still placeholders (spec 2026-10-13 §4: hidden until they are real).
-            foreach (var name in new[] { "pill-pennies", "comfort" })
+            foreach (var name in new[] { "pill-pennies" }) // Comfort is real now
             {
                 Assert.AreEqual(DisplayStyle.None, root.Q(name).resolvedStyle.display, name);
             }

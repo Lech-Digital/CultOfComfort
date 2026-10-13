@@ -21,6 +21,12 @@ public enum BuildingType
     PlankWalk,
     CobbledRoad,
     Cottage,
+
+    /// <summary>Hearth 2: a rubbish heap, systematically sifted. Scrap, and Squalor (worse beside homes).</summary>
+    MiddenSorter,
+
+    /// <summary>Hearth 3: hot water and a bench. Revolutionary. Comfort and Devotion; burns Peat.</summary>
+    Bathhouse,
 }
 
 public enum ResourceType

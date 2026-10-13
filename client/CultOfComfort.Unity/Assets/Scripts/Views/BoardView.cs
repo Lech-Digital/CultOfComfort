@@ -585,6 +585,8 @@ namespace CultOfComfort.Client
             BuildingType.Woodcutter => "timber",
             BuildingType.PeatCut => "peat",
             BuildingType.CultistHut => "devotion",
+            BuildingType.MiddenSorter => "scrap",
+            BuildingType.Bathhouse => "devotion",
             _ => null,
         };
 
