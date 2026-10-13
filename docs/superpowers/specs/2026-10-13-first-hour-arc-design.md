@@ -52,16 +52,16 @@ The Prophet hands out **errands**: a short ordered chain of goals, each with a s
 | 1 | Build a Woodcutter's Lean-to | 50 Timber | the build flow |
 | 2 | Collect Timber from it | 50 Timber | collecting |
 | 3 | Build a Cottage | 60 Timber | villagers and beds |
-| 4 | Build a Peat Cut | 40 Peat | Peat keeps the village warm |
+| 4 | Build a Peat Cut | 40 Timber, 40 Peat | Peat keeps the village warm |
 | 5 | Build a Cultist Hut | 20 Devotion | Devotion |
 | 6 | Light the Lamps: survive your first Night | 100 Timber, 40 Scrap | Nights, the Prophet, skills |
 | 7 | Raise the Hearth to level 2 | 30 Devotion | the Hearth is the goal |
 | 8 | Put a Slurry Chute beside the road | 50 Scrap | towers |
 | 9 | Build a Gate on the raiders' road | 100 Timber | gates |
 | 10 | Upgrade a Woodcutter to level 2 | 150 Timber | upgrades |
-| 11 | Build a Cistern | 1 extra sluice charge for your next Night (one-time) | the Cistern |
+| 11 | Build a Cistern | 60 Scrap | the Cistern |
 | 12 | Win a raid with 2 stars or more | 100 Scrap | real raids and defence |
-| 13 | Raise the Hearth to level 3 | — (the end of the arc) | |
+| 13 | Raise the Hearth to level 3 | 50 Devotion (the end of the arc) | |
 
 Hearth 1 goals 1–7 pay **+300 Timber in total**. With the starting 500, that pays for a Woodcutter, a Cottage, a Peat
 Cut and a Cultist Hut, with Hearth 2 ready around **minute 20** (the bot checks this, see §5).
@@ -72,6 +72,10 @@ Cut and a Cultist Hut, with Hearth 2 ready around **minute 20** (the bot checks 
 
 - **Cultist Hut Devotion:** 4 / 8 / 14 per hour → **10 / 18 / 28**. With two huts at Hearth 2 plus the errand rewards,
   the 100 Devotion for Hearth 3 takes about 3 h instead of about 12 h.
+- **Hearth 2 cost:** 600 → **450 Timber** (+50 Scrap). This is the tutorial step only. The bot showed that with 600, an
+  errand player who has built the starter village and survived the first Night is about 430 Timber short (≈2.2 h).
+- **Errand order:** *Win a Night with 2 stars* moves to the end, after Hearth 3. Any Night brings a 12-hour shield, so
+  that errand would otherwise freeze the note for half a day.
 - **Hearth 3 cost** stays 2000 Timber / 200 Peat / 300 Scrap / 100 Devotion. The bot shows that with the new Devotion
   rate and errand 10, Timber is the limit at about 3.5 h, which matches the GDD.
 - Everything else stays the same unless the bot's re-run (§5) says otherwise. If it does, only these two knobs move:
@@ -79,6 +83,11 @@ Cut and a Cultist Hut, with Hearth 2 ready around **minute 20** (the bot checks 
 
 **Decided (owner, 2026-10-13):** follow the GDD curve, where each Hearth level takes about twice as long as the last
 (Hearth 3 ≈ 3.5 h, Hearth 4 ≈ 13 h …). The game must last; never tune a level to come faster than the curve.
+
+**Measured** (`dotnet run --project tools/CultOfComfort.Sandbox -- pace errands --hours 14`): Hearth 2 at **32 min**,
+Hearth 3 at **10.2 h** for an errand player who also builds the village up (about 5 h when the player saves after the
+Cistern errand). That is slower than the GDD's 3.5 h, which is what the owner asked for. After Hearth 3, Scrap is
+nearly gone (19), as expected until the Midden Sorter.
 
 ## 3. Guided start (client)
 

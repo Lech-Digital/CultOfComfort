@@ -10,7 +10,7 @@ namespace CultOfComfort.Simulation.Base;
 /// The village aggregate (ADR 0003): resources are worked out on read from rates and timestamps, construction timers
 /// resolve lazily, and the only way in is <see cref="Apply"/> with a command. Time is always passed in.
 /// </summary>
-public sealed class BaseState
+public sealed partial class BaseState
 {
     /// <summary>Saves before footprints (layout version 0) are migrated on load: every building finds room for its shape.</summary>
     public const int CurrentLayoutVersion = 3;
@@ -102,6 +102,8 @@ public sealed class BaseState
             _upkeepAsOf = new DateTimeOffset(data.UpkeepAsOfUtcTicks, TimeSpan.Zero),
             _upkeepMilli = data.UpkeepMilli,
             _cold = data.Cold,
+            _errandIndex = data.ErrandIndex,
+            _errandEventDone = data.ErrandEventDone,
         };
         foreach (var b in data.Buildings.OrderBy(b => b.Type == BuildingType.Hearth ? -1 : b.Id))
         {
@@ -450,7 +452,9 @@ public sealed class BaseState
         _populationAsOf.UtcTicks,
         _upkeepAsOf.UtcTicks,
         _upkeepMilli,
-        _cold);
+        _cold,
+        _errandIndex,
+        _errandEventDone);
 
     public CommandOutcome Apply(BaseCommand command, DateTimeOffset nowUtc)
     {
@@ -472,6 +476,7 @@ public sealed class BaseState
             BeginNight _ => Begin(nowUtc),
             ResolveNight resolve => Resolve(resolve, nowUtc),
             AcknowledgeReport _ => Acknowledge(),
+            ClaimErrand _ => ClaimCurrentErrand(),
             ClearTerrain clear => Clear(clear.Tile),
             PlaceBuilding place => Place(place, nowUtc),
             PaintTiles paint => Paint(paint, nowUtc),
@@ -510,7 +515,7 @@ public sealed class BaseState
         var tension = TensionValue(nowUtc);
         return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
             tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport, _cleared.Concat(_treeCuts.Keys.Where(t => !IsWildTreeStanding(t))).ToList(),
-            _population, Beds(), _cold);
+            _population, Beds(), _cold, ErrandNow());
     }
 
     public ResourceBag Caps
@@ -821,6 +826,7 @@ public sealed class BaseState
         }
 
         _stock += gained;
+        NoteCollected(gained);
         return CommandOutcome.Accept(gained);
     }
 
@@ -834,6 +840,7 @@ public sealed class BaseState
         var salvage = Math.Min(_table.Salvage(night.Stars), Math.Max(0, Caps.Scrap - _stock.Scrap));
         _stock += new ResourceBag(0, 0, salvage, 0);
         LastNightRecorded = night.Night;
+        NoteNight(night.Stars);
         foreach (var id in night.WreckedBuildingIds ?? Array.Empty<int>())
         {
             var building = Find(id);
@@ -1163,6 +1170,7 @@ public sealed class BaseState
         _raid = null;
         _night = null;
         LastNightRecorded = plan.Night;
+        NoteNight(result.Stars);
         var report = new NightReport(plan.Night, plan.Scheduled, whileAway, result.Stars, result.HearthHealth, result.HearthMaxHealth, wrecked, salvage, result.StateHashHex);
         if (whileAway)
         {

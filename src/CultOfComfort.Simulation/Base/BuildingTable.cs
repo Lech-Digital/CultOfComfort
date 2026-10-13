@@ -42,7 +42,7 @@ public sealed class BuildingTable
 
     public static BuildingTable Default { get; } = new();
 
-    public string Version { get; init; } = "village-2026.10.3";
+    public string Version { get; init; } = "village-2026.10.4";
 
     /// <summary>Health of a building whose first level is still being built.</summary>
     public int UnderConstructionHealth { get; init; } = 30;
@@ -55,6 +55,9 @@ public sealed class BuildingTable
     public ResourceBag StartingStock { get; init; } = new(500, 60, 380, 0);
 
     public TensionTable Tension { get; init; } = TensionTable.Default;
+
+    /// <summary>The Prophet's errands: the guided chain from the first Woodcutter to Hearth 3.</summary>
+    public ErrandBook Errands { get; init; } = ErrandBook.Default;
 
     /// <summary>Timber from cutting a wild tree.</summary>
     public int WildTreeTimber { get; init; } = 15;
@@ -90,7 +93,7 @@ public sealed class BuildingTable
         [BuildingType.Hearth] = new(BuildingType.Hearth, "Hearth", 1, new[] { 1, 1, 1 }, new[]
         {
             new BuildingLevel(default, 0),
-            new BuildingLevel(new ResourceBag(600, 0, 50, 0), 10 * 60),
+            new BuildingLevel(new ResourceBag(450, 0, 50, 0), 10 * 60), // 2026.10.4: the tutorial step (GDD ~20 min), was 600
             new BuildingLevel(new ResourceBag(2000, 200, 300, 100), 60 * 60),
         }),
         [BuildingType.Woodcutter] = new(BuildingType.Woodcutter, "Woodcutter's Lean-to", 1, new[] { 2, 3, 4 }, new[]
@@ -113,9 +116,10 @@ public sealed class BuildingTable
         }, Width: 2, Depth: 2),
         [BuildingType.CultistHut] = new(BuildingType.CultistHut, "Cultist Hut", 1, new[] { 1, 2, 3 }, new[]
         {
-            new BuildingLevel(new ResourceBag(120, 0, 0, 0), 2 * 60, PerHour: 4, Health: 60),
-            new BuildingLevel(new ResourceBag(350, 50, 0, 0), 12 * 60, PerHour: 8, Health: 90),
-            new BuildingLevel(new ResourceBag(900, 150, 0, 0), 45 * 60, PerHour: 14, Health: 120),
+            // 2026.10.4: Devotion was the wall before Hearth 3 (~12 h); now ~3 h with two huts, on the GDD clock.
+            new BuildingLevel(new ResourceBag(120, 0, 0, 0), 2 * 60, PerHour: 10, Health: 60),
+            new BuildingLevel(new ResourceBag(350, 50, 0, 0), 12 * 60, PerHour: 18, Health: 90),
+            new BuildingLevel(new ResourceBag(900, 150, 0, 0), 45 * 60, PerHour: 28, Health: 120),
         }, Produces: ResourceType.Devotion, Width: 3, Depth: 2, Workers: 1),
         [BuildingType.Cistern] = new(BuildingType.Cistern, "Cistern", 2, new[] { 0, 1, 2 }, new[]
         {

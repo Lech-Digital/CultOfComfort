@@ -5,6 +5,13 @@ using CultOfComfort.Simulation.Combat;
 using CultOfComfort.Simulation.Grid;
 
 // Usage: dotnet run --project tools/CultOfComfort.Sandbox -- [--seed N] [--budget N] [--waves N] [--no-sluice] [--out path] [--open]
+//        dotnet run --project tools/CultOfComfort.Sandbox -- pace [errands|builder|rush] [--hours N] [--verbose]
+if (args.FirstOrDefault() == "pace")
+{
+    PaceBot.Run(args.Skip(1).ToArray());
+    return;
+}
+
 var seed = ulong.Parse(ArgValue("--seed") ?? "947");
 var budget = int.Parse(ArgValue("--budget") ?? "54");
 var waves = int.Parse(ArgValue("--waves") ?? "4");
