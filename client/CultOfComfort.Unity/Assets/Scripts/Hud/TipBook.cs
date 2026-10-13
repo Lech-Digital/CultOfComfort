@@ -42,6 +42,9 @@ namespace CultOfComfort.Client
         {
             [PlayerActionType.OpenSluiceGate] = ("sluice", "Opened the cistern: everyone got washed three tiles back down the road and is muddy for a bit — Sapling Flingers love muddy targets. Two per night."),
             [PlayerActionType.PhantomVoice] = ("voice", "The Voice from the Box: my Bluetooth speaker, full volume. Raiders near me panic and walk backwards for two seconds."),
+            [PlayerActionType.LaserPointer] = ("laser", "The laser pointer from the glovebox: one raider sees a red dot and stands there, blinded, for a couple of seconds."),
+            [PlayerActionType.DynamoTorch] = ("torch", "The dynamo torch: for six seconds, raiders near me are dazzled. They slow down and can't see to hit me. Then my arm gets tired."),
+            [PlayerActionType.SunFire] = ("sunfire", "The magnifying glass: raiders on that tile catch fire. Only in the first wave, though: after that, the sun is down."),
             [PlayerActionType.HotStones] = ("stones", "Hot stones: hurts and muddies everyone in the circle. Muddy raiders take extra damage from Sapling Flingers."),
         };
 

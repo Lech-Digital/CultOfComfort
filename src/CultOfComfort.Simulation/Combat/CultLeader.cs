@@ -30,6 +30,15 @@ public sealed class CultLeader
     public int AttackCooldownTicksRemaining { get; internal set; }
     public int VoiceReadyAtTick { get; internal set; }
     public int HotStonesReadyAtTick { get; internal set; }
+    public int LaserReadyAtTick { get; internal set; }
+    public int TorchReadyAtTick { get; internal set; }
+
+    /// <summary>The dynamo torch shines until this tick (someone stopped cranking).</summary>
+    public int TorchLitUntilTick { get; internal set; }
+
+    public int SunFireReadyAtTick { get; internal set; }
+
+    public bool IsTorchLit(int tick) => tick < TorchLitUntilTick;
     public int MaxHealth { get; }
     public int Health { get; private set; }
 
@@ -134,5 +143,14 @@ public sealed class CultLeader
         hasher.Add(HotStonesReadyAtTick);
         hasher.Add(Health);
         hasher.Add(SwoonedUntilTick);
+    }
+
+    /// <summary>Only for Nights with relics, so older replays keep their hashes.</summary>
+    internal void AddRelicsToHash(Fnv1aHasher hasher)
+    {
+        hasher.Add(LaserReadyAtTick);
+        hasher.Add(TorchReadyAtTick);
+        hasher.Add(TorchLitUntilTick);
+        hasher.Add(SunFireReadyAtTick);
     }
 }

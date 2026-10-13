@@ -32,6 +32,9 @@
 .icon-sluice { background-image: resource("UI/Icons/sluice"); }
 .icon-voice { background-image: resource("UI/Icons/voice"); }
 .icon-stones { background-image: resource("UI/Icons/stones"); }
+.icon-laser { background-image: resource("UI/Icons/laser"); }
+.icon-torch { background-image: resource("UI/Icons/torch"); }
+.icon-magnifier { background-image: resource("UI/Icons/magnifier"); }
 .icon-speed { background-image: resource("UI/Icons/speed"); }
 .icon-map { background-image: resource("UI/Icons/map"); }
 .icon-research { background-image: resource("UI/Icons/research"); }
@@ -306,3 +309,8 @@
     position: absolute; max-width: 230px; padding: 6px 10px 8px 10px; font-size: 13px; color: #2b2215; white-space: normal;
     -unity-text-align: middle-center; rotate: -1deg;
 }
+
+/* ---------- relics from the boot (GDD 05) ---------- */
+.relics { flex-direction: row; margin-bottom: 6px; }
+.relic { height: 54px; flex-grow: 1; max-width: 33%; }
+.relic .skill-text { font-size: 11px; }

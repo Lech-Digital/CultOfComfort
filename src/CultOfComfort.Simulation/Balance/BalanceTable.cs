@@ -98,6 +98,15 @@ public sealed record LeaderStats(
 /// <param name="Reach">Furthest target tile from the Prophet (tiles).</param>
 public sealed record HotStonesStats(int CooldownTicks, Fix Reach, Fix Radius, Fix Damage, int MuddiedTicks);
 
+/// <param name="LaserReach">How far from him the red dot can land (tiles).</param>
+/// <param name="LaserPick">How close to the dot a raider must be to be the one blinded (tiles).</param>
+/// <param name="TorchRadius">The torch's dazzle around him (tiles); dazzled raiders slow to <paramref name="TorchSlow"/> and can't fight him.</param>
+/// <param name="SunFireBurnPerSecond">Fire damage per second while a raider burns.</param>
+public sealed record RelicStats(
+    Fix LaserReach, Fix LaserPick, int LaserBlindTicks, int LaserCooldownTicks,
+    Fix TorchRadius, Fix TorchSlow, int TorchLitTicks, int TorchCooldownTicks,
+    Fix SunFireReach, Fix SunFireRadius, int SunFireBurnTicks, Fix SunFireBurnPerSecond, int SunFireCooldownTicks);
+
 /// <summary>
 /// Versioned balance data. A raid pins the version it started with so replays stay valid after rebalancing.
 /// </summary>
@@ -235,4 +244,11 @@ public sealed class BalanceTable
         Radius: Fix.Ratio(6, 5),
         Damage: Fix.FromInt(45),
         MuddiedTicks: 3 * TicksPerSecond);
+
+    /// <summary>The relics from the boot (GDD 05). Balance 2026.10.14: strong but rare; each has its own catch.</summary>
+    public RelicStats Relics { get; init; } = new(
+        LaserReach: Fix.FromInt(7), LaserPick: Fix.Ratio(3, 2), LaserBlindTicks: 5 * TicksPerSecond / 2, LaserCooldownTicks: 10 * TicksPerSecond,
+        TorchRadius: Fix.Ratio(5, 2), TorchSlow: Fix.Ratio(1, 2), TorchLitTicks: 6 * TicksPerSecond, TorchCooldownTicks: 20 * TicksPerSecond,
+        SunFireReach: Fix.FromInt(4), SunFireRadius: Fix.One, SunFireBurnTicks: 4 * TicksPerSecond, SunFireBurnPerSecond: Fix.FromInt(12),
+        SunFireCooldownTicks: 12 * TicksPerSecond);
 }

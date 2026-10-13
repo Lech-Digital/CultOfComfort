@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -130,6 +131,68 @@ namespace CultOfComfort.Client.Tests
             }
 
             Save(Camera.main, world, ui, Path.Combine(output, "coach_2_confirm.png"));
+        }
+
+        private sealed class Clock : IClock { public System.DateTimeOffset UtcNow { get; set; } = new System.DateTimeOffset(2026, 10, 11, 12, 0, 0, System.TimeSpan.Zero); }
+
+        private sealed class Store : IBaseStore
+        {
+            public CultOfComfort.Simulation.Base.BaseData Saved;
+            public System.Threading.Tasks.Task<CultOfComfort.Simulation.Base.BaseData> LoadAsync(System.Threading.CancellationToken ct) => System.Threading.Tasks.Task.FromResult(Saved);
+            public System.Threading.Tasks.Task SaveAsync(CultOfComfort.Simulation.Base.BaseData data, System.Threading.CancellationToken ct) { Saved = data; return System.Threading.Tasks.Task.CompletedTask; }
+        }
+
+        [UnityTest]
+        public IEnumerator IntroCapture_RelicNight_WritesPngs()
+        {
+            _progress.MarkSeen();
+            var clock = new Clock();
+            var state = CultOfComfort.Simulation.Base.BaseState.CreateNew(CultOfComfort.Simulation.Base.BuildingTable.Default, CultOfComfort.Simulation.Base.VillageMap.Demo, clock.UtcNow);
+            state.Apply(new CultOfComfort.Simulation.Base.UpgradeHearth(System.Guid.NewGuid()), clock.UtcNow);
+            var store = new Store { Saved = state.ToData() };
+            clock.UtcNow = clock.UtcNow.AddHours(1);
+            VillageComposition.Override = () => new LocalBaseGateway(store, clock, CultOfComfort.Simulation.Base.BuildingTable.Default, CultOfComfort.Simulation.Base.VillageMap.Demo, _ => { });
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            for (var f = 0; f < 6; f++)
+            {
+                yield return null;
+            }
+
+            var game = Object.FindAnyObjectByType<GameController>();
+            var document = game.GetComponent<UIDocument>();
+            var output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "..", "art", "previews", "intro"));
+            var ui = new RenderTexture(Width, Height, 24);
+            document.panelSettings.targetTexture = ui;
+            document.panelSettings.scaleMode = PanelScaleMode.ConstantPixelSize;
+            document.panelSettings.scale = Scale;
+            document.panelSettings.clearColor = true;
+            document.panelSettings.colorClearValue = new Color(0f, 0f, 0f, 0f);
+            var hud = (HudView)typeof(GameController).GetField("_hud", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(game);
+            hud.SetPortrait(true);
+            var world = new RenderTexture(Width, Height, 24) { antiAliasing = 4 };
+            Camera.main.aspect = Width / (float)Height;
+            game.StartNight();
+            Time.captureDeltaTime = 1f / 30f;
+            for (var f = 0; f < 150; f++)
+            {
+                yield return null;
+            }
+
+            var battle = (CultOfComfort.Simulation.Combat.Battle)typeof(GameController).GetField("_battle", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(game);
+            battle.Intervene(CultOfComfort.Simulation.Combat.PlayerActionType.DynamoTorch);
+            var raider = battle.Enemies.FirstOrDefault(e => e.IsActive);
+            if (raider != null)
+            {
+                var p = battle.PositionOf(raider);
+                battle.Intervene(CultOfComfort.Simulation.Combat.PlayerActionType.LaserPointer, new CultOfComfort.Simulation.Grid.GridPosition(p.X.FloorToInt(), p.Y.FloorToInt()));
+            }
+
+            for (var f = 0; f < 4; f++)
+            {
+                yield return null;
+            }
+
+            Save(Camera.main, world, ui, Path.Combine(output, "relic_night.png"));
         }
 
         private static void Save(Camera camera, RenderTexture world, RenderTexture ui, string path)

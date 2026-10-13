@@ -33,6 +33,18 @@ The time machine is a landmark that never moves. It stays nose-down in the Roman
 
 New relics need the owner's approval. A relic should be something a person could plausibly have in a car, and it should be funny when someone from 947 reveres it.
 
+## Relic powers (in the game, 2026-10-14)
+
+As the Hearth grows, the Prophet works out what the things in his boot are good for. The plan records the Hearth level when a Night begins (`RelicBook.ForHearth`), so the server's replay uses the same relics. Balance: `BalanceTable.Relics`.
+
+| Hearth | Relic | Power | The catch |
+|---|---|---|---|
+| 2 | Laser pointer | **Finger of God**: tap near a raider within 7 tiles. The nearest one is blinded where it stands for 2.5 s. | 10 s cooldown, and only one raider |
+| 2 | Dynamo torch | **Light without fire**: for 6 s, raiders within 2.5 tiles of him are dazzled. They walk at half speed and can't see to fight him. | 20 s cooldown (his arm gets tired) |
+| 3 | Magnifying glass | **Sun-fire**: raiders within 1 tile of the target, up to 4 tiles away, burn for 4 s (12 damage/s). | Only in the first wave. After that, the sun is down. |
+
+The Bluetooth speaker is the source of the existing Phantom Voice.
+
 ## The cargo-cult rule (art)
 
 There is **one** of each real relic. Everything else in the village is a **copy** the faithful made in medieval materials, so the 2024 colours stay rare and crisp ("2024 things are perfect"):

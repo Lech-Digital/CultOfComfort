@@ -89,6 +89,7 @@ namespace CultOfComfort.Client
             _leaderHealthRenderer = bar.GetComponent<Renderer>();
             _reachRing = CreateReachRing((float)BalanceTable.Default.HotStones.Reach.ToDouble());
             _reachRing.gameObject.SetActive(false);
+            _torchGlow = CreateTorchGlow();
 
             _leaderCurrent = _leaderPrevious = Shapes.ToWorld(battle.Leader.Position);
             _leader.localPosition = _leaderCurrent;
@@ -110,11 +111,14 @@ namespace CultOfComfort.Client
         }
 
         /// <summary>While aiming Hot Stones: a ring of pebbles around the Prophet marking how far he can throw.</summary>
-        public void ShowReach(bool visible)
+        /// <summary>The pebble ring round the Prophet: how far an aimed skill reaches (tiles; default Hot Stones).</summary>
+        public void ShowReach(bool visible, float reach = 0f)
         {
             if (_reachRing != null)
             {
                 _reachRing.gameObject.SetActive(visible);
+                var stones = (float)BalanceTable.Default.HotStones.Reach.ToDouble();
+                _reachRing.localScale = Vector3.one * (reach > 0f ? reach / stones : 1f);
             }
         }
 
@@ -179,10 +183,85 @@ namespace CultOfComfort.Client
                 visual.Muddied = enemy.IsMuddied(_battle.Tick);
                 visual.Slowed = enemy.IsSlowed(_battle.Tick);
                 visual.Frightened = enemy.IsFrightened(_battle.Tick);
+                visual.Blinded = enemy.IsBlinded(_battle.Tick);
+                visual.Burning = enemy.IsBurning(_battle.Tick);
                 visual.Fighting = enemy.IsFightingLeader;
             }
 
             _leaderCurrent = Shapes.ToWorld(_battle.Leader.Position);
+        }
+
+        private static readonly Color LaserRed = Shapes.Hex("#ff2340");
+        private static readonly Color TorchLight = Shapes.Hex("#fff1b8");
+        private GameObject _torchGlow;
+
+        /// <summary>The dynamo torch's pool of light round the Prophet (shown while it is lit).</summary>
+        private GameObject CreateTorchGlow()
+        {
+            var glow = new GameObject("Dynamo Torch");
+            glow.transform.SetParent(_leader, false);
+            var diameter = (float)BalanceTable.Default.Relics.TorchRadius.ToDouble() * 2f;
+            var disc = Shapes.Create(PrimitiveType.Cylinder, TorchLight, new Vector3(0f, 0.02f, 0f), new Vector3(diameter, 0.005f, diameter), glow.transform, "Torch Pool");
+            disc.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            var light = new GameObject("Torch Light").AddComponent<Light>();
+            light.transform.SetParent(glow.transform, false);
+            light.transform.localPosition = new Vector3(0f, 1.4f, 0f);
+            light.type = LightType.Point;
+            light.color = TorchLight;
+            light.range = diameter + 1f;
+            light.intensity = 6f;
+            var torch = ArtLibrary.Instantiate("relic_dynamo_torch", glow.transform);
+            if (torch != null)
+            {
+                torch.transform.localPosition = new Vector3(0.25f, 0.75f, 0.1f);
+                torch.transform.localScale = Vector3.one * 1.4f;
+            }
+
+            glow.SetActive(false);
+            return glow;
+        }
+
+        private void SpawnLaser(Vector3 from, Vector3 to)
+        {
+            var start = from + Vector3.up * 0.75f;
+            var end = to + Vector3.up * 0.55f;
+            var beam = Shapes.Create(PrimitiveType.Cube, LaserRed, (start + end) / 2f, new Vector3(0.025f, 0.025f, Vector3.Distance(start, end)), _root, "Laser");
+            beam.transform.localRotation = Quaternion.LookRotation(end - start, Vector3.up);
+            var dot = Shapes.Create(PrimitiveType.Sphere, LaserRed, end, Vector3.one * 0.12f, _root, "Red Dot");
+            AddEffect(beam, 0.35f, (go, t) => go.SetActive(Mathf.Repeat(t * 7f, 1f) < 0.8f));
+            AddEffect(dot, 1.2f, (go, t) => go.transform.localScale = Vector3.one * (0.12f + Mathf.Sin(t * 30f) * 0.03f) * (1f - t * 0.5f));
+        }
+
+        private void SpawnSunbeam(Vector3 at)
+        {
+            var radius = (float)BalanceTable.Default.Relics.SunFireRadius.ToDouble();
+            var beam = Shapes.Create(PrimitiveType.Cylinder, Shapes.Hex("#ffe27a"), at + Vector3.up * 3f, new Vector3(0.1f, 3f, 0.1f), _root, "Sunbeam");
+            beam.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            AddEffect(beam, 0.6f, (go, t) => go.transform.localScale = new Vector3(0.1f + t * radius, 3f * (1f - t), 0.1f + t * radius));
+            var scorch = Shapes.Create(PrimitiveType.Cylinder, Shapes.Hex("#2b2420"), at + Vector3.up * 0.02f, Vector3.zero, _root, "Scorch");
+            AddEffect(scorch, 2f, (go, t) => go.transform.localScale = new Vector3(radius * 2f * Mathf.Min(1f, t * 4f), 0.005f, radius * 2f * Mathf.Min(1f, t * 4f)));
+        }
+
+        /// <summary>A flicker of fire on a burning raider (made on first need, kept for its life).</summary>
+        private static void ShowFlame(EnemyVisual visual, bool burning)
+        {
+            if (visual.Flame == null)
+            {
+                if (!burning)
+                {
+                    return;
+                }
+
+                visual.Flame = Shapes.Create(PrimitiveType.Sphere, Shapes.Hex("#ff7a1f"), new Vector3(0f, 0.95f, 0f), Vector3.one * 0.3f, visual.Root, "Flame");
+                visual.Flame.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+
+            visual.Flame.SetActive(burning);
+            if (burning)
+            {
+                var flicker = 0.26f + Mathf.PerlinNoise(Time.time * 9f, visual.Phase) * 0.14f;
+                visual.Flame.transform.localScale = new Vector3(flicker, flicker * 1.6f, flicker);
+            }
         }
 
         /// <param name="alpha">Fraction of the way from the previous tick to the current one.</param>
@@ -212,7 +291,9 @@ namespace CultOfComfort.Client
                     visual.Root.localRotation = Quaternion.LookRotation(heading.normalized, Vector3.up);
                 }
 
-                var tint = visual.Frightened ? Palette.Fright : visual.Muddied ? Color.Lerp(visual.BaseColor, Palette.Mud, 0.6f) : visual.BaseColor;
+                var tint = visual.Blinded ? Color.Lerp(visual.BaseColor, Color.white, 0.55f)
+                    : visual.Frightened ? Palette.Fright : visual.Muddied ? Color.Lerp(visual.BaseColor, Palette.Mud, 0.6f) : visual.BaseColor;
+                ShowFlame(visual, visual.Burning);
                 // Only touch renderers when the tint changes, and drop the property block when it is neutral:
                 // a renderer with a block falls out of URP's SRP Batcher, and a raider is ~8 renderers.
                 if (tint != visual.LastTint)
@@ -260,6 +341,10 @@ namespace CultOfComfort.Client
 
             var leader = _battle.Leader;
             var swooning = leader.IsSwooning(_battle.Tick);
+            if (_torchGlow != null && _torchGlow.activeSelf != leader.IsTorchLit(_battle.Tick))
+            {
+                _torchGlow.SetActive(leader.IsTorchLit(_battle.Tick));
+            }
             if (_prophet != null)
             {
                 _prophet.IsSwooning = swooning;
@@ -406,6 +491,29 @@ namespace CultOfComfort.Client
                         ? "He shouted into a tin can at nobody. The cultists exchanged looks."
                         : $"A disembodied voice told {used.EnemiesAffected} soldiers to go home. They did.");
                     SkillUsed?.Invoke(PlayerActionType.PhantomVoice); // after the announcement, so a first-use tip wins the toast
+                    break;
+                case RelicUsed { Type: PlayerActionType.LaserPointer } laser when _enemies.TryGetValue(laser.TargetId, out var dazzled):
+                    SpawnLaser(_leaderCurrent, dazzled.Current);
+                    FloatOver(e => e.Id == laser.TargetId, "my eyes!");
+                    Announcement?.Invoke("The Finger of God. That raider now sees only a red dot, and God.");
+                    SkillUsed?.Invoke(PlayerActionType.LaserPointer);
+                    break;
+                case RelicUsed { Type: PlayerActionType.DynamoTorch }:
+                    Announcement?.Invoke("He cranks the torch. Light without fire. The raiders find this deeply rude.");
+                    SkillUsed?.Invoke(PlayerActionType.DynamoTorch);
+                    break;
+                case RelicUsed { Type: PlayerActionType.SunFire } fire:
+                    SpawnSunbeam(Shapes.ToWorld(fire.Target));
+                    if (fire.EnemiesAffected == 0)
+                    {
+                        _prophet?.Unimpressed();
+                    }
+
+                    FloatOver(e => e.IsBurning(_battle.Tick), "hot! hot!");
+                    Announcement?.Invoke(fire.EnemiesAffected == 0
+                        ? "He set some grass on fire. On purpose, he says."
+                        : $"Sun-fire! {fire.EnemiesAffected} raiders learn about lenses the hard way.");
+                    SkillUsed?.Invoke(PlayerActionType.SunFire);
                     break;
                 case InputRejected rejected:
                     _prophet?.Annoyed(); // he takes refusals personally
@@ -825,6 +933,9 @@ namespace CultOfComfort.Client
             public readonly SpriteRenderer[] Status = new SpriteRenderer[RaiderStatus.MaxIcons];
             public readonly string[] Icons = new string[RaiderStatus.MaxIcons];
             public bool Frightened;
+            public bool Blinded;
+            public bool Burning;
+            public GameObject Flame;
             public bool Fighting;
             public float Phase;
         }

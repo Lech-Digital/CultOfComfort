@@ -9,13 +9,34 @@ using UnityEngine.UIElements;
 
 namespace CultOfComfort.Client
 {
+    /// <summary>One relic button on the Night bar: hidden until the relic is found.</summary>
+    public readonly struct RelicButtonState
+    {
+        public RelicButtonState(bool shown, string text, bool ready, bool aiming = false)
+        {
+            Shown = shown;
+            Text = text;
+            Ready = ready;
+            Aiming = aiming;
+        }
+
+        public bool Shown { get; }
+        public string Text { get; }
+        public bool Ready { get; }
+        public bool Aiming { get; }
+    }
+
     /// <summary>What the Night bar shows. Built by the controller each frame from the live battle.</summary>
     public readonly struct NightHudState
     {
         public NightHudState(
             int night, int hearth, int hearthMax, int prophet, int prophetMax, string sluice, bool sluiceReady, string voice, bool voiceReady,
-            string stones, bool stonesReady, bool aiming, int speed, int wave, int waveCount, int alive, string status)
+            string stones, bool stonesReady, bool aiming, int speed, int wave, int waveCount, int alive, string status,
+            RelicButtonState laser = default, RelicButtonState torch = default, RelicButtonState sunFire = default)
         {
+            Laser = laser;
+            Torch = torch;
+            SunFire = sunFire;
             Night = night;
             Hearth = hearth;
             HearthMax = hearthMax;
@@ -56,6 +77,10 @@ namespace CultOfComfort.Client
 
         /// <summary>The one-line hint under the skills.</summary>
         public string Status { get; }
+
+        public RelicButtonState Laser { get; }
+        public RelicButtonState Torch { get; }
+        public RelicButtonState SunFire { get; }
     }
 
     /// <summary>
@@ -127,6 +152,10 @@ namespace CultOfComfort.Client
         private readonly Button _sluice;
         private readonly Button _voice;
         private readonly Button _stones;
+        private readonly VisualElement _relicRow;
+        private readonly Button _laser;
+        private readonly Button _torch;
+        private readonly Button _sunFire;
         private readonly Button _speed;
         private readonly Label _nightStatus;
         private readonly Dictionary<Button, Label> _skillText = new Dictionary<Button, Label>();
@@ -313,6 +342,18 @@ namespace CultOfComfort.Client
             _stones = SkillButton("stones", "note-yellow", () => StonesClicked?.Invoke());
             _speed = SkillButton("speed", "note-green", () => SpeedClicked?.Invoke());
             _speed.AddToClassList("speed");
+            _relicRow = Container("relics");
+            _relicRow.name = "relics";
+            _laser = SkillButton("laser", "note-pink", () => LaserClicked?.Invoke());
+            _torch = SkillButton("torch", "note-yellow", () => TorchClicked?.Invoke());
+            _sunFire = SkillButton("magnifier", "note-blue", () => SunFireClicked?.Invoke());
+            foreach (var relic in new[] { _laser, _torch, _sunFire })
+            {
+                relic.AddToClassList("relic");
+                _relicRow.Add(relic);
+            }
+
+            _nightBar.Add(_relicRow);
             skills.Add(_sluice);
             skills.Add(_voice);
             skills.Add(_stones);
@@ -385,6 +426,9 @@ namespace CultOfComfort.Client
         public event Action BackToDuskClicked;
         public event Action ResetTipsClicked;
         public event Action ReplayIntroClicked;
+        public event Action LaserClicked;
+        public event Action TorchClicked;
+        public event Action SunFireClicked;
         public event Action DevRaiseTensionClicked;
         public event Action DevSkipWarningClicked;
         public event Action ErrandClicked;
@@ -578,6 +622,10 @@ namespace CultOfComfort.Client
             SetSkill(_voice, state.Voice, state.VoiceReady);
             SetSkill(_stones, state.Stones, state.StonesReady);
             _stones.EnableInClassList("aiming", state.Aiming);
+            SetRelic(_laser, state.Laser);
+            SetRelic(_torch, state.Torch);
+            SetRelic(_sunFire, state.SunFire);
+            Show(_relicRow, state.Laser.Shown || state.Torch.Shown || state.SunFire.Shown);
             SetSkill(_speed, $"{state.Speed}×", true);
             _nightStatus.text = state.Status;
         }
@@ -1022,6 +1070,16 @@ namespace CultOfComfort.Client
             button.Add(text);
             _skillText[button] = text;
             return button;
+        }
+
+        private void SetRelic(Button button, RelicButtonState state)
+        {
+            Show(button, state.Shown);
+            if (state.Shown)
+            {
+                SetSkill(button, state.Text, state.Ready || state.Aiming);
+                button.EnableInClassList("aiming", state.Aiming);
+            }
         }
 
         /// <summary>Per frame, so no queries: the label was remembered when the button was built.</summary>
