@@ -14,7 +14,7 @@ public class BuildingTableTests
 
         // Assert
         hearth.MaxLevel.Should().Be(3);
-        hearth.Levels[1].Cost.Should().Be(new ResourceBag(600, 0, 50, 0));
+        hearth.Levels[1].Cost.Should().Be(new ResourceBag(450, 0, 50, 0)); // village-2026.10.4: the tutorial step
         hearth.Levels[1].BuildSeconds.Should().Be(600);
         hearth.Levels[2].Cost.Should().Be(new ResourceBag(2000, 200, 300, 100));
         BuildingTable.Default.HearthStorageCaps.Should().Equal(1000, 2500, 6000);

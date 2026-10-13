@@ -213,12 +213,12 @@ public class BaseStateEconomyTests
         Send(state, new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(23, 14)), at);
         at = at.AddSeconds(30); // 100 left
 
-        // Act — upgrading the Hearth needs 600 Timber and 50 Scrap.
+        // Act — upgrading the Hearth needs 450 Timber and 50 Scrap.
         var outcome = Send(state, new UpgradeHearth(Guid.NewGuid()), at);
 
         // Assert
         outcome.Status.Should().Be(CommandStatus.Rejected);
-        outcome.Reason.Should().Contain("500 Timber");
+        outcome.Reason.Should().Contain("350 Timber");
     }
 
     [Fact]
