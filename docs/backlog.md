@@ -15,6 +15,7 @@
 - [x] 2026-10-11 — **Village slice 1** (spec `docs/superpowers/specs/2026-10-11-village-slice-1-design.md`): real Timber/Peat/Scrap/Devotion, buildings placed on the battle grid, collect/upgrade/demolish, Hearth 1→3, night salvage, Cistern sluice charges; server-ready `IBaseGateway`; verified on the Pixel 10 (save survives relaunch and app update, 60 fps).
 - [x] 2026-10-11 — **Raids slice** (spec `docs/superpowers/specs/2026-10-11-raids-and-damage-design.md`): raiders smash buildings/towers, repair, Wattle Fence; real-time Tension, announced raids with warnings, early Nights, replay-authoritative resolution, auto-resolve while away, map grows with the Hearth. Verified on the Pixel 10.
 - [x] 2026-10-13 — **Raid roster + Night mood:** raiders grow with the Hearth (geese, goats, boars, peasants at 1; Wulfric's levy at 2; priests and Lord Wulfric at 3), per-type shouts/models/announcements, darker Nights, new sluice flush. Verified on the Pixel 10.
+- [x] 2026-10-13 — **First-hour arc** (spec `docs/superpowers/specs/2026-10-13-first-hour-arc-design.md`): the Prophet's 13 errands (village rule, claimable rewards, saved), errand note with hints, Light the Lamps waits for the first-Night errand, welcome line; Devotion 10/18/28, Hearth 2 at 450 Timber; producers can't stand where no road can reach; ghosts by the Hearth, Turn button stays on screen, pill readouts, demo placeholders hidden; Sandbox `pace` bot (Hearth 2 ≈ 32 min, Hearth 3 ≈ 10 h for a building player). Played errands 1–7 on the Pixel 10: Hearth 2 started at ~20 min, no hitches.
 
 ## Next Sessions
 
@@ -34,6 +35,8 @@
 - [ ] Balance: difficulty cliff between budget ~54 and ~60 on the demo map — investigate smoothing.
 - [ ] BaseState aggregate (DDD) + `/api/base/sync` command pipeline.
 - [ ] Solution / project structure for the modular monolith (+ architecture tests).
+
+- [ ] Found playing the errands (2026-10-13), owner to decide: the "collect" errand pays out only ~2 Timber after a minute (seed the first Lean-to's store?); 2 villagers for 4 jobs in the first 20 min (villagers arrive every 10 min); the first Night's nosy peasants wreck most of the starter village, Cottage included (beds drop to 2); the errand note is large on a phone.
 
 ## Open Design Questions
 
