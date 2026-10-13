@@ -754,6 +754,7 @@ namespace CultOfComfort.Client
             _cardBuilding = null;
             _hud.ShowBuildingCard(null);
             _board.ClearStructureHealth();
+            FrameRateLogger.Mark("BeginFight");
             _plan = plan;
             _night = plan.Night;
             _setup = plan.ToBattleSetup(VillageMap.Demo, new List<PlayerInput>());
@@ -863,15 +864,19 @@ namespace CultOfComfort.Client
             _phase = GamePhase.Dawn;
             _hud.ShowPhase(_phase);
             _hud.Announce(string.Empty, Time.time, 0f);
-            _serverReplay = Battle.Simulate(_setup with { Inputs = _battle.InputLog.ToList() });
+            _serverReplay = null;
+            LastNightVerified = null; // until this Night's replays are in
+            var replaySetup = _setup with { Inputs = _battle.InputLog.ToList() };
             try
             {
+                _serverReplay = await Task.Run(() => Battle.Simulate(replaySetup), _cts.Token); // a whole Night: off the main thread
                 var outcome = await SendVillage(new ResolveNight(Guid.NewGuid(), _plan.Night, _battle.InputLog.ToList()));
                 _lastReport = outcome.Report;
                 LastNightVerified = outcome.Report != null && outcome.Report.StateHashHex == _battle.Result.StateHashHex && _serverReplay == _battle.Result;
             }
             catch (OperationCanceledException)
             {
+                return; // the game is closing
             }
             catch (Exception e)
             {
@@ -879,7 +884,7 @@ namespace CultOfComfort.Client
                 VillageFailed(e);
             }
 
-            _hud.ShowDawn(_battle.Result, LastNightVerified == true ? _battle.Result : _serverReplay with { StateHash = 0 }, _battle.InputLog.Count);
+            _hud.ShowDawn(_battle.Result, LastNightVerified == true ? _battle.Result : (_serverReplay ?? _battle.Result) with { StateHash = 0 }, _battle.InputLog.Count);
         }
 
         private async void BackToDusk()
@@ -888,6 +893,7 @@ namespace CultOfComfort.Client
             var acknowledge = _showingReport;
             _lastReport = null;
             _showingReport = false;
+            FrameRateLogger.Mark("BackToDusk");
             _battleView.Clear();
             _board.ClearStructureHealth();
             _battle = null;

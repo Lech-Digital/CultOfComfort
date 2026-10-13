@@ -29,7 +29,8 @@ namespace CultOfComfort.Client.Tests
                 if (ThrowOnLoad) throw new InvalidBaseDataException("corrupt");
                 return Pending != null ? Pending.Task : Task.FromResult(Saved);
             }
-            public Task SaveAsync(BaseData data, CancellationToken ct) { Saved = data; Saves++; return Task.CompletedTask; }
+            public TaskCompletionSource<bool> SaveGate;
+            public Task SaveAsync(BaseData data, CancellationToken ct) { Saved = data; Saves++; return SaveGate != null ? SaveGate.Task : Task.CompletedTask; }
             public int Quarantined;
             public Task QuarantineAsync(CancellationToken ct) { Quarantined++; return Task.CompletedTask; }
         }
@@ -63,6 +64,26 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual(330, result.Snapshot.Stock.Scrap);
             Assert.AreEqual(1, store.Saves);
             Assert.AreEqual(1, VillageMap.Demo.ToBattleLayout(result.Snapshot, BuildingTable.Default).Towers.Count);
+        }
+
+        [Test]
+        public async Task LoadAsync_WhileACommandIsStillSaving_WaitsAndSeesIt()
+        {
+            // Arrange — a Night replay runs off the main thread, so a twice-a-second snapshot must not read the village mid-command.
+            var store = new MemoryStore { SaveGate = new TaskCompletionSource<bool>() };
+            var gateway = Gateway(store, new FakeClock());
+            var sending = gateway.SendAsync(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(7, 6)), CancellationToken.None);
+
+            // Act
+            var loading = gateway.LoadAsync(CancellationToken.None);
+            var waited = !loading.IsCompleted;
+            store.SaveGate.SetResult(true);
+            await sending;
+            var snapshot = await loading;
+
+            // Assert
+            Assert.IsTrue(waited);
+            Assert.AreEqual(330, snapshot.Stock.Scrap);
         }
 
         [Test]

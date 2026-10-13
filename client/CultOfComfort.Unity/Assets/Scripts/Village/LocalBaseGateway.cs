@@ -5,7 +5,10 @@ using CultOfComfort.Simulation.Base;
 
 namespace CultOfComfort.Client
 {
-    /// <summary>Holds authority on the device: runs <see cref="BaseState"/> and saves after every accepted command.</summary>
+    /// <summary>
+    /// Holds authority on the device: runs <see cref="BaseState"/> and saves after every accepted command. One call at a time:
+    /// a Night's replay runs on a worker thread (it would freeze a frame), and nothing may read the village meanwhile.
+    /// </summary>
     public sealed class LocalBaseGateway : IBaseGateway
     {
         private readonly IBaseStore _store;
@@ -15,6 +18,7 @@ namespace CultOfComfort.Client
         private readonly Action<string> _warn;
         private BaseState _state;
         private Task _loading;
+        private readonly SemaphoreSlim _gate = new SemaphoreSlim(1, 1);
 
         public LocalBaseGateway(IBaseStore store, IClock clock, BuildingTable table, VillageMap map, Action<string> warn)
         {
@@ -27,21 +31,39 @@ namespace CultOfComfort.Client
 
         public async Task<BaseSnapshot> LoadAsync(CancellationToken ct)
         {
-            await EnsureLoadedAsync(ct);
-            return _state.Snapshot(_clock.UtcNow);
+            await _gate.WaitAsync(ct);
+            try
+            {
+                await EnsureLoadedAsync(ct);
+                return _state.Snapshot(_clock.UtcNow);
+            }
+            finally
+            {
+                _gate.Release();
+            }
         }
 
         public async Task<CommandResult> SendAsync(BaseCommand command, CancellationToken ct)
         {
-            await EnsureLoadedAsync(ct);
-            var now = _clock.UtcNow;
-            var outcome = _state.Apply(command, now);
-            if (outcome.Status == CommandStatus.Accepted)
+            await _gate.WaitAsync(ct);
+            try
             {
-                await _store.SaveAsync(_state.ToData(), ct);
-            }
+                await EnsureLoadedAsync(ct);
+                var now = _clock.UtcNow;
+                var outcome = command is ResolveNight
+                    ? await Task.Run(() => _state.Apply(command, now), ct) // replays the whole Night
+                    : _state.Apply(command, now);
+                if (outcome.Status == CommandStatus.Accepted)
+                {
+                    await _store.SaveAsync(_state.ToData(), ct);
+                }
 
-            return new CommandResult(outcome, _state.Snapshot(now));
+                return new CommandResult(outcome, _state.Snapshot(now));
+            }
+            finally
+            {
+                _gate.Release();
+            }
         }
 
         /// <summary>Loads once: overlapping first calls share the same load, so a command can't be lost to a second restore.</summary>

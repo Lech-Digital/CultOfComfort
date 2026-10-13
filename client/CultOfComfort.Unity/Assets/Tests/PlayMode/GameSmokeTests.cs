@@ -51,6 +51,12 @@ namespace CultOfComfort.Client.Tests
                 yield return null;
             }
 
+            // The replays run on worker threads: the verdict lands a few frames into Dawn.
+            while (game.LastNightVerified == null && Time.realtimeSinceStartup < timeout)
+            {
+                yield return null;
+            }
+
             // Assert
             Assert.AreEqual(GamePhase.Dawn, game.Phase, "The Night should finish.");
             Assert.AreEqual(true, game.LastNightVerified, "Server-style replay of the input log should match the live result.");

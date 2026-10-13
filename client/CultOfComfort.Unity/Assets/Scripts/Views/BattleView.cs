@@ -298,6 +298,11 @@ namespace CultOfComfort.Client
 
         private void HandleEvent(BattleEvent battleEvent)
         {
+            if (battleEvent is not TowerFired && battleEvent is not LeaderAttacked)
+            {
+                FrameRateLogger.Mark(battleEvent is EnemySpawned spawned ? $"EnemySpawned {spawned.Type}" : battleEvent.GetType().Name);
+            }
+
             switch (battleEvent)
             {
                 case TowerFired fired when _enemies.TryGetValue(fired.TargetId, out var target):
