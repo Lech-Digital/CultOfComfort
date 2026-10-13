@@ -282,3 +282,20 @@
 .ghost-problem { margin-top: 4px; max-width: 200px; white-space: normal; font-size: 12px; color: #fff4dc; background-color: rgba(60, 30, 20, 0.85); border-radius: 6px; padding: 3px 6px; }
 .bubble { position: absolute; max-width: 160px; white-space: normal; font-size: 13px; color: #2b2215; background-color: #fffaf0; border-color: #3b2614; border-width: 2px; border-radius: 10px; padding: 4px 8px; -unity-text-align: middle-center; }
 .ghost-turn { width: 70px; font-size: 16px; }
+
+/* ---------- the Prophet's errand (spec 2026-10-13 first-hour arc) ---------- */
+.errand-note {
+    width: 78%; margin: 4px 0 0 0; padding: 10px 14px 12px 14px; align-items: flex-start; rotate: -1deg;
+    color: #2b2215; border-width: 0; background-color: rgba(0, 0, 0, 0);
+}
+.errand-heading { font-size: 11px; color: #7a5a2a; padding: 0; margin: 0; }
+.errand-text { font-size: 14px; white-space: normal; padding: 0; margin: 2px 0 0 0; -unity-text-align: upper-left; }
+.errand-reward { font-size: 12px; color: #5b6b2a; padding: 0; margin: 4px 0 0 0; }
+.errand-claim {
+    display: none; position: absolute; right: 8px; bottom: 6px; padding: 2px 8px; font-size: 15px; rotate: -6deg;
+    color: #2f7a35; border-width: 2px; border-color: #2f7a35; border-radius: 4px;
+    -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC");
+}
+.errand-note.done { rotate: 1deg; }
+.hinted { border-width: 3px; border-color: #ffd34d; }
+.primary.waiting { opacity: 0.55; font-size: 14px; }

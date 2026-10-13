@@ -291,6 +291,78 @@ namespace CultOfComfort.Client
         }
 
         /// <summary>The tile in the middle of the clear part of the screen (where a new ghost appears).</summary>
+        /// <summary>Light the Lamps waits until the first-Night errand, unless the Authority has already announced a raid.</summary>
+        private bool LampsWait() =>
+            _snapshot != null && _snapshot.RaidWarningEndsAtUtc == null && ErrandNote.LampsWait(_snapshot.Errand, BuildingTable.Default.Errands.Errands);
+
+        /// <summary>The errand note: claim a done errand, otherwise point at what to do next.</summary>
+        private async void OnErrandClicked()
+        {
+            var note = ErrandNote.From(_snapshot?.Errand);
+            if (note == null || _phase != GamePhase.Dusk)
+            {
+                return;
+            }
+
+            try
+            {
+                switch (note.Hint)
+                {
+                    case ErrandHint.Claim:
+                        var outcome = await SendVillage(new ClaimErrand(Guid.NewGuid()));
+                        if (outcome.Status == CommandStatus.Accepted)
+                        {
+                            Announce($"Errand done! {note.Reward}".TrimEnd());
+                            Bark(BarkKind.CultistErrandDone, "errand", At(Shapes.ToWorld(VillageMap.Demo.Hearth, 1.8f)));
+                        }
+
+                        break;
+                    case ErrandHint.BuildCard when note.Type != null:
+                        _hud.Hint(note.Type, Time.time);
+                        break;
+                    case ErrandHint.StartNight:
+                        _hud.Hint(null, Time.time);
+                        break;
+                    case ErrandHint.Hearth:
+                    case ErrandHint.Building:
+                        var building = note.Hint == ErrandHint.Hearth
+                            ? _snapshot.Buildings.First(b => b.Type == BuildingType.Hearth)
+                            : _snapshot.Buildings.Where(b => b.Type == note.Type).OrderBy(b => b.Level).FirstOrDefault();
+                        if (building == null)
+                        {
+                            _hud.Hint(note.Type, Time.time); // nothing to point at yet: build one first
+                            break;
+                        }
+
+                        BringIntoView(building.Position);
+                        _cardBuilding = building.Id;
+                        _cardTerrain = null;
+                        RefreshVillage();
+                        break;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception e)
+            {
+                VillageFailed(e);
+            }
+        }
+
+        /// <summary>Pans so the tile sits in the middle of the clear view, unless it is already in sight.</summary>
+        private void BringIntoView(GridPosition tile)
+        {
+            var clear = _hud.ClearViewport() ?? new Rect(0f, 0.25f, 1f, 0.6f);
+            var screen = _camera.WorldToScreenPoint(Shapes.ToWorld(tile));
+            if (screen.z > 0f && clear.Contains(new Vector2(screen.x / Screen.width, screen.y / Screen.height)))
+            {
+                return;
+            }
+
+            _rig.Pan(screen, new Vector2(clear.center.x * Screen.width, clear.center.y * Screen.height));
+        }
+
         private GridPosition CentreTile()
         {
             var clear = _hud.ClearViewport() ?? new Rect(0f, 0.25f, 1f, 0.6f);
@@ -479,6 +551,12 @@ namespace CultOfComfort.Client
                 }
 
                 _night = _snapshot.LastNightRecorded + 1; // carry on where the save left off
+                if (_snapshot.Errand?.Index == 0 && _snapshot.Buildings.Count == 1)
+                {
+                    // A brand-new village: the Prophet says one line, then the errand note takes over.
+                    _hud.Announce("A cosy spot. Let's make it cosier. Build us a woodcutter, would you? (See the note.)", Time.time, 6f, prophet: true);
+                }
+
                 RefreshVillage();
             }
             catch (Exception e) when (!(e is OperationCanceledException))
@@ -713,7 +791,10 @@ namespace CultOfComfort.Client
             var dusk = _phase == GamePhase.Dusk;
             _hud.ShowPaintDone(dusk && _buildSelection != null && BuildingTable.IsPaintable(_buildSelection.Value));
             _hud.ShowRepairAll(dusk && _tool == null ? VillagePresenter.RepairAllLabel(_snapshot, BuildingTable.Default) : null);
-            _hud.SetStartLabel(VillagePresenter.StartLabel(_snapshot));
+            var lampsWait = LampsWait();
+            _hud.SetStartLabel(lampsWait ? "Lamps can wait · build first" : VillagePresenter.StartLabel(_snapshot));
+            _hud.SetStartWaiting(lampsWait);
+            _hud.ShowErrand(dusk ? ErrandNote.From(_snapshot.Errand) : null);
             var hasCard = _cardBuilding != null && _snapshot.Buildings.Any(b => b.Id == _cardBuilding.Value);
             var terrainCard = _cardTerrain != null ? VillagePresenter.TerrainCard(_snapshot, VillageMap.Demo, BuildingTable.Default, _cardTerrain.Value) : null;
             _hud.ShowBuildingCard(hasCard ? VillagePresenter.Card(_snapshot, BuildingTable.Default, _cardBuilding.Value) : terrainCard);
@@ -1032,7 +1113,9 @@ namespace CultOfComfort.Client
                 _cardBuilding = null;
                 if (type != null && !BuildingTable.IsPaintable(type.Value) && _snapshot != null)
                 {
-                    _tool = PlacementTool.StartNew(type.Value, CentreTile(), _snapshot, VillageMap.Demo, BuildingTable.Default);
+                    var near = BuildingTable.Default.Spec(type.Value).IsTower ? CentreTile() : VillageMap.Demo.Hearth; // homes and work by the Hearth
+                    _tool = PlacementTool.StartNew(type.Value, near, _snapshot, VillageMap.Demo, BuildingTable.Default);
+                    BringIntoView(_tool.Anchor);
                 }
 
                 RefreshVillage();
@@ -1082,7 +1165,24 @@ namespace CultOfComfort.Client
                 _cardBuilding = null;
                 _cardTerrain = null;
             };
-            _hud.StartNightClicked += StartNight;
+            _hud.StartNightClicked += () =>
+            {
+                if (LampsWait())
+                {
+                    Announce("The lamps can wait. Build first: follow the errand note.");
+                    return;
+                }
+
+                StartNight();
+            };
+            _hud.ErrandClicked += OnErrandClicked;
+            _hud.PillClicked += key =>
+            {
+                if (_snapshot != null)
+                {
+                    Announce(VillagePresenter.PillLine(_snapshot, BuildingTable.Default, key));
+                }
+            };
             _hud.SluiceClicked += () => _battle?.Intervene(PlayerActionType.OpenSluiceGate);
             _hud.VoiceClicked += () => _battle?.Intervene(PlayerActionType.PhantomVoice);
             _hud.StonesClicked += ToggleAimingStones;

@@ -112,6 +112,8 @@ namespace CultOfComfort.Client
             upkeepAsOfTicks = data.UpkeepAsOfUtcTicks,
             upkeepMilli = data.UpkeepMilli,
             cold = data.Cold,
+            errandIndex = data.ErrandIndex,
+            errandEventDone = data.ErrandEventDone,
         });
 
         private static NightDto ToDto(NightPlan plan) => new NightDto
@@ -210,7 +212,9 @@ namespace CultOfComfort.Client
                 dto.populationAsOfTicks,
                 dto.upkeepAsOfTicks,
                 dto.upkeepMilli,
-                dto.cold);
+                dto.cold,
+                dto.errandIndex,
+                dto.errandEventDone);
         }
 
         [Serializable]
@@ -245,6 +249,8 @@ namespace CultOfComfort.Client
             public long upkeepAsOfTicks;
             public long upkeepMilli;
             public bool cold;
+            public int errandIndex; // older saves lack it: 0, so they start the errands (already-true ones are claimable at once)
+            public bool errandEventDone;
         }
 
         [Serializable]

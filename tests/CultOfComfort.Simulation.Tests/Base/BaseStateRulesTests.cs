@@ -100,7 +100,8 @@ public class BaseStateRulesTests
     {
         // Arrange
         var state = NewBase();
-        state.Apply(new UpgradeHearth(Guid.NewGuid()), T0).Reason.Should().Contain("Need"); // 500 Timber is not enough
+        var poor = BaseState.Restore(BuildingTable.Default, VillageMap.Demo, state.ToData() with { Stock = new ResourceBag(400, 60, 380, 0) });
+        poor.Apply(new UpgradeHearth(Guid.NewGuid()), T0).Reason.Should().Contain("Need"); // 400 Timber is not enough for 450
         var rich = BaseState.Restore(BuildingTable.Default, VillageMap.Demo, state.ToData() with { Stock = new ResourceBag(900, 60, 380, 0) });
 
         // Act

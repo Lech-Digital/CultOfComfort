@@ -59,6 +59,38 @@ namespace CultOfComfort.Client.Tests
             (BaseSnapshot)typeof(GameController).GetField("_snapshot", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(game);
 
         [UnityTest]
+        public IEnumerator ErrandNote_BuildTheWoodcutterThenClaim_PaysAndShowsTheNextErrand()
+        {
+            // Arrange — a fresh village: errand 1 is on the note and the lamps wait.
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            var note = root.Q<Button>("errand-note");
+            Assert.AreEqual(DisplayStyle.Flex, note.resolvedStyle.display);
+            StringAssert.Contains("Woodcutter", note.Q<Label>(className: "errand-text").text);
+            Assert.AreEqual(DisplayStyle.None, note.Q<Label>(className: "errand-claim").resolvedStyle.display);
+            Assert.IsTrue(root.Q<Button>("start-night").ClassListContains("waiting"), "the lamps wait for the first-Night errand");
+            Click(root.Q<Button>("card-Woodcutter"));
+            yield return Frames(2);
+            GhostTo(game, new GridPosition(3, 9));
+            Click(root.Q<Button>("ghost-confirm"));
+            _clock.UtcNow = _clock.UtcNow.AddMinutes(1); // the Lean-to takes 30 s
+            yield return new WaitForSecondsRealtime(1.2f); // the village is re-read twice a second
+            Assert.AreEqual(DisplayStyle.Flex, note.Q<Label>(className: "errand-claim").resolvedStyle.display, "done: the note asks to claim");
+            var timber = Snapshot(game).Stock.Timber;
+
+            // Act
+            Click(note);
+            yield return Frames(3);
+
+            // Assert
+            Assert.AreEqual(1, Snapshot(game).Errand.Index);
+            Assert.AreEqual(timber + 50, Snapshot(game).Stock.Timber);
+            StringAssert.Contains("collect", note.Q<Label>(className: "errand-text").text);
+        }
+
+        [UnityTest]
         public IEnumerator Drawer_PickWoodcutterGhostThenConfirm_BuildsItAndChargesTimber()
         {
             // Arrange

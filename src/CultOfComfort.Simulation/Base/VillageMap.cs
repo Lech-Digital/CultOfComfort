@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using CultOfComfort.Simulation.Grid;
@@ -175,7 +176,89 @@ public sealed record VillageMap(
             }
         }
 
+        if (NeedsRoad(spec) && !RoadCouldReach(snapshot.HearthLevel, snapshot.Buildings.First(b => b.Type == BuildingType.Hearth).Tiles,
+                snapshot.Buildings.Where(b => BuildingTable.IsRoad(b.Type) || b.Type == BuildingType.Gate).SelectMany(b => b.Tiles),
+                t => snapshot.BuildingAt(t) is { } b && b.Id != moving && !BuildingTable.IsRoad(b.Type), tiles))
+        {
+            return NoRoadReaches;
+        }
+
         return null;
+    }
+
+    internal const string NoRoadReaches = "No road can reach this spot, so nobody could work here.";
+
+    /// <summary>Buildings that only work when connected: producers, homes, storage, the Cistern.</summary>
+    internal static bool NeedsRoad(BuildingSpec spec) =>
+        spec.Produces != null || spec.Workers > 0 || spec.Levels.Any(l => l.Beds > 0 || l.StorageBonus > 0 || l.SluiceCharges > 0);
+
+    /// <summary>
+    /// Could a road ever join these tiles to the Hearth's network? Searches the tiles a track could be painted on now or
+    /// after clearing a tree or boulder: open land, not the raiders' road, not under another building.
+    /// </summary>
+    /// <param name="carrierTiles">Painted roads and gates; with the raiders' road they carry the network (as the village's own rule).</param>
+    /// <param name="occupied">A building that isn't a road stands on the tile (the one being moved excluded).</param>
+    internal bool RoadCouldReach(int hearthLevel, IEnumerable<GridPosition> hearthTiles, IEnumerable<GridPosition> carrierTiles, Func<GridPosition, bool> occupied,
+        IReadOnlyList<GridPosition> tiles)
+    {
+        var footprint = new HashSet<GridPosition>(tiles);
+        var raidersRoad = new HashSet<GridPosition>(Road);
+        var roads = new HashSet<GridPosition>(carrierTiles);
+        roads.UnionWith(raidersRoad);
+        var network = new HashSet<GridPosition>(hearthTiles);
+        var frontier = new Queue<GridPosition>(network);
+        while (frontier.Count > 0)
+        {
+            foreach (var n in Neighbours(frontier.Dequeue()).Where(n => roads.Contains(n) && network.Add(n)))
+            {
+                frontier.Enqueue(n);
+            }
+        }
+
+        bool Paintable(GridPosition t) =>
+            Contains(t) && IsOpen(t, hearthLevel) && !footprint.Contains(t) && !raidersRoad.Contains(t) && !IsBedrock(t)
+            && t != Spawn && !IsInSpawnClearance(t) && !occupied(t);
+
+        var seen = new HashSet<GridPosition>();
+        var queue = new Queue<GridPosition>();
+        foreach (var start in tiles.SelectMany(Neighbours).Where(n => !footprint.Contains(n)))
+        {
+            if (network.Contains(start))
+            {
+                return true;
+            }
+
+            if (Paintable(start) && seen.Add(start))
+            {
+                queue.Enqueue(start);
+            }
+        }
+
+        while (queue.Count > 0)
+        {
+            foreach (var n in Neighbours(queue.Dequeue()))
+            {
+                if (network.Contains(n))
+                {
+                    return true;
+                }
+
+                if (Paintable(n) && seen.Add(n))
+                {
+                    queue.Enqueue(n);
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<GridPosition> Neighbours(GridPosition p)
+    {
+        yield return new GridPosition(p.X + 1, p.Y);
+        yield return new GridPosition(p.X - 1, p.Y);
+        yield return new GridPosition(p.X, p.Y + 1);
+        yield return new GridPosition(p.X, p.Y - 1);
     }
 
     /// <summary>Wild trees still standing: not cut, not on locked land (already forest), not under a building.</summary>

@@ -44,6 +44,9 @@ public sealed record ResolveNight(Guid CommandId, int Night, IReadOnlyList<CultO
 /// <summary>The player has seen the latest Night report.</summary>
 public sealed record AcknowledgeReport(Guid CommandId) : BaseCommand(CommandId);
 
+/// <summary>Takes the reward for the current errand (only once it is done) and moves on to the next one.</summary>
+public sealed record ClaimErrand(Guid CommandId) : BaseCommand(CommandId);
+
 /// <summary>Cuts a wild tree (Timber) or clears a loose boulder (costs Timber, gives Scrap). Walls are bedrock.</summary>
 public sealed record ClearTerrain(Guid CommandId, GridPosition Tile) : BaseCommand(CommandId);
 

@@ -134,6 +134,13 @@ namespace CultOfComfort.Client
         private readonly float[] _floatStart = new float[12];
         private readonly Vector2[] _floatAt = new Vector2[12];
         private int _nextFloater;
+        private readonly Button _errand;
+        private readonly Label _errandHeading;
+        private readonly Label _errandText;
+        private readonly Label _errandReward;
+        private readonly Label _errandClaim;
+        private VisualElement _hinted;
+        private float _hintUntil;
         private float _toastUntil;
         private float _noteUntil;
         private Vector4 _padding = new Vector4(float.NaN, 0f, 0f, 0f);
@@ -157,6 +164,8 @@ namespace CultOfComfort.Client
                 var value = Text(string.Empty, "pill-value");
                 pill.Add(value);
                 pill.Add(Text("demo", "demo-tag"));
+                var pillKey = key;
+                pill.AddManipulator(new Clickable(() => PillClicked?.Invoke(pillKey)));
                 _pills[key] = (pill, value);
                 pills.Add(pill);
             }
@@ -250,6 +259,22 @@ namespace CultOfComfort.Client
             _ghostActions.Add(buttons);
             _ghostActions.Add(_ghostProblem);
             Show(_ghostActions, false);
+            // The Prophet's errand: a sticky note under the frame (spec 2026-10-13 first-hour arc).
+            _errand = new Button(() => ErrandClicked?.Invoke()) { name = "errand-note" };
+            _errand.AddToClassList("errand-note");
+            _errand.AddToClassList("note-yellow");
+            _errandHeading = Text(string.Empty, "errand-heading");
+            _errandText = Text(string.Empty, "errand-text");
+            _errandReward = Text(string.Empty, "errand-reward");
+            _errandClaim = Text("Claim ✓", "errand-claim");
+            foreach (var part in new VisualElement[] { _errandHeading, _errandText, _errandReward, _errandClaim })
+            {
+                part.pickingMode = PickingMode.Ignore;
+                _errand.Add(part);
+            }
+
+            Show(_errand, false);
+            centre.Add(_errand);
             centre.Add(_toast);
             centre.Add(_lockedNote);
             middle.Add(_sideLeft);
@@ -345,6 +370,10 @@ namespace CultOfComfort.Client
         public event Action ResetTipsClicked;
         public event Action DevRaiseTensionClicked;
         public event Action DevSkipWarningClicked;
+        public event Action ErrandClicked;
+
+        /// <summary>A resource pill was tapped ("timber", "scrap", "peat", "devotion", "people").</summary>
+        public event Action<string> PillClicked;
 
         public void SetPortrait(bool portrait)
         {
@@ -382,8 +411,10 @@ namespace CultOfComfort.Client
             _pills["people"].Pill.EnableInClassList("cold", frame.Cold);
             _hearthBadge.text = frame.HearthLevel.ToString();
             _hearthLine.text = $"Hearth Lv {frame.HearthLevel}";
-            _comfort.text = frame.Comfort.IsDemo ? $"Comfort {frame.Comfort.Value} · demo" : $"Comfort {frame.Comfort.Value}";
-            _comfort.EnableInClassList("demo", frame.Comfort.IsDemo);
+            // Placeholders stay out of sight until they are real (Comfort, pennies).
+            _comfort.text = $"Comfort {frame.Comfort.Value}";
+            Show(_comfort, !frame.Comfort.IsDemo);
+            Show(_pills["pennies"].Pill, !frame.Pennies.IsDemo);
             _tensionCover.style.width = Length.Percent((1f - Mathf.Clamp01(frame.Tension)) * 100f);
             _tensionNote.text = frame.TensionIsDemo ? $"TENSION — {frame.TensionNote} (demo)" : $"TENSION — {frame.TensionNote}";
         }
@@ -454,7 +485,11 @@ namespace CultOfComfort.Client
                 return;
             }
 
-            _ghostActions.style.left = at.Value.x + 8f;
+            // Beside the ghost; flipped to its left when the row would run off the right edge.
+            var width = _ghostActions.resolvedStyle.width > 0f ? _ghostActions.resolvedStyle.width : 180f;
+            var panelWidth = _root.resolvedStyle.width > 0f ? _root.resolvedStyle.width : float.MaxValue;
+            var left = at.Value.x + 8f + width > panelWidth - CornerMargin ? at.Value.x - 8f - width : at.Value.x + 8f;
+            _ghostActions.style.left = Mathf.Max(CornerMargin, left);
             _ghostActions.style.top = at.Value.y - 30f;
             _ghostConfirm.SetEnabled(problem == null);
             Show(_ghostRotate, canRotate);
@@ -539,6 +574,45 @@ namespace CultOfComfort.Client
             }
         }
 
+        /// <summary>Before the first-Night errand, Light the Lamps is a small, muted note rather than the big button.</summary>
+        public void SetStartWaiting(bool waiting) => _root.Q<Button>("start-night")?.EnableInClassList("waiting", waiting);
+
+        /// <summary>The current errand (null hides the note: no errands left, or a Night is on).</summary>
+        public void ShowErrand(ErrandNote note)
+        {
+            Show(_errand, note != null);
+            if (note == null)
+            {
+                return;
+            }
+
+            _errandHeading.text = note.Progress == null ? note.Heading : $"{note.Heading} · {note.Progress}";
+            _errandText.text = note.Text;
+            _errandReward.text = note.Reward;
+            Show(_errandReward, !string.IsNullOrEmpty(note.Reward));
+            Show(_errandClaim, note.Done);
+            _errand.EnableInClassList("done", note.Done);
+        }
+
+        /// <summary>Makes a build card (scrolled into view) or Light the Lamps wiggle for a moment: "this one".</summary>
+        public void Hint(BuildingType? card, float now)
+        {
+            _hinted?.RemoveFromClassList("hinted");
+            _hinted = card != null ? (_cards.TryGetValue(card.Value, out var button) ? button : null) : _root.Q<Button>("start-night");
+            if (_hinted == null)
+            {
+                return;
+            }
+
+            if (card != null)
+            {
+                _drawer.ScrollTo(_hinted);
+            }
+
+            _hinted.AddToClassList("hinted");
+            _hintUntil = now + 1.6f;
+        }
+
         /// <summary>The Dawn card for a Night the village played itself while the player was away.</summary>
         public void ShowAwayReport(NightReport report)
         {
@@ -601,6 +675,17 @@ namespace CultOfComfort.Client
         {
             _toast.EnableInClassList("hidden", now >= _toastUntil || string.IsNullOrEmpty(_toast.text));
             _lockedNote.EnableInClassList("hidden", now >= _noteUntil);
+            if (_hinted != null)
+            {
+                var live = now < _hintUntil;
+                _hinted.style.rotate = live ? new Rotate(Angle.Degrees(Mathf.Sin(now * 22f) * 5f)) : StyleKeyword.Null;
+                if (!live)
+                {
+                    _hinted.RemoveFromClassList("hinted");
+                    _hinted = null;
+                }
+            }
+
             for (var i = 0; i < _floaters.Length; i++)
             {
                 var age = now - _floatStart[i];

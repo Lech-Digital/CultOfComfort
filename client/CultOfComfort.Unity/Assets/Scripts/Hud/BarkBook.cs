@@ -20,6 +20,7 @@ namespace CultOfComfort.Client
         CultistRaidComing,
         CultistCold,
         CultistNewcomer,
+        CultistErrandDone,
     }
 
     /// <summary>
@@ -51,6 +52,7 @@ namespace CultOfComfort.Client
             [BarkKind.CultistRaidComing] = new[] { "Lamps! Somebody fetch the lamps!", "Wulfric's lot are coming!", "Hide the good soap!" },
             [BarkKind.CultistCold] = new[] { "Brr. Who let the fire go out?", "No Peat, no work. Union rules.", "My toes are on strike." },
             [BarkKind.CultistNewcomer] = new[] { "A new face! Hand them a towel.", "Welcome, friend. Shoes off.", "Another seeker of comfort!" },
+            [BarkKind.CultistErrandDone] = new[] { "The Prophet is pleased! Mildly.", "Errand done. Nap earned.", "Another step towards true comfort!", "He said 'good'. GOOD!" },
         };
 
         private static readonly Dictionary<EnemyType, string[]> Arrivals = new Dictionary<EnemyType, string[]>

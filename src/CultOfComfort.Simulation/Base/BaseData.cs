@@ -26,7 +26,9 @@ public sealed record BaseData(
     long PopulationAsOfUtcTicks = 0,
     long UpkeepAsOfUtcTicks = 0,
     long UpkeepMilli = 0,
-    bool Cold = false);
+    bool Cold = false,
+    int ErrandIndex = 0,
+    bool ErrandEventDone = false);
 
 /// <summary>A wild tree cut at <see cref="CutAtUtcTicks"/>; it grows back after the regrow time.</summary>
 public sealed record TreeCutData(int X, int Y, long CutAtUtcTicks);

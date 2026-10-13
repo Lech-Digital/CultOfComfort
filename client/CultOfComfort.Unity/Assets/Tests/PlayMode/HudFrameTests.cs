@@ -326,7 +326,7 @@ namespace CultOfComfort.Client.Tests
             var root = Root();
 
             // Assert
-            foreach (var name in new[] { "frame", "pill-timber", "pill-scrap", "pill-peat", "pill-devotion", "pill-pennies", "portrait",
+            foreach (var name in new[] { "frame", "pill-timber", "pill-scrap", "pill-peat", "pill-devotion", "portrait",
                          "settings-button", "tension-strip", "side-left", "side-right", "locked-map", "dusk-bar", "start-night" })
             {
                 Assert.IsTrue(Visible(root.Q(name)), name);
@@ -336,24 +336,22 @@ namespace CultOfComfort.Client.Tests
         }
 
         [UnityTest]
-        public IEnumerator DemoPills_Dusk_OnlyPenniesAndComfortAreDemo()
+        public IEnumerator DemoPills_Dusk_PlaceholdersStayHiddenUntilReal()
         {
             // Arrange & Act
             yield return LoadGame();
             var root = Root();
 
-            // Assert
+            // Assert — pennies and Comfort are still placeholders (spec 2026-10-13 §4: hidden until they are real).
             foreach (var name in new[] { "pill-pennies", "comfort" })
             {
-                Assert.IsTrue(root.Q(name).ClassListContains("demo"), name);
+                Assert.AreEqual(DisplayStyle.None, root.Q(name).resolvedStyle.display, name);
             }
 
             foreach (var name in new[] { "pill-timber", "pill-peat", "pill-devotion" })
             {
                 Assert.IsFalse(root.Q(name).ClassListContains("demo"), name + " is real now (the village)");
             }
-
-            StringAssert.Contains("demo", root.Q<Label>("comfort").text, "Comfort's demo mark must be visible, not just a colour.");
 
             Assert.IsFalse(root.Q("pill-scrap").ClassListContains("demo"));
         }
