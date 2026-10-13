@@ -78,6 +78,7 @@ namespace CultOfComfort.Client
         private Vector2Int _screenSize;
         private int _framePending;
         private bool _aimingStones;
+        private IntroDirector _intro;
 
         public GamePhase Phase => _phase;
 
@@ -104,12 +105,46 @@ namespace CultOfComfort.Client
             _village = VillageComposition.CreateGateway();
             LoadVillage();
             Announce("Build from the drawer below; tap a building to collect or upgrade it.");
+            PlayIntroOnFirstLaunch();
         }
+
+        /// <summary>The story so far (GDD 05): plays once per device, over the loading village; the HUD waits.</summary>
+        private void PlayIntroOnFirstLaunch()
+        {
+            var progress = VillageComposition.CreateIntroProgress();
+            if (progress.Seen)
+            {
+                return;
+            }
+
+            _document.rootVisualElement.style.display = DisplayStyle.None;
+            _intro = gameObject.AddComponent<IntroDirector>();
+            _intro.Finished += () =>
+            {
+                progress.MarkSeen();
+                _intro = null;
+                _document.rootVisualElement.style.display = DisplayStyle.Flex;
+                _framePending = 2;
+                IntroFinished?.Invoke();
+            };
+            _intro.Play(_camera, _document.panelSettings);
+        }
+
+        /// <summary>Raised when the first-launch intro ends (played out or skipped).</summary>
+        public event Action IntroFinished;
+
+        /// <summary>The intro while it plays (tests and the tutorial look at it).</summary>
+        public IntroDirector Intro => _intro;
 
         private void OnDestroy() => _cts.Cancel();
 
         private void Update()
         {
+            if (_intro != null)
+            {
+                return; // the intro has the camera and the screen
+            }
+
             TrackOrientation();
             ReadGestures();
             if (_phase == GamePhase.Dusk)

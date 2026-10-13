@@ -1,0 +1,23 @@
+/* The first-launch intro (GDD 05): letterbox bars, a paper caption, a Skip tab, the title card. */
+.intro { position: absolute; left: 0; top: 0; right: 0; bottom: 0; justify-content: space-between; }
+.intro-bar { background-color: rgba(10, 8, 6, 0.92); padding: 10px 14px; }
+.intro-bar-top { height: 12%; flex-direction: row; justify-content: flex-end; align-items: flex-end; padding-top: 30px; }
+.intro-bar-bottom { min-height: 22%; align-items: center; justify-content: center; padding-bottom: 28px; }
+.intro-skip {
+    font-size: 15px; color: #ece6d6; background-color: rgba(0, 0, 0, 0); border-width: 1px; border-color: #ece6d6;
+    border-radius: 4px; padding: 4px 12px; -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC");
+}
+.intro-note {
+    width: 88%; max-width: 560px; padding: 14px 18px 18px 18px; rotate: -1.5deg; translate: 0 30px; opacity: 0;
+    transition-property: translate, opacity; transition-duration: 0.35s; transition-timing-function: ease-out-back;
+}
+.intro-note-in { translate: 0 0; opacity: 1; }
+.intro-caption { font-size: 17px; color: #2b2215; white-space: normal; -unity-text-align: middle-center; margin: 0; padding: 0; }
+.intro-tap { position: absolute; right: 10px; bottom: 4px; font-size: 10px; color: #7a5a2a; padding: 0; margin: 0; }
+.intro-title { position: absolute; left: 0; right: 0; top: 30%; align-items: center; }
+.intro-title-name {
+    font-size: 44px; color: #f4ead2; -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC");
+    -unity-text-outline-width: 1px; -unity-text-outline-color: #2b2215; text-shadow: 2px 3px 0 rgba(0, 0, 0, 0.6); rotate: -2deg;
+}
+.intro-flash { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background-color: #ffffff; }
+.intro-black { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background-color: #000000; }
