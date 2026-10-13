@@ -12,7 +12,8 @@
     "overrideReferences": true,
     "precompiledReferences": [
         "nunit.framework.dll",
-        "CultOfComfort.Simulation.dll"
+        "CultOfComfort.Simulation.dll",
+        "CultOfComfort.Contracts.dll"
     ],
     "autoReferenced": false,
     "defineConstraints": [

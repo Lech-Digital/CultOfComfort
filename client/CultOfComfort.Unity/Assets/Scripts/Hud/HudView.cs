@@ -140,6 +140,7 @@ namespace CultOfComfort.Client
         private readonly Label _errandReward;
         private readonly Label _errandClaim;
         private VisualElement _hinted;
+        private Label _cloud;
         private readonly VisualElement _coachArrow;
         private readonly Label _coachLine;
         private CoachStep _coach = CoachStep.None;
@@ -383,6 +384,7 @@ namespace CultOfComfort.Client
         public event Action RepairAllClicked;
         public event Action BackToDuskClicked;
         public event Action ResetTipsClicked;
+        public event Action ReplayIntroClicked;
         public event Action DevRaiseTensionClicked;
         public event Action DevSkipWarningClicked;
         public event Action ErrandClicked;
@@ -748,6 +750,15 @@ namespace CultOfComfort.Client
             p.Stroke();
         }
 
+        /// <summary>The cloud-save line in Settings.</summary>
+        public void SetCloudStatus(string text)
+        {
+            if (_cloud != null && _cloud.text != text)
+            {
+                _cloud.text = text;
+            }
+        }
+
         /// <summary>The Dawn card for a Night the village played itself while the player was away.</summary>
         public void ShowAwayReport(NightReport report)
         {
@@ -897,7 +908,17 @@ namespace CultOfComfort.Client
             var recenter = ButtonWith("Recenter camera", () => RecenterClicked?.Invoke(), "plain");
             recenter.name = "recenter";
             sheet.Add(recenter);
+            _cloud = Text("Cloud save: on this device only", "sheet-line");
+            _cloud.name = "cloud-status";
+            sheet.Add(_cloud);
             sheet.Add(Text("Sound: there is no sound yet.", "sheet-line"));
+            var intro = ButtonWith("Watch the intro again", () =>
+            {
+                Show(_settings, false);
+                ReplayIntroClicked?.Invoke();
+            }, "plain");
+            intro.name = "replay-intro";
+            sheet.Add(intro);
             var tips = ButtonWith("Show tips again", () => ResetTipsClicked?.Invoke(), "plain");
             tips.name = "reset-tips";
             sheet.Add(tips);

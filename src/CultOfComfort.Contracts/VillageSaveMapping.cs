@@ -109,6 +109,12 @@ public static class VillageSaveMapping
         }).ToList(),
     };
 
+    /// <summary>A Night plan from its wire form (the server's answer to BeginNight).</summary>
+    public static NightPlan PlanFromDto(NightDto d) => FromDto(d);
+
+    /// <summary>A Night report from its wire form (the server's answer to ResolveNight).</summary>
+    public static NightReport ReportFromDto(ReportDto d) => FromDto(d);
+
     private static NightPlan FromDto(NightDto d)
     {
         var towers = new List<PlacedTower>();

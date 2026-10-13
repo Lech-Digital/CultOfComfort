@@ -112,7 +112,15 @@ namespace CultOfComfort.Client
         private void PlayIntroOnFirstLaunch()
         {
             var progress = VillageComposition.CreateIntroProgress();
-            if (progress.Seen)
+            if (!progress.Seen)
+            {
+                PlayIntro(progress);
+            }
+        }
+
+        private void PlayIntro(IIntroProgress progress)
+        {
+            if (_intro != null || _phase != GamePhase.Dusk)
             {
                 return;
             }
@@ -1188,6 +1196,7 @@ namespace CultOfComfort.Client
                 RefreshVillage();
             };
             _hud.GhostConfirmClicked += ConfirmTool;
+            _hud.ReplayIntroClicked += () => PlayIntro(VillageComposition.CreateIntroProgress());
             _hud.GhostCancelClicked += CancelTool;
             _hud.GhostRotateClicked += () => _tool?.Rotate();
             _hud.PaintDoneClicked += () =>
@@ -1266,6 +1275,13 @@ namespace CultOfComfort.Client
 
         private void UpdateHud()
         {
+            if (_village is RemoteBaseGateway remote)
+            {
+                _hud.SetCloudStatus(remote.Online
+                    ? remote.PendingCount == 0 ? "Cloud save: synced ✓" : $"Cloud save: sending {remote.PendingCount}…"
+                    : remote.PendingCount == 0 ? "Cloud save: offline" : $"Cloud save: offline · {remote.PendingCount} waiting");
+            }
+
             var coach = CoachNow(out var coachPoint);
             _hud.ShowCoach(coach, coachPoint);
             _hud.Tick(Time.time);
