@@ -14,7 +14,7 @@ public class RoadTests
         new(19, 14), new(18, 14), new(18, 13), new(18, 12), new(18, 11), new(18, 10), new(18, 9),
     };
 
-    private static BuildingTable Table() => new() { StartingStock = new ResourceBag(5000, 900, 1000, 300) };
+    private static BuildingTable Table() => new() { StartingStock = new ResourceBag(5000, 900, 1000, 300), StarterStockMinutes = 0 }; // connection maths, no starter pile
 
     private static BaseState RichBase() => BaseState.CreateNew(Table(), Map, T0);
 

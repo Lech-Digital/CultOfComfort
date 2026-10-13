@@ -13,9 +13,9 @@ namespace CultOfComfort.Client.Tests
         private static BaseSnapshot Fresh() => BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0).Snapshot(T0);
 
         [TestCase("timber", "Timber · 500/1000 · +0/h")]
-        [TestCase("peat", "Peat · 60/1000 · −2/h (2 villagers keep warm)")]
+        [TestCase("peat", "Peat · 60/1000 · −4/h (4 villagers keep warm)")]
         [TestCase("devotion", "Devotion · 0/1000 · +0/h")]
-        [TestCase("people", "Villagers 2 · beds 2")]
+        [TestCase("people", "Villagers 4 · beds 4")]
         public void PillLine_FreshVillage_NamesTheResourceAndItsIncome(string key, string expected)
         {
             // Act & Assert
@@ -294,8 +294,9 @@ namespace CultOfComfort.Client.Tests
         [Test]
         public void Card_ProducerWithoutACrew_SaysWhoIsMissing()
         {
-            // Arrange — a peat trench (crew 2) built first takes both villagers; the lean-to beside the road gets none.
-            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            // Arrange — two villagers: a peat trench (crew 2) built first takes both; the lean-to beside the road gets none.
+            var table = new BuildingTable { HearthBeds = 2 };
+            var state = BaseState.CreateNew(table, VillageMap.Demo, T0);
             state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.PeatCut, new GridPosition(12, 3), true), T0);
             state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
             state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(15, 5)), T0);
@@ -303,8 +304,8 @@ namespace CultOfComfort.Client.Tests
             var snapshot = state.Snapshot(T0);
 
             // Act
-            var lean = VillagePresenter.Card(snapshot, BuildingTable.Default, snapshot.Buildings.Single(b => b.Type == BuildingType.Woodcutter).Id);
-            var peat = VillagePresenter.Card(snapshot, BuildingTable.Default, snapshot.Buildings.Single(b => b.Type == BuildingType.PeatCut).Id);
+            var lean = VillagePresenter.Card(snapshot, table, snapshot.Buildings.Single(b => b.Type == BuildingType.Woodcutter).Id);
+            var peat = VillagePresenter.Card(snapshot, table, snapshot.Buildings.Single(b => b.Type == BuildingType.PeatCut).Id);
 
             // Assert
             Assert.AreEqual("Needs 1 villager — build a Cottage", lean.Output);
@@ -315,7 +316,7 @@ namespace CultOfComfort.Client.Tests
         public void Frame_Villagers_ShowPeopleAndBedsAndTheCold()
         {
             // Arrange — 2 Peat for 2 villagers: cold after an hour.
-            var table = new BuildingTable { StartingStock = new ResourceBag(500, 2, 380, 0) };
+            var table = new BuildingTable { StartingStock = new ResourceBag(500, 2, 380, 0), HearthBeds = 2 };
             var state = BaseState.CreateNew(table, VillageMap.Demo, T0);
 
             // Act

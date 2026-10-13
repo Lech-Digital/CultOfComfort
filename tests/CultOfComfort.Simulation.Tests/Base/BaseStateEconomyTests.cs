@@ -61,7 +61,7 @@ public class BaseStateEconomyTests
 
         // Assert
         snapshot.Building(id).Level.Should().Be(1);
-        snapshot.Building(id).Ready.Should().Be(100);
+        snapshot.Building(id).Ready.Should().Be(125); // an hour + the 25 starter pile
         snapshot.Building(id).Capacity.Should().Be(800, "8 hours of output");
         snapshot.ConstructionEndsAtUtc.Should().BeNull();
     }
@@ -92,7 +92,7 @@ public class BaseStateEconomyTests
 
         // Assert
         snapshot.Building(id).Ready.Should().BeGreaterThanOrEqualTo(0);
-        state.Snapshot(later).Building(id).Ready.Should().Be(100);
+        state.Snapshot(later).Building(id).Ready.Should().Be(125); // an hour + the 25 starter pile
     }
 
     [Fact]
@@ -107,9 +107,9 @@ public class BaseStateEconomyTests
 
         // Assert
         outcome.Status.Should().Be(CommandStatus.Accepted);
-        outcome.Collected.Should().Be(new ResourceBag(200, 0, 0, 0));
+        outcome.Collected.Should().Be(new ResourceBag(225, 0, 0, 0)); // two hours + the 25 starter pile
         var snapshot = state.Snapshot(at);
-        snapshot.Stock.Timber.Should().Be(650);
+        snapshot.Stock.Timber.Should().Be(675);
         snapshot.Building(id).Ready.Should().Be(0);
     }
 
@@ -135,13 +135,14 @@ public class BaseStateEconomyTests
     {
         // Arrange
         var (state, id) = BaseWithWoodcutter();
+        Send(state, new Collect(Guid.NewGuid(), id), T0.AddSeconds(31)).Status.Should().Be(CommandStatus.Accepted, "the starter pile");
 
         // Act
         var outcome = Send(state, new Collect(Guid.NewGuid(), id), T0.AddSeconds(31));
 
         // Assert
         outcome.Status.Should().Be(CommandStatus.Rejected);
-        state.Version.Should().Be(1);
+        state.Version.Should().Be(2);
     }
 
     [Fact]
@@ -233,5 +234,52 @@ public class BaseStateEconomyTests
         // Assert
         outcome.Status.Should().Be(CommandStatus.Accepted);
         state.Snapshot(T0.AddSeconds(2)).Building(id).Level.Should().Be(1);
+    }
+
+    [Fact]
+    public void Construction_NewProducerFinished_StartsWithAQuarterHourInStore()
+    {
+        // Arrange — the crew finds some deadwood on day one, so the first collect is worth a tap.
+        var state = NewBase();
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(3, 9)), T0);
+        state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+        var timber = state.Snapshot(T0).Stock.Timber;
+
+        // Act
+        var collected = state.Apply(new Collect(Guid.NewGuid(), null), T0);
+
+        // Assert
+        collected.Status.Should().Be(CommandStatus.Accepted);
+        collected.Collected.Timber.Should().Be(25, "a quarter of the Lean-to's 100/h");
+        state.Snapshot(T0).Stock.Timber.Should().Be(timber + 25);
+    }
+
+    [Fact]
+    public void Construction_UpgradeFinished_AddsNoStarterStock()
+    {
+        // Arrange
+        var state = NewBase();
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(3, 9)), T0);
+        state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+        state.Apply(new Collect(Guid.NewGuid(), null), T0);
+        var id = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Woodcutter).Id;
+
+        // Act
+        state.Apply(new UpgradeBuilding(Guid.NewGuid(), id), T0);
+        state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+
+        // Assert
+        state.Apply(new Collect(Guid.NewGuid(), null), T0).Status.Should().Be(CommandStatus.Rejected, "nothing made yet");
+    }
+
+    [Fact]
+    public void CreateNew_Default_StartsWithFourVillagersForTheFirstFourJobs()
+    {
+        // Act
+        var snapshot = NewBase().Snapshot(T0);
+
+        // Assert — Woodcutter 1 + Peat Cut 2 + Cultist Hut 1.
+        snapshot.Population.Should().Be(4);
+        snapshot.Beds.Should().Be(4);
     }
 }

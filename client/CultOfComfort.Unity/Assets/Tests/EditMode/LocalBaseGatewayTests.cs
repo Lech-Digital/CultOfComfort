@@ -112,7 +112,7 @@ namespace CultOfComfort.Client.Tests
             var snapshot = await Gateway(store, clock).LoadAsync(CancellationToken.None);
 
             // Assert
-            Assert.AreEqual(100, snapshot.BuildingAt(new GridPosition(3, 9)).Ready);
+            Assert.AreEqual(125, snapshot.BuildingAt(new GridPosition(3, 9)).Ready); // an hour + the 25 starter pile
         }
 
         [Test]

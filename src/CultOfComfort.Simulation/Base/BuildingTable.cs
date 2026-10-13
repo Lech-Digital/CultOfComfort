@@ -42,7 +42,7 @@ public sealed class BuildingTable
 
     public static BuildingTable Default { get; } = new();
 
-    public string Version { get; init; } = "village-2026.10.4";
+    public string Version { get; init; } = "village-2026.10.5";
 
     /// <summary>Health of a building whose first level is still being built.</summary>
     public int UnderConstructionHealth { get; init; } = 30;
@@ -75,8 +75,11 @@ public sealed class BuildingTable
 
     public int RoadGates(int hearthLevel) => RoadGatesByHearth[Math.Min(Math.Max(hearthLevel, 1), RoadGatesByHearth.Count) - 1];
 
-    /// <summary>Beds in the Hearth itself (a new village starts with them filled).</summary>
-    public int HearthBeds { get; init; } = 2;
+    /// <summary>Beds in the Hearth itself (a new village starts with them filled). 2026.10.5: 4, one per first job.</summary>
+    public int HearthBeds { get; init; } = 4;
+
+    /// <summary>A producer's first level starts with this many minutes of output in store, so the first collect is worth a tap.</summary>
+    public int StarterStockMinutes { get; init; } = 15;
 
     /// <summary>A villager moves in this often while there is a free bed.</summary>
     public int VillagerArrivalMinutes { get; init; } = 10;
