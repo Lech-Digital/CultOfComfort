@@ -180,5 +180,19 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual(1, copies.Length);
             Assert.AreEqual("{ the old village }", File.ReadAllText(copies[0]));
         }
+
+        [Test]
+        public void Mapper_NightInProgress_KeepsItsRoster()
+        {
+            // Arrange — a Night started at Hearth 1: the curious locals are coming.
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new BeginNight(Guid.NewGuid()), T0);
+
+            // Act
+            var back = VillageSaveMapper.FromJson(VillageSaveMapper.ToJson(state.ToData()));
+
+            // Assert
+            Assert.AreEqual(1, back.NightInProgress.Roster);
+        }
     }
 }
