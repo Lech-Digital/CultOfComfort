@@ -106,12 +106,17 @@ namespace CultOfComfort.Client
                 if (!_buildings.TryGetValue(building.Id, out var visual) || visual.Level != building.Level
                     || (Joins(building.Type) && visual.Mask != mask) || visual.Anchor != building.Position || visual.Rotated != building.Rotated) // moved, turned or re-joined
                 {
+                    var levelledUp = visual != null && building.Level > visual.Level;
                     if (visual != null)
                     {
                         visual.Destroy();
                     }
 
                     visual = CreateBuilding(building, mask);
+                    if (levelledUp)
+                    {
+                        visual.Root.gameObject.AddComponent<UpgradePop>();
+                    }
                     visual.Mask = mask;
                     visual.Anchor = building.Position;
                     visual.Rotated = building.Rotated;
@@ -575,27 +580,6 @@ namespace CultOfComfort.Client
             return true;
         }
 
-        private static string ModelName(BuildingType type) => type switch
-        {
-            BuildingType.Woodcutter => "woodcutter",
-            BuildingType.PeatCut => "peat_cut",
-            BuildingType.StorageHut => "storage_hut",
-            BuildingType.CultistHut => "cultist_hut",
-            BuildingType.Cistern => "cistern",
-            BuildingType.SlurryChute => "slurry_chute",
-            BuildingType.SaplingFlinger => "sapling_flinger",
-            BuildingType.WattleFence => "fence",
-            BuildingType.WoodenWall => "palisade",
-            BuildingType.Gate => "gate_wood",
-            BuildingType.DirtTrack => "road_dirt",
-            BuildingType.PlankWalk => "road_planks",
-            BuildingType.CobbledRoad => "road_cobbles",
-            BuildingType.Cottage => "cottage",
-            BuildingType.Stone => "rock_b",
-            BuildingType.Tree => "oak",
-            _ => null,
-        };
-
         private static string ResourceIcon(BuildingType type) => type switch
         {
             BuildingType.Woodcutter => "timber",
@@ -680,12 +664,12 @@ namespace CultOfComfort.Client
                 _ghost = new GameObject("Ghost");
                 _ghost.transform.SetParent(_root, false);
                 var (_, size) = FootprintBox(tiles);
-                var name = type == BuildingType.Gate ? GateModel(level) : ModelName(type.Value) ?? "fence";
+                var name = type == BuildingType.Gate ? GateModel(level) : BuildingArt.ModelName(type.Value, level, ArtLibrary.Exists) ?? "fence";
                 var model = ArtLibrary.Instantiate(name, _ghost.transform);
                 if (model != null)
                 {
                     model.transform.localRotation = rotated ? Quaternion.Euler(0f, 90f, 0f) * FaceCamera : FaceCamera;
-                    model.transform.localScale = Vector3.one * 0.8f * Mathf.Min(size.x, size.y);
+                    BuildingArt.Fit(model, _ghost.transform, new Vector2(size.x, size.y), finished: true);
                 }
             }
 
@@ -719,7 +703,7 @@ namespace CultOfComfort.Client
                 if (BuildingTable.IsRoad(building.Type))
                 {
                     // A road is the ground itself: flat, full tile, never a "building" with bars and badges.
-                    var tile = ArtLibrary.Instantiate(ModelName(building.Type), visual.Root);
+                    var tile = ArtLibrary.Instantiate(BuildingArt.BaseModel(building.Type), visual.Root);
                     if (tile == null)
                     {
                         Shapes.Create(PrimitiveType.Cube, Palette.Road, new Vector3(0f, 0.01f, 0f), new Vector3(0.98f, 0.02f, 0.98f), visual.Root, "Road");
@@ -746,14 +730,21 @@ namespace CultOfComfort.Client
 
                 var modelName = building.Type == BuildingType.Tree && building.Level == 0 ? "bush"
                     : building.Type == BuildingType.Gate ? GateModel(building.Level)
-                    : ModelName(building.Type);
+                    : BuildingArt.ModelName(building.Type, building.Level, ArtLibrary.Exists);
                 var model = Joins(building.Type) ? null : ArtLibrary.Instantiate(modelName, visual.Root);
-                var grow = Mathf.Min(size.x, size.y); // big footprints get a big model
-                var scale = (building.Type == BuildingType.Stone ? 0.9f : building.Level == 0 ? 0.5f : 0.8f) * grow; // a half-built shell (or a sapling) until it is done
+                var scale = (building.Level == 0 ? BuildingArt.ShellScalePerTile : BuildingArt.ScalePerTile) * Mathf.Min(size.x, size.y);
                 if (model != null)
                 {
                     model.transform.localRotation = building.Rotated ? Quaternion.Euler(0f, 90f, 0f) * FaceCamera : FaceCamera;
-                    model.transform.localScale = Vector3.one * scale;
+                    if (building.Type == BuildingType.Stone || building.Type == BuildingType.Tree)
+                    {
+                        // Nature ignores plot lines: a crown may spread over its neighbours.
+                        model.transform.localScale = Vector3.one * (building.Type == BuildingType.Stone ? 0.9f : building.Level == 0 ? 0.5f : 0.8f) * Mathf.Min(size.x, size.y);
+                    }
+                    else
+                    {
+                        BuildingArt.Fit(model, visual.Root, new Vector2(size.x, size.y), building.Level > 0);
+                    }
                 }
                 else if (!Joins(building.Type))
                 {
