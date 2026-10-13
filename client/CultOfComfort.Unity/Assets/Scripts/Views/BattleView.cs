@@ -598,11 +598,13 @@ namespace CultOfComfort.Client
             for (var index = 0; index < path.Count; index++)
             {
                 var water = Shapes.Create(PrimitiveType.Cube, Palette.Water, Shapes.ToWorld(path[index], 0.05f), new Vector3(1f, 0.01f, 1f), _root, "Flood");
+                water.SetActive(false); // each tile only shows while the wave passes over it, not as a blue road beforehand
                 var delay = (path.Count - 1 - index) / (float)path.Count * 0.8f;
                 AddEffect(water, 1.6f, (go, t) =>
                 {
-                    var height = Mathf.Sin(Mathf.Clamp01((t * 1.6f - delay) / 0.6f) * Mathf.PI) * 0.3f;
-                    go.transform.localScale = new Vector3(1f, Mathf.Max(0.01f, height), 1f);
+                    var phase = (t * 1.6f - delay) / 0.6f;
+                    go.SetActive(phase > 0f && phase < 1f);
+                    go.transform.localScale = new Vector3(1f, Mathf.Max(0.01f, Mathf.Sin(Mathf.Clamp01(phase) * Mathf.PI) * 0.3f), 1f);
                 });
             }
         }

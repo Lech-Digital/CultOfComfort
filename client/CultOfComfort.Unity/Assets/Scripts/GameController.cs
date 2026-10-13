@@ -41,6 +41,8 @@ namespace CultOfComfort.Client
         private const float TipSeconds = 7f;
         private float _tipUntil;
         private CameraRig _rig;
+        private NightMood _mood;
+        private float _darkness;
         private GestureRecognizer _gestures;
         private GestureFrame _gesture;
         private BoardView _board;
@@ -97,6 +99,7 @@ namespace CultOfComfort.Client
             _battleView.StructureDamaged += (id, fraction, wrecked) => _board.ShowStructureHealth(id, fraction, wrecked);
 
             SetUpCamera();
+            _mood = NightMood.Capture(_camera, NightMood.FindSun());
             SetUpHud();
             _village = VillageComposition.CreateGateway();
             LoadVillage();
@@ -118,12 +121,27 @@ namespace CultOfComfort.Client
                 UpdateNight();
             }
 
+            UpdateNightfall();
             _board.SetHearthWarmth(_battle == null ? 1f : _battle.HearthHealth / (float)_battle.HearthMaxHealth);
             _rig.SetShake(UnityEngine.Random.insideUnitSphere * _battleView.CameraShake);
             // The haze keeps its distance from the camera, so zooming out over the valley doesn't drown it in fog.
             RenderSettings.fogStartDistance = _rig.Distance + 12f;
             RenderSettings.fogEndDistance = _rig.Distance * 2.2f + 40f;
             UpdateHud();
+        }
+
+        /// <summary>Night falls (and Dawn breaks) over ~1.5 s rather than with a cut.</summary>
+        private void UpdateNightfall()
+        {
+            var target = _phase == GamePhase.Night ? 1f : 0f;
+            if (Mathf.Approximately(_darkness, target))
+            {
+                return;
+            }
+
+            _darkness = Mathf.MoveTowards(_darkness, target, Time.deltaTime / 1.5f);
+            _mood.Apply(_darkness);
+            _board.SetNight(_darkness);
         }
 
         /// <summary>One-finger drag pans, two-finger pinch zooms (and pans), mouse wheel zooms. Taps come out on release.</summary>

@@ -30,6 +30,7 @@ namespace CultOfComfort.Client
         private GameObject _cursor;
         private GameObject _leaderMarker;
         private Light _hearthLight;
+        private float _night;
         private Transform _hearthFire;
         private Transform _hearthSteam;
 
@@ -451,10 +452,14 @@ namespace CultOfComfort.Client
             }
         }
 
+        /// <summary>0 = day, 1 = full night: the Hearth's glow reaches further in the dark.</summary>
+        public void SetNight(float darkness) => _night = Mathf.Clamp01(darkness);
+
         public void SetHearthWarmth(float fraction)
         {
             var flicker = 1f + Mathf.Sin(Time.time * 6f) * 0.06f;
-            _hearthLight.intensity = Mathf.Lerp(0.2f, 3.5f, fraction) * flicker;
+            _hearthLight.intensity = Mathf.Lerp(0.2f, 3.5f, fraction) * flicker * Mathf.Lerp(1f, 1.5f, _night);
+            _hearthLight.range = Mathf.Lerp(4.5f, 7.5f, _night); // at night the fire is what lights the village
             if (_hearthFire != null)
             {
                 // The brazier shrinks to embers as the Hearth goes cold.
