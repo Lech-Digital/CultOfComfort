@@ -14,6 +14,7 @@
 - [x] 2026-10-11 — **The Prophet as bait + skill feedback** (spec `docs/superpowers/specs/2026-10-11-prophet-bait-and-skill-feedback-design.md`): melee raiders leave the road to fight him (balance 2026.10.3, demo hash `1ddcdf5947cfcaba`); raider status icons, rising notes, sweeping flood, first-use tips.
 - [x] 2026-10-11 — **Village slice 1** (spec `docs/superpowers/specs/2026-10-11-village-slice-1-design.md`): real Timber/Peat/Scrap/Devotion, buildings placed on the battle grid, collect/upgrade/demolish, Hearth 1→3, night salvage, Cistern sluice charges; server-ready `IBaseGateway`; verified on the Pixel 10 (save survives relaunch and app update, 60 fps).
 - [x] 2026-10-11 — **Raids slice** (spec `docs/superpowers/specs/2026-10-11-raids-and-damage-design.md`): raiders smash buildings/towers, repair, Wattle Fence; real-time Tension, announced raids with warnings, early Nights, replay-authoritative resolution, auto-resolve while away, map grows with the Hearth. Verified on the Pixel 10.
+- [x] 2026-10-13 — **Raid roster + Night mood:** raiders grow with the Hearth (geese, goats, boars, peasants at 1; Wulfric's levy at 2; priests and Lord Wulfric at 3), per-type shouts/models/announcements, darker Nights, new sluice flush. Verified on the Pixel 10.
 
 ## Next Sessions
 
