@@ -35,6 +35,51 @@ public class RoadTests
         return state;
     }
 
+    // A fence ring round the two tiles (20,14)–(21,14): nothing inside can ever be reached by a road.
+    private static readonly GridPosition[] FenceRing =
+    {
+        new(19, 13), new(20, 13), new(21, 13), new(22, 13), new(19, 14), new(22, 14), new(19, 15), new(20, 15), new(21, 15), new(22, 15),
+    };
+
+    [Fact]
+    public void PlacementProblem_ProducerFencedIn_SaysNoRoadCanReachIt()
+    {
+        // Arrange
+        var state = RichBase();
+        Paint(state, BuildingType.WattleFence, FenceRing).Status.Should().Be(CommandStatus.Accepted);
+
+        // Act
+        var outcome = Place(state, BuildingType.Woodcutter, 20, 14);
+
+        // Assert
+        outcome.Status.Should().Be(CommandStatus.Rejected);
+        outcome.Reason.Should().Be("No road can reach this spot, so nobody could work here.");
+    }
+
+    [Fact]
+    public void PlacementProblem_FenceInsideTheRing_NeedsNoRoad()
+    {
+        // Arrange
+        var state = RichBase();
+        Paint(state, BuildingType.WattleFence, FenceRing);
+
+        // Act
+        var problem = Map.PlacementProblem(state.Snapshot(T0), BuildingTable.Default.Spec(BuildingType.WattleFence), new GridPosition(20, 14), false);
+
+        // Assert
+        problem.Should().BeNull();
+    }
+
+    [Fact]
+    public void PlacementProblem_OpenField_ProducerIsFineWithoutARoadYet()
+    {
+        // Act — no road is painted yet, but one could be.
+        var problem = Map.PlacementProblem(RichBase().Snapshot(T0), BuildingTable.Default.Spec(BuildingType.Woodcutter), new GridPosition(20, 14), false);
+
+        // Assert
+        problem.Should().BeNull();
+    }
+
     [Fact]
     public void Connected_BesideTheRaidersRoad_ItWorks()
     {

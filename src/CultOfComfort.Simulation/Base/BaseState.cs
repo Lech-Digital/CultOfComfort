@@ -993,6 +993,12 @@ public sealed partial class BaseState
             }
         }
 
+        if (VillageMap.NeedsRoad(spec) && !_map.RoadCouldReach(HearthLevel, Hearth.Tiles, _buildings.Where(b => BuildingTable.IsRoad(b.Type) || b.Type == BuildingType.Gate).SelectMany(b => b.Tiles),
+                t => _buildings.Any(b => b != ignore && !BuildingTable.IsRoad(b.Type) && b.Tiles.Contains(t)), tiles))
+        {
+            return VillageMap.NoRoadReaches;
+        }
+
         return null;
     }
 

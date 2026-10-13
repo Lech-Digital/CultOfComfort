@@ -314,7 +314,8 @@ internal sealed class PaceBot
     private HashSet<GridPosition> Network(BaseSnapshot s)
     {
         var hearth = s.Buildings.First(b => b.Type == BuildingType.Hearth);
-        var roads = s.Buildings.Where(b => BuildingTable.IsRoad(b.Type)).Select(b => b.Position).ToHashSet();
+        // As the village's rule: the raiders' road, painted roads and gates carry the network.
+        var roads = s.Buildings.Where(b => BuildingTable.IsRoad(b.Type) || b.Type == BuildingType.Gate).SelectMany(b => b.Tiles).Concat(_map.Road).ToHashSet();
         var network = new HashSet<GridPosition>(hearth.Tiles);
         var queue = new Queue<GridPosition>(hearth.Tiles);
         while (queue.Count > 0)
