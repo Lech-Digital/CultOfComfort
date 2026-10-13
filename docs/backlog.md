@@ -22,7 +22,7 @@
 - [ ] Map expansion with Hearth level; Midden Sorter (Scrap producer); Comfort/Squalor; Tension → real Nights.
 
 - [x] 2026-10-11 — On-device check of the art build (Pixel 10): 60 fps Dusk, 60 fps busy Night (11 raiders, 6 towers, all abilities at fast-forward), demo hash still `12c3fe1f0e23fb59`, server replay verified. Owner: graphics good enough for alpha/beta.
-- [ ] One-off frame hitches (min 10–30 fps for a single frame) at Night start and on first ability/effect use: pool battle effects and pre-warm shaders.
+- [x] 2026-10-13 — Frame hitches measured on the Pixel 10 (dev builds log every frame over 50 ms with its cause): Night start and first skills were already smooth (57–60 fps); the 150 ms freeze at Night end (two full replays on the main thread) now runs on worker threads behind a one-call-at-a-time village gateway.
 - [ ] Spec step 5: Golden Mud lighting rigs (day/night), colour grading, bloom; store-page screenshots.
 
 - [ ] Enemy roster stats (HP, speed, armor, damage types) and Authority AI personalities.
