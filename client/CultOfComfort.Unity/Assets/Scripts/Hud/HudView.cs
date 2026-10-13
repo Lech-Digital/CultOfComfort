@@ -170,6 +170,8 @@ namespace CultOfComfort.Client
         private readonly Label _errandClaim;
         private VisualElement _hinted;
         private Label _cloud;
+        private Button _soundToggle;
+        private Button _musicToggle;
         private readonly VisualElement _coachArrow;
         private readonly Label _coachLine;
         private CoachStep _coach = CoachStep.None;
@@ -426,6 +428,8 @@ namespace CultOfComfort.Client
         public event Action BackToDuskClicked;
         public event Action ResetTipsClicked;
         public event Action ReplayIntroClicked;
+        public event Action SoundToggled;
+        public event Action MusicToggled;
         public event Action LaserClicked;
         public event Action TorchClicked;
         public event Action SunFireClicked;
@@ -798,6 +802,13 @@ namespace CultOfComfort.Client
             p.Stroke();
         }
 
+        /// <summary>The sound and music switches in Settings.</summary>
+        public void SetAudio(bool sound, bool music)
+        {
+            _soundToggle.text = sound ? "Sound: on" : "Sound: off";
+            _musicToggle.text = music ? "Music: on" : "Music: off";
+        }
+
         /// <summary>The cloud-save line in Settings.</summary>
         public void SetCloudStatus(string text)
         {
@@ -959,17 +970,26 @@ namespace CultOfComfort.Client
             _cloud = Text("Cloud save: on this device only", "sheet-line");
             _cloud.name = "cloud-status";
             sheet.Add(_cloud);
-            sheet.Add(Text("Sound: there is no sound yet.", "sheet-line"));
+            _soundToggle = ButtonWith("Sound: on", () => SoundToggled?.Invoke(), "plain");
+            _soundToggle.name = "sound-toggle";
+            _musicToggle = ButtonWith("Music: on", () => MusicToggled?.Invoke(), "plain");
+            _musicToggle.name = "music-toggle";
+            var audioRow = Container("sheet-row");
+            audioRow.Add(_soundToggle);
+            audioRow.Add(_musicToggle);
+            sheet.Add(audioRow);
             var intro = ButtonWith("Watch the intro again", () =>
             {
                 Show(_settings, false);
                 ReplayIntroClicked?.Invoke();
             }, "plain");
             intro.name = "replay-intro";
-            sheet.Add(intro);
             var tips = ButtonWith("Show tips again", () => ResetTipsClicked?.Invoke(), "plain");
             tips.name = "reset-tips";
-            sheet.Add(tips);
+            var replayRow = Container("sheet-row");
+            replayRow.Add(tips);
+            replayRow.Add(intro);
+            sheet.Add(replayRow);
             if (Debug.isDebugBuild)
             {
                 var raise = ButtonWith("Raise Tension +50 (dev)", () => DevRaiseTensionClicked?.Invoke(), "plain");

@@ -41,6 +41,9 @@ namespace CultOfComfort.Client
 
         public Vector3 HearthPosition { get; private set; }
 
+        /// <summary>A building finished being built or upgraded (it just popped).</summary>
+        public event Action LevelledUp;
+
         public void Build(IReadOnlyList<GridPosition> rocks)
         {
             _block = new MaterialPropertyBlock();
@@ -116,6 +119,7 @@ namespace CultOfComfort.Client
                     if (levelledUp)
                     {
                         visual.Root.gameObject.AddComponent<UpgradePop>();
+                        LevelledUp?.Invoke();
                     }
                     visual.Mask = mask;
                     visual.Anchor = building.Position;
