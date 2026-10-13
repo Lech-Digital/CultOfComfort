@@ -53,6 +53,9 @@ public sealed class Enemy
 
     internal HashSet<int> StructuresHit { get; } = new();
 
+    /// <summary>Rolled at spawn from the seed: leaves the road to hack at fences and walls, not just at buildings.</summary>
+    public bool WallBreaker { get; internal set; }
+
     /// <summary>The structure it left the road for, or −1 while it marches.</summary>
     public int RaidTargetId { get; internal set; } = -1;
 

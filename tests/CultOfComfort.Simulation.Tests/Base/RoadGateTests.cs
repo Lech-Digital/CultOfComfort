@@ -1,0 +1,84 @@
+using CultOfComfort.Simulation.Base;
+using CultOfComfort.Simulation.Grid;
+
+namespace CultOfComfort.Simulation.Tests.Base;
+
+public class RoadGateTests
+{
+    private static readonly DateTimeOffset T0 = new(2026, 10, 11, 12, 0, 0, TimeSpan.Zero);
+    private static readonly VillageMap Map = VillageMap.Demo;
+
+    private static BaseState NewBase(int hearth = 1)
+    {
+        var state = BaseState.CreateNew(new BuildingTable { StartingStock = new ResourceBag(5000, 900, 1000, 300) }, Map, T0);
+        for (var level = 2; level <= hearth; level++)
+        {
+            state.Apply(new UpgradeHearth(Guid.NewGuid()), T0);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+        }
+
+        return state;
+    }
+
+    private static CommandOutcome Gate(BaseState state, int x, int y) =>
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Gate, new GridPosition(x, y)), T0);
+
+    [Fact]
+    public void Gate_OnTheRaidersRoad_AllowedOneAtHearthOne()
+    {
+        // Arrange
+        var state = NewBase();
+
+        // Act
+        var first = Gate(state, 10, 5);
+        var second = Gate(state, 17, 5);
+        var fence = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WattleFence, new GridPosition(17, 6)), T0);
+
+        // Assert
+        first.Status.Should().Be(CommandStatus.Accepted);
+        second.Reason.Should().Be("No room for another gate on the road until the Hearth grows.");
+        fence.Reason.Should().Be("That's the raiders' road. Build beside it.", "only gates go on the road");
+    }
+
+    [Fact]
+    public void Gate_OnTheRoad_DoesNotMoveTheRoad()
+    {
+        // Arrange
+        var state = NewBase();
+        Gate(state, 10, 5);
+
+        // Act
+        var layout = state.ToBattleLayout();
+
+        // Assert
+        layout.ResolveEnemyPath().Should().Equal(Map.Road);
+        layout.Structures.Single().Should().Match<PlacedStructure>(s => s.Barrier && s.Gate && s.MaxHealth == 200);
+    }
+
+    [Fact]
+    public void Gate_AtTheEntranceOrOnTheHearth_Refused()
+    {
+        // Act & Assert
+        Gate(NewBase(), 2, 1).Reason.Should().Be("Too close to where the raiders come in.");
+        Gate(NewBase(), 17, 9).Reason.Should().Be("Can't build there.");
+    }
+
+    [Fact]
+    public void Gate_Levels_IronBoundAtHearthTwoGatehouseAtThree()
+    {
+        // Arrange
+        var state = NewBase(hearth: 3);
+        Gate(state, 10, 5);
+        var gate = state.Snapshot(T0).BuildingAt(new GridPosition(10, 5))!.Id;
+
+        // Act
+        state.Apply(new UpgradeBuilding(Guid.NewGuid(), gate), T0).Status.Should().Be(CommandStatus.Accepted);
+        var iron = state.ToBattleLayout().Structures.Single(s => s.Id == gate).MaxHealth;
+        state.Apply(new UpgradeBuilding(Guid.NewGuid(), gate), T0).Status.Should().Be(CommandStatus.Accepted);
+        var house = state.ToBattleLayout().Structures.Single(s => s.Id == gate).MaxHealth;
+
+        // Assert
+        (iron, house).Should().Be((450, 900));
+        Gate(state, 17, 5).Status.Should().Be(CommandStatus.Accepted, "three road gates at Hearth 3");
+    }
+}

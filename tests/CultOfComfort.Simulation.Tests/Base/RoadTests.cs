@@ -22,7 +22,7 @@ public class RoadTests
         state.Apply(new PlaceBuilding(Guid.NewGuid(), type, new GridPosition(x, y), rotated), T0);
 
     private static CommandOutcome Paint(BaseState state, BuildingType type, params GridPosition[] tiles) =>
-        state.Apply(new PlaceRoad(Guid.NewGuid(), type, tiles), T0);
+        state.Apply(new PaintTiles(Guid.NewGuid(), type, tiles), T0);
 
     private static BuildingView Woodcutter(BaseState state, DateTimeOffset at) =>
         state.Snapshot(at).Buildings.Single(b => b.Type == BuildingType.Woodcutter);
@@ -107,8 +107,8 @@ public class RoadTests
         var at = T0.AddSeconds(1);
 
         // Act — planks over the tile beside the lean-to; the rest stays dirt.
-        var outcome = state.Apply(new PlaceRoad(Guid.NewGuid(), BuildingType.PlankWalk, new[] { new GridPosition(19, 14) }), at);
-        var again = state.Apply(new PlaceRoad(Guid.NewGuid(), BuildingType.DirtTrack, new[] { new GridPosition(19, 14) }), at);
+        var outcome = state.Apply(new PaintTiles(Guid.NewGuid(), BuildingType.PlankWalk, new[] { new GridPosition(19, 14) }), at);
+        var again = state.Apply(new PaintTiles(Guid.NewGuid(), BuildingType.DirtTrack, new[] { new GridPosition(19, 14) }), at);
 
         // Assert
         outcome.Status.Should().Be(CommandStatus.Accepted);

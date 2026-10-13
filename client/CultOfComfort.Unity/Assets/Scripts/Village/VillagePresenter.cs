@@ -17,7 +17,7 @@ namespace CultOfComfort.Client
         public int BuildingId; public BuildingType Type; public string Title; public string Output; public string Ready;
         public string UpgradeLabel; public bool CanUpgrade; public bool CanDemolish; public bool IsUpgrading; public string Remaining; public bool IsHearth;
         public bool IsWrecked; public string RepairLabel; public bool CanRepair;
-        public string DemolishLabel = "Demolish"; public bool IsTerrain;
+        public string DemolishLabel = "Demolish"; public bool IsTerrain; public bool CanMove;
     }
 
     /// <summary>Turns a village snapshot into what the HUD shows. Pure: no Unity, easy to test.</summary>
@@ -70,6 +70,7 @@ namespace CultOfComfort.Client
             var repair = table.RepairCost(b.Type, b.Level);
             var upgradeLabel = b.Wrecked ? "Wrecked — repair first" : b.IsUpgrading ? (b.Level == 0 ? "Being built" : "Upgrading") : maxed ? "Max level"
                 : b.Type == BuildingType.WoodenWall ? $"Rebuild in stone · {next.Cost}"
+                : b.Type == BuildingType.Gate ? (b.Level == 1 ? $"Bind it with iron · {next.Cost}" : $"Build a gatehouse · {next.Cost}")
                 : next.BuildSeconds == 0 ? $"Upgrade · {next.Cost}" : $"Upgrade · {next.Cost} · {Duration(next.BuildSeconds)}";
             if (b.Type == BuildingType.Tree)
             {
@@ -87,6 +88,7 @@ namespace CultOfComfort.Client
                 DemolishLabel = b.Type == BuildingType.Stone ? $"Take it away · +{table.Spec(b.Type).Levels[0].Cost}" : "Demolish",
                 BuildingId = b.Id, Type = b.Type, IsHearth = b.Type == BuildingType.Hearth,
                 Title = b.Type == BuildingType.WoodenWall ? (b.Level >= 2 ? "Stone Wall" : "Wooden Wall")
+                    : b.Type == BuildingType.Gate ? (b.Level >= 3 ? "Gatehouse" : b.Level == 2 ? "Iron-bound Gate" : "Wooden Gate")
                     : b.Level == 0 ? $"{spec.Name} · being built" : $"{spec.Name} · level {b.Level}",
                 IsWrecked = b.Wrecked,
                 RepairLabel = b.Wrecked ? $"Repair · {repair}" : string.Empty,
@@ -94,13 +96,14 @@ namespace CultOfComfort.Client
                 Output = b.Wrecked ? (spec.IsTower ? "Wrecked — won't fire until repaired" : "Wrecked — produces nothing")
                     : !b.Connected ? "Not connected — build a road to it"
                     : b.Level > 0 && b.CrewNeeded > 0 && b.Crew == 0 ? $"Needs {b.CrewNeeded} villager{(b.CrewNeeded == 1 ? string.Empty : "s")} — build a Cottage"
-                    : b.Level > 0 && spec.Produces != null && snapshot.Cold ? "Cold — no Peat, nobody works"
+                    : b.Level > 0 && spec.Produces != null && spec.Produces != ResourceType.Peat && snapshot.Cold ? "Cold — no Peat, nobody works but the peat cutters"
                     : b.Level == 0 ? string.Empty : spec.Produces != null ? $"+{b.PerHour} {spec.Produces}/h" : Effect(spec, b.Level),
                 Ready = spec.Produces != null && b.Level > 0 ? $"{b.Ready}/{b.Capacity} ready" + (b.CrewNeeded > 0 ? $" · Crew {b.Crew}/{b.CrewNeeded}" : string.Empty) : string.Empty,
                 UpgradeLabel = upgradeLabel,
                 CanUpgrade = !b.Wrecked && !maxed && !b.IsUpgrading && snapshot.ConstructionEndsAtUtc == null && snapshot.Stock.Covers(next.Cost)
                              && (b.Type == BuildingType.Hearth || b.Level + 1 <= snapshot.HearthLevel),
                 CanDemolish = b.Type != BuildingType.Hearth && !b.IsUpgrading,
+                CanMove = b.Type != BuildingType.Hearth && !BuildingTable.IsRoad(b.Type),
                 IsUpgrading = b.IsUpgrading,
                 Remaining = b.IsUpgrading ? Duration((long)(b.UpgradeEndsAtUtc.Value - snapshot.AsOfUtc).TotalSeconds) + " left" : string.Empty,
             };
@@ -158,6 +161,19 @@ namespace CultOfComfort.Client
             }
 
             return null;
+        }
+
+        /// <summary>"Repair all (N) · cost" when anything is wrecked, else null (no button).</summary>
+        public static string RepairAllLabel(BaseSnapshot s, BuildingTable table)
+        {
+            var wrecked = s.Buildings.Where(b => b.Wrecked).ToList();
+            if (wrecked.Count == 0)
+            {
+                return null;
+            }
+
+            var total = wrecked.Aggregate(default(ResourceBag), (sum, b) => sum + table.RepairCost(b.Type, b.Level));
+            return $"Repair all ({wrecked.Count}) · {total}";
         }
 
         public static FrameState Frame(BaseSnapshot s) => new FrameState(

@@ -247,6 +247,7 @@ public class FootprintTests
             (BuildingType.PeatCut, 20, 12, false), (BuildingType.PeatCut, 24, 12, false), (BuildingType.Woodcutter, 16, 5, false),
             (BuildingType.Woodcutter, 13, 5, true), (BuildingType.CultistHut, 28, 3, false), (BuildingType.StorageHut, 1, 2, false),
             (BuildingType.SlurryChute, 5, 3, false), (BuildingType.WattleFence, 2, 1, false), (BuildingType.Stone, 4, 21, false),
+            (BuildingType.Gate, 10, 5, false), (BuildingType.Gate, 2, 1, false),
         };
 
         foreach (var (type, x, y, rotated) in cases)

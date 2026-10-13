@@ -11,8 +11,14 @@ public abstract record BaseCommand(Guid CommandId);
 /// <param name="Rotated">Turned a quarter: width and depth swap.</param>
 public sealed record PlaceBuilding(Guid CommandId, BuildingType Type, GridPosition Position, bool Rotated = false) : BaseCommand(CommandId);
 
-/// <summary>Paints a village road over many tiles at once: tiles that can't take it are skipped.</summary>
-public sealed record PlaceRoad(Guid CommandId, BuildingType Type, IReadOnlyList<GridPosition> Tiles) : BaseCommand(CommandId);
+/// <summary>Paints roads, fences or walls over many tiles at once: tiles that can't take it are skipped.</summary>
+public sealed record PaintTiles(Guid CommandId, BuildingType Type, IReadOnlyList<GridPosition> Tiles) : BaseCommand(CommandId);
+
+/// <summary>Picks a building up and sets it down elsewhere: free, keeping its level, output, construction and damage.</summary>
+public sealed record MoveBuilding(Guid CommandId, int BuildingId, GridPosition Position, bool Rotated) : BaseCommand(CommandId);
+
+/// <summary>Repairs every wrecked building at once, or none if the village can't pay for all of them.</summary>
+public sealed record RepairAll(Guid CommandId) : BaseCommand(CommandId);
 
 public sealed record UpgradeBuilding(Guid CommandId, int BuildingId) : BaseCommand(CommandId);
 

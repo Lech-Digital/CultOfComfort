@@ -413,7 +413,7 @@ public sealed class BaseState
             foreach (var tile in b.Tiles)
             {
                 if (!tiles.Add(tile) || (b.Type != BuildingType.Hearth
-                    && (!_map.IsOpen(tile, HearthLevel) || tile == _map.Spawn || tile == _map.Hearth || _road.Contains(tile)
+                    && (!_map.IsOpen(tile, HearthLevel) || tile == _map.Spawn || tile == _map.Hearth || (_road.Contains(tile) && b.Type != BuildingType.Gate)
                         || _map.IsBedrock(tile) || (_map.IsBoulder(tile) && !_cleared.Contains(tile)))))
                 {
                     Fail($"building {b.Id} stands somewhere it cannot");
@@ -462,7 +462,7 @@ public sealed class BaseState
         Advance(nowUtc);
         _now = nowUtc;
         MaterializeAll(nowUtc); // whatever this command changes, production up to now was earned under the old rules
-        if (_night != null && command is PlaceBuilding or PlaceRoad or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain)
+        if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain)
         {
             return CommandOutcome.Reject("Not now — there's a Night on.") with { Version = Version };
         }
@@ -474,7 +474,9 @@ public sealed class BaseState
             AcknowledgeReport _ => Acknowledge(),
             ClearTerrain clear => Clear(clear.Tile),
             PlaceBuilding place => Place(place, nowUtc),
-            PlaceRoad road => PaintRoad(road, nowUtc),
+            PaintTiles paint => Paint(paint, nowUtc),
+            MoveBuilding move => Move(move),
+            RepairAll _ => RepairEverything(nowUtc),
             UpgradeBuilding upgrade => Upgrade(Find(upgrade.BuildingId), nowUtc),
             UpgradeHearth _ => Upgrade(Hearth, nowUtc),
             DemolishBuilding demolish => Demolish(demolish.BuildingId),
@@ -601,11 +603,11 @@ public sealed class BaseState
         return CommandOutcome.Accept();
     }
 
-    private CommandOutcome PaintRoad(PlaceRoad command, DateTimeOffset now)
+    private CommandOutcome Paint(PaintTiles command, DateTimeOffset now)
     {
-        if (!BuildingTable.IsRoad(command.Type))
+        if (!BuildingTable.IsPaintable(command.Type))
         {
-            return CommandOutcome.Reject("That isn't a road.");
+            return CommandOutcome.Reject("That isn't painted on.");
         }
 
         var spec = _table.Spec(command.Type);
@@ -621,7 +623,7 @@ public sealed class BaseState
         {
             var existing = _buildings.FirstOrDefault(b => b.Tiles.Contains(tile));
             string? problem;
-            if (existing != null && BuildingTable.IsRoad(existing.Type))
+            if (existing != null && BuildingTable.IsRoad(existing.Type) && BuildingTable.IsRoad(command.Type))
             {
                 problem = BuildingTable.RoadRank(existing.Type) >= BuildingTable.RoadRank(command.Type) ? "There's already as good a road there." : null;
             }
@@ -653,6 +655,60 @@ public sealed class BaseState
 
         _network = null;
         return placed > 0 ? CommandOutcome.Accept() : CommandOutcome.Reject(firstProblem ?? "Nowhere to put it.");
+    }
+
+    private CommandOutcome Move(MoveBuilding command)
+    {
+        var building = Find(command.BuildingId);
+        if (building == null || building.Type == BuildingType.Hearth)
+        {
+            return CommandOutcome.Reject(building == null ? "That building is gone." : "The Hearth stays where the Hearth is.");
+        }
+
+        if (BuildingTable.IsRoad(building.Type))
+        {
+            return CommandOutcome.Reject("Roads are repainted, not moved.");
+        }
+
+        var spec = _table.Spec(building.Type);
+        var problem = FitProblem(spec, command.Position, command.Rotated, checkTrees: true, ignore: building);
+        if (problem != null)
+        {
+            return CommandOutcome.Reject(problem);
+        }
+
+        var index = _buildings.IndexOf(building);
+        _buildings[index] = new Building(building.Id, building.Type, command.Position, building.Level, building.AsOfUtc,
+            Footprint.Tiles(spec, command.Position, command.Rotated), command.Rotated)
+        {
+            BufferMilli = building.BufferMilli,
+            UpgradeEndsAtUtc = building.UpgradeEndsAtUtc,
+            Wrecked = building.Wrecked,
+        };
+        _network = null;
+        return CommandOutcome.Accept();
+    }
+
+    private CommandOutcome RepairEverything(DateTimeOffset now)
+    {
+        var wrecked = _buildings.Where(b => b.Wrecked).ToList();
+        if (wrecked.Count == 0)
+        {
+            return CommandOutcome.Reject("Nothing is broken. Yet.");
+        }
+
+        var total = wrecked.Aggregate(default(ResourceBag), (sum, b) => sum + _table.RepairCost(b.Type, b.Level));
+        if (!_stock.Covers(total))
+        {
+            return CommandOutcome.Reject($"Need {_stock.Missing(total)} more.");
+        }
+
+        foreach (var b in wrecked)
+        {
+            Repair(b.Id, now);
+        }
+
+        return CommandOutcome.Accept();
     }
 
     private CommandOutcome Upgrade(Building? building, DateTimeOffset now)
@@ -874,7 +930,7 @@ public sealed class BaseState
     // ---------------- rules ----------------
 
     /// <summary>Why the building's shape can't stand there (null: it can). Every tile must be free and buildable.</summary>
-    private string? FitProblem(BuildingSpec spec, GridPosition anchor, bool rotated, bool checkTrees)
+    private string? FitProblem(BuildingSpec spec, GridPosition anchor, bool rotated, bool checkTrees, Building? ignore = null)
     {
         var tiles = Footprint.Tiles(spec, anchor, rotated);
         foreach (var tile in tiles)
@@ -895,15 +951,21 @@ public sealed class BaseState
 
         foreach (var tile in tiles)
         {
-            if (_road.Contains(tile))
+            if (_road.Contains(tile) && spec.Type != BuildingType.Gate) // a gate may stand across the road; nothing else may
             {
                 return "That's the raiders' road. Build beside it.";
             }
         }
 
+        if (spec.Type == BuildingType.Gate && tiles.Any(_road.Contains)
+            && _buildings.Count(b => b != ignore && b.Type == BuildingType.Gate && b.Tiles.Any(_road.Contains)) >= _table.RoadGates(HearthLevel))
+        {
+            return "No room for another gate on the road until the Hearth grows.";
+        }
+
         foreach (var tile in tiles)
         {
-            if (!_map.Contains(tile) || tile == _map.Spawn || tile == _map.Hearth || _buildings.Any(b => b.Tiles.Contains(tile)) || _map.IsBedrock(tile))
+            if (!_map.Contains(tile) || tile == _map.Spawn || tile == _map.Hearth || _buildings.Any(b => b != ignore && b.Tiles.Contains(tile)) || _map.IsBedrock(tile))
             {
                 return "Can't build there.";
             }
@@ -1212,7 +1274,10 @@ public sealed class BaseState
     }
 
     /// <summary>What it produces now: nothing while being built or wrecked.</summary>
-    private int Rate(Building b) => b.Wrecked || _cold || !IsConnected(b) || !IsStaffed(b) ? 0 : LevelRate(b) * (100 + RoadBonus(b)) / 100;
+    // Cold stops every trade but peat cutting: the cutters are how the village warms up again.
+    private int Rate(Building b) => b.Wrecked || (_cold && _table.Spec(b.Type).Produces != ResourceType.Peat) || !IsConnected(b) || !IsStaffed(b)
+        ? 0
+        : LevelRate(b) * (100 + RoadBonus(b)) / 100;
 
     // ---------------- villagers ----------------
 

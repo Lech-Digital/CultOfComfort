@@ -223,6 +223,32 @@ namespace CultOfComfort.Client.Tests
         }
 
         [UnityTest]
+        public IEnumerator Night_TheProphetSluices_ABubbleSaysSo()
+        {
+            // Arrange
+            yield return LoadGame();
+            var game = Object.FindAnyObjectByType<GameController>();
+            var root = Root();
+            game.StartNight();
+            for (var i = 0; i < 90; i++)
+            {
+                yield return null; // raiders on the road
+            }
+
+            // Act
+            Click(root.Q<Button>("sluice"));
+            for (var i = 0; i < 4; i++)
+            {
+                yield return null;
+            }
+
+            // Assert — the Prophet (and a soaked raider) say something.
+            var shown = root.Query<Label>(className: "bubble").Where(b => !b.ClassListContains("hidden")).ToList();
+            Assert.IsNotEmpty(shown, "a speech bubble should be on screen");
+            Assert.IsFalse(string.IsNullOrEmpty(shown[0].text));
+        }
+
+        [UnityTest]
         public IEnumerator Night_StartNight_CameraRefitsSoTheSpawnIsBelowTheTallerStrip()
         {
             // Arrange — the wave strip (label + two meters) is taller than the Dusk Tension strip.

@@ -122,7 +122,8 @@ public sealed record VillageMap(
     /// Why a building's shape can't stand at <paramref name="anchor"/> in this snapshot (null: it can) — the same rule
     /// the village applies, for a cursor hint before the command is sent. Costs, limits and the builder aren't checked.
     /// </summary>
-    public string? PlacementProblem(BaseSnapshot snapshot, BuildingSpec spec, GridPosition anchor, bool rotated)
+    /// <param name="moving">The building being moved, which doesn't stand in its own way.</param>
+    public string? PlacementProblem(BaseSnapshot snapshot, BuildingSpec spec, GridPosition anchor, bool rotated, int? moving = null, BuildingTable? table = null)
     {
         var tiles = Footprint.Tiles(spec, anchor, rotated);
         var cleared = snapshot.ClearedTerrain ?? System.Array.Empty<GridPosition>();
@@ -138,14 +139,22 @@ public sealed record VillageMap(
             return "Can't build there.";
         }
 
-        if (tiles.Any(road.Contains))
+        if (tiles.Any(road.Contains) && spec.Type != BuildingType.Gate)
         {
             return "That's the raiders' road. Build beside it.";
         }
 
+        var roadGates = (table ?? BuildingTable.Default).RoadGates(snapshot.HearthLevel);
+        if (spec.Type == BuildingType.Gate && tiles.Any(road.Contains)
+            && snapshot.Buildings.Count(b => b.Id != moving && b.Type == BuildingType.Gate && b.Tiles.Any(road.Contains)) >= roadGates)
+        {
+            return "No room for another gate on the road until the Hearth grows.";
+        }
+
         foreach (var tile in tiles)
         {
-            if (snapshot.BuildingAt(tile) != null || IsBedrock(tile))
+            var standing = snapshot.BuildingAt(tile);
+            if ((standing != null && standing.Id != moving) || IsBedrock(tile))
             {
                 return "Can't build there.";
             }

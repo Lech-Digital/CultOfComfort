@@ -22,6 +22,7 @@ public enum TowerType
 /// <param name="LeaderDamage">Damage per hit on the Prophet.</param>
 /// <param name="LeaderAttackCooldownTicks">Ticks between hits on the Prophet.</param>
 /// <param name="StructureDamage">Damage of one swing at a building or tower beside the road.</param>
+/// <param name="WallBreakerPercent">Chance (from the seed) that one of these leaves the road to hack at fences and walls.</param>
 /// <param name="NoticeRange">Leaves the road to chase the Prophet when he is this close to its road point (tiles). Zero means it fights from the road.</param>
 public sealed record EnemyStats(
     Fix MaxHealth,
@@ -33,7 +34,8 @@ public sealed record EnemyStats(
     int LeaderDamage = 0,
     int LeaderAttackCooldownTicks = 0,
     Fix NoticeRange = default,
-    int StructureDamage = 0);
+    int StructureDamage = 0,
+    int WallBreakerPercent = 0);
 
 /// <param name="SplashRadius">Zero means single-target.</param>
 /// <param name="SlowMultiplier">Speed multiplier while slowed; One means no slow.</param>
@@ -87,7 +89,7 @@ public sealed class BalanceTable
 
     public static BalanceTable Default { get; } = new();
 
-    public string Version { get; init; } = "2026.10.5";
+    public string Version { get; init; } = "2026.10.6";
 
     /// <summary>A raider leaves the road for a structure it hasn't hit this many tiles away (whole tiles, diagonals count).</summary>
     public int RaidRange { get; init; } = 3;
@@ -112,7 +114,8 @@ public sealed class BalanceTable
             LeaderDamage: 3,
             LeaderAttackCooldownTicks: 20,
             NoticeRange: Fix.FromInt(2),
-            StructureDamage: 15),
+            StructureDamage: 15,
+            WallBreakerPercent: 30),
         [EnemyType.ManAtArms] = new(
             MaxHealth: Fix.FromInt(180),
             TilesPerSecond: Fix.Ratio(6, 10),
@@ -123,7 +126,8 @@ public sealed class BalanceTable
             LeaderDamage: 10,
             LeaderAttackCooldownTicks: 24,
             NoticeRange: Fix.Ratio(3, 2),
-            StructureDamage: 40),
+            StructureDamage: 40,
+            WallBreakerPercent: 50),
         [EnemyType.Zealot] = new(
             MaxHealth: Fix.FromInt(45),
             TilesPerSecond: Fix.Ratio(11, 10),

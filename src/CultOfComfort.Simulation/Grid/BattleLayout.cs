@@ -93,7 +93,7 @@ public sealed class BattleLayout
         {
             var tile = FixedPath[i];
             var step = i == 0 ? 1 : Math.Abs(tile.X - FixedPath[i - 1].X) + Math.Abs(tile.Y - FixedPath[i - 1].Y);
-            if (!IsInBounds(tile) || step != 1 || (tile != Hearth && IsBlocked(tile)))
+            if (!IsInBounds(tile) || step != 1 || (tile != Hearth && IsBlocked(tile) && !_gates.Contains(tile))) // a gate blocks, it doesn't move the road
             {
                 throw new InvalidLayoutException($"The road is broken or built over at {tile}.");
             }

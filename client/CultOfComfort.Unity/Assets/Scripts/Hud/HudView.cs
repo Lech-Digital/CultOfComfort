@@ -103,7 +103,16 @@ namespace CultOfComfort.Client
         private readonly VisualElement _duskBar;
         private readonly VisualElement _nightBar;
         private readonly ScrollView _drawer;
-        private readonly Button _rotate;
+        private readonly Button _paintDone;
+        private readonly Button _repairAll;
+        private readonly VisualElement _ghostActions;
+        private readonly Button _ghostConfirm;
+        private readonly Button _ghostRotate;
+        private readonly Label _ghostProblem;
+        private Button _move;
+        private readonly Label[] _bubbles = new Label[3];
+        private readonly Func<Vector2?>[] _bubbleAnchor = new Func<Vector2?>[3];
+        private readonly float[] _bubbleUntil = new float[3];
         private readonly Dictionary<BuildingType, Button> _cards = new Dictionary<BuildingType, Button>();
         private string _cardsSignature;
         private readonly VisualElement _buildingCard;
@@ -216,9 +225,31 @@ namespace CultOfComfort.Client
             _settings = BuildSettings(out _probe);
             _buildingCard = BuildBuildingCard(out _buildingTitle, out _buildingOutput, out _buildingReady, out _buildingRemaining, out _upgrade, out _finishNow, out _demolish);
             _card = BuildCard(out _cardTitle, out _cardSummary, out _cardFlavour, out _cardStats, out _stamp);
-            _rotate = ButtonWith("Rotate", () => RotateClicked?.Invoke(), "plain", "rotate-button");
-            _rotate.name = "rotate";
-            Show(_rotate, false);
+            _paintDone = ButtonWith("Done", () => PaintDoneClicked?.Invoke(), "plain", "rotate-button");
+            _paintDone.name = "paint-done";
+            Show(_paintDone, false);
+            _repairAll = ButtonWith(string.Empty, () => RepairAllClicked?.Invoke(), "plain", "repair-all-button");
+            _repairAll.name = "repair-all";
+            Show(_repairAll, false);
+
+            // ✓ ✗ ↻ beside the ghost of a building being placed or moved.
+            _ghostActions = Container("ghost-actions");
+            _ghostActions.name = "ghost-actions";
+            _ghostConfirm = ButtonWith("✓", () => GhostConfirmClicked?.Invoke(), "ghost-button", "ghost-confirm");
+            _ghostConfirm.name = "ghost-confirm";
+            var ghostCancel = ButtonWith("×", () => GhostCancelClicked?.Invoke(), "ghost-button", "ghost-cancel");
+            ghostCancel.name = "ghost-cancel";
+            _ghostRotate = ButtonWith("Turn", () => GhostRotateClicked?.Invoke(), "ghost-button", "ghost-turn");
+            _ghostRotate.name = "ghost-rotate";
+            var buttons = Container("ghost-row");
+            buttons.Add(_ghostConfirm);
+            buttons.Add(ghostCancel);
+            buttons.Add(_ghostRotate);
+            _ghostProblem = Text(string.Empty, "ghost-problem");
+            _ghostProblem.pickingMode = PickingMode.Ignore;
+            _ghostActions.Add(buttons);
+            _ghostActions.Add(_ghostProblem);
+            Show(_ghostActions, false);
             centre.Add(_toast);
             centre.Add(_lockedNote);
             middle.Add(_sideLeft);
@@ -234,7 +265,8 @@ namespace CultOfComfort.Client
             _drawer.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
             _drawer.verticalScrollerVisibility = ScrollerVisibility.Hidden;
             _duskBar.Add(_drawer);
-            _duskBar.Add(_rotate); // floats just above the cards while placing
+            _duskBar.Add(_paintDone); // floats just above the cards while painting
+            _duskBar.Add(_repairAll);
             var actions = Container("actions");
             actions.Add(Shortcut(LockedFeatures.Get("shop"), "bar-shortcut"));
             var start = ButtonWith("Light the Lamps", () => StartNightClicked?.Invoke(), "primary");
@@ -275,6 +307,14 @@ namespace CultOfComfort.Client
                 _floatStart[i] = float.NegativeInfinity;
                 _root.Add(_floaters[i]);
             }
+
+            _root.Add(_ghostActions); // above the board, beside the ghost
+            for (var i = 0; i < _bubbles.Length; i++)
+            {
+                _bubbles[i] = Text(string.Empty, "bubble", "hidden");
+                _bubbles[i].pickingMode = PickingMode.Ignore;
+                _root.Add(_bubbles[i]);
+            }
             SetPortrait(false);
             Show(_settings, false);
         }
@@ -293,8 +333,14 @@ namespace CultOfComfort.Client
         public event Action SpeedClicked;
         public event Action RecenterClicked;
 
-        /// <summary>Turn the building being placed a quarter.</summary>
-        public event Action RotateClicked;
+        /// <summary>Ends a paint tool (roads, fences, walls).</summary>
+        public event Action PaintDoneClicked;
+
+        public event Action GhostConfirmClicked;
+        public event Action GhostCancelClicked;
+        public event Action GhostRotateClicked;
+        public event Action MoveClicked;
+        public event Action RepairAllClicked;
         public event Action BackToDuskClicked;
         public event Action ResetTipsClicked;
         public event Action DevRaiseTensionClicked;
@@ -389,8 +435,49 @@ namespace CultOfComfort.Client
             }
         }
 
-        /// <summary>The Rotate button shows while a building that can turn is being placed.</summary>
-        public void ShowRotate(bool visible) => Show(_rotate, visible);
+        /// <summary>Done shows while a paint tool (roads, fences, walls) is on.</summary>
+        public void ShowPaintDone(bool visible) => Show(_paintDone, visible);
+
+        /// <summary>"Repair all (N) · cost" above the cards, or hidden (null).</summary>
+        public void ShowRepairAll(string label)
+        {
+            Show(_repairAll, label != null);
+            _repairAll.text = label ?? string.Empty;
+        }
+
+        /// <summary>✓ ✗ ↻ beside the ghost (panel coordinates of its right edge), or hidden (null).</summary>
+        public void ShowGhostActions(Vector2? at, string problem, bool canRotate)
+        {
+            Show(_ghostActions, at != null);
+            if (at == null)
+            {
+                return;
+            }
+
+            _ghostActions.style.left = at.Value.x + 8f;
+            _ghostActions.style.top = at.Value.y - 30f;
+            _ghostConfirm.SetEnabled(problem == null);
+            Show(_ghostRotate, canRotate);
+            _ghostProblem.text = problem ?? string.Empty;
+            Show(_ghostProblem, problem != null);
+        }
+
+        /// <summary>A speech bubble that follows its speaker (panel coordinates from <paramref name="anchor"/>, null once gone).</summary>
+        public void Bubble(string text, Func<Vector2?> anchor, float now)
+        {
+            var slot = 0;
+            for (var i = 1; i < _bubbles.Length; i++)
+            {
+                if (_bubbleUntil[i] < _bubbleUntil[slot])
+                {
+                    slot = i;
+                }
+            }
+
+            _bubbles[slot].text = text;
+            _bubbleAnchor[slot] = anchor;
+            _bubbleUntil[slot] = now + BubbleDirector.BubbleSeconds;
+        }
 
         /// <summary>Shows the parchment card for a building, or hides it (null).</summary>
         public void ShowBuildingCard(BuildingCardModel card)
@@ -412,6 +499,7 @@ namespace CultOfComfort.Client
             Show(_finishNow, card.IsUpgrading && Debug.isDebugBuild);
             Show(_demolish, card.CanDemolish);
             _demolish.text = card.DemolishLabel;
+            Show(_move, card.CanMove);
             Show(_repair, card.IsWrecked);
             _repair.text = card.RepairLabel;
             _repair.SetEnabled(card.CanRepair);
@@ -527,6 +615,17 @@ namespace CultOfComfort.Client
                 }
             }
 
+            for (var i = 0; i < _bubbles.Length; i++)
+            {
+                var at = now < _bubbleUntil[i] ? _bubbleAnchor[i]?.Invoke() : null;
+                _bubbles[i].EnableInClassList("hidden", at == null);
+                if (at != null)
+                {
+                    _bubbles[i].style.left = at.Value.x - 70f;
+                    _bubbles[i].style.top = at.Value.y - 64f;
+                }
+            }
+
             ApplySafeArea();
         }
 
@@ -616,6 +715,8 @@ namespace CultOfComfort.Client
             finishNow.name = "finish-now";
             demolish = ButtonWith("Demolish", () => DemolishClicked?.Invoke(), "plain");
             demolish.name = "demolish";
+            _move = ButtonWith("Move", () => MoveClicked?.Invoke(), "plain");
+            _move.name = "move";
             _repair = ButtonWith(string.Empty, () => RepairClicked?.Invoke(), "plain");
             _repair.name = "repair";
             var close = ButtonWith("Close", () =>
@@ -624,7 +725,7 @@ namespace CultOfComfort.Client
                 BuildingCardClosed?.Invoke();
             }, "plain");
             close.name = "card-close";
-            foreach (var element in new VisualElement[] { title, output, ready, remaining, _repair, upgrade, finishNow, demolish, close })
+            foreach (var element in new VisualElement[] { title, output, ready, remaining, _repair, upgrade, finishNow, _move, demolish, close })
             {
                 sheet.Add(element);
             }

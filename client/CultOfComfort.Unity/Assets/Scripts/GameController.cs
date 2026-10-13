@@ -51,7 +51,13 @@ namespace CultOfComfort.Client
         private BaseSnapshot _snapshot;
         private long _roadVersion = -1;
         private BuildingType? _buildSelection;
-        private bool _placeRotated;
+        private PlacementTool _tool;     // the ghost of a building being placed or moved
+        private readonly BubbleDirector _bubbles = new BubbleDirector();
+        private int _barkRoll;
+        private DragMode _dragMode;      // what the finger on the board is doing this gesture
+        private bool _ghostShown;
+
+        private enum DragMode { None, Pan, Ghost, Paint }
         private readonly List<GridPosition> _stroke = new List<GridPosition>(); // road tiles under the finger
         private int? _cardBuilding;
         private GridPosition? _cardTerrain;
@@ -126,11 +132,28 @@ namespace CultOfComfort.Client
             PointerInput.GetPressedPointers(_pointers);
             _gesture = _gestures.Update(_pointers, IsOverUi);
 
-            // With a road picked, one finger paints; two fingers still pan and zoom.
-            var painting = _phase == GamePhase.Dusk && _buildSelection != null && BuildingTable.IsRoad(_buildSelection.Value) && _pointers.Count == 1;
+            // One finger: drags the ghost if it starts on it, paints with a paint tool, otherwise pans. Two fingers pan and zoom.
+            if (_pointers.Count == 0)
+            {
+                _dragMode = DragMode.None;
+                _tool?.Release();
+            }
+
+            var oneFinger = _phase == GamePhase.Dusk && _pointers.Count == 1;
             if (_gesture.Panned)
             {
-                if (painting && TryScreenToTile(_gesture.PanFrom, out var from) && TryScreenToTile(_gesture.PanTo, out var to))
+                if (_dragMode == DragMode.None)
+                {
+                    _dragMode = oneFinger && _tool != null && TryScreenToTile(_gesture.PanFrom, out var grab) && _tool.TryGrab(grab, BuildingTable.Default) ? DragMode.Ghost
+                        : oneFinger && _buildSelection != null && BuildingTable.IsPaintable(_buildSelection.Value) ? DragMode.Paint
+                        : DragMode.Pan;
+                }
+
+                if (_dragMode == DragMode.Ghost && TryScreenToTile(_gesture.PanTo, out var dragTo))
+                {
+                    _tool.DragTo(dragTo);
+                }
+                else if (_dragMode == DragMode.Paint && _pointers.Count == 1 && TryScreenToTile(_gesture.PanFrom, out var from) && TryScreenToTile(_gesture.PanTo, out var to))
                 {
                     if (_stroke.Count == 0)
                     {
@@ -140,7 +163,7 @@ namespace CultOfComfort.Client
                     ExtendStroke(_stroke, to);
                     ShowStroke();
                 }
-                else if (!painting)
+                else if (_dragMode == DragMode.Pan || _pointers.Count > 1)
                 {
                     _rig.Pan(_gesture.PanFrom, _gesture.PanTo);
                 }
@@ -172,21 +195,27 @@ namespace CultOfComfort.Client
         {
             // Mouse: the tile under the cursor. Touch: the tile under the finger, before release, so you see what you'll hit.
             var hasPointer = _gestures.TryGetPendingTap(out var hover) || (!_gestures.IsDragging && PointerInput.TryGetHover(out hover) && !IsOverUi(hover));
-            if (hasPointer && TryScreenToTile(hover, out var hoverTile))
+            if (_tool != null && _snapshot != null)
             {
-                if (_buildSelection != null)
-                {
-                    var spec = BuildingTable.Default.Spec(_buildSelection.Value);
-                    _board.ShowFootprintCursor(Footprint.Tiles(spec, hoverTile, _placeRotated), LooksBuildable(hoverTile));
-                }
-                else
-                {
-                    _board.ShowCursor(hoverTile, LooksBuildable(hoverTile));
-                }
+                ShowGhost();
             }
             else
             {
-                _board.ShowCursor(null, false);
+                if (_ghostShown)
+                {
+                    _ghostShown = false;
+                    _board.ShowGhost(null, 0, null, false, false);
+                    _hud.ShowGhostActions(null, null, false);
+                }
+
+                if (hasPointer && TryScreenToTile(hover, out var hoverTile))
+                {
+                    _board.ShowCursor(hoverTile, LooksBuildable(hoverTile));
+                }
+                else
+                {
+                    _board.ShowCursor(null, false);
+                }
             }
 
             if (Time.time >= _villageRefreshAt)
@@ -214,7 +243,85 @@ namespace CultOfComfort.Client
                 return _snapshot.BuildingAt(tile) != null;
             }
 
-            return VillageMap.Demo.PlacementProblem(_snapshot, BuildingTable.Default.Spec(_buildSelection.Value), tile, _placeRotated) == null;
+            return VillageMap.Demo.PlacementProblem(_snapshot, BuildingTable.Default.Spec(_buildSelection.Value), tile, false) == null;
+        }
+
+        /// <summary>The ghost on the board, and ✓ ✗ ↻ beside it with the reason it won't fit (if it won't).</summary>
+        private void ShowGhost()
+        {
+            _ghostShown = true;
+            var table = BuildingTable.Default;
+            var tiles = _tool.Tiles(table);
+            var problem = _tool.Problem(_snapshot, VillageMap.Demo, table);
+            var level = _tool.MovingId != null ? _snapshot.Building(_tool.MovingId.Value).Level : 1;
+            _board.ShowGhost(_tool.Type, level, tiles, _tool.Rotated, problem == null);
+            var (centre, size) = BoardView.FootprintBox(tiles);
+            _hud.ShowGhostActions(PanelPoint(centre + new Vector3(size.x / 2f + 0.2f, 0.6f, 0f)), problem, CanTurn(table.Spec(_tool.Type)));
+        }
+
+        /// <summary>A world point in UI panel coordinates, or null when it's behind the camera or there's no panel yet.</summary>
+        private Vector2? PanelPoint(Vector3 world)
+        {
+            var panel = _document != null ? _document.rootVisualElement.panel : null;
+            var screen = _camera.WorldToScreenPoint(world);
+            if (panel == null || screen.z < 0f)
+            {
+                return null;
+            }
+
+            return RuntimePanelUtils.ScreenToPanel(panel, new Vector2(screen.x, Screen.height - screen.y));
+        }
+
+        /// <summary>The tile in the middle of the clear part of the screen (where a new ghost appears).</summary>
+        private GridPosition CentreTile()
+        {
+            var clear = _hud.ClearViewport() ?? new Rect(0f, 0.25f, 1f, 0.6f);
+            var screen = new Vector2(clear.center.x * Screen.width, clear.center.y * Screen.height);
+            return TryScreenToTile(screen, out var tile) ? tile : VillageMap.Demo.Hearth;
+        }
+
+        private void CancelTool()
+        {
+            _tool = null;
+            if (_buildSelection != null && !BuildingTable.IsPaintable(_buildSelection.Value))
+            {
+                _buildSelection = null;
+            }
+
+            _board.HideBuilding(null);
+            _ghostShown = false;
+            _board.ShowGhost(null, 0, null, false, false);
+            _hud.ShowGhostActions(null, null, false);
+            RefreshVillage();
+        }
+
+        private async void ConfirmTool()
+        {
+            if (_tool == null)
+            {
+                return;
+            }
+
+            try
+            {
+                var tool = _tool;
+                var outcome = await SendVillage(tool.Command());
+                if (outcome.Status != CommandStatus.Accepted || _tool != tool)
+                {
+                    return;
+                }
+
+                CancelTool();
+                var placed = _snapshot.BuildingAt(tool.Anchor);
+                if (tool.MovingId == null && placed != null && !placed.Connected)
+                {
+                    Say("Not connected yet. Paint a road from it to the Hearth, or to the raiders' road.", prophet: false);
+                }
+            }
+            catch (Exception e)
+            {
+                VillageFailed(e);
+            }
         }
 
         /// <summary>Adds tiles from the stroke's last tile to <paramref name="to"/>, one orthogonal step at a time (no diagonal gaps).</summary>
@@ -241,7 +348,7 @@ namespace CultOfComfort.Client
         /// <summary>Lays the selected road along a stroke (its points joined up), in one command.</summary>
         private async void PaintStroke(IReadOnlyList<GridPosition> points)
         {
-            if (_buildSelection == null || !BuildingTable.IsRoad(_buildSelection.Value) || points.Count == 0)
+            if (_buildSelection == null || !BuildingTable.IsPaintable(_buildSelection.Value) || points.Count == 0)
             {
                 return;
             }
@@ -254,7 +361,7 @@ namespace CultOfComfort.Client
 
             try
             {
-                await SendVillage(new PlaceRoad(Guid.NewGuid(), _buildSelection.Value, tiles));
+                await SendVillage(new PaintTiles(Guid.NewGuid(), _buildSelection.Value, tiles));
             }
             catch (Exception e)
             {
@@ -268,27 +375,19 @@ namespace CultOfComfort.Client
             try
             {
                 Accept(await _village.LoadAsync(_cts.Token)); // a tap always sees what is ready right now
-                if (_buildSelection != null)
+                if (_tool != null)
                 {
-                    var type = _buildSelection.Value;
-                    if (BuildingTable.IsRoad(type))
+                    if (!_tool.Tiles(BuildingTable.Default).Contains(tile))
                     {
-                        await SendVillage(new PlaceRoad(Guid.NewGuid(), type, new[] { tile })); // roads stay picked: keep tapping or drag
-                        return;
+                        CancelTool(); // a tap off the ghost puts it away: nothing is ever built by a stray tap
                     }
 
-                    var outcome = await SendVillage(new PlaceBuilding(Guid.NewGuid(), type, tile, _placeRotated));
-                    if (outcome.Status == CommandStatus.Accepted && !BuildingTable.Default.Spec(type).IsTower)
-                    {
-                        _buildSelection = null; // one building per pick; towers stay selected for a row of them
-                        RefreshVillage();
-                        var placed = _snapshot.BuildingAt(tile);
-                        if (placed != null && !placed.Connected)
-                        {
-                            Say("Not connected yet. Paint a road from it to the Hearth, or to the raiders' road.", prophet: false);
-                        }
-                    }
+                    return;
+                }
 
+                if (_buildSelection != null && BuildingTable.IsPaintable(_buildSelection.Value))
+                {
+                    await SendVillage(new PaintTiles(Guid.NewGuid(), _buildSelection.Value, new[] { tile })); // paint tools stay on: tap or drag, then Done
                     return;
                 }
 
@@ -378,7 +477,117 @@ namespace CultOfComfort.Client
         {
             if (VillagePresenter.IsNewer(snapshot, _snapshot))
             {
+                var before = _snapshot;
                 _snapshot = snapshot;
+                if (before != null && _phase == GamePhase.Dusk)
+                {
+                    BarkAboutTheVillage(before, snapshot);
+                }
+            }
+        }
+
+        // ---------------- barks: what everyone shouts ----------------
+
+        private void Bark(BarkKind kind, string speaker, Func<Vector3?> where)
+        {
+            if (_hud == null || !_bubbles.TrySpeak(speaker, Time.time))
+            {
+                return;
+            }
+
+            _hud.Bubble(BarkBook.Line(kind, _barkRoll++), () => where() is Vector3 world ? PanelPoint(world) : null, Time.time);
+        }
+
+        private Func<Vector3?> RaiderAt(int id)
+        {
+            var battle = _battle;
+            return () =>
+            {
+                var enemy = battle?.Enemies.FirstOrDefault(e => e.Id == id);
+                return enemy != null && enemy.IsActive ? Shapes.ToWorld(battle.PositionOf(enemy), 1.5f) : (Vector3?)null;
+            };
+        }
+
+        private Func<Vector3?> ProphetAt()
+        {
+            var battle = _battle;
+            return () => battle != null ? Shapes.ToWorld(battle.Leader.Position, 1.8f) : (Vector3?)null;
+        }
+
+        private static Func<Vector3?> At(Vector3 world) => () => world;
+
+        private void BarkAbout(IReadOnlyList<BattleEvent> events)
+        {
+            foreach (var e in events)
+            {
+                switch (e)
+                {
+                    case EnemySpawned spawned when spawned.EnemyId % 3 == 1:
+                        Bark(BarkKind.RaiderArrives, $"raider-{spawned.EnemyId}", RaiderAt(spawned.EnemyId));
+                        break;
+                    case StructureHit hit:
+                        var target = _battle.Structures.FirstOrDefault(st => st.Id == hit.StructureId);
+                        if (target != null && target.IsBarrier)
+                        {
+                            var onRoad = target.Tiles.Any(t => _battle.Path.Contains(t));
+                            Bark(onRoad ? BarkKind.RaiderBashesGate : BarkKind.RaiderHacksWall, $"raider-{hit.EnemyId}", RaiderAt(hit.EnemyId));
+                        }
+
+                        break;
+                    case InterventionUsed used when used.Type == PlayerActionType.OpenSluiceGate:
+                        Bark(BarkKind.ProphetSluice, "prophet", ProphetAt());
+                        var soaked = _battle.Enemies.FirstOrDefault(x => x.IsActive);
+                        if (soaked != null)
+                        {
+                            Bark(BarkKind.RaiderWashedBack, $"raider-{soaked.Id}", RaiderAt(soaked.Id));
+                        }
+
+                        break;
+                    case InterventionUsed used when used.Type == PlayerActionType.PhantomVoice:
+                        Bark(BarkKind.ProphetVoice, "prophet", ProphetAt());
+                        break;
+                    case InterventionUsed used when used.Type == PlayerActionType.HotStones:
+                        Bark(BarkKind.ProphetStones, "prophet", ProphetAt());
+                        break;
+                    case LeaderSwooned _:
+                        Bark(BarkKind.ProphetSwoons, "prophet", ProphetAt());
+                        break;
+                    case WaveStarted wave when wave.Wave > 1:
+                        Bark(BarkKind.ProphetWave, "prophet", ProphetAt());
+                        break;
+                    case HearthDamaged reached:
+                        Bark(BarkKind.RaiderReachesHearth, $"raider-{reached.EnemyId}", At(Shapes.ToWorld(VillageMap.Demo.Hearth, 1.6f)));
+                        break;
+                }
+            }
+        }
+
+        /// <summary>The cultists comment on what changed in the village: a building finished, newcomers, the cold, a raid coming.</summary>
+        private void BarkAboutTheVillage(BaseSnapshot before, BaseSnapshot after)
+        {
+            var hearth = At(Shapes.ToWorld(VillageMap.Demo.Hearth, 1.8f));
+            foreach (var b in after.Buildings)
+            {
+                var old = before.Buildings.FirstOrDefault(x => x.Id == b.Id);
+                if (old != null && old.Level == 0 && b.Level > 0 && !BuildingTable.IsRoad(b.Type))
+                {
+                    Bark(BarkKind.CultistBuilt, $"cultist-{b.Id}", At(BoardView.FootprintBox(b.Tiles).Centre + Vector3.up * 1.6f));
+                }
+            }
+
+            if (after.Population > before.Population)
+            {
+                Bark(BarkKind.CultistNewcomer, "cultist-hearth", hearth);
+            }
+
+            if (after.Cold && !before.Cold)
+            {
+                Bark(BarkKind.CultistCold, "cultist-hearth", hearth);
+            }
+
+            if (after.RaidWarningEndsAtUtc != null && before.RaidWarningEndsAtUtc == null)
+            {
+                Bark(BarkKind.CultistRaidComing, "cultist-hearth", hearth);
             }
         }
 
@@ -481,7 +690,9 @@ namespace CultOfComfort.Client
             }
 
             _hud.SetBuildCards(VillagePresenter.BuildCards(_snapshot, BuildingTable.Default), _buildSelection);
-            _hud.ShowRotate(_buildSelection != null && CanTurn(BuildingTable.Default.Spec(_buildSelection.Value)));
+            var dusk = _phase == GamePhase.Dusk;
+            _hud.ShowPaintDone(dusk && _buildSelection != null && BuildingTable.IsPaintable(_buildSelection.Value));
+            _hud.ShowRepairAll(dusk && _tool == null ? VillagePresenter.RepairAllLabel(_snapshot, BuildingTable.Default) : null);
             _hud.SetStartLabel(VillagePresenter.StartLabel(_snapshot));
             var hasCard = _cardBuilding != null && _snapshot.Buildings.Any(b => b.Id == _cardBuilding.Value);
             var terrainCard = _cardTerrain != null ? VillagePresenter.TerrainCard(_snapshot, VillageMap.Demo, BuildingTable.Default, _cardTerrain.Value) : null;
@@ -516,6 +727,10 @@ namespace CultOfComfort.Client
         private void BeginFight(NightPlan plan)
         {
             _buildSelection = null;
+            _tool = null;
+            _board.HideBuilding(null);
+            _hud.ShowPaintDone(false);
+            _hud.ShowRepairAll(null);
             _cardBuilding = null;
             _hud.ShowBuildingCard(null);
             _board.ClearStructureHealth();
@@ -563,6 +778,7 @@ namespace CultOfComfort.Client
                 _battleView.BeforeStep();
                 _battle.Step();
                 _battleView.AfterStep();
+                BarkAbout(_battle.LastTickEvents);
                 _accumulator -= TickSeconds;
             }
 
@@ -782,18 +998,42 @@ namespace CultOfComfort.Client
             root.styleSheets.Add(Resources.Load<StyleSheet>("UI/Hud"));
 
             _hud = new HudView(root);
-            _hud.RotateClicked += () =>
-            {
-                _placeRotated = !_placeRotated;
-                RefreshVillage();
-            };
             _hud.BuildCardSelected += type =>
             {
+                _tool = null;
+                _board.HideBuilding(null);
                 _buildSelection = type;
-                _placeRotated = false;
                 _cardBuilding = null;
+                if (type != null && !BuildingTable.IsPaintable(type.Value) && _snapshot != null)
+                {
+                    _tool = PlacementTool.StartNew(type.Value, CentreTile(), _snapshot, VillageMap.Demo, BuildingTable.Default);
+                }
+
                 RefreshVillage();
             };
+            _hud.GhostConfirmClicked += ConfirmTool;
+            _hud.GhostCancelClicked += CancelTool;
+            _hud.GhostRotateClicked += () => _tool?.Rotate();
+            _hud.PaintDoneClicked += () =>
+            {
+                _buildSelection = null;
+                RefreshVillage();
+            };
+            _hud.MoveClicked += () =>
+            {
+                var building = _cardBuilding != null ? _snapshot?.Buildings.FirstOrDefault(b => b.Id == _cardBuilding.Value) : null;
+                if (building == null)
+                {
+                    return;
+                }
+
+                _cardBuilding = null;
+                _buildSelection = null;
+                _tool = PlacementTool.StartMove(building);
+                _board.HideBuilding(building.Id);
+                RefreshVillage();
+            };
+            _hud.RepairAllClicked += () => SendSimple(new RepairAll(Guid.NewGuid()));
             _hud.UpgradeClicked += () =>
             {
                 if (_cardTerrain != null)
@@ -887,8 +1127,8 @@ namespace CultOfComfort.Client
             }
         }
 
-        /// <summary>Square things look the same turned, except fences, walls and gates, which run one way or the other.</summary>
-        private static bool CanTurn(BuildingSpec spec) => spec.Width != spec.Depth || BuildingTable.IsBarrier(spec.Type);
+        /// <summary>Square things look the same turned, except a gate (fences and walls join up by themselves).</summary>
+        private static bool CanTurn(BuildingSpec spec) => spec.Width != spec.Depth || spec.Type == BuildingType.Gate;
 
         private float Seconds(int readyAtTick) => Mathf.Ceil((readyAtTick - _battle.Tick) / (float)BalanceTable.TicksPerSecond);
 
