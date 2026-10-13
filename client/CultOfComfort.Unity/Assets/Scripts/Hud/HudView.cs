@@ -140,6 +140,10 @@ namespace CultOfComfort.Client
         private readonly Label _errandReward;
         private readonly Label _errandClaim;
         private VisualElement _hinted;
+        private readonly VisualElement _coachArrow;
+        private readonly Label _coachLine;
+        private CoachStep _coach = CoachStep.None;
+        private Vector2? _coachPoint;
         private float _hintUntil;
         private float _toastUntil;
         private float _noteUntil;
@@ -325,6 +329,17 @@ namespace CultOfComfort.Client
             _root.Add(_settings);
             _root.Add(_buildingCard);
             Show(_buildingCard, false);
+            // The tutorial coach (GDD 05): a hi-vis arrow at the next tap and the Prophet's line beside it.
+            _coachArrow = new VisualElement { name = "coach-arrow", pickingMode = PickingMode.Ignore };
+            _coachArrow.AddToClassList("coach-arrow");
+            _coachArrow.generateVisualContent += DrawCoachArrow;
+            _coachLine = Text(string.Empty, "coach-line", "note-yellow");
+            _coachLine.name = "coach-line";
+            _coachLine.pickingMode = PickingMode.Ignore;
+            _root.Add(_coachArrow);
+            _root.Add(_coachLine);
+            Show(_coachArrow, false);
+            Show(_coachLine, false);
             for (var i = 0; i < _floaters.Length; i++)
             {
                 _floaters[i] = Text(string.Empty, "floater", "hidden");
@@ -613,6 +628,126 @@ namespace CultOfComfort.Client
             _hintUntil = now + 1.6f;
         }
 
+        /// <summary>
+        /// The tutorial coach's current step; <paramref name="buildingPoint"/> is the panel point over the building
+        /// when the step points at one. Placed and bounced every <see cref="Tick"/>.
+        /// </summary>
+        public void ShowCoach(CoachStep step, Vector2? buildingPoint)
+        {
+            step ??= CoachStep.None;
+            var changed = step.Target != _coach.Target || step.Type != _coach.Type || step.Line != _coach.Line;
+            _coach = step;
+            _coachPoint = buildingPoint;
+            if (changed)
+            {
+                _coachLine.text = step.Line ?? string.Empty;
+                if (step.Target == CoachTarget.BuildCard && step.Type != null && _cards.TryGetValue(step.Type.Value, out var card))
+                {
+                    _drawer.ScrollTo(card);
+                }
+            }
+        }
+
+        /// <summary>The coach's arrow and line, as the HUD places them now (tests).</summary>
+        public (bool Arrow, bool Line, Rect ArrowBounds, string Text) CoachShown =>
+            (_coachArrow.resolvedStyle.display == DisplayStyle.Flex, _coachLine.resolvedStyle.display == DisplayStyle.Flex, _coachArrow.worldBound, _coachLine.text);
+
+        private Rect? CoachTargetBounds()
+        {
+            switch (_coach.Target)
+            {
+                case CoachTarget.BuildCard when _coach.Type != null && _cards.TryGetValue(_coach.Type.Value, out var card) && Visible(card):
+                    var drawer = _drawer.worldBound;
+                    var bounds = card.worldBound;
+                    return bounds.xMax < drawer.xMin || bounds.xMin > drawer.xMax ? (Rect?)null : bounds;
+                case CoachTarget.GhostConfirm when Visible(_ghostConfirm):
+                    return _ghostConfirm.worldBound;
+                case CoachTarget.ErrandNote when Visible(_errand):
+                    return _errand.worldBound;
+                case CoachTarget.Building when _coachPoint != null:
+                    return new Rect(_coachPoint.Value.x - 1f, _coachPoint.Value.y - 1f, 2f, 2f);
+                default:
+                    return null;
+            }
+        }
+
+        private static bool Visible(VisualElement element)
+        {
+            for (var e = element; e != null; e = e.parent)
+            {
+                if (e.resolvedStyle.display == DisplayStyle.None)
+                {
+                    return false;
+                }
+            }
+
+            return element.worldBound.width > 0f;
+        }
+
+        private void TickCoach(float now)
+        {
+            var target = _coach.HasArrow ? CoachTargetBounds() : null;
+            var hasLine = !string.IsNullOrEmpty(_coach.Line) && (target != null || !_coach.HasArrow);
+            Show(_coachArrow, target != null);
+            Show(_coachLine, hasLine);
+            if (!hasLine)
+            {
+                return;
+            }
+
+            var width = _root.worldBound.width;
+            const float arrowW = 34f, arrowH = 40f;
+            var bounce = Mathf.Abs(Mathf.Sin(now * 5f)) * 8f;
+            float lineY;
+            var lineX = width / 2f;
+            if (target != null)
+            {
+                var r = target.Value;
+                var below = r.center.y < _root.worldBound.height * 0.4f; // near the top: point up from underneath
+                var tipX = r.center.x;
+                var tipY = below ? r.yMax + 4f + bounce : r.yMin - 4f - bounce;
+                var local = _root.WorldToLocal(new Vector2(tipX, tipY));
+                _coachArrow.style.left = local.x - arrowW / 2f;
+                _coachArrow.style.top = below ? local.y : local.y - arrowH;
+                _coachArrow.style.rotate = new Rotate(Angle.Degrees(below ? 180f : 0f));
+                lineX = local.x;
+                lineY = below ? local.y + arrowH + 6f : local.y - arrowH - 8f;
+                _coachLine.EnableInClassList("coach-line-above", !below);
+            }
+            else
+            {
+                var note = Visible(_errand) ? _root.WorldToLocal(new Vector2(0f, _errand.worldBound.yMax)).y : 120f;
+                lineY = note + 8f;
+                _coachLine.EnableInClassList("coach-line-above", false);
+            }
+
+            var lineW = Mathf.Max(_coachLine.resolvedStyle.width, 60f);
+            var lineH = _coachLine.resolvedStyle.height;
+            _coachLine.style.left = Mathf.Clamp(lineX - lineW / 2f, 12f, Mathf.Max(12f, width - lineW - 12f));
+            _coachLine.style.top = _coachLine.ClassListContains("coach-line-above") ? lineY - (float.IsNaN(lineH) ? 0f : lineH) : lineY;
+        }
+
+        private static void DrawCoachArrow(MeshGenerationContext context)
+        {
+            const float w = 34f, h = 40f;
+            var p = context.painter2D;
+            p.fillColor = new Color(0.91f, 1f, 0.23f);
+            p.strokeColor = new Color(0.17f, 0.13f, 0.08f);
+            p.lineWidth = 3f;
+            p.lineJoin = LineJoin.Round;
+            p.BeginPath();
+            p.MoveTo(new Vector2(w * 0.32f, 2f));
+            p.LineTo(new Vector2(w * 0.68f, 2f));
+            p.LineTo(new Vector2(w * 0.68f, h * 0.5f));
+            p.LineTo(new Vector2(w - 2f, h * 0.5f));
+            p.LineTo(new Vector2(w * 0.5f, h - 2f));
+            p.LineTo(new Vector2(2f, h * 0.5f));
+            p.LineTo(new Vector2(w * 0.32f, h * 0.5f));
+            p.ClosePath();
+            p.Fill();
+            p.Stroke();
+        }
+
         /// <summary>The Dawn card for a Night the village played itself while the player was away.</summary>
         public void ShowAwayReport(NightReport report)
         {
@@ -673,6 +808,7 @@ namespace CultOfComfort.Client
         /// <summary>Per frame: hides expired notes and keeps the root padded to the safe area.</summary>
         public void Tick(float now)
         {
+            TickCoach(now);
             _toast.EnableInClassList("hidden", now >= _toastUntil || string.IsNullOrEmpty(_toast.text));
             _lockedNote.EnableInClassList("hidden", now >= _noteUntil);
             if (_hinted != null)

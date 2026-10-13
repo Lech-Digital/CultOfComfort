@@ -829,7 +829,7 @@ namespace CultOfComfort.Client
             var lampsWait = LampsWait();
             _hud.SetStartLabel(lampsWait ? "Lamps can wait · build first" : VillagePresenter.StartLabel(_snapshot));
             _hud.SetStartWaiting(lampsWait);
-            _hud.ShowErrand(dusk ? ErrandNote.From(_snapshot.Errand) : null);
+            _hud.ShowErrand(dusk && _tool == null ? ErrandNote.From(_snapshot.Errand) : null); // placing: the note steps aside for the ghost
             var hasCard = _cardBuilding != null && _snapshot.Buildings.Any(b => b.Id == _cardBuilding.Value);
             var terrainCard = _cardTerrain != null ? VillagePresenter.TerrainCard(_snapshot, VillageMap.Demo, BuildingTable.Default, _cardTerrain.Value) : null;
             _hud.ShowBuildingCard(hasCard ? VillagePresenter.Card(_snapshot, BuildingTable.Default, _cardBuilding.Value) : terrainCard);
@@ -1040,6 +1040,38 @@ namespace CultOfComfort.Client
 
         // ---------------- Helpers ----------------
 
+        /// <summary>The tutorial's step this frame (Dusk only, no card or report in the way) and, for a building, where it is on screen.</summary>
+        private CoachStep CoachNow(out Vector2? point)
+        {
+            point = null;
+            if (_phase != GamePhase.Dusk || _snapshot == null || _showingReport)
+            {
+                return CoachStep.None;
+            }
+
+            var step = TutorialCoach.Step(_snapshot.Errand, _tool?.Type, _snapshot.Buildings, BuildingTable.Default);
+            if (step.Target == CoachTarget.Building && step.BuildingId != null)
+            {
+                var building = _snapshot.Buildings.FirstOrDefault(b => b.Id == step.BuildingId.Value);
+                var panel = _document.rootVisualElement.panel;
+                if (building == null || panel == null)
+                {
+                    return CoachStep.None;
+                }
+
+                var centre = building.Tiles.Aggregate(Vector3.zero, (sum, t) => sum + Shapes.ToWorld(t)) / building.Tiles.Count;
+                var screen = _camera.WorldToScreenPoint(centre + Vector3.up * 1.4f);
+                if (screen.z <= 0f)
+                {
+                    return CoachStep.None;
+                }
+
+                point = RuntimePanelUtils.ScreenToPanel(panel, new Vector2(screen.x, Screen.height - screen.y));
+            }
+
+            return step;
+        }
+
         private void SetUpCamera()
         {
             _camera = Camera.main;
@@ -1234,6 +1266,8 @@ namespace CultOfComfort.Client
 
         private void UpdateHud()
         {
+            var coach = CoachNow(out var coachPoint);
+            _hud.ShowCoach(coach, coachPoint);
             _hud.Tick(Time.time);
             _hud.UpdateFrame(_snapshot != null ? VillagePresenter.Frame(_snapshot) : DemoEconomy.Frame(0, 1));
             if (_phase == GamePhase.Dusk)

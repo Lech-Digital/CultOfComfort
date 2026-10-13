@@ -58,7 +58,7 @@ namespace CultOfComfort.Client.Tests
             tips.Reset();
 
             // Assert
-            StringAssert.Contains("megaphone", tips.Take(PlayerActionType.PhantomVoice));
+            StringAssert.Contains("speaker", tips.Take(PlayerActionType.PhantomVoice));
         }
     }
 }

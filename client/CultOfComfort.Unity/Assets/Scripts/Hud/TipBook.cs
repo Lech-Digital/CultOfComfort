@@ -41,7 +41,7 @@ namespace CultOfComfort.Client
         private static readonly Dictionary<PlayerActionType, (string Id, string Text)> Tips = new Dictionary<PlayerActionType, (string, string)>
         {
             [PlayerActionType.OpenSluiceGate] = ("sluice", "Opened the cistern: everyone got washed three tiles back down the road and is muddy for a bit — Sapling Flingers love muddy targets. Two per night."),
-            [PlayerActionType.PhantomVoice] = ("voice", "Tin-can megaphone: raiders near me panic and walk backwards for two seconds."),
+            [PlayerActionType.PhantomVoice] = ("voice", "The Voice from the Box: my Bluetooth speaker, full volume. Raiders near me panic and walk backwards for two seconds."),
             [PlayerActionType.HotStones] = ("stones", "Hot stones: hurts and muddies everyone in the circle. Muddy raiders take extra damage from Sapling Flingers."),
         };
 

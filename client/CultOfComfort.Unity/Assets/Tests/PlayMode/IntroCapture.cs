@@ -87,6 +87,51 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual(0, pending.Count, "every moment was captured");
         }
 
+        [UnityTest]
+        public IEnumerator IntroCapture_TutorialCoach_WritesPngs()
+        {
+            _progress.MarkSeen();
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            for (var f = 0; f < 6; f++)
+            {
+                yield return null;
+            }
+
+            var game = Object.FindAnyObjectByType<GameController>();
+            var document = game.GetComponent<UIDocument>();
+            var output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "..", "art", "previews", "intro"));
+            Directory.CreateDirectory(output);
+            var ui = new RenderTexture(Width, Height, 24);
+            document.panelSettings.targetTexture = ui;
+            document.panelSettings.scaleMode = PanelScaleMode.ConstantPixelSize;
+            document.panelSettings.scale = Scale;
+            document.panelSettings.clearColor = true;
+            document.panelSettings.colorClearValue = new Color(0f, 0f, 0f, 0f);
+            var hud = (HudView)typeof(GameController).GetField("_hud", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(game);
+            hud.SetPortrait(true);
+            var world = new RenderTexture(Width, Height, 24) { antiAliasing = 4 };
+            Camera.main.aspect = Width / (float)Height;
+            for (var f = 0; f < 8; f++)
+            {
+                yield return null;
+            }
+
+            Save(Camera.main, world, ui, Path.Combine(output, "coach_1_card.png"));
+            var card = document.rootVisualElement.Q<Button>("card-Woodcutter");
+            using (var submit = NavigationSubmitEvent.GetPooled())
+            {
+                submit.target = card;
+                card.SendEvent(submit);
+            }
+
+            for (var f = 0; f < 8; f++)
+            {
+                yield return null;
+            }
+
+            Save(Camera.main, world, ui, Path.Combine(output, "coach_2_confirm.png"));
+        }
+
         private static void Save(Camera camera, RenderTexture world, RenderTexture ui, string path)
         {
             camera.targetTexture = world;
