@@ -13,10 +13,11 @@ class PaletteTests(unittest.TestCase):
         names = [name for name, _ in palette.SWATCHES]
 
         # Act & Assert
-        self.assertEqual(len(names), 32)
+        self.assertEqual(len(names), 40)
         self.assertEqual(len(set(names)), len(names))
         self.assertEqual(dict(palette.SWATCHES)["cone_orange"], "#ff5a00")
         self.assertEqual(dict(palette.SWATCHES)["linen"], "#ece6d6")
+        self.assertEqual(dict(palette.SWATCHES)["woad"], "#46618c")  # knock-offs (spec: The Boot)
 
     def test_uv_returns_cell_centre_and_round_trips(self):
         # Arrange

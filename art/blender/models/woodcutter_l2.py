@@ -1,7 +1,7 @@
 """Woodcutter, level 2 — the Saw Pit: a proper daub shed (with a door that shuts, mostly), a big log on trestles
-with a two-man saw stuck in it, a sawdust heap, a hi-vis vest on a post and a traffic cone. Safety first, second
-and occasionally third."""
-from lib.buildings import thatch_roof
+with a two-man saw stuck in it, a sawdust heap, a weld-dyed "hi-vis" vest on a post and a clay copy of the Holy Cone.
+Safety first, second and occasionally third."""
+from lib.buildings import clay_cone, thatch_roof, weld_vest
 from lib.mesh import Part, root
 
 TRIANGLE_BUDGET = 4000
@@ -37,12 +37,9 @@ def build():
     for y in (-0.47, 0.17):
         b.cylinder(0.022, 0.2, (0.55, y, 0.62), "fresh_log", segments=5)
     b.sphere(0.2, (0.52, -0.12, 0.06), "fresh_log", segments=8, rings=5, scale=(1.4, 1.0, 0.3))          # sawdust
-    # Hi-vis vest on a post, and the cone.
+    # The copied vest on a post, and the copied cone.
     b.cylinder(0.025, 0.7, (0.86, -0.42, 0.35), "old_wood", segments=5)
-    b.box((0.16, 0.04, 0.2), (0.86, -0.45, 0.55), "hivis_yellow", bevel=0.01)
-    b.box((0.17, 0.042, 0.025), (0.86, -0.45, 0.52), "linen", bevel=0.003)
-    b.box((0.13, 0.13, 0.02), (-0.08, -0.4, 0.07), "cone_orange", bevel=0.004)
-    b.cylinder(0.06, 0.22, (-0.08, -0.4, 0.18), "cone_orange", segments=8, radius_top=0.012)
-    b.cylinder(0.042, 0.03, (-0.08, -0.4, 0.17), "linen", segments=8)
+    weld_vest(b, (0.86, -0.45, 0.55))
+    clay_cone(b, (-0.08, -0.4, 0.06))
     b.build()
     return yard

@@ -2,9 +2,10 @@
 a surviving bit of architrave, a steaming pool, a blue tarp tied over the leaky corner, and a brazier that is
 the actual hearth. `Fire` glows with the Hearth's warmth; `Steam` drifts."""
 from lib.buildings import hearth_ruin
+from lib.car import crashed_car
 from lib.mesh import Part, root
 
-TRIANGLE_BUDGET = 3000
+TRIANGLE_BUDGET = 4500
 REQUIRED_PARTS = ("Ruin", "Fire", "Steam")
 
 
@@ -13,6 +14,7 @@ def build():
     ruin = Part("Ruin", parent=hearth)
     hearth_ruin(ruin)
     ruin_obj = ruin.build()
+    crashed_car(ruin_obj)  # the time machine, where it landed (spec: The Boot)
 
     (Part("Fire", pivot=(-0.25, -0.25, 0.36), parent=ruin_obj)
      .cylinder(0.11, 0.3, (-0.25, -0.25, 0.5), "fire", segments=7, radius_top=0.0, smooth=True)

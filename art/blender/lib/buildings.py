@@ -89,7 +89,7 @@ def hearth_banya(part):
         log_wall(part, *wall, height=0.62, z0=0.18, radius=0.055)
     thatch_roof(part, 0.85, 0.73, (0.52, 0.985, 0.8), 0.42, lean=-2)
     part.box((0.18, 0.18, 0.75), (0.82, 1.2, 0.95), "fieldstone", bevel=0.02, rotation=(0, 2, 0))     # chimney
-    part.box((0.36, 0.5, 0.02), (0.3, 1.05, 1.08), "tarp_blue", bevel=0, rotation=(8, -22, 10))       # a second tarp, obviously
+    part.box((0.36, 0.5, 0.02), (0.3, 1.05, 1.08), "woad", bevel=0, rotation=(8, -22, 10))            # a woad-dyed "tarp" (there is only one Tarp)
     part.box((0.18, 0.04, 0.34), (0.52, 0.6, 0.36), "tarred_wood", bevel=0.01)                        # banya door
     part.box((0.1, 0.03, 0.06), (0.78, 0.6, 0.56), "window", bevel=0.005)                              # glowing window
 
@@ -107,7 +107,7 @@ def hearth_upper(part):
     part.cylinder(0.03, 0.7, (0.55, 0.62, 0.9), "gold_trim", segments=6, rotation=(0, 90, 0))
     part.cylinder(0.03, 0.6, (0.2, 0.62, 0.62), "gold_trim", segments=6)
     part.cylinder(0.03, 0.5, (0.2, 0.38, 0.33), "gold_trim", segments=6, rotation=(90, 0, 0))
-    part.cylinder(0.05, 0.05, (0.2, 0.15, 0.33), "cone_orange", segments=6, rotation=(90, 0, 0))     # a tap. A 2024 tap.
+    part.cylinder(0.05, 0.05, (0.2, 0.15, 0.33), "ochre_clay", segments=6, rotation=(90, 0, 0))      # a clay tap, after a drawing of a 2024 tap
     # Water wheel on the right side, turned by nothing in particular.
     part.cylinder(0.32, 0.08, (1.02, -0.1, 0.42), "old_wood", segments=10, rotation=(0, 90, 0))
     part.cylinder(0.06, 0.2, (1.02, -0.1, 0.42), "tarred_wood", segments=6, rotation=(0, 90, 0))
@@ -117,16 +117,50 @@ def hearth_upper(part):
 
 # ---------------- upgrade kit: what a building collects as it levels up (spec: Muddy Satire) ----------------
 
-def rubber_duck(part, centre, size=1.0, yaw=0):
-    """The cult's minor deity of bathing, at any size: from a bath toy to a rooftop idol."""
+def rubber_duck(part, centre, size=1.0, yaw=0, relic=False):
+    """The cult's minor deity of bathing. There is exactly one real one (the dashboard duck, `relic=True`, crisp
+    hi-vis plastic); everything else is a copy carved from wood and painted with weld and ochre clay."""
     x, y, z = centre
     s = size
-    part.sphere(0.12 * s, (x, y + 0.02 * s, z + 0.1 * s), "hivis_yellow", segments=9, rings=6, scale=(1.0, 1.3, 0.8), smooth=True,
+    body, beak = ("hivis_yellow", "cone_orange") if relic else ("weld", "ochre_clay")
+    part.sphere(0.12 * s, (x, y + 0.02 * s, z + 0.1 * s), body, segments=9, rings=6, scale=(1.0, 1.3, 0.8), smooth=relic,
                 rotation=(0, 0, yaw))
-    part.sphere(0.075 * s, (x, y - 0.1 * s, z + 0.22 * s), "hivis_yellow", segments=8, rings=6, smooth=True)
-    part.cylinder(0.03 * s, 0.06 * s, (x, y - 0.18 * s, z + 0.21 * s), "cone_orange", segments=8, radius_top=0.02 * s, rotation=(90, 0, 0))
+    part.sphere(0.075 * s, (x, y - 0.1 * s, z + 0.22 * s), body, segments=8, rings=6, smooth=relic)
+    part.cylinder(0.03 * s, 0.06 * s, (x, y - 0.18 * s, z + 0.21 * s), beak, segments=8, radius_top=0.02 * s, rotation=(90, 0, 0))
     for side in (-1, 1):
-        part.sphere(0.014 * s, (x + side * 0.04 * s, y - 0.16 * s, z + 0.25 * s), "umbrella_black", segments=6, rings=4, smooth=True)
+        part.sphere(0.014 * s, (x + side * 0.04 * s, y - 0.16 * s, z + 0.25 * s), "umbrella_black" if relic else "tarred_wood",
+                    segments=6, rings=4, smooth=True)
+
+
+def clay_cone(part, centre, size=1.0, lean=4):
+    """The faithful's copy of the Holy Cone: fired ochre clay, a linen band, never quite straight."""
+    x, y, z = centre
+    s = size
+    part.box((0.14 * s, 0.14 * s, 0.025 * s), (x, y, z + 0.0125 * s), "ochre_clay", bevel=0.006, rotation=(0, 0, lean * 3))
+    part.cylinder(0.065 * s, 0.22 * s, (x, y, z + 0.13 * s), "ochre_clay", segments=7, radius_top=0.016 * s, rotation=(lean, 0, 0))
+    part.cylinder(0.045 * s, 0.03 * s, (x, y + 0.006 * s, z + 0.12 * s), "linen", segments=7, rotation=(lean, 0, 0))
+
+
+def wicker_trolley(part, centre, yaw=0, load=None):
+    """The Holy Trolley, as remade by the basket-weaver: wicker basket, wooden wheels, a pole for a handle."""
+    x, y, z = centre
+    part.box((0.3, 0.2, 0.16), (x, y, z + 0.18), "thatch", bevel=0.02, rotation=(0, 0, yaw))
+    for k in range(3):
+        part.box((0.31, 0.205, 0.015), (x, y, z + 0.12 + k * 0.05), "fresh_log", bevel=0.004, rotation=(0, 0, yaw))
+    part.box((0.03, 0.2, 0.03), (x + 0.17, y, z + 0.3), "old_wood", bevel=0.005, rotation=(0, -15, yaw))
+    for dx in (-0.11, 0.11):
+        for dy in (-0.08, 0.08):
+            part.cylinder(0.04, 0.025, (x + dx, y + dy, z + 0.04), "old_wood", segments=7, rotation=(90, 0, yaw + 90))
+    if load:
+        for k in range(3):
+            part.box((0.13, 0.08, 0.07), (x - 0.07 + k * 0.07, y, z + 0.28), load, bevel=0.008, rotation=(0, 0, k * 40))
+
+
+def weld_vest(part, centre, yaw=0):
+    """A weld-dyed copy of the Prophet's hi-vis vest, with a strip of linen where the shiny bit should be."""
+    x, y, z = centre
+    part.box((0.16, 0.04, 0.2), (x, y, z), "weld", bevel=0.01, rotation=(0, 0, yaw))
+    part.box((0.17, 0.042, 0.025), (x, y, z - 0.03), "linen", bevel=0.003, rotation=(0, 0, yaw))
 
 
 def towel_line(part, start, end, height, colours):
@@ -145,9 +179,10 @@ def towel_line(part, start, end, height, colours):
 
 
 def flip_flops(part, centre, yaw=0):
+    """Bast sandals dyed madder, in honour of the Prophet's pink flip-flops (the real pair is on his feet)."""
     x, y, z = centre
     for side in (-1, 1):
-        part.box((0.05, 0.11, 0.012), (x + side * 0.035, y, z + 0.006), "flipflop_pink", bevel=0.004, rotation=(0, 0, yaw + side * 8))
+        part.box((0.05, 0.11, 0.014), (x + side * 0.035, y, z + 0.007), "madder", bevel=0.004, rotation=(0, 0, yaw + side * 8))
 
 
 def wheel(part, centre, radius, spokes=8, swatch="fresh_log", rim=12, width=0.08):

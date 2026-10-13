@@ -1,5 +1,5 @@
-"""Cultist Hut, level 2 — the Towel Lodge: the hut sprouts an annex under a plank roof, a rubber duck takes its seat
-on the ridge, a long line of towels in every colour of the faith, a tub by the door and flip-flops on the step."""
+"""Cultist Hut, level 2 — the Towel Lodge: the hut sprouts an annex under a plank roof, a carved duck takes its seat
+on the ridge, a long line of towels in every dye of the faith, a tub by the door and madder sandals on the step."""
 from lib.buildings import flip_flops, plank_roof, rubber_duck, thatch_roof, towel_line
 from lib.mesh import Part, root
 
@@ -25,7 +25,7 @@ def build():
     b.box((0.1, 0.03, 0.1), (0.38, -0.05, 0.32), "window", bevel=0.005)
     plank_roof(b, 0.5, 0.56, (0.38, 0.2, 0.5), -14)
     # Towels, in every colour of the faith.
-    towel_line(b, (0.15, -0.44), (0.74, -0.2), 0.62, ("linen", "tarp_blue", "flipflop_pink", "hivis_yellow", "linen"))
+    towel_line(b, (0.15, -0.44), (0.74, -0.2), 0.62, ("linen", "woad", "madder", "weld", "linen"))
     # A tub with a duck in it.
     b.box((0.32, 0.18, 0.13), (-0.52, -0.36, 0.13), "old_wood", bevel=0.03, bevel_segments=2)
     b.box((0.27, 0.13, 0.02), (-0.52, -0.36, 0.19), "water", bevel=0.005)

@@ -24,6 +24,10 @@ SWATCHES = [
     ("umbrella_black", "#2b2b2e"),
     # Emissive
     ("fire", "#ffb04d"), ("ember", "#ff7a1f"), ("window", "#ffcf80"), ("moon_rim", "#9fe3ea"),
+    # Cult knock-offs (spec: The Boot): the faithful copy the relics in clay, wicker and plant dye. Never crisp.
+    ("ochre_clay", "#b86a34"), ("woad", "#46618c"), ("weld", "#c4ad4c"), ("madder", "#a85a68"),
+    # The time machine and the gadgets (2024, crisp like all relics)
+    ("car_paint", "#2fa39a"), ("chrome", "#d8dde2"), ("glass", "#9fd0dc"), ("laser_red", "#ff2340"),
 ]
 
 _INDEX = {name: i for i, (name, _) in enumerate(SWATCHES)}

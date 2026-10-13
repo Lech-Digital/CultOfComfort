@@ -1,5 +1,5 @@
 """Cistern, level 2 — the Raised Cistern (tech tree: upgrades raise the cistern; every 10 m of head is a bar).
-A barrel tank on a braced timber tower, a ladder, a leather hose ending in a hi-vis nozzle, and a rubber duck
+A barrel tank on a braced timber tower, a ladder, a leather hose ending in a hammered nozzle, and a carved duck
 floating on top. Lifeguard on duty: the duck."""
 from lib.buildings import rubber_duck
 from lib.mesh import Part, root
@@ -31,10 +31,10 @@ def build():
         b.box((0.03, 0.03, 1.05), (-0.42, y, 0.52), "fresh_log", bevel=0.004, rotation=(0, -8, 0))
     for k in range(5):
         b.box((0.025, 0.22, 0.025), (-0.43 + k * 0.016, 0, 0.15 + k * 0.2), "fresh_log", bevel=0.003)
-    # Leather hose down to a hi-vis nozzle.
+    # Leather hose down to a hammered copper nozzle.
     b.cylinder(0.035, 0.5, (0.22, -0.3, 0.78), "tarred_wood", segments=6, rotation=(20, 0, 0))
     b.cylinder(0.035, 0.45, (0.25, -0.4, 0.33), "tarred_wood", segments=6, rotation=(-10, 10, 0))
     b.cylinder(0.035, 0.25, (0.25, -0.42, 0.09), "tarred_wood", segments=6, rotation=(80, 0, 0))
-    b.cylinder(0.045, 0.12, (0.25, -0.52, 0.08), "hivis_yellow", segments=8, radius_top=0.025, rotation=(90, 0, 0))
+    b.cylinder(0.045, 0.12, (0.25, -0.52, 0.08), "gold_trim", segments=8, radius_top=0.025, rotation=(90, 0, 0))
     b.build()
     return cistern

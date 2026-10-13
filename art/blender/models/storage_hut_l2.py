@@ -20,7 +20,7 @@ def build():
     for k in range(4):
         log_wall(b, corners[k], corners[(k + 1) % 4], height=0.5, z0=0.32, radius=0.05)
     thatch_roof(b, 0.64, 0.56, (0, 0.02, 0.84), 0.45)
-    b.box((0.3, 0.36, 0.02), (-0.2, -0.05, 1.08), "tarp_blue", bevel=0, rotation=(0, -52, 0))           # patched already
+    b.box((0.3, 0.36, 0.02), (-0.2, -0.05, 1.08), "woad", bevel=0, rotation=(0, -52, 0))                # patched with woad cloth already
     b.box((0.2, 0.04, 0.32), (-0.08, -0.29, 0.5), "tarred_wood", bevel=0.01)                            # door
     for side in (-1, 1):                                                                                 # ladder
         b.box((0.03, 0.03, 0.42), (-0.08 + side * 0.09, -0.4, 0.2), "fresh_log", bevel=0.004, rotation=(-22, 0, 0))
