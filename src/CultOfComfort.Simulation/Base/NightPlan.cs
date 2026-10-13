@@ -20,7 +20,7 @@ public sealed record NightPlan(
     IReadOnlyList<PlacedStructure> Structures)
 {
     public BattleSetup ToBattleSetup(VillageMap map, IReadOnlyList<PlayerInput> inputs) =>
-        new(new BattleLayout(map.Width, map.Height, map.Spawn, map.Hearth, Towers, Obstacles, null, Structures), Seed, Budget, Waves, inputs)
+        new(new BattleLayout(map.Width, map.Height, map.Spawn, map.Hearth, Towers, Obstacles, null, Structures, map.Road), Seed, Budget, Waves, inputs) // the fixed road: a gate blocks it, nothing reroutes it
         {
             ExtraSluiceCharges = ExtraSluiceCharges,
         };
