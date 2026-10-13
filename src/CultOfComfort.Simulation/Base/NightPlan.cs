@@ -25,6 +25,8 @@ public sealed record NightPlan(
         {
             ExtraSluiceCharges = ExtraSluiceCharges,
             Roster = CultOfComfort.Simulation.Waves.RaidRoster.ForHearth(Roster),
+            Relics = RelicBook.ForHearth(Roster), // Roster is the Hearth level the Night was planned at
+
         };
 }
 

@@ -36,6 +36,12 @@ public sealed class Enemy
     public Fix SlowMultiplier { get; private set; } = Fix.One;
     public int FrightenedUntilTick { get; private set; }
 
+    /// <summary>Blinded by the laser pointer: it stands where it is, rubbing its eyes.</summary>
+    public int BlindedUntilTick { get; private set; }
+
+    /// <summary>Set alight by the magnifying glass.</summary>
+    public int BurningUntilTick { get; private set; }
+
     /// <summary>How far it has stepped off the road (tiles) to chase the Prophet; zero while on the road.</summary>
     public FixVector2 Offset { get; private set; }
 
@@ -104,6 +110,14 @@ public sealed class Enemy
 
     /// <summary>Frightened enemies walk back the way they came.</summary>
     public bool IsFrightened(int tick) => tick < FrightenedUntilTick;
+
+    public bool IsBlinded(int tick) => tick < BlindedUntilTick;
+
+    public bool IsBurning(int tick) => tick < BurningUntilTick;
+
+    internal void Blind(int untilTick) => BlindedUntilTick = Math.Max(BlindedUntilTick, untilTick);
+
+    internal void Ignite(int untilTick) => BurningUntilTick = Math.Max(BurningUntilTick, untilTick);
 
     /// <returns>True if this damage defeated the enemy.</returns>
     internal bool TakeDamage(Fix amount)

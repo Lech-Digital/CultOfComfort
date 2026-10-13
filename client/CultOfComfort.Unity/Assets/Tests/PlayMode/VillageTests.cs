@@ -129,6 +129,42 @@ namespace CultOfComfort.Client.Tests
         }
 
         [UnityTest]
+        public IEnumerator Night_HearthTwo_RelicButtonsShowAndTheTorchLights()
+        {
+            // Arrange — a village whose Hearth reached level 2 (the upgrade finished while we were away).
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, _clock.UtcNow);
+            Assert.AreEqual(CommandStatus.Accepted, state.Apply(new UpgradeHearth(Guid.NewGuid()), _clock.UtcNow).Status);
+            var store = new Store { Saved = state.ToData() };
+            _clock.UtcNow = _clock.UtcNow.AddHours(1);
+            VillageComposition.Override = () => new LocalBaseGateway(store, _clock, BuildingTable.Default, VillageMap.Demo, _ => { });
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(4);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            Assert.AreEqual(2, Snapshot(game).HearthLevel);
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+
+            // Act
+            game.StartNight();
+            var until = Time.realtimeSinceStartup + 10f;
+            while (game.Phase != GamePhase.Night && Time.realtimeSinceStartup < until)
+            {
+                yield return null;
+            }
+
+            yield return Frames(3);
+            Click(root.Q<Button>("torch"));
+            yield return Frames(3);
+
+            // Assert
+            Assert.AreEqual(DisplayStyle.Flex, root.Q("relics").resolvedStyle.display, "Hearth 2 found the laser pointer and the torch");
+            Assert.AreEqual(DisplayStyle.Flex, root.Q<Button>("laser").resolvedStyle.display);
+            Assert.AreEqual(DisplayStyle.None, root.Q<Button>("magnifier").resolvedStyle.display, "the glass waits for Hearth 3");
+            var battle = (CultOfComfort.Simulation.Combat.Battle)typeof(GameController).GetField("_battle", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(game);
+            Assert.IsTrue(battle.Leader.IsTorchLit(battle.Tick), "the torch button lights it");
+            Assert.IsNotNull(GameObject.Find("Dynamo Torch"), "and the light shows");
+        }
+
+        [UnityTest]
         public IEnumerator Drawer_PickWoodcutterGhostThenConfirm_BuildsItAndChargesTimber()
         {
             // Arrange

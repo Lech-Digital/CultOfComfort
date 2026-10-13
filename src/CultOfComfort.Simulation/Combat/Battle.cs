@@ -15,6 +15,7 @@ namespace CultOfComfort.Simulation.Combat;
 public sealed class Battle
 {
     private readonly BalanceTable _balance;
+    private readonly Relic _relics;
     private readonly BattleLayout _layout;
     private readonly PcgRandom _combatRandom;
     private readonly ulong _seed;
@@ -45,6 +46,7 @@ public sealed class Battle
         setup.Layout.Validate();
 
         _balance = setup.Balance ?? BalanceTable.Default;
+        _relics = setup.Relics;
         _layout = setup.Layout;
         Leader = new CultLeader(setup.Layout.LeaderStart, _balance.Leader.MaxHealth);
         _combatRandom = new PcgRandom(setup.Seed, RandomStreams.Combat);
@@ -95,6 +97,20 @@ public sealed class Battle
     public CultLeader Leader { get; }
     public bool IsVoiceReady => Tick >= Leader.VoiceReadyAtTick && !Leader.IsSwooning(Tick);
     public bool IsHotStonesReady => Tick >= Leader.HotStonesReadyAtTick && !Leader.IsSwooning(Tick);
+
+    /// <summary>The relics he can use tonight.</summary>
+    public Relic Relics => _relics;
+
+    public bool IsLaserReady => Has(Relic.LaserPointer) && Tick >= Leader.LaserReadyAtTick && !Leader.IsSwooning(Tick);
+
+    public bool IsTorchReady => Has(Relic.DynamoTorch) && Tick >= Leader.TorchReadyAtTick && !Leader.IsSwooning(Tick);
+
+    /// <summary>The magnifying glass needs the sun, and the sun sets after the first wave.</summary>
+    public bool IsSunUp => CurrentWave <= 1;
+
+    public bool IsSunFireReady => Has(Relic.Magnifier) && IsSunUp && Tick >= Leader.SunFireReadyAtTick && !Leader.IsSwooning(Tick);
+
+    private bool Has(Relic relic) => (_relics & relic) == relic;
     public int CurrentWave { get; private set; }
     public int WaveCount { get; }
     public int TotalEnemies { get; }
@@ -146,6 +162,7 @@ public sealed class Battle
         ReviveLeader();
         ApplyInputs();
         FireTowers();
+        BurnEnemies();
         LeaderAttack();
         MoveEnemies();
         if (!Leader.IsSwooning(Tick))
@@ -219,6 +236,15 @@ public sealed class Battle
                     break;
                 case PlayerActionType.HotStones:
                     ThrowHotStones(input.Target);
+                    break;
+                case PlayerActionType.LaserPointer:
+                    PointLaser(input.Target);
+                    break;
+                case PlayerActionType.DynamoTorch:
+                    CrankTorch();
+                    break;
+                case PlayerActionType.SunFire:
+                    FocusSunFire(input.Target);
                     break;
                 default:
                     _tickEvents.Add(new InputRejected(Tick, input.Type, "Unknown intervention."));
@@ -360,6 +386,135 @@ public sealed class Battle
 
         _tickEvents.Add(new HotStonesThrown(Tick, target, affected));
     }
+
+    /// <summary>A relic he can use right now, or why not (null: go ahead).</summary>
+    private string? RelicProblem(PlayerActionType type, int readyAtTick)
+    {
+        if (!Has(RelicBook.For(type)))
+        {
+            return "He hasn't found that in the car yet.";
+        }
+
+        if (Leader.IsSwooning(Tick))
+        {
+            return "He is face down in the mud.";
+        }
+
+        return Tick < readyAtTick ? "Not yet: give it a moment." : null;
+    }
+
+    /// <summary>The Finger of God: a red dot near <paramref name="target"/>, and the raider nearest it is blinded where it stands.</summary>
+    private void PointLaser(GridPosition target)
+    {
+        var stats = _balance.Relics;
+        var problem = RelicProblem(PlayerActionType.LaserPointer, Leader.LaserReadyAtTick);
+        if (problem == null && target.ToVector().DistanceSquaredTo(Leader.Position) > stats.LaserReach * stats.LaserReach)
+        {
+            problem = "The dot doesn't reach that far.";
+        }
+
+        Enemy? victim = null;
+        if (problem == null)
+        {
+            var best = stats.LaserPick * stats.LaserPick;
+            foreach (var enemy in _enemies)
+            {
+                var d = enemy.IsActive ? PositionOf(enemy).DistanceSquaredTo(target.ToVector()) : best + Fix.One;
+                if (d <= best && (victim == null || d < best))
+                {
+                    victim = enemy;
+                    best = d;
+                }
+            }
+
+            problem = victim == null ? "Nobody there to dazzle." : null;
+        }
+
+        if (problem != null)
+        {
+            _tickEvents.Add(new InputRejected(Tick, PlayerActionType.LaserPointer, problem));
+            return;
+        }
+
+        Leader.LaserReadyAtTick = Tick + stats.LaserCooldownTicks;
+        victim!.Blind(Tick + stats.LaserBlindTicks);
+        victim.CancelSwing();
+        _tickEvents.Add(new RelicUsed(Tick, PlayerActionType.LaserPointer, target, victim.Id, 1));
+    }
+
+    /// <summary>Light without fire: while it shines, raiders near him are dazzled (slow, and can't see to fight him).</summary>
+    private void CrankTorch()
+    {
+        var stats = _balance.Relics;
+        var problem = RelicProblem(PlayerActionType.DynamoTorch, Leader.TorchReadyAtTick);
+        if (problem != null)
+        {
+            _tickEvents.Add(new InputRejected(Tick, PlayerActionType.DynamoTorch, problem));
+            return;
+        }
+
+        Leader.TorchReadyAtTick = Tick + stats.TorchCooldownTicks;
+        Leader.TorchLitUntilTick = Tick + stats.TorchLitTicks;
+        _tickEvents.Add(new RelicUsed(Tick, PlayerActionType.DynamoTorch, default, -1, 0));
+    }
+
+    /// <summary>Sun-fire: the magnifying glass on a tile within reach sets the raiders there alight. Needs the sun.</summary>
+    private void FocusSunFire(GridPosition target)
+    {
+        var stats = _balance.Relics;
+        var problem = RelicProblem(PlayerActionType.SunFire, Leader.SunFireReadyAtTick);
+        if (problem == null && !IsSunUp)
+        {
+            problem = "The sun has set. It's a magnifying glass, not a miracle.";
+        }
+
+        if (problem == null && (!_layout.IsInBounds(target) || target.ToVector().DistanceSquaredTo(Leader.Position) > stats.SunFireReach * stats.SunFireReach))
+        {
+            problem = "Too far to focus.";
+        }
+
+        if (problem != null)
+        {
+            _tickEvents.Add(new InputRejected(Tick, PlayerActionType.SunFire, problem));
+            return;
+        }
+
+        Leader.SunFireReadyAtTick = Tick + stats.SunFireCooldownTicks;
+        var radiusSquared = stats.SunFireRadius * stats.SunFireRadius;
+        var affected = 0;
+        foreach (var enemy in _enemies)
+        {
+            if (enemy.IsActive && PositionOf(enemy).DistanceSquaredTo(target.ToVector()) <= radiusSquared)
+            {
+                enemy.Ignite(Tick + stats.SunFireBurnTicks);
+                affected++;
+            }
+        }
+
+        _tickEvents.Add(new RelicUsed(Tick, PlayerActionType.SunFire, target, -1, affected));
+    }
+
+    /// <summary>Burning raiders take fire damage every tick (resistances apply, blessings soften it).</summary>
+    private void BurnEnemies()
+    {
+        if (_relics == Relic.None)
+        {
+            return;
+        }
+
+        var perTick = _balance.Relics.SunFireBurnPerSecond / BalanceTable.TicksPerSecond;
+        foreach (var enemy in _enemies)
+        {
+            if (enemy.IsActive && enemy.IsBurning(Tick))
+            {
+                DealDamage(enemy, perTick);
+            }
+        }
+    }
+
+    /// <summary>In the dynamo torch's light: slowed, and no fighting the Prophet.</summary>
+    private bool IsDazzled(Enemy enemy) =>
+        Leader.IsTorchLit(Tick) && PositionOf(enemy).DistanceSquaredTo(Leader.Position) <= _balance.Relics.TorchRadius * _balance.Relics.TorchRadius;
 
     /// <summary>He hits whatever is closest to the Hearth within reach, with a 2024 umbrella.</summary>
     private void LeaderAttack()
@@ -544,6 +699,20 @@ public sealed class Battle
             if (enemy.IsSlowed(Tick))
             {
                 step *= enemy.SlowMultiplier;
+            }
+
+            if (_relics != Relic.None)
+            {
+                if (enemy.IsBlinded(Tick))
+                {
+                    enemy.CancelSwing(); // rubbing its eyes, going nowhere
+                    continue;
+                }
+
+                if (IsDazzled(enemy))
+                {
+                    step *= _balance.Relics.TorchSlow;
+                }
             }
 
             if (enemy.IsFrightened(Tick))
@@ -1033,7 +1202,8 @@ public sealed class Battle
     }
 
     private bool Contends(Enemy enemy) =>
-        enemy.IsActive && !enemy.IsFrightened(Tick) && WantsLeader(enemy, _balance.Enemies[enemy.Type]);
+        enemy.IsActive && !enemy.IsFrightened(Tick) && (_relics == Relic.None || (!enemy.IsBlinded(Tick) && !IsDazzled(enemy)))
+        && WantsLeader(enemy, _balance.Enemies[enemy.Type]);
 
     /// <summary>
     /// Melee raiders (NoticeRange &gt; 0) leave the road when he is within notice range of their road point and keep
@@ -1104,9 +1274,19 @@ public sealed class Battle
                 _hasher.Add(enemy.WallBreaker ? 1 : 0);
             }
             _hasher.Add(enemy.LeaderAttackCooldownTicksRemaining);
+            if (_relics != Relic.None)
+            {
+                _hasher.Add(enemy.BlindedUntilTick);
+                _hasher.Add(enemy.BurningUntilTick);
+            }
         }
 
         Leader.AddToHash(_hasher);
+        if (_relics != Relic.None)
+        {
+            _hasher.Add((int)_relics);
+            Leader.AddRelicsToHash(_hasher);
+        }
 
         foreach (var tower in _towers)
         {

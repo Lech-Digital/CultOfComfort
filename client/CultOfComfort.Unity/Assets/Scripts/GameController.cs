@@ -77,7 +77,7 @@ namespace CultOfComfort.Client
         private HudView _hud;
         private Vector2Int _screenSize;
         private int _framePending;
-        private bool _aimingStones;
+        private PlayerActionType? _aim; // an aimed skill is armed: the next tap on the board says where (Hot Stones, laser, glass)
         private IntroDirector _intro;
 
         public GamePhase Phase => _phase;
@@ -807,6 +807,12 @@ namespace CultOfComfort.Client
 
             if (_snapshot.HearthLevel != _openLevel)
             {
+                var found = RelicNews.Found(_openLevel, _snapshot.HearthLevel);
+                if (found != null)
+                {
+                    _hud.Announce(found, Time.time, 7f, prophet: true);
+                }
+
                 _openLevel = _snapshot.HearthLevel;
                 _board.SetOpenLevel(_openLevel);
                 var (min, max) = VillageFraming.HomeBounds(VillageMap.Demo, _openLevel);
@@ -874,6 +880,7 @@ namespace CultOfComfort.Client
             _tool = null;
             _board.HideBuilding(null);
             _hud.ShowPaintDone(false);
+            _hud.ShowErrand(null); // the errand waits for Dawn
             _hud.ShowRepairAll(null);
             _cardBuilding = null;
             _hud.ShowBuildingCard(null);
@@ -896,17 +903,17 @@ namespace CultOfComfort.Client
 
         private void UpdateNight()
         {
-            if (_aimingStones && !_battle.IsHotStonesReady)
+            if (_aim != null && !AimReady(_aim.Value))
             {
-                SetAimingStones(false); // He fainted mid-aim.
+                SetAim(null); // He fainted mid-aim (or the sun set).
             }
 
             if (_gesture.Tapped && TryScreenToTile(_gesture.TapPosition, out var tile))
             {
-                if (_aimingStones)
+                if (_aim != null)
                 {
-                    _battle.Intervene(PlayerActionType.HotStones, tile);
-                    SetAimingStones(false);
+                    _battle.Intervene(_aim.Value, tile);
+                    SetAim(null);
                 }
                 else
                 {
@@ -936,25 +943,55 @@ namespace CultOfComfort.Client
             }
         }
 
-        private void ToggleAimingStones()
+        private void ToggleAimingStones() => ToggleAim(PlayerActionType.HotStones, "Hot Stone Therapy: tap a tile inside the pebble ring.");
+
+        /// <summary>Arms an aimed skill (or disarms it on a second press); the next tap on the board fires it.</summary>
+        private void ToggleAim(PlayerActionType skill, string prompt)
         {
-            if (_battle == null || !_battle.IsHotStonesReady)
+            if (_battle == null || !AimReady(skill))
             {
                 return;
             }
 
-            SetAimingStones(!_aimingStones);
-            if (_aimingStones)
+            SetAim(_aim == skill ? (PlayerActionType?)null : skill);
+            if (_aim != null)
             {
-                Announce("Hot Stone Therapy: tap a tile inside the pebble ring.");
+                Announce(prompt);
             }
         }
 
-        private void SetAimingStones(bool aiming)
+        private RelicButtonState RelicButton(Relic relic, string name, int readyAtTick, bool ready, PlayerActionType? aimed, bool swooning)
         {
-            _aimingStones = aiming;
-            _battleView.ShowReach(aiming);
-            if (!aiming)
+            if (!_battle.Relics.HasFlag(relic))
+            {
+                return default;
+            }
+
+            var aiming = aimed != null && _aim == aimed;
+            var text = swooning ? "Fainted" : aiming ? "Pick" : ready ? name : $"{Seconds(readyAtTick)}s";
+            return new RelicButtonState(true, text, ready, aiming);
+        }
+
+        private bool AimReady(PlayerActionType skill) => skill switch
+        {
+            PlayerActionType.HotStones => _battle.IsHotStonesReady,
+            PlayerActionType.LaserPointer => _battle.IsLaserReady,
+            PlayerActionType.SunFire => _battle.IsSunFireReady,
+            _ => false,
+        };
+
+        private static float AimReach(PlayerActionType skill) => (float)(skill switch
+        {
+            PlayerActionType.LaserPointer => BalanceTable.Default.Relics.LaserReach,
+            PlayerActionType.SunFire => BalanceTable.Default.Relics.SunFireReach,
+            _ => BalanceTable.Default.HotStones.Reach,
+        }).ToDouble();
+
+        private void SetAim(PlayerActionType? skill)
+        {
+            _aim = skill;
+            _battleView.ShowReach(skill != null, skill != null ? AimReach(skill.Value) : 0f);
+            if (skill == null)
             {
                 _board.ShowCursor(null, false);
             }
@@ -963,7 +1000,7 @@ namespace CultOfComfort.Client
         /// <summary>While aiming, highlight the tile under the cursor or finger: amber in reach, red out of it.</summary>
         private void ShowStonesTarget()
         {
-            if (!_aimingStones)
+            if (_aim == null)
             {
                 return;
             }
@@ -975,7 +1012,7 @@ namespace CultOfComfort.Client
                 return;
             }
 
-            var reach = (float)BalanceTable.Default.HotStones.Reach.ToDouble();
+            var reach = AimReach(_aim.Value);
             var leader = Shapes.ToWorld(_battle.Leader.Position);
             _board.ShowCursor(tile, (Shapes.ToWorld(tile) - leader).sqrMagnitude <= reach * reach);
         }
@@ -983,7 +1020,7 @@ namespace CultOfComfort.Client
         /// <summary>Sends only the input log; the village replays the Night itself and its result must match ours.</summary>
         private async void EndNight()
         {
-            SetAimingStones(false);
+            SetAim(null);
             _board.ShowLeaderDestination(null);
             _phase = GamePhase.Dawn;
             _hud.ShowPhase(_phase);
@@ -1262,6 +1299,9 @@ namespace CultOfComfort.Client
             _hud.SluiceClicked += () => _battle?.Intervene(PlayerActionType.OpenSluiceGate);
             _hud.VoiceClicked += () => _battle?.Intervene(PlayerActionType.PhantomVoice);
             _hud.StonesClicked += ToggleAimingStones;
+            _hud.LaserClicked += () => ToggleAim(PlayerActionType.LaserPointer, "The Finger of God: tap a raider inside the ring.");
+            _hud.TorchClicked += () => _battle?.Intervene(PlayerActionType.DynamoTorch);
+            _hud.SunFireClicked += () => ToggleAim(PlayerActionType.SunFire, "Sun-fire: tap raiders inside the ring while the sun is up.");
             _hud.SpeedClicked += () => _speed = _speed == 1 ? 2 : _speed == 2 ? 4 : 1;
             _hud.RecenterClicked += () => _rig.Reset();
             _hud.BackToDuskClicked += BackToDusk;
@@ -1303,15 +1343,25 @@ namespace CultOfComfort.Client
                 var leader = _battle.Leader;
                 var swooning = leader.IsSwooning(_battle.Tick);
                 var voice = swooning ? "Fainted" : _battle.IsVoiceReady ? "Phantom Voice" : $"Hoarse {Seconds(leader.VoiceReadyAtTick)}s";
-                var stones = swooning ? "Fainted" : _aimingStones ? "Pick a tile" : _battle.IsHotStonesReady ? "Hot Stones" : $"Heating {Seconds(leader.HotStonesReadyAtTick)}s";
+                var aimingStones = _aim == PlayerActionType.HotStones;
+                var stones = swooning ? "Fainted" : aimingStones ? "Pick a tile" : _battle.IsHotStonesReady ? "Hot Stones" : $"Heating {Seconds(leader.HotStonesReadyAtTick)}s";
                 var alive = _battle.Enemies.Count(e => e.IsActive);
                 var hint = swooning ? $"The Prophet is face down in the mud. Up in {Seconds(leader.SwoonedUntilTick)}s: tap where he should run."
-                    : _aimingStones ? "Tap a tile inside the pebble ring, or Hot Stones again to cancel."
+                    : aimingStones ? "Tap a tile inside the pebble ring, or Hot Stones again to cancel."
+                    : _aim == PlayerActionType.LaserPointer ? "Tap a raider inside the ring: the red dot blinds it. Tap the pointer again to cancel."
+                    : _aim == PlayerActionType.SunFire ? "Tap raiders inside the ring: the glass sets them alight. Tap it again to cancel."
                     : "Tap the ground to move the Prophet. Enemies stop to fight him.";
                 _hud.UpdateNight(new NightHudState(
                     _night, _battle.HearthHealth, _battle.HearthMaxHealth, leader.Health, leader.MaxHealth,
-                    sluice, _battle.IsSluiceReady, voice, _battle.IsVoiceReady, stones, _battle.IsHotStonesReady || _aimingStones, _aimingStones, _speed,
-                    _battle.CurrentWave, _battle.WaveCount, alive, hint));
+                    sluice, _battle.IsSluiceReady, voice, _battle.IsVoiceReady, stones, _battle.IsHotStonesReady || aimingStones, aimingStones, _speed,
+                    _battle.CurrentWave, _battle.WaveCount, alive, hint,
+                    RelicButton(Relic.LaserPointer, "Laser", leader.LaserReadyAtTick, _battle.IsLaserReady, PlayerActionType.LaserPointer, swooning),
+                    leader.IsTorchLit(_battle.Tick)
+                        ? new RelicButtonState(_battle.Relics.HasFlag(Relic.DynamoTorch), $"Lit {Seconds(leader.TorchLitUntilTick)}s", false)
+                        : RelicButton(Relic.DynamoTorch, "Torch", leader.TorchReadyAtTick, _battle.IsTorchReady, null, swooning),
+                    !_battle.IsSunUp && _battle.Relics.HasFlag(Relic.Magnifier)
+                        ? new RelicButtonState(true, "Sun's down", false)
+                        : RelicButton(Relic.Magnifier, "Sun-fire", leader.SunFireReadyAtTick, _battle.IsSunFireReady, PlayerActionType.SunFire, swooning)));
             }
         }
 

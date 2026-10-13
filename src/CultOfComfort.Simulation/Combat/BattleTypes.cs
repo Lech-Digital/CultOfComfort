@@ -11,6 +11,44 @@ public enum PlayerActionType
     MoveLeader,
     PhantomVoice,
     HotStones,
+
+    /// <summary>Relic: the Finger of God. Target: a tile; the raider nearest it is blinded where it stands.</summary>
+    LaserPointer,
+
+    /// <summary>Relic: light without fire. Raiders near the Prophet are dazzled while it burns.</summary>
+    DynamoTorch,
+
+    /// <summary>Relic: sun-fire. Target: a tile; raiders there catch fire. Only while the sun is up (the first wave).</summary>
+    SunFire,
+}
+
+/// <summary>The relics from the boot the Prophet has worked out how to use (GDD 05: The Boot).</summary>
+[System.Flags]
+public enum Relic
+{
+    None = 0,
+    LaserPointer = 1,
+    DynamoTorch = 2,
+    Magnifier = 4,
+}
+
+/// <summary>Which relics he can use at each Hearth level (the village grows; he finds things in the car).</summary>
+public static class RelicBook
+{
+    public static Relic ForHearth(int hearthLevel) => hearthLevel switch
+    {
+        <= 1 => Relic.None,
+        2 => Relic.LaserPointer | Relic.DynamoTorch,
+        _ => Relic.LaserPointer | Relic.DynamoTorch | Relic.Magnifier,
+    };
+
+    public static Relic For(PlayerActionType action) => action switch
+    {
+        PlayerActionType.LaserPointer => Relic.LaserPointer,
+        PlayerActionType.DynamoTorch => Relic.DynamoTorch,
+        PlayerActionType.SunFire => Relic.Magnifier,
+        _ => Relic.None,
+    };
 }
 
 public enum BattleOutcome
@@ -35,6 +73,9 @@ public sealed record BattleSetup(
 {
     /// <summary>Who comes (null: the classic demo mix, so old replays and the demo hash stay as they were).</summary>
     public Waves.RaidRoster? Roster { get; init; }
+
+    /// <summary>The relics he can use tonight (none: old replays and the demo hash stay as they were).</summary>
+    public Relic Relics { get; init; }
 }
 
 public sealed record BattleResult(
@@ -82,5 +123,8 @@ public sealed record LeaderSwooned(int Tick) : BattleEvent(Tick);
 public sealed record LeaderRevived(int Tick, int Health) : BattleEvent(Tick);
 
 public sealed record HotStonesThrown(int Tick, GridPosition Target, int EnemiesAffected) : BattleEvent(Tick);
+
+/// <summary>A relic went off: the laser at <paramref name="TargetId"/> (−1: none), the torch lit, the glass focused on <paramref name="Target"/>.</summary>
+public sealed record RelicUsed(int Tick, PlayerActionType Type, GridPosition Target, int TargetId, int EnemiesAffected) : BattleEvent(Tick);
 
 public sealed record BattleEnded(int Tick, BattleOutcome Outcome, int Stars) : BattleEvent(Tick);
