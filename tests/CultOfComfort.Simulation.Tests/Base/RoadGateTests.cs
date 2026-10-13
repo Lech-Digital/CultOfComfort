@@ -81,4 +81,26 @@ public class RoadGateTests
         (iron, house).Should().Be((450, 900));
         Gate(state, 17, 5).Status.Should().Be(CommandStatus.Accepted, "three road gates at Hearth 3");
     }
+
+    [Fact]
+    public void Night_WithARoadGate_TheRaidHacksAtItOnTheFixedRoad()
+    {
+        // Arrange — regression: the Night plan built its battle without the fixed road, so raiders walked round the gate.
+        var state = NewBase(hearth: 2);
+        Gate(state, 10, 5);
+        var plan = state.Apply(new BeginNight(Guid.NewGuid()), T0).Plan!;
+
+        // Act
+        var battle = new CultOfComfort.Simulation.Combat.Battle(plan.ToBattleSetup(Map, Array.Empty<CultOfComfort.Simulation.Combat.PlayerInput>()));
+        var hits = 0;
+        while (!battle.IsFinished)
+        {
+            battle.Step();
+            hits += battle.LastTickEvents.OfType<CultOfComfort.Simulation.Combat.StructureHit>().Count();
+        }
+
+        // Assert
+        battle.Path.Should().Equal(Map.Road);
+        hits.Should().BeGreaterThan(0, "they hack at the gate across the road");
+    }
 }
