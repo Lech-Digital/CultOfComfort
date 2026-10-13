@@ -17,12 +17,14 @@ public sealed record NightPlan(
     bool Scheduled,
     IReadOnlyList<PlacedTower> Towers,
     IReadOnlyList<GridPosition> Obstacles,
-    IReadOnlyList<PlacedStructure> Structures)
+    IReadOnlyList<PlacedStructure> Structures,
+    int Roster = 0)
 {
     public BattleSetup ToBattleSetup(VillageMap map, IReadOnlyList<PlayerInput> inputs) =>
         new(new BattleLayout(map.Width, map.Height, map.Spawn, map.Hearth, Towers, Obstacles, null, Structures, map.Road), Seed, Budget, Waves, inputs) // the fixed road: a gate blocks it, nothing reroutes it
         {
             ExtraSluiceCharges = ExtraSluiceCharges,
+            Roster = CultOfComfort.Simulation.Waves.RaidRoster.ForHearth(Roster),
         };
 }
 

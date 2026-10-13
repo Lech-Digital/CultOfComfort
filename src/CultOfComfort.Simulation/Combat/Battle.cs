@@ -49,7 +49,7 @@ public sealed class Battle
         Leader = new CultLeader(setup.Layout.LeaderStart, _balance.Leader.MaxHealth);
         _combatRandom = new PcgRandom(setup.Seed, RandomStreams.Combat);
         _seed = setup.Seed;
-        _spawns = WaveGenerator.Generate(setup.Budget, setup.WaveCount, setup.Seed, _balance);
+        _spawns = WaveGenerator.Generate(setup.Budget, setup.WaveCount, setup.Seed, _balance, setup.Roster);
         _pendingInputs = setup.Inputs.OrderBy(input => input.Tick).ToList();
 
         Path = setup.Layout.ResolveEnemyPath();
@@ -501,10 +501,31 @@ public sealed class Battle
 
     private void DealDamage(Enemy enemy, Fix damage)
     {
+        if (IsBlessed(enemy))
+        {
+            damage = damage * (Fix.One - _balance.BlessingReduction);
+        }
+
         if (enemy.TakeDamage(damage))
         {
             _tickEvents.Add(new EnemyDefeated(Tick, enemy.Id, enemy.Type));
         }
+    }
+
+    /// <summary>A priest within blessing range (not the raider himself) softens every blow.</summary>
+    private bool IsBlessed(Enemy enemy)
+    {
+        var radiusSquared = _balance.BlessingRadius * _balance.BlessingRadius;
+        foreach (var other in _enemies)
+        {
+            if (other != enemy && other.Type == EnemyType.Priest && other.IsActive
+                && PositionOf(other).DistanceSquaredTo(PositionOf(enemy)) <= radiusSquared)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void MoveEnemies()

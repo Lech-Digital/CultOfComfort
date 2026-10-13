@@ -293,5 +293,20 @@ namespace CultOfComfort.Client.Tests
             // Assert
             Assert.Greater(umbrella.bounds.max.y, 1.05f);
         }
+
+        [Test]
+        public void EnemyModel_EveryRaiderType_HasAModelThatExists()
+        {
+            foreach (CultOfComfort.Simulation.Balance.EnemyType type in System.Enum.GetValues(typeof(CultOfComfort.Simulation.Balance.EnemyType)))
+            {
+                // Act
+                var name = BattleView.EnemyModel(type, 1);
+
+                // Assert
+                Assert.IsTrue(ArtLibrary.Exists(name), $"{type} → {name}");
+            }
+
+            Assert.AreEqual("lord_wulfric", BattleView.EnemyModel(CultOfComfort.Simulation.Balance.EnemyType.Lord, 1));
+        }
     }
 }

@@ -31,7 +31,11 @@ public sealed record BattleSetup(
     int WaveCount,
     IReadOnlyList<PlayerInput> Inputs,
     BalanceTable? Balance = null,
-    int ExtraSluiceCharges = 0);
+    int ExtraSluiceCharges = 0)
+{
+    /// <summary>Who comes (null: the classic demo mix, so old replays and the demo hash stay as they were).</summary>
+    public Waves.RaidRoster? Roster { get; init; }
+}
 
 public sealed record BattleResult(
     BattleOutcome Outcome,

@@ -45,5 +45,17 @@ namespace CultOfComfort.Client.Tests
             Assert.IsFalse(again, "one speaker rests 8 seconds");
             Assert.IsTrue(later);
         }
+
+        [Test]
+        public void Arrival_EveryRaiderType_HasItsOwnShout()
+        {
+            foreach (CultOfComfort.Simulation.Balance.EnemyType type in Enum.GetValues(typeof(CultOfComfort.Simulation.Balance.EnemyType)))
+            {
+                // Act & Assert
+                Assert.IsFalse(string.IsNullOrWhiteSpace(BarkBook.Arrival(type, 2)), type.ToString());
+            }
+
+            Assert.AreEqual("HONK.", BarkBook.Arrival(CultOfComfort.Simulation.Balance.EnemyType.Goose, 0));
+        }
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using CultOfComfort.Simulation.Balance;
 
 namespace CultOfComfort.Client
 {
@@ -52,11 +53,25 @@ namespace CultOfComfort.Client
             [BarkKind.CultistNewcomer] = new[] { "A new face! Hand them a towel.", "Welcome, friend. Shoes off.", "Another seeker of comfort!" },
         };
 
-        public static string Line(BarkKind kind, int roll)
+        private static readonly Dictionary<EnemyType, string[]> Arrivals = new Dictionary<EnemyType, string[]>
         {
-            var lines = Lines[kind];
-            return lines[(roll % lines.Length + lines.Length) % lines.Length];
-        }
+            [EnemyType.ManAtArms] = new[] { "Form up! Or at least stand near each other.", "Armour on. Brain optional.", "Clank clank, heretics!" },
+            [EnemyType.Zealot] = new[] { "Repent, ye soaky sinners!", "Page forty-two, brothers! Aim for his head!", "Bathing is a slippery slope!" },
+            [EnemyType.Goose] = new[] { "HONK.", "HONK HONK.", "Hssssss!" },
+            [EnemyType.Goat] = new[] { "Meh-eh-eh!", "*chews a fence post thoughtfully*", "Baaah. (That wall is mine.)" },
+            [EnemyType.Boar] = new[] { "SNORT!", "Oink. Menacingly.", "*charges at nothing in particular*" },
+            [EnemyType.Peasant] = new[] { "Just having a look, dear.", "Ooh, what's this lever do?", "Our Margaret says you lot bathe twice a week!" },
+            [EnemyType.Priest] = new[] { "Bless you all. Now hit harder.", "The Bishop sends his regards. And soldiers.", "Holy water only! None of your hot nonsense!" },
+            [EnemyType.Lord] = new[] { "I am Lord Wulfric, and I am NOT amused.", "Who taxed my peasants' patience? You did!", "Bring me the Prophet. And a towel." },
+        };
+
+        public static string Line(BarkKind kind, int roll) => Pick(Lines[kind], roll);
+
+        /// <summary>What a raider shouts on the road in: each type has its own voice; levies fall back to the general crowd.</summary>
+        public static string Arrival(EnemyType type, int roll) =>
+            Pick(Arrivals.TryGetValue(type, out var lines) ? lines : Lines[BarkKind.RaiderArrives], roll);
+
+        private static string Pick(string[] lines, int roll) => lines[(roll % lines.Length + lines.Length) % lines.Length];
     }
 
     /// <summary>Keeps the chatter readable: at most three bubbles at once, each ~2.5 s, and nobody repeats within 8 s.</summary>

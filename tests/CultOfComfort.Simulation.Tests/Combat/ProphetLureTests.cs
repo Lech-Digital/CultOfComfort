@@ -50,7 +50,7 @@ public class ProphetLureTests
         var enemies = BalanceTable.Default.Enemies;
 
         // Assert
-        BalanceTable.Default.Version.Should().Be("2026.10.6");
+        BalanceTable.Default.Version.Should().Be("2026.10.7");
         enemies[EnemyType.Levy].NoticeRange.Should().Be(Fix.FromInt(2));
         enemies[EnemyType.ManAtArms].NoticeRange.Should().Be(Fix.Ratio(3, 2));
         enemies[EnemyType.Zealot].NoticeRange.Should().Be(Fix.Zero);

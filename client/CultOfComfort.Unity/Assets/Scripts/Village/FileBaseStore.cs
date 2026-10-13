@@ -117,9 +117,14 @@ namespace CultOfComfort.Client
         private static NightDto ToDto(NightPlan plan) => new NightDto
         {
             night = plan.Night, seed = plan.Seed.ToString(), budget = plan.Budget, waves = plan.Waves, extraSluice = plan.ExtraSluiceCharges, scheduled = plan.Scheduled,
+            roster = plan.Roster,
             towers = plan.Towers.Select(t => new TowerDto { type = t.Type.ToString(), x = t.Position.X, y = t.Position.Y }).ToList(),
             obstacles = plan.Obstacles.Select(o => new TileDto { x = o.X, y = o.Y }).ToList(),
-            structures = plan.Structures.Select(st => new StructureDto { id = st.Id, x = st.Position.X, y = st.Position.Y, max = st.MaxHealth, health = st.Health }).ToList(),
+            structures = plan.Structures.Select(st => new StructureDto
+            {
+                id = st.Id, x = st.Position.X, y = st.Position.Y, max = st.MaxHealth, health = st.Health, barrier = st.Barrier, gate = st.Gate,
+                tiles = st.Tiles?.Select(t => new TileDto { x = t.X, y = t.Y }).ToList(),
+            }).ToList(),
         };
 
         private static NightPlan FromDto(NightDto d)
@@ -137,7 +142,13 @@ namespace CultOfComfort.Client
 
             return new NightPlan(d.night, ParseSeed(d.seed), d.budget, d.waves, d.extraSluice, d.scheduled, towers,
                 (d.obstacles ?? new List<TileDto>()).Select(o => new GridPosition(o.x, o.y)).ToList(),
-                (d.structures ?? new List<StructureDto>()).Select(st => new PlacedStructure(st.id, new GridPosition(st.x, st.y), st.max, st.health)).ToList());
+                (d.structures ?? new List<StructureDto>()).Select(st => new PlacedStructure(st.id, new GridPosition(st.x, st.y), st.max, st.health)
+                {
+                    // JsonUtility writes an empty list for "no footprint"; the plan means that as null (just Position).
+                    Tiles = st.tiles == null || st.tiles.Count == 0 ? null : st.tiles.Select(t => new GridPosition(t.x, t.y)).ToList(),
+                    Barrier = st.barrier, Gate = st.gate,
+                }).ToList(),
+                d.roster);
         }
 
         private static ReportDto ToDto(NightReport r) => new ReportDto
@@ -261,6 +272,7 @@ namespace CultOfComfort.Client
             public int waves;
             public int extraSluice;
             public bool scheduled;
+            public int roster; // older saves lack it: 0, the pre-roster raid
             public List<TowerDto> towers;
             public List<TileDto> obstacles;
             public List<StructureDto> structures;
@@ -289,6 +301,9 @@ namespace CultOfComfort.Client
             public int y;
             public int max;
             public int health;
+            public bool barrier;
+            public bool gate;
+            public List<TileDto> tiles;
         }
 
         [Serializable]
