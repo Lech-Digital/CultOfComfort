@@ -25,9 +25,32 @@ namespace CultOfComfort.Client
             }
         }
 
-        public static IBaseGateway CreateGateway() =>
-            Override?.Invoke() ?? new LocalBaseGateway(
-                new FileBaseStore(Path.Combine(Application.persistentDataPath, "village.json")),
-                new SystemClock(), BuildingTable.Default, VillageMap.Demo, message => Debug.LogWarning("[CoC] " + message));
+        /// <summary>The game server (docs/adrs/0005; deploy/README).</summary>
+        public const string ServerUrl = "https://api.cultofcomfort.lechdigital.nl";
+
+        /// <summary>
+        /// The server holds the village; the device keeps a cache and a queue so it plays offline. Set false (or
+        /// <see cref="Override"/>) to run the rules on the device alone, as before the server existed.
+        /// </summary>
+        public static bool UseServer { get; set; } = true;
+
+        public static IBaseGateway CreateGateway()
+        {
+            if (Override != null)
+            {
+                return Override();
+            }
+
+            void Warn(string message) => Debug.LogWarning("[CoC] " + message);
+            if (UseServer)
+            {
+                return new RemoteBaseGateway(new HttpVillageApi(ServerUrl), new PlayerPrefsCredentialStore(),
+                    new FileRemoteCache(Path.Combine(Application.persistentDataPath, "village-cache.json")),
+                    new SystemClock(), BuildingTable.Default, VillageMap.Demo, Warn);
+            }
+
+            return new LocalBaseGateway(new FileBaseStore(Path.Combine(Application.persistentDataPath, "village.json")),
+                new SystemClock(), BuildingTable.Default, VillageMap.Demo, Warn);
+        }
     }
 }
