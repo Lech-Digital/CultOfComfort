@@ -591,22 +591,132 @@ namespace CultOfComfort.Client
             }
         }
 
-        /// <summary>The flood sweeps down the road from the Hearth end towards the spawn, washing raiders back.</summary>
+        private const float FloodTravel = 1.3f; // seconds for the crest to run from the Hearth to the spawn
+        private const float FloodLinger = 0.45f;
+        private const float FloodDrain = 0.7f;
+        private static readonly Color FloodWater = Shapes.Hex("#5f97b3");
+        private static readonly Color FloodMurk = Shapes.Hex("#7a6a4a");
+        private static readonly Color Foam = Shapes.Hex("#eef4f2");
+
+        /// <summary>
+        /// The flood: a foaming crest sweeps down the road from the Hearth end towards the spawn, the road floods behind it,
+        /// spray flies off the sides, then the water drains away into shrinking puddles.
+        /// </summary>
         private void SpawnFlood()
         {
             var path = _battle.Path;
-            for (var index = 0; index < path.Count; index++)
+            if (path.Count == 0)
             {
-                var water = Shapes.Create(PrimitiveType.Cube, Palette.Water, Shapes.ToWorld(path[index], 0.05f), new Vector3(1f, 0.01f, 1f), _root, "Flood");
-                water.SetActive(false); // each tile only shows while the wave passes over it, not as a blue road beforehand
-                var delay = (path.Count - 1 - index) / (float)path.Count * 0.8f;
-                AddEffect(water, 1.6f, (go, t) =>
+                return;
+            }
+
+            _shake = Mathf.Max(_shake, 0.15f);
+            var points = path.Select(p => Shapes.ToWorld(p, 0f)).Reverse().ToList(); // Hearth end first
+            SpawnCrest(points);
+            for (var i = 0; i < points.Count; i++)
+            {
+                var arrives = points.Count == 1 ? 0f : i / (float)(points.Count - 1) * FloodTravel;
+                SpawnFloodTile(points[i], arrives, i);
+                if (i % 2 == 0)
                 {
-                    var phase = (t * 1.6f - delay) / 0.6f;
-                    go.SetActive(phase > 0f && phase < 1f);
-                    go.transform.localScale = new Vector3(1f, Mathf.Max(0.01f, Mathf.Sin(Mathf.Clamp01(phase) * Mathf.PI) * 0.3f), 1f);
+                    SpawnSpray(points[i], arrives, i);
+                }
+            }
+        }
+
+        private void SpawnFloodTile(Vector3 at, float arrives, int index)
+        {
+            var murky = index % 3 == 0;
+            var water = Shapes.Create(PrimitiveType.Cube, murky ? FloodMurk : FloodWater, at + Vector3.up * 0.04f, Vector3.zero, _root, "Flood");
+            water.SetActive(false);
+            var lifetime = arrives + FloodLinger + FloodDrain + 0.25f;
+            var wobble = index * 1.3f;
+            AddEffect(water, lifetime, (go, t) =>
+            {
+                var time = t * lifetime - arrives;
+                go.SetActive(time > 0f && t < 1f);
+                if (time <= 0f)
+                {
+                    return;
+                }
+
+                // Surge up fast, slosh a little, then drain: lower and shrink into a puddle.
+                var surge = Mathf.Clamp01(time / 0.18f);
+                var drain = Mathf.Clamp01((time - FloodLinger) / FloodDrain);
+                var height = Mathf.Lerp(0.02f, 0.16f + Mathf.Sin(time * 14f + wobble) * 0.03f, surge) * (1f - drain);
+                var width = Mathf.Lerp(0.6f, 1.08f, surge) * Mathf.Lerp(1f, 0.35f, drain * drain);
+                go.transform.localScale = new Vector3(width, Mathf.Max(0.01f, height), width);
+                go.transform.localPosition = at + Vector3.up * (height * 0.5f);
+            });
+        }
+
+        private void SpawnCrest(IReadOnlyList<Vector3> points)
+        {
+            var crest = new GameObject("Flood Crest");
+            crest.transform.SetParent(_root, false);
+            var swell = Shapes.Create(PrimitiveType.Capsule, FloodWater, new Vector3(0f, 0.12f, 0f), new Vector3(0.55f, 0.75f, 0.55f), crest.transform, "Swell");
+            swell.transform.localRotation = Quaternion.Euler(0f, 0f, 90f); // lying across the road
+            var foam = new Transform[6];
+            for (var k = 0; k < foam.Length; k++)
+            {
+                foam[k] = Shapes.Create(PrimitiveType.Sphere, Foam, Vector3.zero, Vector3.one * 0.26f, crest.transform, "Foam").transform;
+            }
+
+            var lifetime = FloodTravel + 0.2f;
+            AddEffect(crest, lifetime, (go, t) =>
+            {
+                var travel = Mathf.Clamp01(t * lifetime / FloodTravel);
+                var (position, forward) = Along(points, travel);
+                go.transform.localPosition = position;
+                if (forward.sqrMagnitude > 0.0001f)
+                {
+                    go.transform.localRotation = Quaternion.Slerp(go.transform.localRotation, Quaternion.LookRotation(forward), 0.35f);
+                }
+
+                // It rises out of the Hearth, rolls at full height, and collapses into the spawn.
+                var size = Mathf.Clamp01(travel / 0.08f) * (1f - Mathf.Clamp01((t * lifetime - FloodTravel) / 0.2f));
+                go.transform.localScale = Vector3.one * Mathf.Max(0.001f, size);
+                var time = t * lifetime;
+                for (var k = 0; k < foam.Length; k++)
+                {
+                    var across = (k - (foam.Length - 1) * 0.5f) * 0.2f;
+                    var churn = Mathf.Sin(time * 18f + k * 2.1f);
+                    foam[k].localPosition = new Vector3(across, 0.34f + churn * 0.07f, 0.1f + Mathf.Cos(time * 15f + k) * 0.06f);
+                    foam[k].localScale = Vector3.one * (0.2f + (churn + 1f) * 0.05f);
+                }
+            });
+        }
+
+        private void SpawnSpray(Vector3 at, float arrives, int index)
+        {
+            for (var d = 0; d < 2; d++)
+            {
+                var drop = Shapes.Create(PrimitiveType.Sphere, d == 0 ? Foam : FloodWater, at, Vector3.one * 0.12f, _root, "Spray");
+                drop.SetActive(false);
+                var angle = (index * 73f + d * 180f + 40f) % 360f;
+                var outward = Quaternion.Euler(0f, angle, 0f) * Vector3.forward * (0.7f + (index % 3) * 0.15f);
+                var flight = 0.5f;
+                var lifetime = arrives + flight;
+                AddEffect(drop, lifetime, (go, t) =>
+                {
+                    var k = (t * lifetime - arrives) / flight;
+                    go.SetActive(k > 0f && k < 1f);
+                    go.transform.localPosition = at + outward * k + Vector3.up * (0.2f + Mathf.Sin(k * Mathf.PI) * 0.75f);
                 });
             }
+        }
+
+        /// <summary>A point a fraction <paramref name="u"/> of the way along a polyline (by tile count), and the direction there.</summary>
+        private static (Vector3 Position, Vector3 Forward) Along(IReadOnlyList<Vector3> points, float u)
+        {
+            if (points.Count == 1)
+            {
+                return (points[0], Vector3.forward);
+            }
+
+            var x = Mathf.Clamp01(u) * (points.Count - 1);
+            var i = Mathf.Min((int)x, points.Count - 2);
+            return (Vector3.Lerp(points[i], points[i + 1], x - i), points[i + 1] - points[i]);
         }
 
         private void SpawnShout()
