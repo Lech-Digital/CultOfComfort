@@ -12,7 +12,10 @@ namespace CultOfComfort.Simulation.Base;
 /// <param name="SluiceCharges">Extra Open Sluice charges per Night (Cistern).</param>
 /// <param name="Health">How much smashing it takes in a Night before it is wrecked.</param>
 /// <param name="Beds">Villagers it houses.</param>
-public sealed record BuildingLevel(ResourceBag Cost, int BuildSeconds, int PerHour = 0, int StorageBonus = 0, int SluiceCharges = 0, int Health = 0, int Beds = 0);
+/// <param name="Comfort">What it adds to the village's Comfort (negative: Squalor).</param>
+/// <param name="PeatPerHour">Peat it burns while it stands (the Bathhouse's stove).</param>
+public sealed record BuildingLevel(ResourceBag Cost, int BuildSeconds, int PerHour = 0, int StorageBonus = 0, int SluiceCharges = 0, int Health = 0, int Beds = 0,
+    int Comfort = 0, int PeatPerHour = 0);
 
 /// <param name="MaxCountByHearth">How many may stand at Hearth level 1, 2, 3.</param>
 public sealed record BuildingSpec(
@@ -42,7 +45,7 @@ public sealed class BuildingTable
 
     public static BuildingTable Default { get; } = new();
 
-    public string Version { get; init; } = "village-2026.10.5";
+    public string Version { get; init; } = "village-2026.10.6";
 
     /// <summary>Health of a building whose first level is still being built.</summary>
     public int UnderConstructionHealth { get; init; } = 30;
@@ -87,6 +90,17 @@ public sealed class BuildingTable
     /// <summary>Peat each villager burns per hour (GDD: heating upkeep). None left: everyone downs tools.</summary>
     public int PeatPerVillagerPerHour { get; init; } = 1;
 
+    /// <summary>The Hearth's own Comfort at level 1, 2, 3 (GDD Economy: Comfort = Σ building comfort − Squalor).</summary>
+    public IReadOnlyList<int> HearthComfort { get; init; } = new[] { 10, 20, 35 };
+
+    /// <summary>Extra Squalor a Midden Sorter gives off per home (Cottage, Cultist Hut, Bathhouse) within <see cref="SqualorRange"/> tiles.</summary>
+    public int SqualorNearHome { get; init; } = 5;
+
+    public int SqualorRange { get; init; } = 3;
+
+    /// <summary>Devotion scales with Comfort: × (1 + Comfort / this), between ½ and ×3.</summary>
+    public int ComfortPerDoubleDevotion { get; init; } = 200;
+
     public int SalvageBase { get; init; } = 40;
 
     public int SalvagePerStar { get; init; } = 40;
@@ -120,9 +134,9 @@ public sealed class BuildingTable
         [BuildingType.CultistHut] = new(BuildingType.CultistHut, "Cultist Hut", 1, new[] { 1, 2, 3 }, new[]
         {
             // 2026.10.4: Devotion was the wall before Hearth 3 (~12 h); now ~3 h with two huts, on the GDD clock.
-            new BuildingLevel(new ResourceBag(120, 0, 0, 0), 2 * 60, PerHour: 10, Health: 60),
-            new BuildingLevel(new ResourceBag(350, 50, 0, 0), 12 * 60, PerHour: 18, Health: 90),
-            new BuildingLevel(new ResourceBag(900, 150, 0, 0), 45 * 60, PerHour: 28, Health: 120),
+            new BuildingLevel(new ResourceBag(120, 0, 0, 0), 2 * 60, PerHour: 10, Health: 60, Comfort: 3),
+            new BuildingLevel(new ResourceBag(350, 50, 0, 0), 12 * 60, PerHour: 18, Health: 90, Comfort: 5),
+            new BuildingLevel(new ResourceBag(900, 150, 0, 0), 45 * 60, PerHour: 28, Health: 120, Comfort: 8),
         }, Produces: ResourceType.Devotion, Width: 3, Depth: 2, Workers: 1),
         [BuildingType.Cistern] = new(BuildingType.Cistern, "Cistern", 2, new[] { 0, 1, 2 }, new[]
         {
@@ -148,9 +162,19 @@ public sealed class BuildingTable
         }),
         [BuildingType.Cottage] = new(BuildingType.Cottage, "Cottage", 1, new[] { 3, 5, 8 }, new[]
         {
-            new BuildingLevel(new ResourceBag(60, 0, 0, 0), 60, Health: 60, Beds: 4),
-            new BuildingLevel(new ResourceBag(150, 0, 20, 0), 8 * 60, Health: 90, Beds: 6),
+            new BuildingLevel(new ResourceBag(60, 0, 0, 0), 60, Health: 60, Beds: 4, Comfort: 4),
+            new BuildingLevel(new ResourceBag(150, 0, 20, 0), 8 * 60, Health: 90, Beds: 6, Comfort: 6),
         }, Width: 2, Depth: 2),
+        [BuildingType.MiddenSorter] = new(BuildingType.MiddenSorter, "Midden Sorter", 2, new[] { 0, 1, 2 }, new[]
+        {
+            new BuildingLevel(new ResourceBag(150, 0, 0, 0), 3 * 60, PerHour: 12, Health: 70, Comfort: -10),
+            new BuildingLevel(new ResourceBag(400, 0, 40, 0), 15 * 60, PerHour: 22, Health: 100, Comfort: -15),
+        }, Produces: ResourceType.Scrap, Width: 2, Depth: 2, Workers: 1),
+        [BuildingType.Bathhouse] = new(BuildingType.Bathhouse, "Bathhouse", 3, new[] { 0, 0, 1 }, new[]
+        {
+            new BuildingLevel(new ResourceBag(1500, 200, 200, 50), 40 * 60, PerHour: 15, Health: 150, Comfort: 40, PeatPerHour: 10),
+            new BuildingLevel(new ResourceBag(3000, 400, 400, 150), 2 * 60 * 60, PerHour: 25, Health: 220, Comfort: 70, PeatPerHour: 15),
+        }, Produces: ResourceType.Devotion, Width: 3, Depth: 3, Workers: 2),
         [BuildingType.DirtTrack] = new(BuildingType.DirtTrack, "Dirt Track", 1, new[] { Unlimited, Unlimited, Unlimited },
             new[] { new BuildingLevel(new ResourceBag(2, 0, 0, 0), 0) }, UsesBuilder: false),
         [BuildingType.PlankWalk] = new(BuildingType.PlankWalk, "Plank Walk", 2, new[] { Unlimited, Unlimited, Unlimited },

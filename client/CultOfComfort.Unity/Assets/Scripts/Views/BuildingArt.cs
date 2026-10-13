@@ -32,6 +32,8 @@ namespace CultOfComfort.Client
             BuildingType.PlankWalk => "road_planks",
             BuildingType.CobbledRoad => "road_cobbles",
             BuildingType.Cottage => "cottage",
+            BuildingType.MiddenSorter => "midden_sorter",
+            BuildingType.Bathhouse => "bathhouse",
             BuildingType.Stone => "rock_b",
             BuildingType.Tree => "oak",
             _ => null,

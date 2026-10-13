@@ -63,7 +63,8 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual(500, frame.Timber.Value);
             Assert.AreEqual(1000, frame.Timber.Cap);
             Assert.IsFalse(frame.Timber.IsDemo || frame.Peat.IsDemo || frame.Scrap.IsDemo || frame.Devotion.IsDemo);
-            Assert.IsTrue(frame.Pennies.IsDemo && frame.Comfort.IsDemo);
+            Assert.IsTrue(frame.Pennies.IsDemo, "pennies are still a placeholder");
+            Assert.IsFalse(frame.Comfort.IsDemo, "Comfort is real since the village-content slice");
             Assert.IsFalse(frame.TensionIsDemo, "Tension is real since the raids slice");
         }
 

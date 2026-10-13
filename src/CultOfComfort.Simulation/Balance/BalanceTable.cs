@@ -28,6 +28,9 @@ public enum EnemyType
 
     /// <summary>Hearth 3: Lord Wulfric himself. One per raid, in the last wave, and he is not amused.</summary>
     Lord,
+
+    /// <summary>Hearth 3: a bishop. Very slow, very sure; blesses everyone within three tiles. Takes the laser for a miracle and flees.</summary>
+    Bishop,
 }
 
 public enum TowerType
@@ -124,6 +127,9 @@ public sealed class BalanceTable
     /// <summary>A blessed raider takes this much less damage.</summary>
     public Fix BlessingReduction { get; init; } = Fix.Ratio(1, 4);
 
+    /// <summary>A bishop's blessing reaches this far (tiles).</summary>
+    public Fix BishopBlessingRadius { get; init; } = Fix.FromInt(3);
+
     /// <summary>A raider leaves the road for a structure it hasn't hit this many tiles away (whole tiles, diagonals count).</summary>
     public int RaidRange { get; init; } = 3;
 
@@ -188,6 +194,9 @@ public sealed class BalanceTable
         [EnemyType.Priest] = new(
             MaxHealth: Fix.FromInt(160), TilesPerSecond: Fix.Ratio(6, 10), BluntResistance: Fix.Ratio(2, 10), HearthDamage: 20, WaveCost: 4,
             EngageRange: Fix.FromInt(2), LeaderDamage: 5, LeaderAttackCooldownTicks: 30, StructureDamage: 10),
+        [EnemyType.Bishop] = new(
+            MaxHealth: Fix.FromInt(320), TilesPerSecond: Fix.Ratio(2, 5), BluntResistance: Fix.Ratio(3, 10), HearthDamage: 30, WaveCost: 6,
+            EngageRange: Fix.FromInt(2), LeaderDamage: 6, LeaderAttackCooldownTicks: 30, StructureDamage: 20),
         [EnemyType.Lord] = new(
             MaxHealth: Fix.FromInt(700), TilesPerSecond: Fix.Ratio(1, 2), BluntResistance: Fix.Ratio(4, 10), HearthDamage: 50, WaveCost: 12,
             EngageRange: Fix.Ratio(6, 10), LeaderDamage: 15, LeaderAttackCooldownTicks: 24, NoticeRange: Fix.Ratio(3, 2), StructureDamage: 80,

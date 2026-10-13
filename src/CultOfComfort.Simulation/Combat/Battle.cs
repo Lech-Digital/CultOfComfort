@@ -437,8 +437,16 @@ public sealed class Battle
         }
 
         Leader.LaserReadyAtTick = Tick + stats.LaserCooldownTicks;
-        victim!.Blind(Tick + stats.LaserBlindTicks);
-        victim.CancelSwing();
+        victim!.CancelSwing();
+        if (victim.Type == EnemyType.Bishop)
+        {
+            victim.EndRaid();
+            victim.Frighten(Tick + stats.LaserBlindTicks * 2); // "It's a miracle." He leaves to report it.
+        }
+        else
+        {
+            victim.Blind(Tick + stats.LaserBlindTicks);
+        }
         _tickEvents.Add(new RelicUsed(Tick, PlayerActionType.LaserPointer, target, victim.Id, 1));
     }
 
@@ -667,14 +675,19 @@ public sealed class Battle
         }
     }
 
-    /// <summary>A priest within blessing range (not the raider himself) softens every blow.</summary>
+    /// <summary>A priest (or a bishop, further) within blessing range (not the raider himself) softens every blow.</summary>
     private bool IsBlessed(Enemy enemy)
     {
-        var radiusSquared = _balance.BlessingRadius * _balance.BlessingRadius;
+        var priest = _balance.BlessingRadius * _balance.BlessingRadius;
+        var bishop = _balance.BishopBlessingRadius * _balance.BishopBlessingRadius;
         foreach (var other in _enemies)
         {
-            if (other != enemy && other.Type == EnemyType.Priest && other.IsActive
-                && PositionOf(other).DistanceSquaredTo(PositionOf(enemy)) <= radiusSquared)
+            if (other == enemy || !other.IsActive || (other.Type != EnemyType.Priest && other.Type != EnemyType.Bishop))
+            {
+                continue;
+            }
+
+            if (PositionOf(other).DistanceSquaredTo(PositionOf(enemy)) <= (other.Type == EnemyType.Bishop ? bishop : priest))
             {
                 return true;
             }

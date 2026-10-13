@@ -36,7 +36,8 @@ public sealed record BaseSnapshot(
     int Population = 0,
     int Beds = 0,
     bool Cold = false,
-    ErrandView? Errand = null)
+    ErrandView? Errand = null,
+    int Comfort = 0)
 {
     public DateTimeOffset? ConstructionEndsAtUtc => Buildings.FirstOrDefault(b => b.IsUpgrading)?.UpgradeEndsAtUtc;
 

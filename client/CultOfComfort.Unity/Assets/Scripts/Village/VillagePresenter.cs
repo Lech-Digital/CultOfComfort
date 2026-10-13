@@ -39,6 +39,8 @@ namespace CultOfComfort.Client
             BuildingType.PlankWalk => "b_plank_walk",
             BuildingType.CobbledRoad => "b_cobbled_road",
             BuildingType.Cottage => "b_cottage",
+            BuildingType.MiddenSorter => "b_midden_sorter",
+            BuildingType.Bathhouse => "b_bathhouse",
             BuildingType.Stone => "b_stone",
             BuildingType.Tree => "b_tree",
             _ => "b_sapling_flinger",
@@ -97,7 +99,7 @@ namespace CultOfComfort.Client
                     : !b.Connected ? "Not connected — build a road to it"
                     : b.Level > 0 && b.CrewNeeded > 0 && b.Crew == 0 ? $"Needs {b.CrewNeeded} villager{(b.CrewNeeded == 1 ? string.Empty : "s")} — build a Cottage"
                     : b.Level > 0 && spec.Produces != null && spec.Produces != ResourceType.Peat && snapshot.Cold ? "Cold — no Peat, nobody works but the peat cutters"
-                    : b.Level == 0 ? string.Empty : spec.Produces != null ? $"+{b.PerHour} {spec.Produces}/h" : Effect(spec, b.Level),
+                    : b.Level == 0 ? string.Empty : spec.Produces != null ? $"+{b.PerHour} {spec.Produces}/h{ComfortNote(spec, b.Level)}" : Effect(spec, b.Level) + ComfortNote(spec, b.Level),
                 Ready = spec.Produces != null && b.Level > 0 ? $"{b.Ready}/{b.Capacity} ready" + (b.CrewNeeded > 0 ? $" · Crew {b.Crew}/{b.CrewNeeded}" : string.Empty) : string.Empty,
                 UpgradeLabel = upgradeLabel,
                 CanUpgrade = !b.Wrecked && !maxed && !b.IsUpgrading && snapshot.ConstructionEndsAtUtc == null && snapshot.Stock.Covers(next.Cost)
@@ -204,7 +206,7 @@ namespace CultOfComfort.Client
             new Reading(s.Stock.Peat, s.Caps.Peat, false),
             new Reading(s.Stock.Devotion, s.Caps.Devotion, false),
             new Reading(50, 0, true),
-            new Reading(42, 0, true),
+            new Reading(s.Comfort, 0, false),
             s.HearthLevel, s.Tension / 150f, TensionNote(s), false, new Reading(s.Population, s.Beds, false), s.Cold);
 
         /// <summary>
@@ -220,6 +222,19 @@ namespace CultOfComfort.Client
             if (seconds < 60) return $"{seconds}s";
             if (seconds < 3600) return $"{seconds / 60}m";
             return $"{seconds / 3600}h {seconds % 3600 / 60:00}m";
+        }
+
+        /// <summary>" · Comfort +4", " · Squalor 10 (worse beside homes)", " · burns 10 Peat/h"; empty when none.</summary>
+        public static string ComfortNote(BuildingSpec spec, int level)
+        {
+            if (level == 0)
+            {
+                return string.Empty;
+            }
+
+            var l = spec.Levels[level - 1];
+            var note = l.Comfort > 0 ? $" · Comfort +{l.Comfort}" : l.Comfort < 0 ? $" · Squalor {-l.Comfort} (worse beside homes)" : string.Empty;
+            return l.PeatPerHour > 0 ? $"{note} · burns {l.PeatPerHour} Peat/h" : note;
         }
 
         private static string Effect(BuildingSpec spec, int level)

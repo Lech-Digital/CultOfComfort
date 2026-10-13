@@ -24,7 +24,7 @@ public sealed record RaidRoster(IReadOnlyList<(EnemyType Type, int Weight)> Mix,
     /// <summary>Hearth 3: the lords and the church, led by Lord Wulfric himself.</summary>
     public static RaidRoster LordsAndChurch { get; } = new(new[]
     {
-        (EnemyType.Levy, 30), (EnemyType.ManAtArms, 25), (EnemyType.Zealot, 20), (EnemyType.Priest, 15), (EnemyType.Boar, 10),
+        (EnemyType.Levy, 30), (EnemyType.ManAtArms, 25), (EnemyType.Zealot, 20), (EnemyType.Priest, 15), (EnemyType.Boar, 10), (EnemyType.Bishop, 6),
     }, EnemyType.Lord);
 
     /// <summary>The roster for a Hearth level (0 or less: none — the classic demo mix).</summary>
