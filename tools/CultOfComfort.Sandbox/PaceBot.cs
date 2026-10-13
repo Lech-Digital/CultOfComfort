@@ -88,8 +88,8 @@ internal sealed class PaceBot
         }
 
         Console.WriteLine();
-        Console.WriteLine($"Hearth 2 at : {(hearthAt.TryGetValue(2, out var h2) ? $"{h2:0} min" : "not reached")}   (target 15–25 min)");
-        Console.WriteLine($"Hearth 3 at : {(hearthAt.TryGetValue(3, out var h3) ? $"{h3 / 60:0.0} h" : "not reached")}   (target 3–4.5 h)");
+        Console.WriteLine($"Hearth 2 at : {(hearthAt.TryGetValue(2, out var h2) ? $"{h2:0} min" : "not reached")}   (target ~20–35 min, the tutorial)");
+        Console.WriteLine($"Hearth 3 at : {(hearthAt.TryGetValue(3, out var h3) ? $"{h3 / 60:0.0} h" : "not reached")}   (target ≥ 3.5 h; owner: slower is fine)");
         Console.WriteLine($"Builder busy: {busyFirst20}/20 of the first 20 min");
         Console.WriteLine($"Errand      : {(end.Errand == null ? "all done" : $"{end.Errand.Index + 1}/{end.Errand.Count} {end.Errand.Id} {end.Errand.Progress}/{end.Errand.Target}")}");
         Console.WriteLine($"End stock   : {Fmt(end.Stock)} (caps {Fmt(end.Caps)})");

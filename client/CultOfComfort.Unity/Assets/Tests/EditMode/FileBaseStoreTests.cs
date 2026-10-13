@@ -182,6 +182,21 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
+        public void Mapper_MidErrand_KeepsTheErrandAndItsEvent()
+        {
+            // Arrange — the second errand (collect) is current and has happened.
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            var data = state.ToData() with { ErrandIndex = 1, ErrandEventDone = true };
+
+            // Act
+            var back = VillageSaveMapper.FromJson(VillageSaveMapper.ToJson(data));
+
+            // Assert
+            Assert.AreEqual(1, back.ErrandIndex);
+            Assert.IsTrue(back.ErrandEventDone);
+        }
+
+        [Test]
         public void Mapper_NightInProgress_KeepsItsRoster()
         {
             // Arrange — a Night started at Hearth 1: the curious locals are coming.

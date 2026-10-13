@@ -12,6 +12,16 @@ namespace CultOfComfort.Client.Tests
 
         private static BaseSnapshot Fresh() => BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0).Snapshot(T0);
 
+        [TestCase("timber", "Timber · 500/1000 · +0/h")]
+        [TestCase("peat", "Peat · 60/1000 · −2/h (2 villagers keep warm)")]
+        [TestCase("devotion", "Devotion · 0/1000 · +0/h")]
+        [TestCase("people", "Villagers 2 · beds 2")]
+        public void PillLine_FreshVillage_NamesTheResourceAndItsIncome(string key, string expected)
+        {
+            // Act & Assert
+            Assert.AreEqual(expected, VillagePresenter.PillLine(Fresh(), BuildingTable.Default, key));
+        }
+
         [Test]
         public void BuildCards_FreshVillage_FlingerAndCisternLockedAtHearthTwo()
         {
@@ -39,7 +49,7 @@ namespace CultOfComfort.Client.Tests
             // Assert
             Assert.IsTrue(card.IsHearth);
             Assert.AreEqual("Hearth · level 1", card.Title);
-            Assert.AreEqual("Upgrade · 600 Timber · 50 Scrap · 10m", card.UpgradeLabel);
+            Assert.AreEqual("Upgrade · 450 Timber · 50 Scrap · 10m", card.UpgradeLabel);
             Assert.IsFalse(card.CanDemolish);
         }
 

@@ -22,7 +22,8 @@ public sealed partial class BaseState
         }
 
         var progress = Math.Min(Progress(errand), errand.Target);
-        return new ErrandView(_errandIndex, _table.Errands.Errands.Count, errand.Id, errand.Text, progress, errand.Target, progress >= errand.Target, errand.Reward);
+        return new ErrandView(_errandIndex, _table.Errands.Errands.Count, errand.Id, errand.Text, progress, errand.Target, progress >= errand.Target, errand.Reward,
+            errand.Goal, errand.Type);
     }
 
     private int Progress(Errand errand) => errand.Goal switch

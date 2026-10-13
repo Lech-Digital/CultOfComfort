@@ -127,6 +127,28 @@ namespace CultOfComfort.Client
         }
 
         /// <summary>The big Day button: face the raid that is coming, or invite a smaller one early.</summary>
+        /// <summary>What a tapped resource pill says: its name, stock and net income per hour.</summary>
+        public static string PillLine(BaseSnapshot s, BuildingTable table, string key)
+        {
+            if (key == "people")
+            {
+                return $"Villagers {s.Population} · beds {s.Beds}";
+            }
+
+            var resource = key switch
+            {
+                "timber" => ResourceType.Timber,
+                "peat" => ResourceType.Peat,
+                "scrap" => ResourceType.Scrap,
+                _ => ResourceType.Devotion,
+            };
+            var made = s.Buildings.Where(b => table.Spec(b.Type).Produces == resource).Sum(b => b.PerHour);
+            var burned = resource == ResourceType.Peat ? s.Population * table.PeatPerVillagerPerHour : 0;
+            var net = made - burned;
+            var line = $"{resource} · {s.Stock.Get(resource)}/{s.Caps.Get(resource)} · {(net < 0 ? "−" : "+")}{Math.Abs(net)}/h";
+            return burned > 0 ? $"{line} ({s.Population} villagers keep warm)" : resource == ResourceType.Scrap && made == 0 ? $"{line} (salvage from Nights)" : line;
+        }
+
         public static string StartLabel(BaseSnapshot s) => s.RaidWarningEndsAtUtc != null
             ? $"Face the raid · {Duration((long)(s.RaidWarningEndsAtUtc.Value - s.AsOfUtc).TotalSeconds)} left"
             : s.ShieldEndsAtUtc != null

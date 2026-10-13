@@ -34,7 +34,8 @@ public sealed record Errand(string Id, string Text, ErrandGoal Goal, BuildingTyp
 }
 
 /// <summary>The current errand as the client shows it.</summary>
-public sealed record ErrandView(int Index, int Count, string Id, string Text, int Progress, int Target, bool Done, ResourceBag Reward);
+public sealed record ErrandView(int Index, int Count, string Id, string Text, int Progress, int Target, bool Done, ResourceBag Reward,
+    ErrandGoal Goal = ErrandGoal.Build, BuildingType? Type = null);
 
 /// <summary>
 /// The Prophet's errands (spec 2026-10-13 first-hour arc): an ordered chain that walks a new cult from its first
