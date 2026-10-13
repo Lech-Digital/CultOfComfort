@@ -152,8 +152,14 @@ namespace CultOfComfort.Client.Tests
             }
 
             yield return Frames(3);
+            var battleNow = (CultOfComfort.Simulation.Combat.Battle)typeof(GameController).GetField("_battle", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(game);
+            var clickedAt = battleNow.Tick;
             Click(root.Q<Button>("torch"));
-            yield return Frames(3);
+            var ticked = Time.realtimeSinceStartup + 5f;
+            while (battleNow.Tick < clickedAt + 2 && Time.realtimeSinceStartup < ticked)
+            {
+                yield return null; // the input applies on the next simulated tick, not the next frame
+            }
 
             // Assert
             Assert.AreEqual(DisplayStyle.Flex, root.Q("relics").resolvedStyle.display, "Hearth 2 found the laser pointer and the torch");

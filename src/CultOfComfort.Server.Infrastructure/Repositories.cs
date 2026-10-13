@@ -20,6 +20,43 @@ internal sealed class SqlitePlayerRepository(IDbContextFactory<ServerDbContext> 
         await using var db = await contexts.CreateDbContextAsync(ct);
         return await db.Players.Where(p => p.TokenHash == tokenHash).Select(p => (Guid?)p.Id).FirstOrDefaultAsync(ct);
     }
+
+    public async Task SetTokenHashAsync(Guid playerId, string tokenHash, CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        await db.Players.Where(p => p.Id == playerId).ExecuteUpdateAsync(set => set.SetProperty(p => p.TokenHash, tokenHash), ct);
+    }
+
+    public async Task SetRecoveryCodeHashAsync(Guid playerId, string codeHash, CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        await db.Players.Where(p => p.Id == playerId).ExecuteUpdateAsync(set => set.SetProperty(p => p.RecoveryCodeHash, codeHash), ct);
+    }
+
+    public async Task<Guid?> FindByRecoveryCodeHashAsync(string codeHash, CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.Players.Where(p => p.RecoveryCodeHash == codeHash).Select(p => (Guid?)p.Id).FirstOrDefaultAsync(ct);
+    }
+
+    public async Task<Guid?> FindByGoogleSubjectAsync(string subject, CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.Players.Where(p => p.GoogleSubject == subject).Select(p => (Guid?)p.Id).FirstOrDefaultAsync(ct);
+    }
+
+    public async Task<bool> LinkGoogleSubjectAsync(Guid playerId, string subject, CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        if (await db.Players.AnyAsync(p => p.GoogleSubject == subject, ct))
+        {
+            return false;
+        }
+
+        var changed = await db.Players.Where(p => p.Id == playerId && p.GoogleSubject == null)
+            .ExecuteUpdateAsync(set => set.SetProperty(p => p.GoogleSubject, subject), ct);
+        return changed == 1;
+    }
 }
 
 internal sealed class SqliteVillageRepository(IDbContextFactory<ServerDbContext> contexts, TimeProvider clock) : IVillageRepository

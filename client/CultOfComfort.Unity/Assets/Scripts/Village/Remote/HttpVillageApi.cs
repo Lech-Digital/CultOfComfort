@@ -24,6 +24,18 @@ namespace CultOfComfort.Client
 
         public Task<ApiReply> GetAsync(string token, CancellationToken ct) => VillageAsync("GET", "/api/base", token, null, ct);
 
+        public async Task<string> RecoveryCodeAsync(string token, CancellationToken ct)
+        {
+            var (status, text) = await SendAsync("POST", "/api/auth/recovery-code", token, null, ct);
+            return status == 200 ? JsonUtility.FromJson<RecoveryCodeDto>(text)?.code : null;
+        }
+
+        public async Task<GuestDto> RecoverAsync(string code, CancellationToken ct)
+        {
+            var (status, text) = await SendAsync("POST", "/api/auth/recover", null, JsonUtility.ToJson(new RecoverRequestDto { code = code }), ct);
+            return status == 200 ? JsonUtility.FromJson<GuestDto>(text) : null;
+        }
+
         public Task<ApiReply> SyncAsync(string token, SyncRequestDto request, CancellationToken ct) =>
             VillageAsync("POST", "/api/base/sync", token, JsonUtility.ToJson(request), ct);
 

@@ -6,9 +6,11 @@ namespace CultOfComfort.Server.Application;
 public static class DependencyInjection
 {
     /// <summary>Registers the village use cases with the rules tables the server plays by.</summary>
-    public static IServiceCollection AddVillageGame(this IServiceCollection services, VillageOptions options)
+    public static IServiceCollection AddVillageGame(this IServiceCollection services, VillageOptions options, AccountOptions? accounts = null)
     {
         services.AddSingleton(options);
+        services.AddSingleton(accounts ?? new AccountOptions());
+        services.AddSingleton<IAccountService, AccountService>();
         services.AddSingleton(BuildingTable.Default);
         services.AddSingleton(VillageMap.Demo);
         services.AddSingleton(TimeProvider.System);

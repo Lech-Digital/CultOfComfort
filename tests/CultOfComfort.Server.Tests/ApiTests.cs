@@ -52,6 +52,57 @@ public sealed class ApiTests : IClassFixture<ApiTests.Host>
     }
 
     [Fact]
+    public async Task Recover_CodeOnANewDevice_MovesTheVillageAndRetiresTheOldToken()
+    {
+        // Arrange — a village with a building, and its recovery code.
+        var oldPhone = await GuestAsync();
+        await SyncAsync(oldPhone, 0, Command("PlaceBuilding", c => { c.building = "SlurryChute"; c.x = 7; c.y = 6; }));
+        var code = (await (await oldPhone.PostAsync("/api/auth/recovery-code", null)).Content.ReadFromJsonAsync<RecoveryCodeDto>(VillageJson.Options))!.code;
+
+        // Act — a new phone types the code.
+        var newPhone = _host.CreateClient();
+        var recovered = await newPhone.PostAsJsonAsync("/api/auth/recover", new RecoverRequestDto { code = code }, VillageJson.Options);
+        var guest = await recovered.Content.ReadFromJsonAsync<GuestDto>(VillageJson.Options);
+        newPhone.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", guest!.token);
+        var village = await (await newPhone.GetAsync("/api/base")).Content.ReadFromJsonAsync<VillageResponseDto>(VillageJson.Options);
+
+        // Assert
+        recovered.StatusCode.Should().Be(HttpStatusCode.OK);
+        village!.village.buildings.Should().Contain(b => b.type == "SlurryChute");
+        (await oldPhone.GetAsync("/api/base")).StatusCode.Should().Be(HttpStatusCode.Unauthorized, "one device at a time");
+    }
+
+    [Fact]
+    public async Task Recover_UnknownCode_NotFound()
+    {
+        // Act
+        var response = await _host.CreateClient().PostAsJsonAsync("/api/auth/recover", new RecoverRequestDto { code = "ABCD-EFGH-JKLM" }, VillageJson.Options);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Google_NotConfigured_NotImplemented()
+    {
+        // Act
+        var response = await _host.CreateClient().PostAsJsonAsync("/api/auth/google", new GoogleSignInDto { idToken = "x" }, VillageJson.Options);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotImplemented);
+    }
+
+    [Fact]
+    public async Task RecoveryCode_WithoutAToken_Unauthorized()
+    {
+        // Act
+        var response = await _host.CreateClient().PostAsync("/api/auth/recovery-code", null);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
     public async Task Health_Always_IsOk()
     {
         // Act

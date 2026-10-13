@@ -170,6 +170,10 @@ namespace CultOfComfort.Client
         private readonly Label _errandClaim;
         private VisualElement _hinted;
         private Label _cloud;
+        private Label _codeLine;
+        private VisualElement _codeRow;
+        private VisualElement _codeEntry;
+        private TextField _codeInput;
         private Button _soundToggle;
         private Button _musicToggle;
         private readonly VisualElement _coachArrow;
@@ -428,6 +432,8 @@ namespace CultOfComfort.Client
         public event Action BackToDuskClicked;
         public event Action ResetTipsClicked;
         public event Action ReplayIntroClicked;
+        public event Action VillageCodeClicked;
+        public event Action<string> RecoverClicked;
         public event Action SoundToggled;
         public event Action MusicToggled;
         public event Action LaserClicked;
@@ -449,6 +455,12 @@ namespace CultOfComfort.Client
         public void ShowPhase(GamePhase phase)
         {
             Show(_tensionStrip, phase == GamePhase.Dusk);
+            Show(_codeRow, phase == GamePhase.Dusk); // village codes are a daytime chore
+            if (phase != GamePhase.Dusk)
+            {
+                Show(_codeLine, false);
+                Show(_codeEntry, false);
+            }
             Show(_waveStrip, phase == GamePhase.Night);
             Show(_sideLeft, phase == GamePhase.Dusk);
             Show(_sideRight, phase == GamePhase.Dusk);
@@ -802,6 +814,24 @@ namespace CultOfComfort.Client
             p.Stroke();
         }
 
+        /// <summary>The village code line in Settings (a code, or why there isn't one).</summary>
+        public void ShowVillageCode(string text)
+        {
+            _codeLine.text = text;
+            Show(_codeLine, !string.IsNullOrEmpty(text));
+        }
+
+        /// <summary>After "Bring it back": closes the entry on success, says why not otherwise.</summary>
+        public void ShowRecoverResult(bool moved, string message)
+        {
+            ShowVillageCode(message);
+            if (moved)
+            {
+                _codeInput.value = string.Empty;
+                Show(_codeEntry, false);
+            }
+        }
+
         /// <summary>The sound and music switches in Settings.</summary>
         public void SetAudio(bool sound, bool music)
         {
@@ -967,9 +997,33 @@ namespace CultOfComfort.Client
             var recenter = ButtonWith("Recenter camera", () => RecenterClicked?.Invoke(), "plain");
             recenter.name = "recenter";
             sheet.Add(recenter);
-            _cloud = Text("Cloud save: on this device only", "sheet-line");
+            _cloud = Text("Cloud save: on this device only", "sheet-line", "small");
             _cloud.name = "cloud-status";
             sheet.Add(_cloud);
+            // Keeping the village on a new phone (ADR 0007): show the code here, type it there.
+            _codeRow = Container("sheet-row");
+            var codeRow = _codeRow;
+            var showCode = ButtonWith("My village code", () => VillageCodeClicked?.Invoke(), "plain");
+            showCode.name = "show-code";
+            var useCode = ButtonWith("Use a code", () => Show(_codeEntry, _codeEntry.resolvedStyle.display == DisplayStyle.None), "plain");
+            useCode.name = "use-code";
+            codeRow.Add(showCode);
+            codeRow.Add(useCode);
+            sheet.Add(codeRow);
+            _codeLine = Text(string.Empty, "sheet-line", "village-code");
+            _codeLine.name = "village-code";
+            Show(_codeLine, false);
+            sheet.Add(_codeLine);
+            _codeEntry = Container("sheet-row");
+            _codeInput = new TextField { name = "code-input", maxLength = 16 };
+            _codeInput.AddToClassList("code-input");
+            _codeInput.textEdition.placeholder = "ABCD-EFGH-JKLM";
+            var recover = ButtonWith("Bring it back", () => RecoverClicked?.Invoke(_codeInput.value), "plain");
+            recover.name = "recover";
+            _codeEntry.Add(_codeInput);
+            _codeEntry.Add(recover);
+            Show(_codeEntry, false);
+            sheet.Add(_codeEntry);
             _soundToggle = ButtonWith("Sound: on", () => SoundToggled?.Invoke(), "plain");
             _soundToggle.name = "sound-toggle";
             _musicToggle = ButtonWith("Music: on", () => MusicToggled?.Invoke(), "plain");

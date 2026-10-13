@@ -82,6 +82,33 @@ namespace CultOfComfort.Client.Tests
                 return Task.FromResult(new ApiReply(200, Response(Villages[token], outcomes)));
             }
 
+            public readonly Dictionary<string, string> Codes = new Dictionary<string, string>();
+
+            public Task<string> RecoveryCodeAsync(string token, CancellationToken ct)
+            {
+                if (Down || !Villages.ContainsKey(token))
+                {
+                    return Task.FromResult<string>(null);
+                }
+
+                var code = "CODE-" + Codes.Count;
+                Codes[code] = token;
+                return Task.FromResult(code);
+            }
+
+            public Task<GuestDto> RecoverAsync(string code, CancellationToken ct)
+            {
+                if (Down || !Codes.TryGetValue(code, out var oldToken))
+                {
+                    return Task.FromResult<GuestDto>(null);
+                }
+
+                var newToken = oldToken + "-moved";
+                Villages[newToken] = Villages[oldToken];
+                Villages.Remove(oldToken);
+                return Task.FromResult(new GuestDto { playerId = Guid.NewGuid().ToString(), token = newToken });
+            }
+
             /// <summary>Someone else (another device) changes the village behind the client's back.</summary>
             public void ChangeBehindTheClientsBack(string token, BaseCommand command)
             {
@@ -313,6 +340,50 @@ namespace CultOfComfort.Client.Tests
 
             // Assert
             Assert.AreEqual(_clock.UtcNow + _server.Ahead, snapshot.AsOfUtc);
+        }
+
+        [Test]
+        public async Task RecoverAsync_CodeFromAnotherPhone_ThisPhoneTakesOverThatVillage()
+        {
+            // Arrange — phone A builds a chute and shows its code; phone B has its own fresh village and a queued tap.
+            var phoneA = Gateway();
+            await phoneA.SyncNowAsync(None);
+            await phoneA.SendAsync(Chute(), None);
+            await phoneA.SyncNowAsync(None);
+            var code = await phoneA.RecoveryCodeAsync(None);
+            var phoneBCredentials = new MemoryCredentials();
+            var phoneB = new RemoteBaseGateway(_server, phoneBCredentials, new MemoryCache(), _clock, BuildingTable.Default, VillageMap.Demo, _ => { });
+            await phoneB.SyncNowAsync(None);
+            _server.Down = true;
+            await phoneB.SendAsync(Chute(9, 6), None);
+            _server.Down = false;
+
+            // Act
+            var moved = await phoneB.RecoverAsync(code, None);
+            var snapshot = await phoneB.LoadAsync(None);
+
+            // Assert
+            Assert.IsTrue(moved);
+            Assert.AreEqual(0, phoneB.PendingCount, "phone B's own tap belonged to its old village");
+            Assert.AreEqual(1, snapshot.Buildings.Count(b => b.Type == BuildingType.SlurryChute));
+            Assert.AreEqual(new GridPosition(7, 6), snapshot.Buildings.Single(b => b.Type == BuildingType.SlurryChute).Position, "phone A's chute");
+            StringAssert.EndsWith("-moved", phoneBCredentials.Token);
+        }
+
+        [Test]
+        public async Task RecoverAsync_UnknownCode_KeepsThisVillage()
+        {
+            // Arrange
+            var gateway = Gateway();
+            await gateway.SyncNowAsync(None);
+            var token = _credentials.Token;
+
+            // Act
+            var moved = await gateway.RecoverAsync("NOPE-NOPE-NOPE", None);
+
+            // Assert
+            Assert.IsFalse(moved);
+            Assert.AreEqual(token, _credentials.Token);
         }
 
         [Test]
