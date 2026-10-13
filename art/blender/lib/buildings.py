@@ -113,3 +113,61 @@ def hearth_upper(part):
     part.cylinder(0.06, 0.2, (1.02, -0.1, 0.42), "tarred_wood", segments=6, rotation=(0, 90, 0))
     for k in range(4):
         part.box((0.1, 0.62, 0.05), (1.02, -0.1, 0.42), "fresh_log", bevel=0.005, rotation=(k * 45, 0, 0))
+
+
+# ---------------- upgrade kit: what a building collects as it levels up (spec: Muddy Satire) ----------------
+
+def rubber_duck(part, centre, size=1.0, yaw=0):
+    """The cult's minor deity of bathing, at any size: from a bath toy to a rooftop idol."""
+    x, y, z = centre
+    s = size
+    part.sphere(0.12 * s, (x, y + 0.02 * s, z + 0.1 * s), "hivis_yellow", segments=9, rings=6, scale=(1.0, 1.3, 0.8), smooth=True,
+                rotation=(0, 0, yaw))
+    part.sphere(0.075 * s, (x, y - 0.1 * s, z + 0.22 * s), "hivis_yellow", segments=8, rings=6, smooth=True)
+    part.cylinder(0.03 * s, 0.06 * s, (x, y - 0.18 * s, z + 0.21 * s), "cone_orange", segments=8, radius_top=0.02 * s, rotation=(90, 0, 0))
+    for side in (-1, 1):
+        part.sphere(0.014 * s, (x + side * 0.04 * s, y - 0.16 * s, z + 0.25 * s), "umbrella_black", segments=6, rings=4, smooth=True)
+
+
+def towel_line(part, start, end, height, colours):
+    """Two posts and a sagging line of towels between them, facing the camera (−Y)."""
+    (x0, y0), (x1, y1) = start, end
+    length = math.hypot(x1 - x0, y1 - y0)
+    yaw = math.degrees(math.atan2(y1 - y0, x1 - x0))
+    for x, y in (start, end):
+        part.cylinder(0.02, height, (x, y, height / 2), "old_wood", segments=5)
+    part.cylinder(0.005, length, ((x0 + x1) / 2, (y0 + y1) / 2, height - 0.03), "thatch", segments=4, rotation=(0, 90, yaw))
+    for k, colour in enumerate(colours):
+        t = (k + 0.5) / len(colours)
+        sag = 0.05 * math.sin(math.pi * t)
+        part.box((length / len(colours) * 0.8, 0.015, 0.17), (x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, height - 0.12 - sag), colour,
+                 bevel=0.003, rotation=(0, 0, yaw + (k % 2 * 2 - 1) * 3))
+
+
+def flip_flops(part, centre, yaw=0):
+    x, y, z = centre
+    for side in (-1, 1):
+        part.box((0.05, 0.11, 0.012), (x + side * 0.035, y, z + 0.006), "flipflop_pink", bevel=0.004, rotation=(0, 0, yaw + side * 8))
+
+
+def wheel(part, centre, radius, spokes=8, swatch="fresh_log", rim=12, width=0.08):
+    """A wheel standing in the XZ plane (facing the camera), axle along Y: water wheels, treadwheels, windlasses."""
+    cx, cy, cz = centre
+    for k in range(rim):
+        a = 2 * math.pi * k / rim
+        part.box((2 * math.pi * radius / rim * 1.08, width, 0.05), (cx + radius * math.cos(a), cy, cz + radius * math.sin(a)),
+                 "old_wood" if k % 2 else swatch, bevel=0.006, rotation=(0, -(math.degrees(a) + 90), 0))
+    for k in range(spokes):
+        a = 2 * math.pi * k / spokes
+        part.box((radius, 0.04, 0.035), (cx + radius / 2 * math.cos(a), cy, cz + radius / 2 * math.sin(a)), "old_wood",
+                 bevel=0.004, rotation=(0, -math.degrees(a), 0))
+    part.cylinder(0.05, width + 0.12, (cx, cy, cz), "tarred_wood", segments=6, rotation=(90, 0, 0))
+
+
+def peat_stack(part, centre, rows=3, yaw=0):
+    """A neat drying stack of peat bricks."""
+    x, y, z = centre
+    for row in range(rows):
+        for col in range(max(1, 2 - row // 2)):
+            part.box((0.18, 0.1, 0.08), (x + col * 0.05 * (row % 2), y + (col - 0.5) * 0.11, z + 0.04 + row * 0.085),
+                     "tarred_wood" if (row + col) % 2 else "wet_mud", bevel=0.01, rotation=(0, 0, yaw + row * 90))

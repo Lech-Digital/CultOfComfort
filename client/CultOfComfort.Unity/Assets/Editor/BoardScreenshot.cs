@@ -50,6 +50,81 @@ namespace CultOfComfort.Editor
         }
 
         /// <summary>
+        /// Every levelled building at each of its levels, on its real plot, sized as the board sizes it (BuildingArt),
+        /// with a cultist for scale. Output: art/previews/building_levels.png.
+        /// </summary>
+        [MenuItem("Cult of Comfort/Render Building Levels")]
+        public static void RenderLevels()
+        {
+            if (!PrepareEditor(out var previous))
+            {
+                return;
+            }
+
+            NewStage();
+            var table = BuildingTable.Default;
+            BuildingType[] rows = { BuildingType.CultistHut, BuildingType.PeatCut, BuildingType.Woodcutter, BuildingType.StorageHut, BuildingType.Cottage, BuildingType.Cistern };
+            var z = 0f;
+            foreach (var type in rows)
+            {
+                var spec = table.Spec(type);
+                var footprint = new Vector2(spec.Width, spec.Depth);
+                for (var level = 1; level <= spec.MaxLevel; level++)
+                {
+                    var holder = new GameObject($"{type} {level}").transform;
+                    holder.position = new Vector3((level - 2) * 4.2f, 0f, z);
+                    Shapes.Create(PrimitiveType.Cube, Palette.Road, new Vector3(0f, 0.01f, 0f), new Vector3(footprint.x - 0.06f, 0.02f, footprint.y - 0.06f), holder, "Plot");
+                    var model = ArtLibrary.Instantiate(BuildingArt.ModelName(type, level, ArtLibrary.Exists), holder);
+                    if (model != null)
+                    {
+                        model.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+                        BuildingArt.Fit(model, holder, footprint, finished: true);
+                    }
+
+                    Pose("cultist", holder.position + new Vector3(footprint.x / 2f + 0.35f, 0f, -footprint.y / 2f + 0.2f), 200f);
+                }
+
+                z -= spec.Depth + 1.4f;
+            }
+
+            var ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            ground.transform.localScale = new Vector3(16f, 0.2f, -z + 4f);
+            ground.transform.position = new Vector3(0f, -0.1f, z / 2f);
+            ground.GetComponent<Renderer>().sharedMaterial = Shapes.Material(Palette.Grass);
+            var sun = Object.FindAnyObjectByType<Light>(FindObjectsInactive.Exclude);
+            if (sun != null)
+            {
+                sun.transform.rotation = Quaternion.Euler(40f, -35f, 0f);
+                sun.intensity = 1.3f;
+            }
+
+            var camera = Camera.main != null ? Camera.main : new GameObject("Camera").AddComponent<Camera>();
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.55f, 0.62f, 0.7f);
+            camera.fieldOfView = 42f;
+            camera.transform.position = new Vector3(0f, 27f, z / 2f - 17f);
+            camera.transform.LookAt(new Vector3(0f, 0f, z / 2f + 0.3f));
+            const int width = 1200, height = 1500;
+            var target = new RenderTexture(width, height, 24) { antiAliasing = 4 };
+            camera.targetTexture = target;
+            camera.aspect = width / (float)height;
+            camera.Render();
+            camera.Render(); // warm-up: see Shoot
+            RenderTexture.active = target;
+            var image = new Texture2D(width, height, TextureFormat.RGB24, false);
+            image.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+            image.Apply();
+            var path = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "..", "art", "previews", "building_levels.png"));
+            File.WriteAllBytes(path, image.EncodeToPNG());
+            RenderTexture.active = null;
+            camera.targetTexture = null;
+            Object.DestroyImmediate(target);
+            Object.DestroyImmediate(image);
+            Debug.Log($"[CoC] Building levels written to {path}");
+            Restore(previous);
+        }
+
+        /// <summary>
         /// Renders happen in a throwaway scene so the game scene is never modified. Offers to save unsaved work first;
         /// returns false (and does nothing) if the user cancels.
         /// </summary>
