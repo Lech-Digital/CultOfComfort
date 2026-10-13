@@ -31,7 +31,7 @@ namespace CultOfComfort.Client
         private Vector3 _leaderCurrent;
         private float _umbrellaSwing;
         private float _shake;
-        private bool _zealotAnnounced;
+        private readonly HashSet<EnemyType> _announced = new HashSet<EnemyType>();
         private Dictionary<int, Tower> _towers;
 
         private Camera _camera;
@@ -380,9 +380,8 @@ namespace CultOfComfort.Client
                         : $"Hot Stone Therapy for {thrown.EnemiesAffected}. Unrequested, unrefundable.");
                     SkillUsed?.Invoke(PlayerActionType.HotStones); // after the announcement, so a first-use tip wins the toast
                     break;
-                case EnemySpawned { Type: EnemyType.Zealot } when !_zealotAnnounced:
-                    _zealotAnnounced = true;
-                    Announcement?.Invoke("Zealots. Friar Odo's lot. They throw hymnals, and they aim for the heretic.");
+                case EnemySpawned spawned when FirstSighting(spawned.Type) is string sighting && _announced.Add(spawned.Type):
+                    Announcement?.Invoke(sighting);
                     break;
                 case InterventionUsed { Type: PlayerActionType.OpenSluiceGate } used:
                     SpawnFlood();
@@ -417,6 +416,12 @@ namespace CultOfComfort.Client
                     {
                         EnemyType.ManAtArms => $"A man-at-arms dented the Hearth. −{damaged.Damage}. Rude.",
                         EnemyType.Zealot => $"A zealot blessed the Hearth. Aggressively. −{damaged.Damage}.",
+                        EnemyType.Goose => $"A goose pecked the Hearth. −{damaged.Damage}. It looks pleased with itself.",
+                        EnemyType.Goat => $"A goat headbutted the Hearth. −{damaged.Damage}. Then ate a towel.",
+                        EnemyType.Boar => $"A boar rammed the Hearth. −{damaged.Damage}. Snout first.",
+                        EnemyType.Peasant => $"A peasant fiddled with the Hearth. −{damaged.Damage}. \"Just looking!\"",
+                        EnemyType.Priest => $"A priest sprinkled cold water on the Hearth. −{damaged.Damage}. Sacrilege.",
+                        EnemyType.Lord => $"Lord Wulfric kicked the Hearth personally. −{damaged.Damage}. Very undignified.",
                         _ => $"A levy kicked the Hearth. −{damaged.Damage} warmth.",
                     });
                     break;
@@ -426,24 +431,51 @@ namespace CultOfComfort.Client
             }
         }
 
-        private static string ModelName(EnemyType type) => type switch
+        /// <summary>Which model a raider wears. Peasants alternate between two villagers so a crowd doesn't look cloned.</summary>
+        public static string EnemyModel(EnemyType type, int id) => type switch
         {
             EnemyType.ManAtArms => "manatarms",
             EnemyType.Zealot => "zealot",
+            EnemyType.Goose => "goose",
+            EnemyType.Goat => "goat",
+            EnemyType.Boar => "pig",
+            EnemyType.Peasant => id % 2 == 0 ? "villager_woman" : "herbwife",
+            EnemyType.Priest => "bishop",
+            EnemyType.Lord => "lord_wulfric",
             _ => "levy",
+        };
+
+        /// <summary>The toast the first time a raider type shows up in a Night; levies are too ordinary to mention.</summary>
+        private static string FirstSighting(EnemyType type) => type switch
+        {
+            EnemyType.Zealot => "Zealots. Friar Odo's lot. They throw hymnals, and they aim for the heretic.",
+            EnemyType.Goose => "A goose. It has chosen violence. Mind the Prophet's ankles.",
+            EnemyType.Goat => "Goats. They butt fences and walls on principle.",
+            EnemyType.Boar => "A wild boar. Tough, quick, and nobody invited it.",
+            EnemyType.Peasant => "Nosy locals. They won't fight; they just poke your buildings to see what happens.",
+            EnemyType.Priest => "Priests. Their blessing makes the soldiers around them harder to hurt. Get them first.",
+            EnemyType.Lord => "LORD WULFRIC. In person. He is not amused.",
+            _ => null,
         };
 
         private EnemyVisual CreateEnemy(Enemy enemy)
         {
-            var model = ArtLibrary.Instantiate(ModelName(enemy.Type), null);
+            var model = ArtLibrary.Instantiate(EnemyModel(enemy.Type, enemy.Id), null);
             if (model != null)
             {
                 var modelRoot = new GameObject($"{enemy.Type} #{enemy.Id}").transform;
                 modelRoot.SetParent(_root, false);
                 model.transform.SetParent(modelRoot, false);
+                var lord = enemy.Type == EnemyType.Lord;
+                if (lord)
+                {
+                    model.transform.localScale *= 1.35f; // the boss should look like one
+                }
+
                 var animator = model.AddComponent<PartAnimator>();
                 animator.Bind();
-                var modelBar = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, 1.1f, 0f), new Vector3(0.6f, 0.06f, 0.06f), modelRoot, "Health");
+                var barHeight = lord ? 1.5f : 1.1f;
+                var modelBar = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, barHeight, 0f), new Vector3(0.6f, 0.06f, 0.06f), modelRoot, "Health");
                 var start = Shapes.ToWorld(_battle.PositionOf(enemy));
                 modelRoot.localPosition = start;
                 return WithStatus(new EnemyVisual
@@ -458,7 +490,7 @@ namespace CultOfComfort.Client
                     Current = start,
                     Health = 1f,
                     Phase = enemy.Id * 1.7f,
-                }, 1.1f);
+                }, barHeight);
             }
 
             var heavy = enemy.Type == EnemyType.ManAtArms;

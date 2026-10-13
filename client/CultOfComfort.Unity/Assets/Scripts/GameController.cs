@@ -488,14 +488,16 @@ namespace CultOfComfort.Client
 
         // ---------------- barks: what everyone shouts ----------------
 
-        private void Bark(BarkKind kind, string speaker, Func<Vector3?> where)
+        private void Bark(BarkKind kind, string speaker, Func<Vector3?> where) => Say(roll => BarkBook.Line(kind, roll), speaker, where);
+
+        private void Say(Func<int, string> line, string speaker, Func<Vector3?> where)
         {
             if (_hud == null || !_bubbles.TrySpeak(speaker, Time.time))
             {
                 return;
             }
 
-            _hud.Bubble(BarkBook.Line(kind, _barkRoll++), () => where() is Vector3 world ? PanelPoint(world) : null, Time.time);
+            _hud.Bubble(line(_barkRoll++), () => where() is Vector3 world ? PanelPoint(world) : null, Time.time);
         }
 
         private Func<Vector3?> RaiderAt(int id)
@@ -522,8 +524,8 @@ namespace CultOfComfort.Client
             {
                 switch (e)
                 {
-                    case EnemySpawned spawned when spawned.EnemyId % 3 == 1:
-                        Bark(BarkKind.RaiderArrives, $"raider-{spawned.EnemyId}", RaiderAt(spawned.EnemyId));
+                    case EnemySpawned spawned when spawned.EnemyId % 3 == 1 || spawned.Type == EnemyType.Lord:
+                        Say(roll => BarkBook.Arrival(spawned.Type, roll), $"raider-{spawned.EnemyId}", RaiderAt(spawned.EnemyId));
                         break;
                     case StructureHit hit:
                         var target = _battle.Structures.FirstOrDefault(st => st.Id == hit.StructureId);

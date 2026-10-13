@@ -194,5 +194,28 @@ namespace CultOfComfort.Client.Tests
             // Assert
             Assert.AreEqual(1, back.NightInProgress.Roster);
         }
+
+        [Test]
+        public void Mapper_NightInProgress_KeepsGateFootprintAndFlags()
+        {
+            // Arrange — a Night whose locked layout holds a two-tile gate.
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new BeginNight(Guid.NewGuid()), T0);
+            var data = state.ToData();
+            var gate = new PlacedStructure(99, new GridPosition(5, 5), 40, 30)
+            {
+                Tiles = new[] { new GridPosition(5, 5), new GridPosition(6, 5) }, Barrier = true, Gate = true,
+            };
+            data = data with { NightInProgress = data.NightInProgress with { Structures = new[] { gate } } };
+
+            // Act
+            var back = VillageSaveMapper.FromJson(VillageSaveMapper.ToJson(data)).NightInProgress.Structures.Single();
+
+            // Assert
+            Assert.AreEqual(30, back.Health);
+            Assert.IsTrue(back.Barrier);
+            Assert.IsTrue(back.Gate);
+            CollectionAssert.AreEqual(gate.Tiles, back.Tiles);
+        }
     }
 }
