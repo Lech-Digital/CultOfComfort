@@ -79,6 +79,7 @@ namespace CultOfComfort.Client
         private int _framePending;
         private PlayerActionType? _aim; // an aimed skill is armed: the next tap on the board says where (Hot Stones, laser, glass)
         private IntroDirector _intro;
+        private AudioDirector _audio;
 
         public GamePhase Phase => _phase;
 
@@ -91,7 +92,9 @@ namespace CultOfComfort.Client
             PointerInput.Enable();
             _rocks = VillageMap.Demo.Rocks;
 
+            _audio = gameObject.AddComponent<AudioDirector>();
             _board = gameObject.AddComponent<BoardView>();
+            _board.LevelledUp += () => _audio.Play("build_done");
             _board.Build(_rocks);
             _battleView = gameObject.AddComponent<BattleView>();
             _battleView.Announcement += Announce;
@@ -576,6 +579,17 @@ namespace CultOfComfort.Client
             if (result.Outcome.Status == CommandStatus.Rejected)
             {
                 Say(result.Outcome.Reason, prophet: true);
+                _audio.Play("error");
+            }
+            else
+            {
+                _audio.Play(command switch
+                {
+                    PlaceBuilding _ or PaintTiles _ or MoveBuilding _ or UpgradeBuilding _ or UpgradeHearth _ or RepairBuilding _ or RepairAll _ => "place",
+                    Collect _ when !result.Outcome.Collected.IsZero => "collect",
+                    ClaimErrand _ => "claim",
+                    _ => null,
+                });
             }
 
             RefreshVillage();
@@ -891,6 +905,8 @@ namespace CultOfComfort.Client
             _setup = plan.ToBattleSetup(VillageMap.Demo, new List<PlayerInput>());
             _battle = new Battle(_setup);
             _battleView.Begin(_battle);
+            _audio.SetNight(true);
+            _audio.Play("lamps");
             _framePending = 2; // the Night strip is taller than the Dusk one: re-fit the board once the HUD has laid out
             _board.ShowCursor(null, false);
             _accumulator = 0f;
@@ -931,6 +947,10 @@ namespace CultOfComfort.Client
                 _battle.Step();
                 _battleView.AfterStep();
                 BarkAbout(_battle.LastTickEvents);
+                foreach (var battleEvent in _battle.LastTickEvents)
+                {
+                    _audio.Play(SoundBook.For(battleEvent));
+                }
                 _accumulator -= TickSeconds;
             }
 
@@ -1059,6 +1079,7 @@ namespace CultOfComfort.Client
             _board.ClearStructureHealth();
             _battle = null;
             _framePending = 2;
+            _audio.SetNight(false);
             _phase = GamePhase.Dusk;
             _hud.ShowPhase(_phase);
             Announce(report != null && report.Salvage > 0
@@ -1217,6 +1238,24 @@ namespace CultOfComfort.Client
             root.styleSheets.Add(Resources.Load<StyleSheet>("UI/Hud"));
 
             _hud = new HudView(root);
+            root.RegisterCallback<ClickEvent>(e =>
+            {
+                if (e.target is Button)
+                {
+                    _audio.Play("tap", 0.6f);
+                }
+            }, TrickleDown.TrickleDown);
+            _hud.SetAudio(_audio.SoundOn, _audio.MusicOn);
+            _hud.SoundToggled += () =>
+            {
+                _audio.SetSound(!_audio.SoundOn);
+                _hud.SetAudio(_audio.SoundOn, _audio.MusicOn);
+            };
+            _hud.MusicToggled += () =>
+            {
+                _audio.SetMusic(!_audio.MusicOn);
+                _hud.SetAudio(_audio.SoundOn, _audio.MusicOn);
+            };
             _hud.BuildCardSelected += type =>
             {
                 _tool = null;

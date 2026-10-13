@@ -314,3 +314,6 @@
 .relics { flex-direction: row; margin-bottom: 6px; }
 .relic { height: 54px; flex-grow: 1; max-width: 33%; }
 .relic .skill-text { font-size: 11px; }
+
+.sheet-row { flex-direction: row; }
+.sheet-row > .btn, .sheet-row > Button { flex-grow: 1; flex-basis: 0; margin-right: 6px; }
