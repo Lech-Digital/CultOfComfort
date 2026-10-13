@@ -61,6 +61,21 @@ Open `client/CultOfComfort.Unity` in Unity Hub (Add → Add project from disk), 
 - **Night:** tap the ground to move the Prophet. Levies and men-at-arms leave the road to fight him when he stands within 2 / 1½ tiles of it — pull them into tower range — Zealots pelt him from the road, and at 0 HP he swoons for 10 s. *Open Sluice* and *Phantom Voice* fire at once; *Hot Stones* arms a targeted throw: tap it, then a tile inside the pebble ring. Status icons over raiders show muddy / slowed / fleeing / fighting, and each skill explains itself the first time (Settings → Show tips again).
 - **Dawn:** result plus a server-style replay of your input log, with matching hashes.
 
+### Game server (first slice)
+
+`src/CultOfComfort.Server` (+ `.Application`, `.Infrastructure`, shared `CultOfComfort.Contracts`): guest accounts and
+the village sync, server-authoritative (ADR 0005). Deployed like PurePrep, behind Coldstart's Caddy on the Hetzner host:
+
+```bash
+dotnet run --project src/CultOfComfort.Server            # local, SQLite file cultofcomfort.dev.db, dev commands allowed
+./deploy/deploy-prod.sh --confirm                        # tests, rsync, docker compose up --build, health check
+curl https://api.cultofcomfort.lechdigital.nl/health
+```
+
+API: `POST /api/auth/guest` → `{playerId, token}`; with `Authorization: Bearer <token>`: `GET /api/base` and
+`POST /api/base/sync` (`{expectedVersion, commands:[{id, type, …}]}` → per-command outcomes + the village; `409` with
+the current village when the version is stale). The village JSON is the same document as the device save.
+
 ### Android build (device via adb)
 
 ```bash

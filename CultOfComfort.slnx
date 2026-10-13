@@ -1,9 +1,14 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/CultOfComfort.Simulation/CultOfComfort.Simulation.csproj" />
+    <Project Path="src/CultOfComfort.Contracts/CultOfComfort.Contracts.csproj" />
+    <Project Path="src/CultOfComfort.Server.Application/CultOfComfort.Server.Application.csproj" />
+    <Project Path="src/CultOfComfort.Server.Infrastructure/CultOfComfort.Server.Infrastructure.csproj" />
+    <Project Path="src/CultOfComfort.Server/CultOfComfort.Server.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CultOfComfort.Simulation.Tests/CultOfComfort.Simulation.Tests.csproj" />
+    <Project Path="tests/CultOfComfort.Server.Tests/CultOfComfort.Server.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/CultOfComfort.Sandbox/CultOfComfort.Sandbox.csproj" />
