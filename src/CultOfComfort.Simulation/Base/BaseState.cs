@@ -1208,6 +1208,13 @@ public sealed partial class BaseState
         {
             building.AsOfUtc = endedAt; // never backwards: time already counted is never counted again
         }
+
+        var spec = _table.Spec(building.Type);
+        if (building.Level == 1 && spec.Produces != null)
+        {
+            // The crew finds some on day one (deadwood, a peat stack): a new producer starts with a little in store.
+            building.BufferMilli += spec.Levels[0].PerHour * 1000L * _table.StarterStockMinutes / 60;
+        }
     }
 
     private void ScheduleRaid(DateTimeOffset crossing)

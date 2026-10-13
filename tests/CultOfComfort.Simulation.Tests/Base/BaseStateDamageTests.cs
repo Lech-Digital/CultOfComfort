@@ -33,7 +33,7 @@ public class BaseStateDamageTests
         fence.Levels[0].Health.Should().Be(50);
         fence.MaxCount(1).Should().Be(int.MaxValue);
         fence.IsTower.Should().BeFalse();
-        BuildingTable.Default.Version.Should().Be("village-2026.10.4");
+        BuildingTable.Default.Version.Should().Be("village-2026.10.5");
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public class BaseStateDamageTests
         var later = state.Snapshot(at.AddHours(3)).Building(id);
 
         // Assert
-        later.Ready.Should().Be(100, "what was made before the raid is still there; nothing since");
+        later.Ready.Should().Be(125, "what was made before the raid (and the starter pile) is still there; nothing since");
         later.PerHour.Should().Be(0);
     }
 
@@ -135,7 +135,7 @@ public class BaseStateDamageTests
         var snapshot = state.Snapshot(at.AddHours(1));
         snapshot.Building(id).Wrecked.Should().BeFalse();
         snapshot.Stock.Timber.Should().Be(450 - 5);
-        snapshot.Building(id).Ready.Should().Be(1 + 100, "1 unit made before the raid, then an hour from the repair");
+        snapshot.Building(id).Ready.Should().Be(25 + 1 + 100, "the starter pile, 1 unit made before the raid, then an hour from the repair");
     }
 
     [Fact]

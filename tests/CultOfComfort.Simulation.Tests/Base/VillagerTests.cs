@@ -9,7 +9,7 @@ public class VillagerTests
     private static readonly VillageMap Map = VillageMap.Demo;
 
     private static BuildingTable Table(int peat = 900, int hearthBeds = 2) =>
-        new() { StartingStock = new ResourceBag(5000, peat, 1000, 300), HearthBeds = hearthBeds };
+        new() { StartingStock = new ResourceBag(5000, peat, 1000, 300), HearthBeds = hearthBeds, StarterStockMinutes = 0 }; // staffing maths, no starter pile
 
     private static BaseState NewBase(BuildingTable? table = null) => BaseState.CreateNew(table ?? Table(), Map, T0);
 
@@ -21,13 +21,13 @@ public class VillagerTests
     }
 
     [Fact]
-    public void Fresh_TheHearthHousesTwo()
+    public void Fresh_TheHearthHousesFour()
     {
         // Act
         var snapshot = NewBase(new BuildingTable()).Snapshot(T0);
 
         // Assert
-        (snapshot.Population, snapshot.Beds).Should().Be((2, 2));
+        (snapshot.Population, snapshot.Beds).Should().Be((4, 4));
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public class VillagerTests
         var restored = BaseState.Restore(new BuildingTable(), Map, data);
 
         // Assert
-        restored.Snapshot(T0).Population.Should().Be(2);
+        restored.Snapshot(T0).Population.Should().Be(4);
     }
 
     [Fact]

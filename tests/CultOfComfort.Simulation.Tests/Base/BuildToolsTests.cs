@@ -34,7 +34,7 @@ public class BuildToolsTests
         outcome.Status.Should().Be(CommandStatus.Accepted);
         var moved = state.Snapshot(later).Building(lean);
         moved.Tiles.Should().BeEquivalentTo(new[] { new GridPosition(18, 4), new GridPosition(18, 5) });
-        (moved.Level, moved.Ready, moved.Rotated).Should().Be((1, 100, true));
+        (moved.Level, moved.Ready, moved.Rotated).Should().Be((1, 125, true)); // an hour's 100 + its 25 starter pile
         state.Snapshot(later).BuildingAt(new GridPosition(15, 5)).Should().BeNull();
     }
 

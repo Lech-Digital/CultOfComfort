@@ -163,7 +163,7 @@ namespace CultOfComfort.Client.Tests
             yield return Frames(2);
 
             // Assert
-            Assert.AreEqual(550, Snapshot(game).Stock.Timber);
+            Assert.AreEqual(575, Snapshot(game).Stock.Timber); // 450 + an hour (100) + the 25 starter pile
         }
 
         [UnityTest]
