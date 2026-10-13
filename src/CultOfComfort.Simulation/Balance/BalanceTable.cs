@@ -10,6 +10,24 @@ public enum EnemyType
 
     /// <summary>Friar Odo's flock. Light, quick, and throws hymnals at heretics from range.</summary>
     Zealot,
+
+    /// <summary>Hearth 1: a goose. Fast, furious, goes for the Prophet's ankles.</summary>
+    Goose,
+
+    /// <summary>Hearth 1: a goat. Butts every fence and wall it sees.</summary>
+    Goat,
+
+    /// <summary>Hearth 1: a wild boar. Tough, quick, rude.</summary>
+    Boar,
+
+    /// <summary>Hearth 1: a nosy peasant. Won't fight anyone; just pokes at your buildings to see what they do.</summary>
+    Peasant,
+
+    /// <summary>Hearth 3: a priest. Slow; his blessing makes raiders around him harder to hurt.</summary>
+    Priest,
+
+    /// <summary>Hearth 3: Lord Wulfric himself. One per raid, in the last wave, and he is not amused.</summary>
+    Lord,
 }
 
 public enum TowerType
@@ -89,7 +107,13 @@ public sealed class BalanceTable
 
     public static BalanceTable Default { get; } = new();
 
-    public string Version { get; init; } = "2026.10.6";
+    public string Version { get; init; } = "2026.10.7";
+
+    /// <summary>A priest blesses raiders this close to him (tiles), not himself.</summary>
+    public Fix BlessingRadius { get; init; } = Fix.FromInt(2);
+
+    /// <summary>A blessed raider takes this much less damage.</summary>
+    public Fix BlessingReduction { get; init; } = Fix.Ratio(1, 4);
 
     /// <summary>A raider leaves the road for a structure it hasn't hit this many tiles away (whole tiles, diagonals count).</summary>
     public int RaidRange { get; init; } = 3;
@@ -138,6 +162,27 @@ public sealed class BalanceTable
             LeaderDamage: 6,
             LeaderAttackCooldownTicks: 30,
             StructureDamage: 10),
+        [EnemyType.Goose] = new(
+            MaxHealth: Fix.FromInt(25), TilesPerSecond: Fix.Ratio(16, 10), BluntResistance: Fix.Zero, HearthDamage: 4, WaveCost: 1,
+            EngageRange: Fix.Ratio(1, 2), LeaderDamage: 2, LeaderAttackCooldownTicks: 15, NoticeRange: Fix.FromInt(3), StructureDamage: 5),
+        [EnemyType.Goat] = new(
+            MaxHealth: Fix.FromInt(55), TilesPerSecond: Fix.Ratio(11, 10), BluntResistance: Fix.Zero, HearthDamage: 6, WaveCost: 1,
+            EngageRange: Fix.Ratio(1, 2), LeaderDamage: 2, LeaderAttackCooldownTicks: 20, NoticeRange: Fix.FromInt(1), StructureDamage: 30,
+            WallBreakerPercent: 100),
+        [EnemyType.Boar] = new(
+            MaxHealth: Fix.FromInt(90), TilesPerSecond: Fix.Ratio(14, 10), BluntResistance: Fix.Ratio(2, 10), HearthDamage: 12, WaveCost: 2,
+            EngageRange: Fix.Ratio(1, 2), LeaderDamage: 6, LeaderAttackCooldownTicks: 18, NoticeRange: Fix.Ratio(3, 2), StructureDamage: 25,
+            WallBreakerPercent: 20),
+        [EnemyType.Peasant] = new(
+            MaxHealth: Fix.FromInt(40), TilesPerSecond: Fix.Ratio(9, 10), BluntResistance: Fix.Zero, HearthDamage: 5, WaveCost: 1,
+            StructureDamage: 8),
+        [EnemyType.Priest] = new(
+            MaxHealth: Fix.FromInt(160), TilesPerSecond: Fix.Ratio(6, 10), BluntResistance: Fix.Ratio(2, 10), HearthDamage: 20, WaveCost: 4,
+            EngageRange: Fix.FromInt(2), LeaderDamage: 5, LeaderAttackCooldownTicks: 30, StructureDamage: 10),
+        [EnemyType.Lord] = new(
+            MaxHealth: Fix.FromInt(700), TilesPerSecond: Fix.Ratio(1, 2), BluntResistance: Fix.Ratio(4, 10), HearthDamage: 50, WaveCost: 12,
+            EngageRange: Fix.Ratio(6, 10), LeaderDamage: 15, LeaderAttackCooldownTicks: 24, NoticeRange: Fix.Ratio(3, 2), StructureDamage: 80,
+            WallBreakerPercent: 100),
     };
 
     public IReadOnlyDictionary<TowerType, TowerStats> Towers { get; init; } = new Dictionary<TowerType, TowerStats>

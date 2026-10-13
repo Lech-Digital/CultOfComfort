@@ -1109,7 +1109,7 @@ public sealed class BaseState
         var budget = _raid != null ? power * (100 + tension - _table.Tension.Hostile) / 100 : Math.Max(power * tension / _table.Tension.Hostile, power / 2);
         var waves = _raid != null && tension >= _table.Tension.Punitive ? 5 : 4;
         var seed = _raid?.Seed ?? (ulong)(946 + night);
-        return new NightPlan(night, seed, budget, waves, SluiceBonus, _raid != null, layout.Towers, layout.Obstacles, layout.Structures);
+        return new NightPlan(night, seed, budget, waves, SluiceBonus, _raid != null, layout.Towers, layout.Obstacles, layout.Structures, HearthLevel);
     }
 
     private CommandOutcome Resolve(ResolveNight command, DateTimeOffset now)

@@ -150,7 +150,8 @@ public class NightTests
         again.LastNightRecorded.Should().Be(1, "resolved exactly once");
         var expectedPlanSeed = (ulong)(1_000_003L * 1 + 946);
         snapshot.UnseenReport.StateHashHex.Should().Be(Battle.Simulate(new NightPlan(1, expectedPlanSeed, 42, 4, 0, true,
-            state.ToBattleLayout().Towers, state.ToBattleLayout().Obstacles, state.ToBattleLayout().Structures).ToBattleSetup(VillageMap.Demo, Array.Empty<PlayerInput>())).StateHashHex);
+            state.ToBattleLayout().Towers, state.ToBattleLayout().Obstacles, state.ToBattleLayout().Structures, snapshot.HearthLevel)
+            .ToBattleSetup(VillageMap.Demo, Array.Empty<PlayerInput>())).StateHashHex);
     }
 
     [Fact]
