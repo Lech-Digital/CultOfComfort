@@ -176,4 +176,21 @@ public class VillagerTests
         // Assert
         (after.Population, after.Beds, after.Cold, after.Stock.Peat).Should().Be((before.Population, before.Beds, before.Cold, before.Stock.Peat));
     }
+
+    [Fact]
+    public void Upkeep_Cold_PeatCuttersKeepCutting()
+    {
+        // Arrange — regression from the device: cold stopped the peat cutters too, so the village could never warm up.
+        var state = NewBase(Table(peat: 1));
+        Build(state, BuildingType.PeatCut, 12, 3, rotated: true);
+        Build(state, BuildingType.Woodcutter, 15, 5);
+
+        // Act — cold after half an hour; then four hours later.
+        var snapshot = state.Snapshot(T0.AddHours(4));
+
+        // Assert
+        snapshot.Cold.Should().BeTrue();
+        snapshot.Buildings.Single(b => b.Type == BuildingType.PeatCut).Ready.Should().Be(100, "they cut peat to get warm");
+        snapshot.Buildings.Single(b => b.Type == BuildingType.Woodcutter).Ready.Should().Be(0, "nobody else works in the cold");
+    }
 }

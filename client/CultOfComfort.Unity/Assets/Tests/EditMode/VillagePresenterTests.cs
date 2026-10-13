@@ -392,5 +392,26 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("Iron-bound Gate", iron.Title);
             Assert.IsTrue(iron.CanMove);
         }
+
+        [Test]
+        public void Card_Cold_PeatCutStillWorksOthersDont()
+        {
+            // Arrange — 3 villagers, 1 Peat: cold within the hour.
+            var table = new BuildingTable { StartingStock = new ResourceBag(2000, 1, 900, 0), HearthBeds = 3 };
+            var state = BaseState.CreateNew(table, VillageMap.Demo, T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.PeatCut, new GridPosition(12, 3), true), T0);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(15, 5)), T0);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+            var snapshot = state.Snapshot(T0.AddHours(2));
+
+            // Act
+            var peat = VillagePresenter.Card(snapshot, table, snapshot.Buildings.Single(b => b.Type == BuildingType.PeatCut).Id);
+            var lean = VillagePresenter.Card(snapshot, table, snapshot.Buildings.Single(b => b.Type == BuildingType.Woodcutter).Id);
+
+            // Assert
+            Assert.AreEqual("Cold — no Peat, nobody works but the peat cutters", lean.Output);
+            StringAssert.StartsWith("+", peat.Output);
+        }
     }
 }

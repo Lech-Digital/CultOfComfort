@@ -1274,7 +1274,10 @@ public sealed class BaseState
     }
 
     /// <summary>What it produces now: nothing while being built or wrecked.</summary>
-    private int Rate(Building b) => b.Wrecked || _cold || !IsConnected(b) || !IsStaffed(b) ? 0 : LevelRate(b) * (100 + RoadBonus(b)) / 100;
+    // Cold stops every trade but peat cutting: the cutters are how the village warms up again.
+    private int Rate(Building b) => b.Wrecked || (_cold && _table.Spec(b.Type).Produces != ResourceType.Peat) || !IsConnected(b) || !IsStaffed(b)
+        ? 0
+        : LevelRate(b) * (100 + RoadBonus(b)) / 100;
 
     // ---------------- villagers ----------------
 

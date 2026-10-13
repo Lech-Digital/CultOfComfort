@@ -70,3 +70,7 @@
   breaker rolls (deterministic, only breakers raid barriers), hashes.
 - Unity: ghost flow (pick → ghost → ✓ builds, ✗ cancels, tap ground cancels), move flow, repair-all button, joint shapes
   from neighbours (pure function), BarkBook picks; device run on the Pixel.
+
+## Addendum (2026-10-13, found on the device)
+
+- In the cold, Peat Cuts keep working (only they do): otherwise a village whose Peat ran out could never warm up again.
