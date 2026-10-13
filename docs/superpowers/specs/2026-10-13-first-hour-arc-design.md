@@ -1,7 +1,7 @@
 # First-Hour Arc — The Prophet's Errands — Design
 
 - **Date:** 2026-10-13
-- **Status:** Draft, waiting for the owner's approval
+- **Status:** Approved by the owner (2026-10-13: "it should take longer indeed to get each next level. we need this game to be playable for longer time.")
 - **Owner's words:** "2, then 1 and then 3" (smoothness pass, then this, then more village content); "feel free to play
   it through"
 - **Goal:** a new player always knows what to do next and why, and the Hearth levels arrive on the GDD's clock
@@ -77,8 +77,8 @@ Cut and a Cultist Hut, with Hearth 2 ready around **minute 20** (the bot checks 
 - Everything else stays the same unless the bot's re-run (§5) says otherwise. If it does, only these two knobs move:
   errand rewards and the Hearth 3 Timber cost.
 
-**Owner's call:** the GDD wants Hearth 3 at about **3.5 h** (two or three sessions). I suggested "within an hour"
-earlier, which would make Hearth 3 a first-session thing and need much bigger cuts. **I recommend the GDD's 3.5 h.**
+**Decided (owner, 2026-10-13):** follow the GDD curve, where each Hearth level takes about twice as long as the last
+(Hearth 3 ≈ 3.5 h, Hearth 4 ≈ 13 h …). The game must last; never tune a level to come faster than the curve.
 
 ## 3. Guided start (client)
 
