@@ -13,7 +13,7 @@ def _towels(parts, d):
 
 
 LOOK = Look(height=0.8, hair=None, hair_style="none", brow_colour="old_wood", brows=-4, mouth=0.016,
-            torso="tarp_blue", robe=True, legs="tarp_blue", feet="fresh_log", belt="linen", extras=[_towels])
+            torso="woad", robe=True, legs="woad", feet="fresh_log", belt="linen", extras=[_towels])
 
 
 def build():

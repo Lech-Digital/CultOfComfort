@@ -1,5 +1,6 @@
 """Cultist Hut, level 3 — the Chapel of Mild Warmth: a round daub chapel under a cone of thatch, a gold spire and,
-on top, the Duck Ascendant. Two wings (one thatched, one in a hurry), red banners, a sauna pipe that won't stop
+on top, the Duck Ascendant (carved
+from one oak, painted with every pot of weld in the Marchlands). Two wings (one thatched, one in a hurry), red banners, a sauna pipe that won't stop
 puffing and a hot tub out front. Devotion has never been so moist."""
 from lib.buildings import plank_roof, rubber_duck, thatch_roof, towel_line
 from lib.mesh import Part, root
@@ -43,6 +44,6 @@ def build():
     rubber_duck(b, (-0.45, -0.34, 0.19), size=0.3)
     for k, (dx, z) in enumerate(((-0.03, 0.3), (0.03, 0.4))):
         b.sphere(0.05 - k * 0.01, (-0.5 + dx, -0.32, z), "linen", segments=6, rings=4)
-    towel_line(b, (0.32, -0.44), (0.74, -0.32), 0.5, ("tarp_blue", "linen", "flipflop_pink"))
+    towel_line(b, (0.32, -0.44), (0.74, -0.32), 0.5, ("woad", "linen", "madder"))
     b.build()
     return chapel

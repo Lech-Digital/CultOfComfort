@@ -1,5 +1,5 @@
 """Peat Cut, level 2 — the Terraced Cut: two trenches and a plank walk between them, a wheelbarrow of bricks,
-and a drying shed roofed with a blue tarp, because the bog gets rained on even more than the bog."""
+and a drying shed roofed with woad-dyed sailcloth (as close to the Tarp as a bog can get)."""
 from lib.buildings import peat_stack
 from lib.mesh import Part, root
 
@@ -17,11 +17,11 @@ def build():
     for k in range(4):                                                                                   # plank walk
         b.box((0.5, 0.06, 0.025), (-0.22, -0.28 + (k - 1.5) * 0.065, 0.085), "fresh_log" if k % 2 else "old_wood", bevel=0.004,
               rotation=(0, 0, (k % 2) * 4 - 2))
-    # Drying shed: four posts and a tarp, stacks underneath.
+    # Drying shed: four posts and woad cloth, stacks underneath.
     for x in (0.1, 0.46):
         for y in (0.25, 0.9):
             b.box((0.05, 0.05, 0.72), (x, y, 0.36), "old_wood", bevel=0.006)
-    b.box((0.5, 0.78, 0.02), (0.28, 0.57, 0.74), "tarp_blue", bevel=0, rotation=(0, -10, 2))
+    b.box((0.5, 0.78, 0.02), (0.28, 0.57, 0.74), "woad", bevel=0, rotation=(0, -10, 2))
     for y in (0.4, 0.75):
         peat_stack(b, (0.28, y, 0.06), rows=4)
     peat_stack(b, (0.3, -0.05, 0.06), rows=3, yaw=15)

@@ -32,6 +32,8 @@ Replace the placeholder primitives with a real, coherent look **designed togethe
 | Building materials | Roman marble `#d7cfbf`, Worn stone `#b8b0a2`, Fieldstone `#7f7b73`, Fresh log `#9b7a52`, Old wood `#6d4c2f`, Tarred wood `#4a321e`, Thatch `#a08450`, Daub `#bfa98a` |
 | People | Prophet skin `#e7b590`, Local skin `#d9a37f`, Linen `#ece6d6`, Levy wool `#9c8460`, Mail `#8e9399`, Zealot red `#a8432c`, Wulfric's red `#8a2f24`, Gold trim `#d9b45a` |
 | 2024 junk | Cone orange `#ff5a00`, Tarp blue `#1f6dff`, Hi-vis yellow `#e8ff3a`, Flip-flop pink `#ff4fa3`, Umbrella black `#2b2b2e` |
+| Cult knock-offs (2026-10-13) | Ochre clay `#b86a34`, Woad `#46618c`, Weld `#c4ad4c`, Madder `#a85a68`: medieval copies of the relics, never crisp (see GDD 05 The Boot) |
+| Time machine (2026-10-13) | Car paint `#2fa39a`, Chrome `#d8dde2`, Glass `#9fd0dc`, Laser red `#ff2340` |
 | Emissive | Fire `#ffb04d`, Ember / hot stone `#ff7a1f`, Window `#ffcf80`, Moon rim `#9fe3ea` |
 
 ### Shape rules

@@ -90,6 +90,44 @@ namespace CultOfComfort.Client.Tests
             StringAssert.Contains("collect", note.Q<Label>(className: "errand-text").text);
         }
 
+        private static HudView Hud(GameController game) =>
+            (HudView)typeof(GameController).GetField("_hud", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(game);
+
+        private static bool Near(Rect arrow, VisualElement target) =>
+            Mathf.Abs(arrow.center.x - target.worldBound.center.x) < 30f && Mathf.Abs(arrow.center.y - target.worldBound.center.y) < 120f;
+
+        [UnityTest]
+        public IEnumerator Coach_FirstErrand_PointsAtCardThenConfirmThenNote()
+        {
+            // Arrange — a fresh village.
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(4);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+
+            // Assert: the arrow is on the Lean-to card.
+            var shown = Hud(game).CoachShown;
+            Assert.IsTrue(shown.Arrow, "a new player gets an arrow");
+            StringAssert.Contains("Woodcutter", shown.Text);
+            Assert.IsTrue(Near(shown.ArrowBounds, root.Q<Button>("card-Woodcutter")), $"arrow {shown.ArrowBounds} over the card {root.Q<Button>("card-Woodcutter").worldBound}");
+
+            // Act: pick it — the arrow moves to ✓.
+            Click(root.Q<Button>("card-Woodcutter"));
+            yield return Frames(3);
+            shown = Hud(game).CoachShown;
+            Assert.IsTrue(Near(shown.ArrowBounds, root.Q<Button>("ghost-confirm")), "arrow over ✓");
+
+            // Act: build it and let it finish — the arrow goes to the note.
+            GhostTo(game, new GridPosition(3, 9));
+            Click(root.Q<Button>("ghost-confirm"));
+            yield return Frames(2);
+            Assert.IsFalse(Hud(game).CoachShown.Arrow, "while it is being built there is nothing to tap");
+            _clock.UtcNow = _clock.UtcNow.AddMinutes(1);
+            yield return new WaitForSecondsRealtime(1.2f);
+            shown = Hud(game).CoachShown;
+            Assert.IsTrue(Near(shown.ArrowBounds, root.Q<Button>("errand-note")), "arrow at the note: claim it");
+        }
+
         [UnityTest]
         public IEnumerator Drawer_PickWoodcutterGhostThenConfirm_BuildsItAndChargesTimber()
         {

@@ -1,6 +1,6 @@
 """Peat Cut, level 3 — the Peat Works: a deep cut with a windlass and bucket, a tall smoking drying barn, a peat
-pyramid crowned with a traffic cone, and a shopping trolley pressed into service as a mine cart."""
-from lib.buildings import peat_stack, thatch_roof, wheel
+pyramid crowned with a clay cone, and a wicker copy of the Holy Trolley pressed into service as a mine cart."""
+from lib.buildings import clay_cone, peat_stack, thatch_roof, wheel, wicker_trolley
 from lib.mesh import Part, root
 
 TRIANGLE_BUDGET = 5000
@@ -35,17 +35,9 @@ def build():
         for k in range(n):
             b.box((0.16, 0.16, 0.08), (0.25 + (k - (n - 1) / 2) * 0.13, -0.6, 0.1 + row * 0.085), "tarred_wood" if (k + row) % 2 else "wet_mud",
                   bevel=0.01, rotation=(0, 0, row * 12))
-    b.cylinder(0.05, 0.17, (0.25, -0.6, 0.49), "cone_orange", segments=8, radius_top=0.01)
-    b.cylinder(0.035, 0.025, (0.25, -0.6, 0.48), "linen", segments=8)
-    # Shopping trolley of peat.
-    b.box((0.3, 0.2, 0.16), (0.27, -0.12, 0.25), "mail", bevel=0.01, rotation=(0, 0, 8))
-    for k in range(3):
-        b.box((0.13, 0.08, 0.07), (0.2 + k * 0.07, -0.12, 0.35), "tarred_wood", bevel=0.008, rotation=(0, 0, k * 40))
-    b.box((0.03, 0.2, 0.2), (0.43, -0.1, 0.33), "mail", bevel=0.005, rotation=(0, -18, 8))
-    for dx in (-0.11, 0.11):
-        for dy in (-0.07, 0.07):
-            b.cylinder(0.03, 0.02, (0.27 + dx, -0.12 + dy, 0.07), "umbrella_black", segments=8, rotation=(0, 90, 8))
-            b.box((0.015, 0.015, 0.12), (0.27 + dx, -0.12 + dy, 0.13), "mail", bevel=0)
+    clay_cone(b, (0.25, -0.6, 0.4), size=0.8)
+    # The wicker trolley, full of peat.
+    wicker_trolley(b, (0.27, -0.12, 0.06), yaw=8, load="tarred_wood")
     peat_stack(b, (-0.3, 0.2, 0.06), rows=4)
     peat_stack(b, (-0.3, -0.02, 0.06), rows=3, yaw=20)
     b.build()

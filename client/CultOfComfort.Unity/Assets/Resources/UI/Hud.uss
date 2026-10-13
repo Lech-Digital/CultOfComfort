@@ -299,3 +299,10 @@
 .errand-note.done { rotate: 1deg; }
 .hinted { border-width: 3px; border-color: #ffd34d; }
 .primary.waiting { opacity: 0.55; font-size: 14px; }
+
+/* ---------- the tutorial coach (GDD 05) ---------- */
+.coach-arrow { position: absolute; width: 34px; height: 40px; transform-origin: center; }
+.coach-line {
+    position: absolute; max-width: 230px; padding: 6px 10px 8px 10px; font-size: 13px; color: #2b2215; white-space: normal;
+    -unity-text-align: middle-center; rotate: -1deg;
+}
