@@ -336,3 +336,7 @@
 .errand-fold { position: absolute; right: 2px; top: 0; width: 26px; height: 22px; font-size: 16px; padding: 0; background-color: rgba(0, 0, 0, 0); border-width: 0; color: #7a5a2a; }
 .errand-note.folded { width: auto; padding: 4px 10px; }
 .errand-note.folded .errand-heading { font-size: 12px; }
+
+/* the build drawer slides shut and open rather than snapping the bar (owner 2026-10-14: "the screen jumps") */
+.drawer { transition-property: height, margin-bottom, opacity; transition-duration: 0.22s, 0.22s, 0.18s; transition-timing-function: ease-out-cubic; }
+.bar .drawer.collapsed, .landscape .bar .drawer.collapsed, .portrait .bar .drawer.collapsed { height: 0; margin-bottom: 0; opacity: 0; }

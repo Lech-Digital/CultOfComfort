@@ -139,6 +139,21 @@ namespace CultOfComfort.Client
                     visual.Bar.transform.localScale = new Vector3(0.7f * (1f - left / total), 0.07f, 0.07f);
                 }
 
+                // Somebody is hammering at whatever the builder works on (not saplings, not roads, not towers).
+                var hammering = building.IsUpgrading && spec.UsesBuilder && !BuildingTable.IsRoad(building.Type) && !spec.IsTower;
+                if (hammering && visual.Builder == null)
+                {
+                    var (_, size) = FootprintBox(building.Tiles);
+                    var front = -size.y / 2f - 0.3f; // −z faces the camera: he stands at the front edge, the pile beside him
+                    visual.Builder = BuilderAtWork.Create(visual.Root, new Vector3(size.x / 2f - 0.25f, 0f, front),
+                        new Vector3(-size.x / 2f + 0.3f, 0f, front + 0.05f), Vector3.zero);
+                }
+                else if (!hammering && visual.Builder != null)
+                {
+                    Destroy(visual.Builder);
+                    visual.Builder = null;
+                }
+
                 if (visual.Ready != null)
                 {
                     visual.Ready.enabled = building.Ready >= 1 && !building.Wrecked;
@@ -783,6 +798,7 @@ namespace CultOfComfort.Client
             public BuildingType Type;
             public int Level;
             public GameObject Bar;
+            public GameObject Builder;
             public SpriteRenderer Ready;
             public float ReadyHeight;
             public GameObject Health;

@@ -911,7 +911,7 @@ namespace CultOfComfort.Client
         public void SetDrawerCollapsed(bool collapsed)
         {
             _drawerCollapsed = collapsed;
-            Show(_drawer, !collapsed);
+            _drawer.EnableInClassList("collapsed", collapsed); // slides (USS transition) instead of snapping the bar
             _drawerToggle.text = collapsed ? "▴ Build" : "▾ Build";
             _framePendingFromHud = true;
         }
