@@ -13,8 +13,14 @@ namespace CultOfComfort.Client
     {
         private const int TimeoutSeconds = 10;
         private readonly string _baseUrl;
+        private readonly string _devKey;
 
-        public HttpVillageApi(string baseUrl) => _baseUrl = baseUrl.TrimEnd('/');
+        /// <param name="devKey">The owner's testing key (sent as X-Dev-Key), or null.</param>
+        public HttpVillageApi(string baseUrl, string devKey = null)
+        {
+            _baseUrl = baseUrl.TrimEnd('/');
+            _devKey = devKey;
+        }
 
         public async Task<GuestDto> StartGuestAsync(CancellationToken ct)
         {
@@ -77,6 +83,11 @@ namespace CultOfComfort.Client
                 if (!string.IsNullOrEmpty(token))
                 {
                     request.SetRequestHeader("Authorization", "Bearer " + token);
+                }
+
+                if (!string.IsNullOrEmpty(_devKey))
+                {
+                    request.SetRequestHeader("X-Dev-Key", _devKey);
                 }
 
                 request.timeout = TimeoutSeconds;

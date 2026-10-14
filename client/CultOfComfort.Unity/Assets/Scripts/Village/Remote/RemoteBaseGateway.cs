@@ -39,8 +39,10 @@ namespace CultOfComfort.Client
         private DateTimeOffset _lastHeard = DateTimeOffset.MinValue;
         private int _failures;
 
-        public RemoteBaseGateway(IVillageApi api, ICredentialStore credentials, IRemoteCache cache, IClock clock, BuildingTable table, VillageMap map, Action<string> warn)
+        public RemoteBaseGateway(IVillageApi api, ICredentialStore credentials, IRemoteCache cache, IClock clock, BuildingTable table, VillageMap map, Action<string> warn,
+            bool developer = false)
         {
+            Developer = developer;
             _api = api;
             _credentials = credentials;
             _cache = cache;
@@ -49,6 +51,9 @@ namespace CultOfComfort.Client
             _map = map;
             _warn = warn;
         }
+
+        /// <summary>This device holds the owner's dev key: development commands go to the server instead of being refused here.</summary>
+        public bool Developer { get; }
 
         /// <summary>True after the last exchange with the server worked.</summary>
         public bool Online { get; private set; }
@@ -90,7 +95,7 @@ namespace CultOfComfort.Client
             {
                 await EnsureLoadedAsync(ct);
                 var now = Now;
-                if (CommandMapping.IsDevelopmentOnly(command))
+                if (CommandMapping.IsDevelopmentOnly(command) && !Developer)
                 {
                     return new CommandResult(new CommandOutcome(CommandStatus.Rejected, _mirror.Version, "Not on a real server."), _mirror.Snapshot(now));
                 }

@@ -15,6 +15,8 @@ public sealed class ApiTests : IClassFixture<ApiTests.Host>
 
     public ApiTests(Host host) => _host = host;
 
+    private const string DevKey = "test-dev-key-0123456789abcdef";
+
     public sealed class Host : WebApplicationFactory<Program>
     {
         private readonly string _db = Path.Combine(Path.GetTempPath(), $"coc-api-{Guid.NewGuid():N}.db");
@@ -23,6 +25,8 @@ public sealed class ApiTests : IClassFixture<ApiTests.Host>
         {
             builder.UseEnvironment("Production"); // as deployed: development commands are refused
             builder.UseSetting("ConnectionStrings:Db", $"Data Source={_db}");
+            builder.UseSetting("Village:DevKey", DevKey);
+            builder.UseSetting("RateLimits:GuestsPerHour", "1000");
         }
 
         protected override void Dispose(bool disposing)
@@ -100,6 +104,27 @@ public sealed class ApiTests : IClassFixture<ApiTests.Host>
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Theory]
+    [InlineData(null, "Rejected")]
+    [InlineData("wrong-key-0123456789abcdefghij", "Rejected")]
+    [InlineData(DevKey, "Accepted")]
+    public async Task Sync_DevCommand_OnlyWithTheDevKey(string? key, string expected)
+    {
+        // Arrange
+        var client = await GuestAsync();
+        if (key != null)
+        {
+            client.DefaultRequestHeaders.Add("X-Dev-Key", key);
+        }
+
+        // Act
+        var response = await SyncAsync(client, 0, Command("DebugFillStores"));
+        var body = await response.Content.ReadFromJsonAsync<VillageResponseDto>(VillageJson.Options);
+
+        // Assert
+        body!.outcomes.Single().status.Should().Be(expected);
     }
 
     [Fact]

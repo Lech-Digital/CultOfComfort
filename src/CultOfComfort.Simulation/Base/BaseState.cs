@@ -490,6 +490,7 @@ public sealed partial class BaseState
             FinishConstructionNow _ => FinishNow(nowUtc),
             DebugRaiseTension raise => RaiseTension(raise.Amount, nowUtc),
             DebugSkipWarning _ => SkipWarning(nowUtc),
+            DebugFillStores _ => FillStores(nowUtc),
             RepairBuilding repair => Repair(repair.BuildingId, nowUtc),
             _ => CommandOutcome.Reject("Unknown order."),
         };
@@ -1272,6 +1273,14 @@ public sealed partial class BaseState
         var perSecondTimes3600 = TensionRate * 1000L;
         var seconds = (need * 3600 + perSecondTimes3600 - 1) / perSecondTimes3600; // round up: reached, not almost
         return start.AddSeconds(seconds);
+    }
+
+    private CommandOutcome FillStores(DateTimeOffset now)
+    {
+        _stock = Caps;
+        SettlePeople(now); // Peat back in storage warms a cold village
+        Advance(now);
+        return CommandOutcome.Accept();
     }
 
     private CommandOutcome RaiseTension(int amount, DateTimeOffset now)

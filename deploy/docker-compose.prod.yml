@@ -21,6 +21,10 @@ services:
     image: cultofcomfort-api
     container_name: cultofcomfort-api
     restart: unless-stopped
+    # Secrets that never go through git or the deploy rsync (Village__DevKey: the owner's testing gate, ADR 0007).
+    env_file:
+      - path: ../secrets.env
+        required: false
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       # Development commands (finish now, raise Tension, record a Night) stay refused in production.

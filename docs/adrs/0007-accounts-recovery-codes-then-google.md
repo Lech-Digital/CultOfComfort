@@ -47,3 +47,15 @@ Two ways to keep a village, behind one inbound port (`IAccountService`):
 - The player has to write the code down. A lost code means a lost village until Google sign-in is switched on.
 - The hand-rolled schema upgrade is a stop-gap and must not grow.
 - Apple sign-in waits for an iOS build.
+
+## Addendum (2026-10-14): the owner's testing gate
+
+The live server refuses development commands, and the dev buttons are hidden for everyone. To test on a phone:
+
+```sh
+# the key lives in deploy/dev.key (git-ignored) and on the server in /opt/cultofcomfort/secrets.env (Village__DevKey)
+adb push deploy/dev.key /sdcard/Android/data/com.lechdigital.cultofcomfort/files/dev.key   # then restart the app
+adb shell rm /sdcard/Android/data/com.lechdigital.cultofcomfort/files/dev.key             # to switch it off
+```
+
+With the file present, Settings shows Tension +50, Skip warning and Fill stores, building cards show Finish now, and every sync carries `X-Dev-Key`. The server lets development commands through only when the key matches (constant-time comparison, at least 24 characters). To rotate the key, write a new one to both places and redeploy.

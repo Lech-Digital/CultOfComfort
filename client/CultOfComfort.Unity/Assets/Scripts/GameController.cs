@@ -106,6 +106,8 @@ namespace CultOfComfort.Client
             _mood = NightMood.Capture(_camera, NightMood.FindSun());
             SetUpHud();
             _village = VillageComposition.CreateGateway();
+            // Dev tools: on a device that runs the rules itself (editor, tests), or one holding the owner's dev key.
+            _hud.SetDevTools(_village is RemoteBaseGateway remoteVillage ? remoteVillage.Developer : Debug.isDebugBuild);
             LoadVillage();
             Announce("Build from the drawer below; tap a building to collect or upgrade it.");
             PlayIntroOnFirstLaunch();
@@ -1352,6 +1354,7 @@ namespace CultOfComfort.Client
             _hud.RepairClicked += () => SendFromCard(b => new RepairBuilding(Guid.NewGuid(), b.Id));
             _hud.DevRaiseTensionClicked += () => SendSimple(new DebugRaiseTension(Guid.NewGuid(), 50));
             _hud.DevSkipWarningClicked += () => SendSimple(new DebugSkipWarning(Guid.NewGuid()));
+            _hud.DevFillStoresClicked += () => SendSimple(new DebugFillStores(Guid.NewGuid()));
             _hud.BuildingCardClosed += () =>
             {
                 _cardBuilding = null;

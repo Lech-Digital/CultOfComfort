@@ -170,6 +170,8 @@ namespace CultOfComfort.Client
         private readonly Label _errandClaim;
         private VisualElement _hinted;
         private Label _cloud;
+        private VisualElement _devTools;
+        private bool _devMode;
         private Label _codeLine;
         private Label _codeNote;
         private VisualElement _codeRow;
@@ -433,6 +435,7 @@ namespace CultOfComfort.Client
         public event Action BackToDuskClicked;
         public event Action ResetTipsClicked;
         public event Action ReplayIntroClicked;
+        public event Action DevFillStoresClicked;
         public event Action VillageCodeClicked;
         public event Action<string> RecoverClicked;
         public event Action SoundToggled;
@@ -610,7 +613,7 @@ namespace CultOfComfort.Client
             Show(_buildingRemaining, card.IsUpgrading);
             _upgrade.text = card.UpgradeLabel;
             _upgrade.SetEnabled(card.CanUpgrade);
-            Show(_finishNow, card.IsUpgrading && Debug.isDebugBuild);
+            Show(_finishNow, card.IsUpgrading && _devMode);
             Show(_demolish, card.CanDemolish);
             _demolish.text = card.DemolishLabel;
             Show(_move, card.CanMove);
@@ -845,6 +848,13 @@ namespace CultOfComfort.Client
             _musicToggle.text = music ? "Music: on" : "Music: off";
         }
 
+        /// <summary>Shows the development tools (Settings row, Finish now) on a device allowed to use them.</summary>
+        public void SetDevTools(bool on)
+        {
+            _devMode = on;
+            Show(_devTools, on);
+        }
+
         /// <summary>The cloud-save line in Settings.</summary>
         public void SetCloudStatus(string text)
         {
@@ -1053,15 +1063,19 @@ namespace CultOfComfort.Client
             replayRow.Add(tips);
             replayRow.Add(intro);
             sheet.Add(replayRow);
-            if (Debug.isDebugBuild)
-            {
-                var raise = ButtonWith("Raise Tension +50 (dev)", () => DevRaiseTensionClicked?.Invoke(), "plain");
-                raise.name = "dev-raise-tension";
-                var skip = ButtonWith("Skip the raid warning (dev)", () => DevSkipWarningClicked?.Invoke(), "plain");
-                skip.name = "dev-skip-warning";
-                sheet.Add(raise);
-                sheet.Add(skip);
-            }
+            // Development tools: hidden unless the game says this device may use them (SetDevTools).
+            _devTools = Container("sheet-row");
+            var raise = ButtonWith("Tension +50", () => DevRaiseTensionClicked?.Invoke(), "plain");
+            raise.name = "dev-raise-tension";
+            var skip = ButtonWith("Skip warning", () => DevSkipWarningClicked?.Invoke(), "plain");
+            skip.name = "dev-skip-warning";
+            var fill = ButtonWith("Fill stores", () => DevFillStoresClicked?.Invoke(), "plain");
+            fill.name = "dev-fill-stores";
+            _devTools.Add(raise);
+            _devTools.Add(skip);
+            _devTools.Add(fill);
+            Show(_devTools, false);
+            sheet.Add(_devTools);
             sheet.Add(Text($"Build {Application.version}", "sheet-line", "small"));
             probe = Text(string.Empty, "sheet-line", "small");
             probe.style.display = Debug.isDebugBuild ? DisplayStyle.Flex : DisplayStyle.None;

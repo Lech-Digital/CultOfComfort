@@ -20,6 +20,17 @@ public sealed class VillageOptions
 
     /// <summary>Lets "finish now", "raise Tension" and "record a Night" through. Never on a public server.</summary>
     public bool AllowDevelopmentCommands { get; set; }
+
+    /// <summary>
+    /// A secret that unlocks the development commands for one request (header X-Dev-Key): the owner's testing gate
+    /// on the live server. Empty or shorter than 24 characters: no gate.
+    /// </summary>
+    public string DevKey { get; set; } = string.Empty;
+
+    /// <summary>True when <paramref name="presented"/> is the configured dev key (compared in constant time).</summary>
+    public bool IsDevKey(string? presented) =>
+        DevKey.Length >= 24 && !string.IsNullOrEmpty(presented) &&
+        System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(DevKey), Encoding.UTF8.GetBytes(presented));
 }
 
 /// <summary>Inbound port: everything the API does with a village.</summary>
@@ -31,7 +42,7 @@ public interface IVillageService
 
     Task<VillageView?> GetAsync(Guid playerId, CancellationToken ct);
 
-    Task<SyncResult?> SyncAsync(Guid playerId, long expectedVersion, IReadOnlyList<BaseCommand> commands, CancellationToken ct);
+    Task<SyncResult?> SyncAsync(Guid playerId, long expectedVersion, IReadOnlyList<BaseCommand> commands, CancellationToken ct, bool developer = false);
 }
 
 /// <summary>
@@ -61,7 +72,7 @@ internal sealed class VillageService(
         return village == null ? null : new VillageView(village, clock.GetUtcNow());
     }
 
-    public async Task<SyncResult?> SyncAsync(Guid playerId, long expectedVersion, IReadOnlyList<BaseCommand> commands, CancellationToken ct)
+    public async Task<SyncResult?> SyncAsync(Guid playerId, long expectedVersion, IReadOnlyList<BaseCommand> commands, CancellationToken ct, bool developer = false)
     {
         var stored = await villages.FindAsync(playerId, ct);
         if (stored == null)
@@ -79,7 +90,7 @@ internal sealed class VillageService(
         var outcomes = new List<(Guid, CommandOutcome)>(commands.Count);
         foreach (var command in commands)
         {
-            var outcome = CommandMapping.IsDevelopmentOnly(command) && !options.AllowDevelopmentCommands
+            var outcome = CommandMapping.IsDevelopmentOnly(command) && !options.AllowDevelopmentCommands && !developer
                 ? new CommandOutcome(CommandStatus.Rejected, state.Version, "Not on a real server.")
                 : state.Apply(command, now);
             outcomes.Add((command.CommandId, outcome));

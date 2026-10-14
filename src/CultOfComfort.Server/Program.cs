@@ -14,11 +14,12 @@ builder.Services.AddVillageStorage(builder.Configuration.GetConnectionString("Db
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.IncludeFields = true); // the shared contract DTOs are fields
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 256 * 1024); // a sync batch is small; a Night's input log too
 
+var guestsPerHour = builder.Configuration.GetValue("RateLimits:GuestsPerHour", 10); // tests raise it; production keeps 10
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     // A guest account is free to make, so making them is what gets limited.
-    options.AddPolicy(RateLimits.Guest, PerClient(limit: 10, window: TimeSpan.FromHours(1)));
+    options.AddPolicy(RateLimits.Guest, PerClient(limit: guestsPerHour, window: TimeSpan.FromHours(1)));
     options.AddPolicy(RateLimits.Village, PerClient(limit: 240, window: TimeSpan.FromMinutes(1))); // the client reads twice a second
 
     static Func<HttpContext, RateLimitPartition<string>> PerClient(int limit, TimeSpan window) =>

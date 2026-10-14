@@ -56,6 +56,9 @@ public sealed record DebugRaiseTension(Guid CommandId, int Amount) : BaseCommand
 /// <summary>Development only: ends a raid's warning now. A server refuses this.</summary>
 public sealed record DebugSkipWarning(Guid CommandId) : BaseCommand(CommandId);
 
+/// <summary>Development only: fills every store to its cap (for testing the later Hearth levels). A server refuses this.</summary>
+public sealed record DebugFillStores(Guid CommandId) : BaseCommand(CommandId);
+
 /// <summary>Development only: completes the running construction. A server refuses (or charges for) this.</summary>
 public sealed record FinishConstructionNow(Guid CommandId) : BaseCommand(CommandId);
 

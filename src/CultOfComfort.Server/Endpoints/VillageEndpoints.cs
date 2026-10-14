@@ -37,7 +37,7 @@ internal static class VillageEndpoints
             return view == null ? Results.NotFound() : Results.Ok(Response(view, Array.Empty<(Guid, CommandOutcome)>()));
         });
 
-        api.MapPost("/sync", async (HttpContext http, SyncRequestDto request, IVillageService villages, CancellationToken ct) =>
+        api.MapPost("/sync", async (HttpContext http, SyncRequestDto request, IVillageService villages, VillageOptions options, CancellationToken ct) =>
         {
             var player = await PlayerAsync(http, villages, ct);
             if (player == null)
@@ -61,7 +61,8 @@ internal static class VillageEndpoints
                 return Results.BadRequest(new { error = e.Message });
             }
 
-            var result = await villages.SyncAsync(player.Value, request!.expectedVersion, commands, ct);
+            var developer = options.IsDevKey(http.Request.Headers["X-Dev-Key"].ToString());
+            var result = await villages.SyncAsync(player.Value, request!.expectedVersion, commands, ct, developer);
             if (result == null)
             {
                 return Results.NotFound();

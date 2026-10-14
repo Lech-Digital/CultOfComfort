@@ -158,3 +158,21 @@ public class VillageServiceTests
         public override DateTimeOffset GetUtcNow() => now;
     }
 }
+
+public class VillageOptionsTests
+{
+    [Theory]
+    [InlineData("", "anything", false)]
+    [InlineData("too-short", "too-short", false)]
+    [InlineData("long-enough-key-0123456789", "long-enough-key-0123456789", true)]
+    [InlineData("long-enough-key-0123456789", "long-enough-key-012345678X", false)]
+    [InlineData("long-enough-key-0123456789", null, false)]
+    public void IsDevKey_Presented_OnlyTheConfiguredLongKey(string configured, string? presented, bool expected)
+    {
+        // Act
+        var result = new VillageOptions { DevKey = configured }.IsDevKey(presented);
+
+        // Assert
+        result.Should().Be(expected);
+    }
+}

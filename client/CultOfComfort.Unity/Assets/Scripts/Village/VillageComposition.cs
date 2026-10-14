@@ -34,6 +34,24 @@ namespace CultOfComfort.Client
         /// </summary>
         public static bool UseServer { get; set; } = true;
 
+        /// <summary>
+        /// The owner's testing gate: a key file pushed with adb (deploy/README: dev key) next to the save. Present and
+        /// long enough: the dev tools show and the server accepts development commands from this device.
+        /// </summary>
+        public static string DevKey()
+        {
+            try
+            {
+                var path = Path.Combine(Application.persistentDataPath, "dev.key");
+                var key = File.Exists(path) ? File.ReadAllText(path).Trim() : null;
+                return key != null && key.Length >= 24 ? key : null;
+            }
+            catch (IOException)
+            {
+                return null;
+            }
+        }
+
         public static IBaseGateway CreateGateway()
         {
             if (Override != null)
@@ -44,9 +62,10 @@ namespace CultOfComfort.Client
             void Warn(string message) => Debug.LogWarning("[CoC] " + message);
             if (UseServer)
             {
-                return new RemoteBaseGateway(new HttpVillageApi(ServerUrl), new PlayerPrefsCredentialStore(),
+                var devKey = DevKey();
+                return new RemoteBaseGateway(new HttpVillageApi(ServerUrl, devKey), new PlayerPrefsCredentialStore(),
                     new FileRemoteCache(Path.Combine(Application.persistentDataPath, "village-cache.json")),
-                    new SystemClock(), BuildingTable.Default, VillageMap.Demo, Warn);
+                    new SystemClock(), BuildingTable.Default, VillageMap.Demo, Warn, developer: devKey != null);
             }
 
             return new LocalBaseGateway(new FileBaseStore(Path.Combine(Application.persistentDataPath, "village.json")),

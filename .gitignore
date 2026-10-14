@@ -16,3 +16,6 @@ __pycache__/
 
 # Raw animation frames (GIFs are committed instead)
 art/previews/anim/*/
+
+# The owner's dev key (pushed to a phone with adb; the server keeps it in /opt/cultofcomfort/secrets.env)
+deploy/dev.key
