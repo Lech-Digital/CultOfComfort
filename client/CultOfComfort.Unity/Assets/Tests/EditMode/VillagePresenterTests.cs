@@ -425,5 +425,14 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("Cold — no Peat, nobody works but the peat cutters", lean.Output);
             StringAssert.StartsWith("+", peat.Output);
         }
+
+        [Test]
+        public void ShortCost_ManyResources_FitsOnACard()
+        {
+            // Act & Assert
+            Assert.AreEqual("1.5k Timber · 200 Peat · 200 Scrap · 50 Dev", VillagePresenter.ShortCost(new ResourceBag(1500, 200, 200, 50)));
+            Assert.AreEqual("3k Timber · 150 Devotion", VillagePresenter.ShortCost(new ResourceBag(3000, 0, 0, 150)));
+            Assert.AreEqual("free", VillagePresenter.ShortCost(default));
+        }
     }
 }

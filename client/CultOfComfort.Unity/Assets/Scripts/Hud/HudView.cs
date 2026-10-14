@@ -1096,7 +1096,7 @@ namespace CultOfComfort.Client
             ready.name = "building-ready";
             remaining = Text(string.Empty, "sheet-line");
             remaining.name = "building-remaining";
-            upgrade = ButtonWith(string.Empty, () => UpgradeClicked?.Invoke(), "plain");
+            upgrade = ButtonWith(string.Empty, () => UpgradeClicked?.Invoke(), "plain", "wrap");
             upgrade.name = "upgrade";
             finishNow = ButtonWith("Finish now (dev)", () => FinishNowClicked?.Invoke(), "plain");
             finishNow.name = "finish-now";

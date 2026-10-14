@@ -80,6 +80,7 @@ namespace CultOfComfort.Client
         private PlayerActionType? _aim; // an aimed skill is armed: the next tap on the board says where (Hot Stones, laser, glass)
         private IntroDirector _intro;
         private AudioDirector _audio;
+        private bool _devTools; // the owner's testing gate is open on this device (lamps any time, dev buttons)
 
         public GamePhase Phase => _phase;
 
@@ -107,7 +108,8 @@ namespace CultOfComfort.Client
             SetUpHud();
             _village = VillageComposition.CreateGateway();
             // Dev tools: on a device that runs the rules itself (editor, tests), or one holding the owner's dev key.
-            _hud.SetDevTools(_village is RemoteBaseGateway remoteVillage ? remoteVillage.Developer : Debug.isDebugBuild);
+            _devTools = _village is RemoteBaseGateway remoteVillage ? remoteVillage.Developer : Debug.isDebugBuild;
+            _hud.SetDevTools(_devTools);
             LoadVillage();
             Announce("Build from the drawer below; tap a building to collect or upgrade it.");
             PlayIntroOnFirstLaunch();
@@ -1362,7 +1364,7 @@ namespace CultOfComfort.Client
             };
             _hud.StartNightClicked += () =>
             {
-                if (LampsWait())
+                if (LampsWait() && !_devTools)
                 {
                     Announce("The lamps can wait. Build first: follow the errand note.");
                     return;

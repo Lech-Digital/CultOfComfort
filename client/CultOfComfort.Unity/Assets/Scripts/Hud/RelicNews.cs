@@ -31,7 +31,8 @@ namespace CultOfComfort.Client
                 names.Add("the magnifying glass");
             }
 
-            return names.Count == 0 ? null : $"Rummaging in the car, I found {string.Join(" and ", names)}. Tonight, they're weapons.";
+            return names.Count == 0 ? null
+                : $"Rummaging in the car, I found {string.Join(" and ", names)}. Tonight, {(names.Count == 1 ? "it's a weapon" : "they're weapons")}.";
         }
     }
 }

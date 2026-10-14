@@ -24,6 +24,7 @@ namespace CultOfComfort.Client.Tests
             // Assert
             StringAssert.Contains("magnifying glass", news);
             StringAssert.DoesNotContain("laser", news);
+            StringAssert.Contains("it's a weapon", news);
         }
 
         [Test]

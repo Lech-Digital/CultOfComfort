@@ -54,7 +54,7 @@ namespace CultOfComfort.Client
                 var locked = snapshot.HearthLevel < spec.UnlockHearth || count >= spec.MaxCount(snapshot.HearthLevel);
                 return new BuildCardModel
                 {
-                    Type = spec.Type, Name = spec.Name, Icon = IconFor(spec.Type), Cost = cost.ToString(),
+                    Type = spec.Type, Name = spec.Name, Icon = IconFor(spec.Type), Cost = ShortCost(cost),
                     Time = spec.Levels[0].BuildSeconds == 0 ? "instant" : Duration(spec.Levels[0].BuildSeconds),
                     Locked = locked,
                     LockText = snapshot.HearthLevel < spec.UnlockHearth ? $"Hearth {spec.UnlockHearth}" : locked ? "Max built" : string.Empty,
@@ -71,9 +71,9 @@ namespace CultOfComfort.Client
             var next = maxed ? null : spec.Levels[b.Level];
             var repair = table.RepairCost(b.Type, b.Level);
             var upgradeLabel = b.Wrecked ? "Wrecked — repair first" : b.IsUpgrading ? (b.Level == 0 ? "Being built" : "Upgrading") : maxed ? "Max level"
-                : b.Type == BuildingType.WoodenWall ? $"Rebuild in stone · {next.Cost}"
-                : b.Type == BuildingType.Gate ? (b.Level == 1 ? $"Bind it with iron · {next.Cost}" : $"Build a gatehouse · {next.Cost}")
-                : next.BuildSeconds == 0 ? $"Upgrade · {next.Cost}" : $"Upgrade · {next.Cost} · {Duration(next.BuildSeconds)}";
+                : b.Type == BuildingType.WoodenWall ? $"Rebuild in stone · {ShortCost(next.Cost)}"
+                : b.Type == BuildingType.Gate ? (b.Level == 1 ? $"Bind it with iron · {ShortCost(next.Cost)}" : $"Build a gatehouse · {ShortCost(next.Cost)}")
+                : next.BuildSeconds == 0 ? $"Upgrade · {ShortCost(next.Cost)}" : $"Upgrade · {ShortCost(next.Cost)} · {Duration(next.BuildSeconds)}";
             if (b.Type == BuildingType.Tree)
             {
                 return new BuildingCardModel
@@ -222,6 +222,19 @@ namespace CultOfComfort.Client
             if (seconds < 60) return $"{seconds}s";
             if (seconds < 3600) return $"{seconds / 60}m";
             return $"{seconds / 3600}h {seconds % 3600 / 60:00}m";
+        }
+
+        /// <summary>A cost that fits on a card: "1.5k Timber · 200 Peat · 200 Scrap · 50 Dev" (full names for one or two resources).</summary>
+        public static string ShortCost(ResourceBag cost)
+        {
+            var parts = new System.Collections.Generic.List<string>();
+            var many = (cost.Timber != 0 ? 1 : 0) + (cost.Peat != 0 ? 1 : 0) + (cost.Scrap != 0 ? 1 : 0) + (cost.Devotion != 0 ? 1 : 0) > 2;
+            string Amount(int n) => n >= 1000 ? (n % 1000 == 0 ? $"{n / 1000}k" : $"{n / 1000.0:0.#}k") : n.ToString();
+            if (cost.Timber != 0) parts.Add($"{Amount(cost.Timber)} Timber");
+            if (cost.Peat != 0) parts.Add($"{Amount(cost.Peat)} Peat");
+            if (cost.Scrap != 0) parts.Add($"{Amount(cost.Scrap)} Scrap");
+            if (cost.Devotion != 0) parts.Add($"{Amount(cost.Devotion)} {(many ? "Dev" : "Devotion")}");
+            return parts.Count == 0 ? "free" : string.Join(" · ", parts);
         }
 
         /// <summary>" · Comfort +4", " · Squalor 10 (worse beside homes)", " · burns 10 Peat/h"; empty when none.</summary>

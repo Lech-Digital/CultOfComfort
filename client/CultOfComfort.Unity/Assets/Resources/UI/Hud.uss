@@ -273,6 +273,8 @@
 .icon-b_plank_walk { background-image: resource("UI/Icons/b_plank_walk"); }
 .icon-b_cobbled_road { background-image: resource("UI/Icons/b_cobbled_road"); }
 .icon-b_cottage { background-image: resource("UI/Icons/b_cottage"); }
+.icon-b_midden_sorter { background-image: resource("UI/Icons/b_midden_sorter"); }
+.icon-b_bathhouse { background-image: resource("UI/Icons/b_bathhouse"); }
 .pill.cold, .pill-note.cold { background-color: #9fc7d9; }
 .pill.cold .pill-value, .pill-note.cold .pill-value { color: #1d4a66; }
 .repair-all-button { position: absolute; left: 8px; top: -58px; height: 46px; font-size: 15px; padding: 0 14px; background-color: #efe2c0; border-color: #6d4c2f; border-width: 3px; border-radius: 8px; color: #3b2614; -unity-font-style: bold; }
@@ -321,3 +323,5 @@
 .village-code { font-size: 18px; color: #2b2215; -unity-font-definition: resource("UI/Fonts/PermanentMarker"); -unity-text-align: middle-center; white-space: normal; }
 .code-input { flex-grow: 2; font-size: 16px; margin-right: 6px; }
 .code-note { white-space: normal; -unity-text-align: middle-center; }
+.wrap { white-space: normal; }
+.sheet-row > .plain { font-size: 13px; }
