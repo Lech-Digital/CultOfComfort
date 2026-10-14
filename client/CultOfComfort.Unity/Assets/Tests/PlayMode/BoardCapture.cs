@@ -53,6 +53,7 @@ namespace CultOfComfort.Client.Tests
 
             Build(BuildingType.WattleFence, 7, 13);
             Build(BuildingType.WattleFence, 8, 13);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Cottage, new GridPosition(20, 10)), now); // left under construction: the builder at work
             var store = new Store { Saved = state.ToData() };
             VillageComposition.Override = () => new LocalBaseGateway(store, new SystemClock(), BuildingTable.Default, VillageMap.Demo, _ => { });
 
