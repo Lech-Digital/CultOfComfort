@@ -59,6 +59,9 @@ public sealed record DebugSkipWarning(Guid CommandId) : BaseCommand(CommandId);
 /// <summary>Sends a missionary to preach at a node of the Domain for 1, 2, 4 or 8 hours (spec 2026-10-14 world map).</summary>
 public sealed record SendMissionary(Guid CommandId, int NodeId, int Hours) : BaseCommand(CommandId);
 
+/// <summary>Sets how many villagers should work a building (0 to its slots; spec 2026-10-14 cultist work).</summary>
+public sealed record SetCrew(Guid CommandId, int BuildingId, int Crew) : BaseCommand(CommandId);
+
 /// <summary>Sends a missionary to a place on the shared world, <paramref name="Distance"/> hexes away (the server checks the distance against the world).</summary>
 public sealed record SendWorldMissionary(Guid CommandId, int NodeId, int Hours, int Distance) : BaseCommand(CommandId);
 

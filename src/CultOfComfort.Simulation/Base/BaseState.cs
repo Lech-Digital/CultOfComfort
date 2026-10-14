@@ -120,6 +120,7 @@ public sealed partial class BaseState
                 BufferMilli = b.BufferMilli,
                 UpgradeEndsAtUtc = b.UpgradeEndsAtUtcTicks == null ? null : new DateTimeOffset(b.UpgradeEndsAtUtcTicks.Value, TimeSpan.Zero),
                 Wrecked = b.Wrecked,
+                CrewWanted = b.Crew is int crew && crew >= 0 && crew <= spec.SlotsAt(spec.MaxLevel) ? crew : null,
             });
         }
 
@@ -210,6 +211,7 @@ public sealed partial class BaseState
                 BufferMilli = b.BufferMilli,
                 UpgradeEndsAtUtc = b.UpgradeEndsAtUtc,
                 Wrecked = b.Wrecked,
+                CrewWanted = b.CrewWanted,
             });
         }
     }
@@ -439,7 +441,7 @@ public sealed partial class BaseState
 
     public BaseData ToData() => new(
         Version, _stock, _nextId, LastNightRecorded,
-        _buildings.Select(b => new BuildingData(b.Id, b.Type, b.Level, b.Position.X, b.Position.Y, b.UpgradeEndsAtUtc?.UtcTicks, b.BufferMilli, b.AsOfUtc.UtcTicks, b.Wrecked, b.Rotated)).ToList(),
+        _buildings.Select(b => new BuildingData(b.Id, b.Type, b.Level, b.Position.X, b.Position.Y, b.UpgradeEndsAtUtc?.UtcTicks, b.BufferMilli, b.AsOfUtc.UtcTicks, b.Wrecked, b.Rotated, b.CrewWanted)).ToList(),
         _recentOrder.ToList(),
         _tensionMilli,
         _tensionAsOf.UtcTicks,
@@ -472,7 +474,7 @@ public sealed partial class BaseState
         Advance(nowUtc);
         _now = nowUtc;
         MaterializeAll(nowUtc); // whatever this command changes, production up to now was earned under the old rules
-        if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain or SendMissionary or SendWorldMissionary or PayTithe)
+        if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain or SendMissionary or SendWorldMissionary or PayTithe or SetCrew)
         {
             return CommandOutcome.Reject("Not now — there's a Night on.") with { Version = Version };
         }
@@ -498,6 +500,7 @@ public sealed partial class BaseState
             DebugSkipWarning _ => SkipWarning(nowUtc),
             DebugFillStores _ => FillStores(nowUtc),
             DebugEndShield _ => EndShield(nowUtc),
+            SetCrew crew => ChooseCrew(crew),
             SendMissionary send => SendOut(send, nowUtc),
             SendWorldMissionary send => SendOutInWorld(send, nowUtc),
             JoinWorld join => Join(join, nowUtc),
@@ -528,11 +531,11 @@ public sealed partial class BaseState
         _now = nowUtc;
         var views = _buildings.Select(b => new BuildingView(
             b.Id, b.Type, b.Level, b.Position, (int)(Buffer(b, nowUtc) / 1000), (int)(CapacityMilli(b) / 1000), Rate(b), b.UpgradeEndsAtUtc, b.Wrecked, b.Rotated, b.Tiles, IsConnected(b),
-            IsStaffed(b) ? _table.Spec(b.Type).Workers : 0, _table.Spec(b.Type).Workers)).ToList();
+            CrewOf(b), Slots(b), b.CrewWanted ?? Slots(b))).ToList();
         var tension = TensionValue(nowUtc);
         return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
             tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport, _cleared.Concat(_treeCuts.Keys.Where(t => !IsWildTreeStanding(t))).ToList(),
-            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts());
+            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts(), IdleVillagers());
     }
 
     public ResourceBag Caps
@@ -707,6 +710,7 @@ public sealed partial class BaseState
             BufferMilli = building.BufferMilli,
             UpgradeEndsAtUtc = building.UpgradeEndsAtUtc,
             Wrecked = building.Wrecked,
+            CrewWanted = building.CrewWanted,
         };
         _network = null;
         return CommandOutcome.Accept();
@@ -1385,14 +1389,14 @@ public sealed partial class BaseState
     // Cold stops every trade but peat cutting: the cutters are how the village warms up again.
     private int Rate(Building b)
     {
-        if (b.Wrecked || (_cold && _table.Spec(b.Type).Produces != ResourceType.Peat) || !IsConnected(b) || !IsStaffed(b))
+        if (b.Wrecked || (_cold && _table.Spec(b.Type).Produces != ResourceType.Peat) || !IsConnected(b) || (Slots(b) > 0 && CrewOf(b) == 0))
         {
             return 0;
         }
 
         var produces = _table.Spec(b.Type).Produces;
         var research = produces == ResourceType.Timber ? Bonus(TechEffect.TimberPercent) : produces == ResourceType.Peat ? Bonus(TechEffect.PeatPercent) : 0;
-        var rate = LevelRate(b) * (100 + RoadBonus(b) + research) / 100;
+        var rate = (int)((long)LevelRate(b) * BuildingSpec.CrewPerMille(CrewOf(b), Slots(b)) / 1000) * (100 + RoadBonus(b) + research) / 100;
         return produces == ResourceType.Devotion ? DevotionWithComfort(rate) : rate;
     }
 
@@ -1469,40 +1473,64 @@ public sealed partial class BaseState
         .Where(b => b.Level > 0 && !b.Wrecked && _table.Spec(b.Type).Levels[b.Level - 1].Beds > 0 && IsConnected(b))
         .Sum(b => _table.Spec(b.Type).Levels[b.Level - 1].Beds);
 
+    /// <summary>Worker slots at the building's current level.</summary>
+    private int Slots(Building b) => _table.Spec(b.Type).SlotsAt(b.Level);
+
     /// <summary>
-    /// Villagers crew connected, finished, intact producers in building order; one that can't get its full crew gets
-    /// none (the next, smaller one may still be crewed).
+    /// Who works where (spec 2026-10-14 cultist work): the villagers at home fill each connected, finished, intact
+    /// producer's chosen crew in building order, oldest first; when hands run short, the newest go without.
     /// </summary>
-    private bool IsStaffed(Building building)
+    private int CrewOf(Building building)
     {
-        var need = _table.Spec(building.Type).Workers;
-        if (need == 0)
+        if (Slots(building) == 0)
         {
-            return true;
+            return 0;
         }
 
         var free = _population - MissionariesAway;
         foreach (var b in _buildings.OrderBy(b => b.Id))
         {
-            var workers = _table.Spec(b.Type).Workers;
-            if (workers == 0 || b.Level == 0 || b.Wrecked || !IsConnected(b))
+            var slots = Slots(b);
+            if (slots == 0 || b.Wrecked || !IsConnected(b))
             {
                 continue;
             }
 
-            var crewed = free >= workers;
-            if (crewed)
-            {
-                free -= workers;
-            }
-
+            var crew = Math.Max(0, Math.Min(Math.Min(b.CrewWanted ?? slots, slots), free));
+            free -= crew;
             if (b == building)
             {
-                return crewed;
+                return crew;
             }
         }
 
-        return false;
+        return 0;
+    }
+
+    /// <summary>Villagers at home with no work: what's left after every crew is filled.</summary>
+    private int IdleVillagers() => Math.Max(0, _population - MissionariesAway - _buildings.Sum(CrewOf));
+
+    private CommandOutcome ChooseCrew(SetCrew command)
+    {
+        var building = _buildings.FirstOrDefault(b => b.Id == command.BuildingId);
+        if (building == null)
+        {
+            return CommandOutcome.Reject("There's nothing there.");
+        }
+
+        var slots = Slots(building);
+        if (slots == 0)
+        {
+            return CommandOutcome.Reject("Nobody works there.");
+        }
+
+        if (command.Crew < 0 || command.Crew > slots)
+        {
+            return CommandOutcome.Reject($"It has room for {slots}.");
+        }
+
+        building.CrewWanted = command.Crew == slots ? null : command.Crew; // full stays full when it's upgraded
+        return CommandOutcome.Accept();
     }
 
     /// <summary>Burns Peat for every villager up to <paramref name="at"/> (nothing while cold: there's nothing to burn).</summary>

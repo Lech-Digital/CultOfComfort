@@ -34,6 +34,7 @@ public class ContractsTests
         new DebugSkipWarning(Guid.NewGuid()),
         new SendMissionary(Guid.NewGuid(), 7, 4),
         new SendWorldMissionary(Guid.NewGuid(), 1201, 8, 3),
+        new SetCrew(Guid.NewGuid(), 4, 1),
         new CollectOfferings(Guid.NewGuid()),
         new PayTithe(Guid.NewGuid(), new ResourceBag(100, 20, 30, 40)),
         new StartResearch(Guid.NewGuid(), "sharper-axes"),
@@ -110,6 +111,26 @@ public class ContractsTests
         data.Research!.Current.Should().Be("sermon-notes");
         BaseState.Restore(table, VillageMap.Demo, back).Snapshot(later.AddDays(2)).Domain.Should()
             .BeEquivalentTo(BaseState.Restore(table, VillageMap.Demo, data).Snapshot(later.AddDays(2)).Domain);
+    }
+
+    [Fact]
+    public void VillageJson_ChosenCrew_RoundTripsAndFullStaysNull()
+    {
+        // Arrange — a lean-to emptied by the player; the Hearth untouched.
+        var table = new BuildingTable { StartingStock = new ResourceBag(5000, 900, 900, 900) };
+        var state = BaseState.CreateNew(table, VillageMap.Demo, T0);
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(15, 5)), T0);
+        state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+        var lean = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Woodcutter).Id;
+        state.Apply(new SetCrew(Guid.NewGuid(), lean, 0), T0);
+        var data = state.ToData();
+
+        // Act
+        var back = VillageJson.Read(VillageJson.Write(data));
+
+        // Assert
+        back.Buildings.Single(b => b.Id == lean).Crew.Should().Be(0);
+        back.Buildings.Where(b => b.Id != lean).Should().OnlyContain(b => b.Crew == null);
     }
 
     [Fact]

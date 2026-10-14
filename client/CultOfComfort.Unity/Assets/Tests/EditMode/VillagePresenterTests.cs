@@ -15,11 +15,59 @@ namespace CultOfComfort.Client.Tests
         [TestCase("timber", "Timber · 500/1000 · +0/h")]
         [TestCase("peat", "Peat · 60/1000 · −4/h (4 villagers keep warm)")]
         [TestCase("devotion", "Devotion · 0/1000 · +0/h")]
-        [TestCase("people", "Villagers 4 · beds 4")]
+        [TestCase("people", "Villagers 4 · beds 4 · 4 idle")]
         public void PillLine_FreshVillage_NamesTheResourceAndItsIncome(string key, string expected)
         {
             // Act & Assert
             Assert.AreEqual(expected, VillagePresenter.PillLine(Fresh(), BuildingTable.Default, key));
+        }
+
+        [Test]
+        public void Card_WoodcutterWithIdleHands_ShowsTheCrewAndOnlyLessIsLeft()
+        {
+            // Arrange — a finished lean-to (1 slot), four villagers: one works, three are idle.
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(15, 5)), T0);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+            var snapshot = state.Snapshot(T0);
+            var lean = snapshot.Buildings.Single(b => b.Type == BuildingType.Woodcutter).Id;
+
+            // Act
+            var card = VillagePresenter.Card(snapshot, BuildingTable.Default, lean);
+
+            // Assert
+            Assert.IsTrue(card.ShowCrew);
+            Assert.AreEqual("Crew 1/1 · 3 idle", card.CrewLine);
+            Assert.IsTrue(card.CanCrewLess);
+            Assert.IsFalse(card.CanCrewMore, "it has room for one");
+        }
+
+        [Test]
+        public void Card_WoodcutterEmptiedByThePlayer_SaysNobodyAssigned()
+        {
+            // Arrange
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(15, 5)), T0);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+            var lean = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Woodcutter).Id;
+            state.Apply(new SetCrew(Guid.NewGuid(), lean, 0), T0);
+
+            // Act
+            var card = VillagePresenter.Card(state.Snapshot(T0), BuildingTable.Default, lean);
+
+            // Assert
+            StringAssert.Contains("Nobody assigned", card.Output);
+            Assert.IsTrue(card.CanCrewMore);
+        }
+
+        [Test]
+        public void Card_Hearth_NoCrewRow()
+        {
+            // Act
+            var card = VillagePresenter.Card(Fresh(), BuildingTable.Default, 0);
+
+            // Assert
+            Assert.IsFalse(card.ShowCrew);
         }
 
         [Test]
@@ -310,7 +358,8 @@ namespace CultOfComfort.Client.Tests
 
             // Assert
             Assert.AreEqual("Needs 1 villager — build a Cottage", lean.Output);
-            StringAssert.Contains("Crew 2/2", peat.Ready);
+            Assert.AreEqual("Crew 2/2", peat.CrewLine);
+            Assert.AreEqual("Crew 0/1 · 1 short", lean.CrewLine);
         }
 
         [Test]

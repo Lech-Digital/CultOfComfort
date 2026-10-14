@@ -27,7 +27,7 @@ public static class VillageSaveMapping
         buildings = data.Buildings.Select(b => new BuildingDto
         {
             id = b.Id, type = b.Type.ToString(), level = b.Level, x = b.X, y = b.Y,
-            upgradeEndsAtTicks = b.UpgradeEndsAtUtcTicks ?? -1, bufferMilli = b.BufferMilli, asOfTicks = b.AsOfUtcTicks, wrecked = b.Wrecked, rotated = b.Rotated,
+            upgradeEndsAtTicks = b.UpgradeEndsAtUtcTicks ?? -1, bufferMilli = b.BufferMilli, asOfTicks = b.AsOfUtcTicks, wrecked = b.Wrecked, rotated = b.Rotated, crew = b.Crew ?? -1,
         }).ToList(),
         recentCommands = data.RecentCommands.Select(g => g.ToString()).ToList(),
         tensionMilli = data.TensionMilli,
@@ -92,7 +92,7 @@ public static class VillageSaveMapping
                 throw new InvalidBaseDataException($"unknown building type '{b.type}'");
             }
 
-            buildings.Add(new BuildingData(b.id, type, b.level, b.x, b.y, b.upgradeEndsAtTicks < 0 ? null : b.upgradeEndsAtTicks, b.bufferMilli, b.asOfTicks, b.wrecked, b.rotated));
+            buildings.Add(new BuildingData(b.id, type, b.level, b.x, b.y, b.upgradeEndsAtTicks < 0 ? null : b.upgradeEndsAtTicks, b.bufferMilli, b.asOfTicks, b.wrecked, b.rotated, b.crew < 0 ? null : b.crew));
         }
 
         var recent = (dto.recentCommands ?? new List<string>()).Select(s => Guid.TryParse(s, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).ToList();
