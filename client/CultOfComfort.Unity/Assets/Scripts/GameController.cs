@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using CultOfComfort.Contracts;
 using CultOfComfort.Simulation.Balance;
 using CultOfComfort.Simulation.Base;
 using CultOfComfort.Simulation.Combat;
@@ -81,6 +82,10 @@ namespace CultOfComfort.Client
         private IntroDirector _intro;
         private AudioDirector _audio;
         private WorldMapView _map;
+        private WorldDto _world;              // the shared world's window, as the server last sent it (null: Marchlands, or not fetched yet)
+        private int _worldRadius = SharedWorldPresenter.DefaultRadius;
+        private float _worldFetchedAt = -999f;
+        private bool _worldFetching;
         private FeatureSheetView _sheet;
         private bool _devTools; // the owner's testing gate is open on this device (lamps any time, dev buttons)
 
@@ -192,24 +197,55 @@ namespace CultOfComfort.Client
             root.styleSheets.Add(Resources.Load<StyleSheet>("UI/WorldMap"));
             _map = new WorldMapView(root);
             _map.Closed += () => _map.Show(false);
-            _map.NodeTapped += id => _map.ShowCard(WorldMapPresenter.Card(_snapshot, BuildingTable.Default, id));
+            _map.NodeTapped += id => _map.ShowCard(_world != null
+                ? SharedWorldPresenter.Card(_snapshot, BuildingTable.Default, _world, id)
+                : WorldMapPresenter.Card(_snapshot, BuildingTable.Default, id));
             _map.PreachClicked += async (node, hours) =>
             {
-                var outcome = await SendVillage(new SendMissionary(Guid.NewGuid(), node, hours));
+                var world = _world;
+                var outcome = await SendVillage(world != null
+                    ? new SendWorldMissionary(Guid.NewGuid(), node, hours, SharedWorldPresenter.DistanceTo(world, node))
+                    : (BaseCommand)new SendMissionary(Guid.NewGuid(), node, hours));
                 if (outcome.Status == CommandStatus.Accepted)
                 {
                     _map.CloseCard();
-                    Announce($"A missionary sets off for {DomainMap.Marchlands.Node(node)?.Name}, with sandwiches.");
+                    var name = world != null ? SharedWorldPresenter.MapFor(world).Node(node)?.Name : DomainMap.Marchlands.Node(node)?.Name;
+                    Announce($"A missionary sets off for {name}, with sandwiches.");
                 }
             };
             _map.CollectClicked += async () =>
             {
+                if (_world != null && _village is RemoteBaseGateway remote)
+                {
+                    var collect = await remote.CollectWorldAsync(_cts.Token);
+                    var taken = collect == null ? default : new ResourceBag(collect.timber, collect.peat, collect.scrap, collect.devotion);
+                    Announce(collect == null ? "No connection: the offerings will wait."
+                        : taken.IsZero ? collect.reason : $"The faithful send {VillagePresenter.ShortCost(taken)}.");
+                    RefreshSnapshot();
+                    _ = FetchWorldAsync(_world.viewQ, _world.viewR);
+                    return;
+                }
+
                 var outcome = await SendVillage(new CollectOfferings(Guid.NewGuid()));
                 if (outcome.Status == CommandStatus.Accepted)
                 {
                     Announce($"The faithful of the Marchlands send {VillagePresenter.ShortCost(outcome.Collected)}.");
                 }
             };
+            _map.Panned += fraction =>
+            {
+                if (_world != null)
+                {
+                    var (dq, dr) = SharedWorldPresenter.PanBy(fraction, _world.viewRadius);
+                    _ = FetchWorldAsync(_world.viewQ + dq, _world.viewR + dr);
+                }
+            };
+            _map.Zoomed += step =>
+            {
+                _worldRadius = Mathf.Clamp(_worldRadius + step, SharedWorldPresenter.MinRadius, SharedWorldPresenter.MaxRadius);
+                _ = FetchWorldAsync(_world?.viewQ, _world?.viewR);
+            };
+            _map.Recentred += () => _ = FetchWorldAsync(null, null);
             _map.TitheClicked += async amount =>
             {
                 var hadRaid = _snapshot?.RaidWarningEndsAtUtc != null;
@@ -243,7 +279,12 @@ namespace CultOfComfort.Client
 
                 _sheet.Close();
                 _map.Show(true);
-                _map.Render(WorldMapPresenter.Build(_snapshot, BuildingTable.Default, _snapshot.AsOfUtc));
+                RenderMap();
+                if (_village is RemoteBaseGateway)
+                {
+                    _ = FetchWorldAsync(_world?.viewQ, _world?.viewR);
+                }
+
                 if (id == "tithes")
                 {
                     _map.ShowTitheSheet();
@@ -311,7 +352,61 @@ namespace CultOfComfort.Client
                     return;
                 }
 
+                RenderMap();
+                if (_village is RemoteBaseGateway && Time.time - _worldFetchedAt > 30f)
+                {
+                    _ = FetchWorldAsync(_world?.viewQ, _world?.viewR); // rivals preach too: keep the window fresh
+                }
+            }
+        }
+
+        /// <summary>The shared world when the server has sent it; the Marchlands for a village that isn't on a world (offline play).</summary>
+        private void RenderMap()
+        {
+            if (_world != null)
+            {
+                _map.Render(SharedWorldPresenter.Build(_snapshot, BuildingTable.Default, _world, _snapshot.AsOfUtc));
+            }
+            else if (_snapshot.Domain?.World == null)
+            {
                 _map.Render(WorldMapPresenter.Build(_snapshot, BuildingTable.Default, _snapshot.AsOfUtc));
+            }
+            else
+            {
+                _map.Render(new WorldMapModel
+                {
+                    Title = "The wider world", MissionaryLine = "The world map needs a connection. The faithful will wait.",
+                    OfferingsLine = string.Empty, TensionLine = $"Tension {_snapshot.Tension}/{BuildingTable.Default.Tension.Max}",
+                });
+            }
+        }
+
+        /// <summary>Asks the server for the window around (q, r) (null: around the village), joining a world the first time.</summary>
+        private async Task FetchWorldAsync(int? q, int? r)
+        {
+            if (_worldFetching || !(_village is RemoteBaseGateway remote))
+            {
+                return;
+            }
+
+            _worldFetching = true;
+            _worldFetchedAt = Time.time;
+            try
+            {
+                var world = await remote.WorldAsync(q, r, _worldRadius, _cts.Token);
+                if (world != null)
+                {
+                    _world = world;
+                    if (_map.IsOpen && _snapshot != null)
+                    {
+                        RefreshSnapshot();
+                        RenderMap();
+                    }
+                }
+            }
+            finally
+            {
+                _worldFetching = false;
             }
         }
 

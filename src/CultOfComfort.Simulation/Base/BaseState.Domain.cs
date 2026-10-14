@@ -30,7 +30,8 @@ public sealed record DomainView(
     int TensionPerHourMilli,
     DateTimeOffset? TitheHalfUntilUtc,
     int MissionaryBonusPercent = 0,
-    int TitheBonusPercent = 0);
+    int TitheBonusPercent = 0,
+    WorldLink? World = null);
 
 /// <summary>The Domain (spec 2026-10-14 world map): missionaries, influence, offerings, tithes.</summary>
 public sealed partial class BaseState
@@ -336,7 +337,7 @@ public sealed partial class BaseState
         return new DomainView(HearthLevel >= Domain.UnlockHearth, nodes, missionaries, Domain.Missionaries(HearthLevel),
             new ResourceBag((int)(purse[0] / 1000), (int)(purse[1] / 1000), (int)(purse[2] / 1000), (int)(purse[3] / 1000)),
             Times(perHour, Domain.OfferingsBufferHours), perHour, (int)(TensionRateMilli()), halfUntil > now ? halfUntil : null,
-            Bonus(TechEffect.MissionaryPercent), Bonus(TechEffect.TithePercent));
+            Bonus(TechEffect.MissionaryPercent), Bonus(TechEffect.TithePercent), _world);
     }
 
     private DomainData DomainToData() => new(

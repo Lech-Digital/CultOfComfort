@@ -277,6 +277,81 @@ namespace CultOfComfort.Client
             return await SyncNowAsync(ct);
         }
 
+        /// <summary>
+        /// The shared world around (q, r) (null: around the village). The first time, the village joins a world, and the
+        /// village is pulled again so the mirror knows where it stands. Null offline.
+        /// </summary>
+        public async Task<WorldDto> WorldAsync(int? q, int? r, int radius, CancellationToken ct)
+        {
+            var token = await EnsureAccountAsync(ct);
+            if (token == null)
+            {
+                return null;
+            }
+
+            var home = (Q: 0, R: 0);
+            if (_mirror == null || !_mirror.InWorld)
+            {
+                var joined = await _api.JoinWorldAsync(token, ct);
+                if (joined == null)
+                {
+                    return null;
+                }
+
+                await SyncNowAsync(ct); // the server applied JoinWorld: take the village as it is now
+                home = (joined.q, joined.r);
+            }
+            else
+            {
+                await _gate.WaitAsync(ct);
+                try
+                {
+                    var link = _mirror.Snapshot(Now).Domain?.World;
+                    home = link == null ? home : (link.Q, link.R);
+                }
+                finally
+                {
+                    _gate.Release();
+                }
+            }
+
+            return await _api.GetWorldAsync(token, q ?? home.Q, r ?? home.R, radius, ct);
+        }
+
+        /// <summary>Takes the world's offerings into the stores (the server decides how much fits). Null offline.</summary>
+        public async Task<WorldCollectDto> CollectWorldAsync(CancellationToken ct)
+        {
+            var token = await EnsureAccountAsync(ct);
+            if (token == null)
+            {
+                return null;
+            }
+
+            while (_pending.Count > 0)
+            {
+                if (!await SyncNowAsync(ct))
+                {
+                    return null; // the queue first, so the server's village is this one
+                }
+            }
+
+            var collect = await _api.CollectWorldAsync(token, ct);
+            if (collect?.village?.village != null && collect.village.version > 0)
+            {
+                await _gate.WaitAsync(ct);
+                try
+                {
+                    Adopt(collect.village);
+                }
+                finally
+                {
+                    _gate.Release();
+                }
+            }
+
+            return collect;
+        }
+
         /// <summary>BeginNight: the server deals the raid, so the queue goes first and the answer is the server's.</summary>
         private async Task<CommandResult> SendThroughServerAsync(BaseCommand command, CancellationToken ct)
         {

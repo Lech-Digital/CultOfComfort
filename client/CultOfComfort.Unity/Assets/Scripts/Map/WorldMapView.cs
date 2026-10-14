@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using CultOfComfort.Simulation.Base;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -46,6 +47,21 @@ namespace CultOfComfort.Client
         public event Action CollectClicked;
         public event Action<ResourceBag> TitheClicked;
 
+        /// <summary>The shared world was dragged by this fraction of the map (x, y in 0–1).</summary>
+        public event Action<Vector2> Panned;
+
+        /// <summary>Zoom: +1 shows more of the world, -1 less.</summary>
+        public event Action<int> Zoomed;
+
+        public event Action Recentred;
+
+        private readonly Label _title;
+        private readonly VisualElement _zoom;
+        private Vector2? _dragFrom;
+        private Vector2 _dragBy;
+        private bool _dragging;
+        private bool _swallowClick;
+
         public WorldMapView(VisualElement parent)
         {
             _root = new VisualElement { name = "world-map" };
@@ -55,11 +71,24 @@ namespace CultOfComfort.Client
 
             var header = new VisualElement();
             header.AddToClassList("map-header");
-            var title = new Label("The Marchlands");
-            title.AddToClassList("map-title");
+            _title = new Label("The Marchlands");
+            _title.AddToClassList("map-title");
             var close = new Button(() => Closed?.Invoke()) { name = "map-close", text = "✕" };
             close.AddToClassList("map-close");
-            header.Add(title);
+            _zoom = new VisualElement();
+            _zoom.AddToClassList("map-zoom");
+            foreach (var (text, name, act) in new (string, string, Action)[]
+                     {
+                         ("⌂", "map-home", () => Recentred?.Invoke()), ("−", "map-zoom-out", () => Zoomed?.Invoke(+1)), ("+", "map-zoom-in", () => Zoomed?.Invoke(-1)),
+                     })
+            {
+                var b = new Button(act) { name = name, text = text };
+                b.AddToClassList("map-close");
+                _zoom.Add(b);
+            }
+
+            header.Add(_title);
+            header.Add(_zoom);
             header.Add(close);
             _root.Add(header);
 
@@ -90,6 +119,9 @@ namespace CultOfComfort.Client
             _map.Add(_nodes);
             _map.Add(_walkers);
             _map.RegisterCallback<GeometryChangedEvent>(_ => Place());
+            _map.RegisterCallback<PointerDownEvent>(OnDragStart, TrickleDown.TrickleDown);
+            _map.RegisterCallback<PointerMoveEvent>(OnDragMove, TrickleDown.TrickleDown);
+            _map.RegisterCallback<PointerUpEvent>(OnDragEnd, TrickleDown.TrickleDown);
             _root.Add(_map);
 
             var footer = new VisualElement();
@@ -180,8 +212,16 @@ namespace CultOfComfort.Client
 
         public void Render(WorldMapModel model)
         {
-            var rebuild = _model == null || _model.Nodes.Count != model.Nodes.Count;
+            var rebuild = _model == null || !_model.Nodes.Select(n => (n.Id, n.At)).SequenceEqual(model.Nodes.Select(n => (n.Id, n.At)));
             _model = model;
+            _title.text = model.Title;
+            _zoom.style.display = model.Pannable ? DisplayStyle.Flex : DisplayStyle.None;
+            if (!_dragging)
+            {
+                _nodes.style.translate = new Translate(0, 0);
+                _walkers.style.translate = new Translate(0, 0);
+            }
+
             if (rebuild)
             {
                 BuildNodes();
@@ -192,8 +232,11 @@ namespace CultOfComfort.Client
                 var button = _nodeButtons[node.Id];
                 button.EnableInClassList("map-node-far", !node.Reachable);
                 button.EnableInClassList("map-node-patron", node.Patron);
-                button.Q<Label>(className: "map-node-share").text = node.Home ? string.Empty : $"{node.Influence}%";
-                _rings[node.Id].userData = node.Home ? 1f : node.Influence / 100f;
+                button.EnableInClassList("map-node-camp", node.Camp);
+                button.Q<Label>(className: "map-node-share").text = node.Home || node.Camp ? string.Empty : $"{node.Influence}%";
+                button.parent.style.display = node.Hidden ? DisplayStyle.None : DisplayStyle.Flex;
+                _rings[node.Id].userData = new RingShares(node.Home ? 1f : node.Influence / 100f, node.RivalShare / 100f,
+                    node.RivalColour >= 0 ? SharedWorldPresenter.CultColours[node.RivalColour % SharedWorldPresenter.CultColours.Length] : Color.clear);
                 _rings[node.Id].MarkDirtyRepaint();
             }
 
@@ -267,11 +310,17 @@ namespace CultOfComfort.Client
                 var id = node.Id;
                 var holder = new VisualElement { pickingMode = PickingMode.Ignore };
                 holder.AddToClassList("map-node-holder");
-                var ring = new VisualElement { pickingMode = PickingMode.Ignore, userData = 0f };
+                var ring = new VisualElement { pickingMode = PickingMode.Ignore, userData = default(RingShares) };
                 ring.AddToClassList("map-ring");
                 ring.generateVisualContent += DrawRing;
                 var button = new Button(() =>
                 {
+                    if (_swallowClick)
+                    {
+                        _swallowClick = false;
+                        return; // the finger was dragging the map, not tapping
+                    }
+
                     _selected = id;
                     NodeTapped?.Invoke(id);
                 }) { name = $"node-{id}" };
@@ -298,6 +347,11 @@ namespace CultOfComfort.Client
                 holder.Add(button);
                 holder.Add(name);
                 holder.userData = node.At;
+                if (_model.Pannable)
+                {
+                    holder.style.scale = new Scale(new Vector2(0.72f, 0.72f)); // the shared world packs more places into the window
+                }
+
                 _nodes.Add(holder);
                 _nodeButtons[id] = button;
                 _rings[id] = ring;
@@ -363,10 +417,85 @@ namespace CultOfComfort.Client
             }
         }
 
+        /// <summary>What a node's ring shows: your share (yellow), the strongest rival's (their colour), the Authority's (the rest).</summary>
+        private readonly struct RingShares
+        {
+            public RingShares(float mine, float rival, Color rivalColour)
+            {
+                Mine = mine;
+                Rival = rival;
+                RivalColour = rivalColour;
+            }
+
+            public float Mine { get; }
+
+            public float Rival { get; }
+
+            public Color RivalColour { get; }
+        }
+
+        private void OnDragStart(PointerDownEvent e)
+        {
+            if (_model == null || !_model.Pannable)
+            {
+                return;
+            }
+
+            _dragFrom = e.position;
+            _dragBy = Vector2.zero;
+            _dragging = false;
+            _swallowClick = false;
+        }
+
+        private void OnDragMove(PointerMoveEvent e)
+        {
+            if (_dragFrom == null)
+            {
+                return;
+            }
+
+            _dragBy = (Vector2)e.position - _dragFrom.Value;
+            if (!_dragging && _dragBy.magnitude > 14f)
+            {
+                _dragging = true;
+            }
+
+            if (_dragging)
+            {
+                _nodes.style.translate = new Translate(_dragBy.x, _dragBy.y);
+                _walkers.style.translate = new Translate(_dragBy.x, _dragBy.y);
+            }
+        }
+
+        private void OnDragEnd(PointerUpEvent e)
+        {
+            if (_dragFrom == null)
+            {
+                return;
+            }
+
+            _dragFrom = null;
+            if (!_dragging)
+            {
+                return;
+            }
+
+            _dragging = false;
+            _swallowClick = true; // the button under the finger would take this as a tap
+            _map.schedule.Execute(() => _swallowClick = false).ExecuteLater(50);
+            var w = _map.resolvedStyle.width;
+            var h = _map.resolvedStyle.height;
+            if (w > 0f && h > 0f)
+            {
+                Panned?.Invoke(new Vector2(_dragBy.x / w, _dragBy.y / h));
+            }
+        }
+
         private static void DrawRing(MeshGenerationContext context)
         {
             var ring = context.visualElement;
-            var share = ring.userData is float f ? f : 0f;
+            var shares = ring.userData is RingShares s ? s : default;
+            var share = shares.Mine;
             var r = ring.resolvedStyle.width / 2f;
             var centre = new Vector2(r, r);
             var p = context.painter2D;
@@ -380,6 +509,15 @@ namespace CultOfComfort.Client
                 p.strokeColor = Faith;
                 p.BeginPath();
                 p.Arc(centre, r - 3f, -90f, -90f + 360f * share);
+                p.Stroke();
+            }
+
+            if (shares.Rival > 0f && share < 1f)
+            {
+                var from = -90f + 360f * share;
+                p.strokeColor = shares.RivalColour;
+                p.BeginPath();
+                p.Arc(centre, r - 3f, from, from + 360f * Mathf.Min(shares.Rival, 1f - share));
                 p.Stroke();
             }
         }
