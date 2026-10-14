@@ -62,6 +62,9 @@ public sealed class BuildingTable
     /// <summary>The Prophet's errands: the guided chain from the first Woodcutter to Hearth 3.</summary>
     public ErrandBook Errands { get; init; } = ErrandBook.Default;
 
+    /// <summary>The Marchlands: missionaries, offerings, tithes (spec 2026-10-14 world map).</summary>
+    public DomainTable Domain { get; init; } = DomainTable.Default;
+
     /// <summary>Timber from cutting a wild tree.</summary>
     public int WildTreeTimber { get; init; } = 15;
 

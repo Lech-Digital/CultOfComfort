@@ -28,7 +28,8 @@ public sealed record BaseData(
     long UpkeepMilli = 0,
     bool Cold = false,
     int ErrandIndex = 0,
-    bool ErrandEventDone = false);
+    bool ErrandEventDone = false,
+    DomainData? Domain = null);
 
 /// <summary>A wild tree cut at <see cref="CutAtUtcTicks"/>; it grows back after the regrow time.</summary>
 public sealed record TreeCutData(int X, int Y, long CutAtUtcTicks);

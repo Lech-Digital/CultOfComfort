@@ -42,6 +42,38 @@ public sealed class VillageSaveDto
     public bool cold;
     public int errandIndex; // older saves lack it: 0, so they start the errands (already-true ones are claimable at once)
     public bool errandEventDone;
+    public bool hasDomain; // older saves: no Marchlands yet
+    public DomainDto domain;
+}
+
+/// <summary>The Marchlands (spec 2026-10-14 world map): influence per node, missionaries, the offerings purse.</summary>
+[Serializable]
+public sealed class DomainDto
+{
+    public List<InfluenceDto> influence;
+    public List<MissionaryDto> missionaries;
+    public List<long> offeringsMilli;
+    public long asOfTicks;
+    public long nextDecayTicks = -1;
+    public long lastTitheTicks = -1;
+    public int nextMissionaryId = 1;
+}
+
+[Serializable]
+public sealed class InfluenceDto
+{
+    public int node;
+    public long milli;
+}
+
+[Serializable]
+public sealed class MissionaryDto
+{
+    public int id;
+    public int node;
+    public int hours;
+    public long departedTicks;
+    public bool preached;
 }
 
 [Serializable]

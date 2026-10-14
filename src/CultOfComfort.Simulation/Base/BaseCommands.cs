@@ -56,6 +56,15 @@ public sealed record DebugRaiseTension(Guid CommandId, int Amount) : BaseCommand
 /// <summary>Development only: ends a raid's warning now. A server refuses this.</summary>
 public sealed record DebugSkipWarning(Guid CommandId) : BaseCommand(CommandId);
 
+/// <summary>Sends a missionary to preach at a node of the Domain for 1, 2, 4 or 8 hours (spec 2026-10-14 world map).</summary>
+public sealed record SendMissionary(Guid CommandId, int NodeId, int Hours) : BaseCommand(CommandId);
+
+/// <summary>Takes the offerings the faithful of the Marchlands have sent.</summary>
+public sealed record CollectOfferings(Guid CommandId) : BaseCommand(CommandId);
+
+/// <summary>Pays the Authority to calm down: Tension drops by the tithe's worth (and an announced raid may be called off).</summary>
+public sealed record PayTithe(Guid CommandId, ResourceBag Amount) : BaseCommand(CommandId);
+
 /// <summary>Development only: fills every store to its cap (for testing the later Hearth levels). A server refuses this.</summary>
 public sealed record DebugFillStores(Guid CommandId) : BaseCommand(CommandId);
 

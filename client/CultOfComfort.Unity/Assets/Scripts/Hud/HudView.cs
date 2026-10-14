@@ -170,6 +170,8 @@ namespace CultOfComfort.Client
         private readonly Label _errandClaim;
         private VisualElement _hinted;
         private Label _cloud;
+        private readonly HashSet<string> _openFeatures = new HashSet<string>();
+        private readonly Dictionary<string, Button> _featureButtons = new Dictionary<string, Button>();
         private VisualElement _devTools;
         private bool _devMode;
         private Label _codeLine;
@@ -435,6 +437,7 @@ namespace CultOfComfort.Client
         public event Action BackToDuskClicked;
         public event Action ResetTipsClicked;
         public event Action ReplayIntroClicked;
+        public event Action<string> FeatureClicked;
         public event Action DevFillStoresClicked;
         public event Action DevEndShieldClicked;
         public event Action VillageCodeClicked;
@@ -842,6 +845,34 @@ namespace CultOfComfort.Client
             }
         }
 
+        /// <summary>Opens (or locks) a frame shortcut: open ones raise <see cref="FeatureClicked"/>, locked ones show their note.</summary>
+        public void SetFeatureOpen(string id, bool open)
+        {
+            if ((_openFeatures.Contains(id)) == open || !_featureButtons.TryGetValue(id, out var button))
+            {
+                return;
+            }
+
+            if (open)
+            {
+                _openFeatures.Add(id);
+            }
+            else
+            {
+                _openFeatures.Remove(id);
+            }
+
+            button.EnableInClassList("locked", !open);
+            var padlock = button.Q(className: "padlock");
+            if (padlock != null)
+            {
+                padlock.style.display = open ? DisplayStyle.None : DisplayStyle.Flex;
+            }
+        }
+
+        /// <summary>The root the map overlay hangs on.</summary>
+        public VisualElement Root => _root;
+
         /// <summary>The sound and music switches in Settings.</summary>
         public void SetAudio(bool sound, bool music)
         {
@@ -1151,9 +1182,21 @@ namespace CultOfComfort.Client
                 holder.AddToClassList(extraClass);
             }
 
-            var button = IconButton(feature.Icon, () => ShowLockedNote(feature.Id, Time.time), "round", "locked");
-            button.name = $"locked-{feature.Id}";
+            var id = feature.Id;
+            var button = IconButton(feature.Icon, () =>
+            {
+                if (_openFeatures.Contains(id))
+                {
+                    FeatureClicked?.Invoke(id);
+                }
+                else
+                {
+                    ShowLockedNote(id, Time.time);
+                }
+            }, "round", "locked");
+            button.name = $"locked-{feature.Id}"; // the name stays: tests and captures find shortcuts by it
             button.Add(Container("padlock"));
+            _featureButtons[id] = button;
             holder.Add(button);
             holder.Add(Text(feature.Label, "shortcut-label"));
             return holder;

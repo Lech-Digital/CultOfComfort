@@ -177,6 +177,38 @@ namespace CultOfComfort.Client.Tests
         }
 
         [UnityTest]
+        public IEnumerator Map_HearthTwo_OpenTapAPlaceAndSendAMissionary()
+        {
+            // Arrange — Hearth 2 (the upgrade finished while away), stores full.
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, _clock.UtcNow);
+            state.Apply(new UpgradeHearth(Guid.NewGuid()), _clock.UtcNow);
+            state.Apply(new DebugFillStores(Guid.NewGuid()), _clock.UtcNow.AddHours(1));
+            var store = new Store { Saved = state.ToData() };
+            _clock.UtcNow = _clock.UtcNow.AddHours(1);
+            VillageComposition.Override = () => new LocalBaseGateway(store, _clock, BuildingTable.Default, VillageMap.Demo, _ => { });
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(4);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            Assert.IsFalse(root.Q<Button>("locked-map").ClassListContains("locked"), "the Map is open at Hearth 2");
+
+            // Act — open the map, tap Muddlecombe, preach for two hours.
+            Click(root.Q<Button>("locked-map"));
+            yield return Frames(3);
+            Assert.AreEqual(DisplayStyle.Flex, root.Q("world-map").resolvedStyle.display);
+            Click(root.Q<Button>("node-1"));
+            yield return Frames(2);
+            Click(root.Q<Button>("preach-2"));
+            yield return new WaitForSecondsRealtime(1.2f);
+
+            // Assert
+            var domain = Snapshot(game).Domain;
+            Assert.AreEqual(1, domain.Missionaries.Count, "a missionary is on the road");
+            Assert.AreEqual(1, domain.Missionaries[0].NodeId);
+            StringAssert.Contains("Muddlecombe", root.Q<Label>("map-missionaries").text);
+        }
+
+        [UnityTest]
         public IEnumerator Drawer_PickWoodcutterGhostThenConfirm_BuildsItAndChargesTimber()
         {
             // Arrange

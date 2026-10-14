@@ -195,6 +195,79 @@ namespace CultOfComfort.Client.Tests
             Save(Camera.main, world, ui, Path.Combine(output, "relic_night.png"));
         }
 
+        [UnityTest]
+        public IEnumerator IntroCapture_WorldMap_WritesPng()
+        {
+            _progress.MarkSeen();
+            var clock = new Clock();
+            var table = CultOfComfort.Simulation.Base.BuildingTable.Default;
+            var state = CultOfComfort.Simulation.Base.BaseState.CreateNew(table, CultOfComfort.Simulation.Base.VillageMap.Demo, clock.UtcNow);
+            state.Apply(new CultOfComfort.Simulation.Base.UpgradeHearth(System.Guid.NewGuid()), clock.UtcNow);
+            clock.UtcNow = clock.UtcNow.AddHours(2);
+            state.Apply(new CultOfComfort.Simulation.Base.DebugFillStores(System.Guid.NewGuid()), clock.UtcNow);
+            state.Apply(new CultOfComfort.Simulation.Base.UpgradeHearth(System.Guid.NewGuid()), clock.UtcNow);
+            clock.UtcNow = clock.UtcNow.AddHours(2);
+            state.Apply(new CultOfComfort.Simulation.Base.DebugFillStores(System.Guid.NewGuid()), clock.UtcNow);
+            state.Apply(new CultOfComfort.Simulation.Base.SendMissionary(System.Guid.NewGuid(), 1, 8), clock.UtcNow);
+            state.Apply(new CultOfComfort.Simulation.Base.SendMissionary(System.Guid.NewGuid(), 7, 4), clock.UtcNow);
+            clock.UtcNow = clock.UtcNow.AddHours(9);
+            state.Snapshot(clock.UtcNow);
+            state.Apply(new CultOfComfort.Simulation.Base.SendMissionary(System.Guid.NewGuid(), 3, 2), clock.UtcNow);
+            clock.UtcNow = clock.UtcNow.AddMinutes(30);
+            var store = new Store { Saved = state.ToData() };
+            VillageComposition.Override = () => new LocalBaseGateway(store, clock, CultOfComfort.Simulation.Base.BuildingTable.Default, CultOfComfort.Simulation.Base.VillageMap.Demo, _ => { });
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            for (var f = 0; f < 6; f++)
+            {
+                yield return null;
+            }
+
+            var game = Object.FindAnyObjectByType<GameController>();
+            var document = game.GetComponent<UIDocument>();
+            var ui = new RenderTexture(Width, Height, 24);
+            document.panelSettings.targetTexture = ui;
+            document.panelSettings.scaleMode = PanelScaleMode.ConstantPixelSize;
+            document.panelSettings.scale = Scale;
+            document.panelSettings.clearColor = true;
+            document.panelSettings.colorClearValue = new Color(0f, 0f, 0f, 0f);
+            var hud = (HudView)typeof(GameController).GetField("_hud", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(game);
+            hud.SetPortrait(true);
+            var world = new RenderTexture(Width, Height, 24) { antiAliasing = 4 };
+            Camera.main.aspect = Width / (float)Height;
+            for (var f = 0; f < 4; f++)
+            {
+                yield return null;
+            }
+
+            using (var submit = NavigationSubmitEvent.GetPooled())
+            {
+                var map = document.rootVisualElement.Q<Button>("locked-map");
+                submit.target = map;
+                map.SendEvent(submit);
+            }
+
+            for (var f = 0; f < 6; f++)
+            {
+                yield return null;
+            }
+
+            var output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "..", "art", "previews", "intro"));
+            Save(Camera.main, world, ui, Path.Combine(output, "world_map.png"));
+            using (var submit = NavigationSubmitEvent.GetPooled())
+            {
+                var node = document.rootVisualElement.Q<Button>("node-2");
+                submit.target = node;
+                node.SendEvent(submit);
+            }
+
+            for (var f = 0; f < 4; f++)
+            {
+                yield return null;
+            }
+
+            Save(Camera.main, world, ui, Path.Combine(output, "world_map_card.png"));
+        }
+
         private static void Save(Camera camera, RenderTexture world, RenderTexture ui, string path)
         {
             camera.targetTexture = world;

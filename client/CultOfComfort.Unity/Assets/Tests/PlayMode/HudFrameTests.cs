@@ -389,7 +389,7 @@ namespace CultOfComfort.Client.Tests
 
             // Assert
             Assert.AreEqual(1, root.Query<Label>("locked-note").ToList().Count);
-            StringAssert.Contains("Hearth 4", root.Q<Label>("locked-note").text);
+            StringAssert.Contains("Hearth 2", root.Q<Label>("locked-note").text);
         }
 
         [UnityTest]

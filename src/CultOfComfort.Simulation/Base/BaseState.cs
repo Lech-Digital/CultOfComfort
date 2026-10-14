@@ -67,6 +67,7 @@ public sealed partial class BaseState
         var state = new BaseState(table, map)
         {
             _stock = table.StartingStock, _tensionAsOf = nowUtc, _population = table.HearthBeds, _populationAsOf = nowUtc, _upkeepAsOf = nowUtc,
+            _domainAsOf = nowUtc,
         };
         state._buildings.Add(new Building(HearthId, BuildingType.Hearth, map.Hearth, 1, nowUtc));
         return state;
@@ -139,6 +140,8 @@ public sealed partial class BaseState
         {
             state._treeCuts[new GridPosition(cut.X, cut.Y)] = new DateTimeOffset(cut.CutAtUtcTicks, TimeSpan.Zero);
         }
+
+        state.RestoreDomain(data.Domain, state._tensionAsOf);
 
         if (data.LayoutVersion < 1)
         {
@@ -454,7 +457,8 @@ public sealed partial class BaseState
         _upkeepMilli,
         _cold,
         _errandIndex,
-        _errandEventDone);
+        _errandEventDone,
+        DomainToData());
 
     public CommandOutcome Apply(BaseCommand command, DateTimeOffset nowUtc)
     {
@@ -466,7 +470,7 @@ public sealed partial class BaseState
         Advance(nowUtc);
         _now = nowUtc;
         MaterializeAll(nowUtc); // whatever this command changes, production up to now was earned under the old rules
-        if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain)
+        if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain or SendMissionary or PayTithe)
         {
             return CommandOutcome.Reject("Not now — there's a Night on.") with { Version = Version };
         }
@@ -492,6 +496,9 @@ public sealed partial class BaseState
             DebugSkipWarning _ => SkipWarning(nowUtc),
             DebugFillStores _ => FillStores(nowUtc),
             DebugEndShield _ => EndShield(nowUtc),
+            SendMissionary send => SendOut(send, nowUtc),
+            CollectOfferings _ => CollectOfferings(nowUtc),
+            PayTithe tithe => Tithe(tithe, nowUtc),
             RepairBuilding repair => Repair(repair.BuildingId, nowUtc),
             _ => CommandOutcome.Reject("Unknown order."),
         };
@@ -517,7 +524,7 @@ public sealed partial class BaseState
         var tension = TensionValue(nowUtc);
         return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
             tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport, _cleared.Concat(_treeCuts.Keys.Where(t => !IsWildTreeStanding(t))).ToList(),
-            _population, Beds(), _cold, ErrandNow(), Comfort());
+            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc));
     }
 
     public ResourceBag Caps
@@ -1020,7 +1027,8 @@ public sealed partial class BaseState
             var abandoned = Due(_night != null ? _nightStartedAt.AddMinutes(_table.Tension.AbandonedNightMinutes) : (DateTimeOffset?)null, now);
             var arrival = Due(_population < Beds() ? _populationAsOf.AddMinutes(_table.VillagerArrivalMinutes) : (DateTimeOffset?)null, now);
             var runsOut = Due(PeatRunsOutAt(), now);
-            var next = Earliest(construction, crossing, deadline, abandoned, arrival, runsOut);
+            var domain = Due(NextDomainEvent(), now);
+            var next = Earliest(construction, crossing, deadline, abandoned, arrival, runsOut, domain);
             if (next == null)
             {
                 MaterializeUpkeep(now);
@@ -1051,6 +1059,10 @@ public sealed partial class BaseState
             if (next == construction)
             {
                 CompleteConstruction(growing!, construction!.Value);
+            }
+            else if (next == domain)
+            {
+                RunDomainEvents(domain!.Value);
             }
             else if (next == crossing)
             {
@@ -1228,7 +1240,8 @@ public sealed partial class BaseState
 
     // ---------------- Tension (lazy and linear, ADR 0004) ----------------
 
-    private int TensionRate => _table.Tension.RatePerHour(HearthLevel);
+    /// <summary>Tension per hour (thousandths): the Authority's passive mood plus the Marchlands' influence.</summary>
+    private long TensionRateMilli() => _table.Tension.RatePerHour(HearthLevel) * 1000L + DomainTensionPerHourMilli();
 
     /// <summary>Tension in thousandths at <paramref name="at"/>: no rise during a shield, capped at the max.</summary>
     private long TensionMilliAt(DateTimeOffset at)
@@ -1240,7 +1253,7 @@ public sealed partial class BaseState
         }
 
         var seconds = (at.UtcTicks - start.UtcTicks) / TimeSpan.TicksPerSecond;
-        return Math.Min(_table.Tension.Max * 1000L, _tensionMilli + TensionRate * 1000L * seconds / 3600);
+        return Math.Min(_table.Tension.Max * 1000L, _tensionMilli + TensionRateMilli() * seconds / 3600);
     }
 
     private int TensionValue(DateTimeOffset at) => (int)(TensionMilliAt(at) / 1000);
@@ -1266,12 +1279,12 @@ public sealed partial class BaseState
             return start;
         }
 
-        if (TensionRate <= 0)
+        var perSecondTimes3600 = TensionRateMilli();
+        if (perSecondTimes3600 <= 0)
         {
             return null;
         }
 
-        var perSecondTimes3600 = TensionRate * 1000L;
         var seconds = (need * 3600 + perSecondTimes3600 - 1) / perSecondTimes3600; // round up: reached, not almost
         return start.AddSeconds(seconds);
     }
@@ -1401,7 +1414,7 @@ public sealed partial class BaseState
             return true;
         }
 
-        var free = _population;
+        var free = _population - MissionariesAway;
         foreach (var b in _buildings.OrderBy(b => b.Id))
         {
             var workers = _table.Spec(b.Type).Workers;

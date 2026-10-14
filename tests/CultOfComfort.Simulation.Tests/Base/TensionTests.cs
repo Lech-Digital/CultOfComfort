@@ -22,7 +22,7 @@ public class TensionTests
     public void Default_TensionTable_MatchesTheSpec()
     {
         var t = TensionTable.Default;
-        t.RatePerHourByHearth.Should().Equal(0, 8, 12);
+        t.RatePerHourByHearth.Should().Equal(0, 6, 9); // 2026-10-14: the Marchlands add influence-driven Tension on top
         (t.Hostile, t.Punitive, t.Max, t.WarningHours, t.ShieldHours).Should().Be((70, 100, 150, 8, 12));
         t.BasePowerByHearth.Should().Equal(40, 54, 72);
     }
@@ -40,28 +40,28 @@ public class TensionTests
     }
 
     [Fact]
-    public void Snapshot_HearthTwo_RisesEightPerHour()
+    public void Snapshot_HearthTwo_RisesSixPerHour()
     {
         // Arrange
         var (state, at) = HearthTwo();
 
         // Act
-        var snapshot = state.Snapshot(at.AddHours(5));
+        var snapshot = state.Snapshot(at.AddHours(7));
 
         // Assert
-        snapshot.Tension.Should().Be(40);
+        snapshot.Tension.Should().Be(42);
         snapshot.TensionState.Should().Be(TensionState.Uneasy);
     }
 
     [Fact]
     public void Snapshot_CrossesSeventyWhileAway_RaidWarningCountsFromTheCrossingNotFromNow()
     {
-        // Arrange — 70 / 8 per hour = 8 h 45 min after Hearth 2.
+        // Arrange — 70 / 6 per hour = 11 h 40 min after Hearth 2.
         var (state, at) = HearthTwo();
-        var crossing = at.AddMinutes(8 * 60 + 45);
+        var crossing = at.AddMinutes(11 * 60 + 40);
 
         // Act — the app opens four hours after the crossing.
-        var snapshot = state.Snapshot(crossing.AddHours(2)); // opened two hours after the crossing (70 + 16 = 86)
+        var snapshot = state.Snapshot(crossing.AddHours(2)); // opened two hours after the crossing (70 + 12 = 82)
 
         // Assert
         snapshot.TensionState.Should().Be(TensionState.Hostile);
@@ -75,7 +75,7 @@ public class TensionTests
         var (state, at) = HearthTwo();
 
         // Act — well before the raid's deadline auto-resolve would matter we only read Tension's ceiling via a fresh rule:
-        var snapshot = state.Snapshot(at.AddHours(8.75 + 7));
+        var snapshot = state.Snapshot(at.AddMinutes(11 * 60 + 40 + 7 * 60)); // 70 at the crossing, +42 since
 
         // Assert
         snapshot.Tension.Should().BeLessThanOrEqualTo(150);

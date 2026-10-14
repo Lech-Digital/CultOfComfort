@@ -51,6 +51,17 @@ public static class VillageSaveMapping
         cold = data.Cold,
         errandIndex = data.ErrandIndex,
         errandEventDone = data.ErrandEventDone,
+        hasDomain = data.Domain != null,
+        domain = data.Domain == null ? new DomainDto() : new DomainDto
+        {
+            influence = data.Domain.Influence.Select(i => new InfluenceDto { node = i.NodeId, milli = i.InfluenceMilli }).ToList(),
+            missionaries = data.Domain.Missionaries.Select(m => new MissionaryDto { id = m.Id, node = m.NodeId, hours = m.Hours, departedTicks = m.DepartedAtUtcTicks, preached = m.Preached }).ToList(),
+            offeringsMilli = data.Domain.OfferingsMilli.ToList(),
+            asOfTicks = data.Domain.AsOfUtcTicks,
+            nextDecayTicks = data.Domain.NextDecayUtcTicks ?? -1,
+            lastTitheTicks = data.Domain.LastTitheUtcTicks ?? -1,
+            nextMissionaryId = data.Domain.NextMissionaryId,
+        },
     };
 
     /// <exception cref="InvalidBaseDataException">The document is empty, from another format, or names things that don't exist.</exception>
@@ -93,8 +104,18 @@ public static class VillageSaveMapping
             dto.upkeepMilli,
             dto.cold,
             dto.errandIndex,
-            dto.errandEventDone);
+            dto.errandEventDone,
+            dto.hasDomain && dto.domain != null ? FromDto(dto.domain) : null);
     }
+
+    private static DomainData FromDto(DomainDto d) => new(
+        (d.influence ?? new List<InfluenceDto>()).Select(i => (i.node, i.milli)).ToList(),
+        (d.missionaries ?? new List<MissionaryDto>()).Select(m => new MissionaryData(m.id, m.node, m.hours, m.departedTicks, m.preached)).ToList(),
+        d.offeringsMilli != null && d.offeringsMilli.Count == 4 ? d.offeringsMilli : new List<long> { 0, 0, 0, 0 },
+        d.asOfTicks,
+        d.nextDecayTicks < 0 ? null : d.nextDecayTicks,
+        d.lastTitheTicks < 0 ? null : d.lastTitheTicks,
+        d.nextMissionaryId);
 
     internal static NightDto ToDto(NightPlan plan) => new()
     {
