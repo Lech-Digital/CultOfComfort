@@ -457,14 +457,14 @@ namespace CultOfComfort.Client.Tests
         [Test]
         public void Card_Cold_PeatCutStillWorksOthersDont()
         {
-            // Arrange — 3 villagers, 1 Peat: cold within the hour.
-            var table = new BuildingTable { StartingStock = new ResourceBag(2000, 1, 900, 0), HearthBeds = 3 };
+            // Arrange — 40 villagers burn 40 an hour, the trench cuts 25: cold within minutes, relit only after ~1.5 h of cutting.
+            var table = new BuildingTable { StartingStock = new ResourceBag(2000, 1, 900, 0), HearthBeds = 40 };
             var state = BaseState.CreateNew(table, VillageMap.Demo, T0);
             state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.PeatCut, new GridPosition(12, 3), true), T0);
             state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
             state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(15, 5)), T0);
             state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
-            var snapshot = state.Snapshot(T0.AddHours(2));
+            var snapshot = state.Snapshot(T0.AddHours(1));
 
             // Act
             var peat = VillagePresenter.Card(snapshot, table, snapshot.Buildings.Single(b => b.Type == BuildingType.PeatCut).Id);

@@ -13,7 +13,7 @@ namespace CultOfComfort.Simulation.Base;
 public sealed partial class BaseState
 {
     /// <summary>Saves before footprints (layout version 0) are migrated on load: every building finds room for its shape.</summary>
-    public const int CurrentLayoutVersion = 3;
+    public const int CurrentLayoutVersion = 4; // 4: production flows straight into the stores (no buffers to collect)
 
     private const int RememberedCommands = 64;
     private const int HearthId = 0;
@@ -40,8 +40,8 @@ public sealed partial class BaseState
     private HashSet<GridPosition>? _network; // village road network, rebuilt after any building change
     private int _population;
     private DateTimeOffset _populationAsOf; // the next villager arrives an arrival interval after this
-    private DateTimeOffset _upkeepAsOf;     // Peat burned up to here
-    private long _upkeepMilli;              // a part-burned Peat
+    private DateTimeOffset _upkeepAsOf;     // the stores are settled up to here: production in, Peat burned
+    private readonly long[] _fractions = new long[4]; // thousandths of a resource beyond the whole stock (Timber, Peat, Scrap, Devotion)
     private bool _cold;                     // the Peat ran out: nobody works until there is Peat again
     private DateTimeOffset _now;
 
@@ -101,7 +101,6 @@ public sealed partial class BaseState
             _population = data.Population,
             _populationAsOf = new DateTimeOffset(data.PopulationAsOfUtcTicks, TimeSpan.Zero),
             _upkeepAsOf = new DateTimeOffset(data.UpkeepAsOfUtcTicks, TimeSpan.Zero),
-            _upkeepMilli = data.UpkeepMilli,
             _cold = data.Cold,
             _errandIndex = data.ErrandIndex,
             _errandEventDone = data.ErrandEventDone,
@@ -161,8 +160,13 @@ public sealed partial class BaseState
             var latest = new DateTimeOffset(data.Buildings.Select(b => b.AsOfUtcTicks).Append(state._tensionAsOf.UtcTicks).Max(), TimeSpan.Zero);
             state._population = state.Beds();
             state._populationAsOf = state._upkeepAsOf = latest;
-            state._upkeepMilli = 0;
             state._cold = false;
+        }
+
+        state.RestoreFractions(data);
+        if (data.LayoutVersion < 4)
+        {
+            state.SweepOldBuffers();
         }
 
         state.Validate();
@@ -343,13 +347,7 @@ public sealed partial class BaseState
     }
 
     /// <summary>Settles every producer up to <paramref name="at"/>: done before anything that changes production.</summary>
-    private void MaterializeAll(DateTimeOffset at)
-    {
-        foreach (var b in _buildings)
-        {
-            Materialize(b, at);
-        }
-    }
+    private void MaterializeAll(DateTimeOffset at) => MaterializeEconomy(at);
 
     private static IEnumerable<(GridPosition Anchor, bool Rotated)> Candidates(GridPosition origin)
     {
@@ -387,7 +385,7 @@ public sealed partial class BaseState
             Fail("negative stock");
         }
 
-        if (_population < 0 || _population > Beds() || _upkeepMilli < 0 || _upkeepMilli >= 1000)
+        if (_population < 0 || _population > Beds() || _fractions.Any(f => f < 0 || f >= 1000))
         {
             Fail("impossible villagers");
         }
@@ -457,12 +455,13 @@ public sealed partial class BaseState
         _population,
         _populationAsOf.UtcTicks,
         _upkeepAsOf.UtcTicks,
-        _upkeepMilli,
+        0,
         _cold,
         _errandIndex,
         _errandEventDone,
         DomainToData(),
-        ResearchToData());
+        ResearchToData(),
+        _fractions.ToList());
 
     public CommandOutcome Apply(BaseCommand command, DateTimeOffset nowUtc)
     {
@@ -493,7 +492,7 @@ public sealed partial class BaseState
             UpgradeBuilding upgrade => Upgrade(Find(upgrade.BuildingId), nowUtc),
             UpgradeHearth _ => Upgrade(Hearth, nowUtc),
             DemolishBuilding demolish => Demolish(demolish.BuildingId),
-            Collect collect => DoCollect(collect.BuildingId, nowUtc),
+            Collect _ => DoCollect(),
             RecordNightResult night => RecordNight(night, nowUtc),
             FinishConstructionNow _ => FinishNow(nowUtc),
             DebugRaiseTension raise => RaiseTension(raise.Amount, nowUtc),
@@ -530,7 +529,7 @@ public sealed partial class BaseState
         Advance(nowUtc);
         _now = nowUtc;
         var views = _buildings.Select(b => new BuildingView(
-            b.Id, b.Type, b.Level, b.Position, (int)(Buffer(b, nowUtc) / 1000), (int)(CapacityMilli(b) / 1000), Rate(b), b.UpgradeEndsAtUtc, b.Wrecked, b.Rotated, b.Tiles, IsConnected(b),
+            b.Id, b.Type, b.Level, b.Position, 0, 0, Rate(b), b.UpgradeEndsAtUtc, b.Wrecked, b.Rotated, b.Tiles, IsConnected(b),
             CrewOf(b), Slots(b), b.CrewWanted ?? Slots(b))).ToList();
         var tension = TensionValue(nowUtc);
         return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
@@ -774,7 +773,7 @@ public sealed partial class BaseState
         }
 
         _stock -= cost;
-        Materialize(building, now);
+        MaterializeEconomy(now);
         building.UpgradeEndsAtUtc = now.AddSeconds(spec.Levels[building.Level].BuildSeconds);
         if (instant)
         {
@@ -817,40 +816,8 @@ public sealed partial class BaseState
         return CommandOutcome.Accept(gained);
     }
 
-    private CommandOutcome DoCollect(int? id, DateTimeOffset now)
-    {
-        var targets = id == null ? _buildings.Where(b => _table.Spec(b.Type).Produces != null).ToList() : new List<Building?> { Find(id.Value) }.Where(b => b != null).Select(b => b!).ToList();
-        if (targets.Count == 0)
-        {
-            return CommandOutcome.Reject("That building is gone.");
-        }
-
-        var gained = default(ResourceBag);
-        var caps = Caps;
-        foreach (var building in targets)
-        {
-            var resource = _table.Spec(building.Type).Produces;
-            if (resource == null)
-            {
-                continue;
-            }
-
-            Materialize(building, now);
-            var space = Math.Max(0, caps.Get(resource.Value) - (_stock + gained).Get(resource.Value));
-            var take = (int)Math.Min(space, building.BufferMilli / 1000);
-            building.BufferMilli -= take * 1000L;
-            gained += ResourceBag.Of(resource.Value, take);
-        }
-
-        if (gained.IsZero)
-        {
-            return CommandOutcome.Reject(targets.Any(b => Buffer(b, now) >= 1000) ? "Storage is full. Build or upgrade a Storage Hut." : "Nothing to collect yet.");
-        }
-
-        _stock += gained;
-        NoteCollected(gained);
-        return CommandOutcome.Accept(gained);
-    }
+    /// <summary>Old clients still send Collect: there's nothing to tap any more, production reaches the stores by itself.</summary>
+    private static CommandOutcome DoCollect() => CommandOutcome.Reject("No need: the stores fill up by themselves now.");
 
     private CommandOutcome RecordNight(RecordNightResult night, DateTimeOffset now)
     {
@@ -868,7 +835,7 @@ public sealed partial class BaseState
             var building = Find(id);
             if (building != null && building.Type != BuildingType.Hearth)
             {
-                Materialize(building, now);
+                MaterializeEconomy(now);
                 building.Wrecked = true;
             }
         }
@@ -890,7 +857,7 @@ public sealed partial class BaseState
         }
 
         _stock -= cost;
-        Materialize(building, now); // nothing accrued while wrecked; production restarts from now
+        MaterializeEconomy(now); // nothing accrued while wrecked; production restarts from now
         building.Wrecked = false;
         return CommandOutcome.Accept();
     }
@@ -1078,9 +1045,10 @@ public sealed partial class BaseState
             var abandoned = Due(_night != null ? _nightStartedAt.AddMinutes(_table.Tension.AbandonedNightMinutes) : (DateTimeOffset?)null, now);
             var arrival = Due(_population < Beds() ? _populationAsOf.AddMinutes(_table.VillagerArrivalMinutes) : (DateTimeOffset?)null, now);
             var runsOut = Due(PeatRunsOutAt(), now);
+            var warms = Due(WarmsUpAt(), now);
             var domain = Due(NextDomainEvent(), now);
             var study = Due(StudyEnds(), now);
-            var next = Earliest(construction, crossing, deadline, abandoned, arrival, runsOut, domain, study);
+            var next = Earliest(construction, crossing, deadline, abandoned, arrival, runsOut, warms, domain, study);
             if (next == null)
             {
                 MaterializeUpkeep(now);
@@ -1101,8 +1069,14 @@ public sealed partial class BaseState
             if (next == runsOut)
             {
                 _stock = new ResourceBag(_stock.Timber, 0, _stock.Scrap, _stock.Devotion);
-                _upkeepMilli = 0;
+                _fractions[(int)ResourceType.Peat] = 0;
                 _cold = true;
+                continue;
+            }
+
+            if (next == warms)
+            {
+                _cold = false; // an hour's Peat is stacked: the fires are lit again
                 continue;
             }
 
@@ -1235,7 +1209,7 @@ public sealed partial class BaseState
             var building = Find(id);
             if (building != null && building.Type != BuildingType.Hearth)
             {
-                Materialize(building, at);
+                MaterializeEconomy(at);
                 building.Wrecked = true;
             }
         }
@@ -1271,7 +1245,7 @@ public sealed partial class BaseState
     private void CompleteConstruction(Building building, DateTimeOffset endedAt)
     {
         MaterializeTension(endedAt);
-        Materialize(building, endedAt);
+        MaterializeEconomy(endedAt);
         building.Level++;
         building.UpgradeEndsAtUtc = null;
         if (endedAt > building.AsOfUtc)
@@ -1283,7 +1257,9 @@ public sealed partial class BaseState
         if (building.Level == 1 && spec.Produces != null)
         {
             // The crew finds some on day one (deadwood, a peat stack): a new producer starts with a little in store.
-            building.BufferMilli += spec.Levels[0].PerHour * 1000L * _table.StarterStockMinutes / 60;
+            var pile = spec.Levels[0].PerHour * _table.StarterStockMinutes / 60;
+            var room = Math.Max(0, Caps.Get(spec.Produces.Value) - _stock.Get(spec.Produces.Value));
+            _stock += ResourceBag.Of(spec.Produces.Value, Math.Min(pile, room));
         }
     }
 
@@ -1533,38 +1509,119 @@ public sealed partial class BaseState
         return CommandOutcome.Accept();
     }
 
-    /// <summary>Burns Peat for every villager up to <paramref name="at"/> (nothing while cold: there's nothing to burn).</summary>
-    private void MaterializeUpkeep(DateTimeOffset at)
+    private void MaterializeUpkeep(DateTimeOffset at) => MaterializeEconomy(at);
+
+    /// <summary>What the village makes of a resource per hour now (every producer of it, at its crew and bonuses).</summary>
+    private int ProductionPerHour(ResourceType resource) =>
+        _buildings.Where(b => _table.Spec(b.Type).Produces == resource).Sum(Rate);
+
+    /// <summary>The stores' change per hour: production in, and for Peat the fires out (nothing burns while cold).</summary>
+    private int NetPerHour(ResourceType resource) =>
+        ProductionPerHour(resource) - (resource == ResourceType.Peat && !_cold ? PeatBurnPerHour() : 0);
+
+    /// <summary>
+    /// Settles the stores up to <paramref name="at"/> (spec 2026-10-14 auto-collect): every producer's output goes
+    /// straight in, capped by storage; the fires burn Peat. Rates are constant between events, so this is exact.
+    /// </summary>
+    private void MaterializeEconomy(DateTimeOffset at)
     {
         if (at <= _upkeepAsOf)
         {
-            return;
+            return; // a clock that went backwards never takes anything away
         }
 
-        if (!_cold && PeatBurnPerHour() > 0)
+        var seconds = (at.UtcTicks - _upkeepAsOf.UtcTicks) / TimeSpan.TicksPerSecond;
+        var caps = Caps;
+        var whole = new int[4];
+        for (var i = 0; i < 4; i++)
         {
-            var seconds = (at.UtcTicks - _upkeepAsOf.UtcTicks) / TimeSpan.TicksPerSecond;
-            var burned = _upkeepMilli + PeatBurnPerHour() * 1000L * seconds / 3600;
-            var whole = (int)Math.Min(burned / 1000, _stock.Peat);
-            _stock -= new ResourceBag(0, whole, 0, 0);
-            _upkeepMilli = whole < burned / 1000 ? 0 : burned - whole * 1000L;
+            var resource = (ResourceType)i;
+            var perHour = NetPerHour(resource);
+            var current = _stock.Get(resource) * 1000L + _fractions[i];
+            var cap = caps.Get(resource) * 1000L;
+            var next = perHour >= 0
+                ? (current >= cap ? current : Math.Min(cap, current + perHour * 1000L * seconds / 3600)) // full stores take no more, and lose nothing
+                : Math.Max(0, current + perHour * 1000L * seconds / 3600);
+            whole[i] = (int)(next / 1000);
+            _fractions[i] = next % 1000;
         }
 
+        _stock = new ResourceBag(whole[0], whole[1], whole[2], whole[3]);
         _upkeepAsOf = at;
     }
 
-    /// <summary>When the Peat in storage runs out at today's burn (null: it won't, or it already has).</summary>
+    /// <summary>When the Peat runs out at today's net burn (null: production keeps up, or it's already cold).</summary>
     private DateTimeOffset? PeatRunsOutAt()
     {
-        var perHour = PeatBurnPerHour();
-        if (_cold || perHour <= 0)
+        var net = NetPerHour(ResourceType.Peat);
+        if (_cold || net >= 0)
         {
             return null;
         }
 
-        var milliLeft = _stock.Peat * 1000L - _upkeepMilli;
-        var seconds = (milliLeft * 3600 + perHour * 1000L - 1) / (perHour * 1000L); // round up: it's gone at the end of that second
+        var milliLeft = _stock.Peat * 1000L + _fractions[(int)ResourceType.Peat];
+        var seconds = (milliLeft * 3600 + -net * 1000L - 1) / (-net * 1000L); // round up: it's gone at the end of that second
         return _upkeepAsOf.AddSeconds(Math.Max(0, seconds));
+    }
+
+    /// <summary>A cold village relights its fires once an hour's burn is stacked (so they don't flicker on and off at zero).</summary>
+    private long WarmUpMilli() => Math.Max(1, PeatBurnPerHour()) * 1000L;
+
+    /// <summary>When the peat cutters, working through the cold, have stacked enough to relight (null: warm, or nobody's cutting).</summary>
+    private DateTimeOffset? WarmsUpAt()
+    {
+        if (!_cold)
+        {
+            return null;
+        }
+
+        var have = _stock.Peat * 1000L + _fractions[(int)ResourceType.Peat];
+        var need = WarmUpMilli() - have;
+        if (need <= 0)
+        {
+            return _upkeepAsOf;
+        }
+
+        var perHour = ProductionPerHour(ResourceType.Peat);
+        if (perHour <= 0 || _stock.Peat >= Caps.Peat)
+        {
+            return null;
+        }
+
+        return _upkeepAsOf.AddSeconds((need * 3600 + perHour * 1000L - 1) / (perHour * 1000L));
+    }
+
+    /// <summary>Old saves kept output in each producer: it goes into the stores (what doesn't fit is lost), once.</summary>
+    private void SweepOldBuffers()
+    {
+        var caps = Caps;
+        foreach (var b in _buildings)
+        {
+            var resource = _table.Spec(b.Type).Produces;
+            if (resource == null)
+            {
+                continue;
+            }
+
+            var made = (int)(Buffer(b, _upkeepAsOf) / 1000);
+            var room = Math.Max(0, caps.Get(resource.Value) - _stock.Get(resource.Value));
+            _stock += ResourceBag.Of(resource.Value, Math.Min(made, room));
+            b.BufferMilli = 0;
+            b.AsOfUtc = _upkeepAsOf;
+        }
+    }
+
+    private void RestoreFractions(BaseData data)
+    {
+        if (data.StockFractions == null || data.StockFractions.Count != 4)
+        {
+            return;
+        }
+
+        for (var i = 0; i < 4; i++)
+        {
+            _fractions[i] = data.StockFractions[i];
+        }
     }
 
     /// <summary>After anything that changes beds or Peat: extra villagers leave; Peat back in storage warms everyone up.</summary>
@@ -1581,10 +1638,9 @@ public sealed partial class BaseState
             _populationAsOf = at; // full: the next newcomer comes an interval after a bed frees up
         }
 
-        if (_cold && _stock.Peat > 0)
+        if (_cold && _stock.Peat * 1000L + _fractions[(int)ResourceType.Peat] >= WarmUpMilli())
         {
-            _cold = false;
-            _upkeepAsOf = at > _upkeepAsOf ? at : _upkeepAsOf;
+            _cold = false; // Peat bought, filled or made: enough for an hour, so the fires are lit
         }
     }
 
@@ -1601,17 +1657,6 @@ public sealed partial class BaseState
     {
         var seconds = Math.Max(0, (at.UtcTicks - b.AsOfUtc.UtcTicks) / TimeSpan.TicksPerSecond);
         return Math.Min(CapacityMilli(b), b.BufferMilli + Rate(b) * 1000L * seconds / 3600);
-    }
-
-    private void Materialize(Building b, DateTimeOffset at)
-    {
-        if (at <= b.AsOfUtc)
-        {
-            return; // a clock that went backwards never takes anything away
-        }
-
-        b.BufferMilli = Buffer(b, at);
-        b.AsOfUtc = at;
     }
 
     private Building? Find(int id) => _buildings.FirstOrDefault(b => b.Id == id);

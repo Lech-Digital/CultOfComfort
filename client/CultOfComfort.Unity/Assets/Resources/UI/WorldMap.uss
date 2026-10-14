@@ -34,3 +34,9 @@
 .map-zoom { flex-direction: row; flex-grow: 1; justify-content: flex-end; }
 .map-node-camp { background-color: #e3cfa6; border-width: 2px; border-color: #3a2a18; }
 .icon-cult { background-image: resource("UI/Icons/cult"); }
+.sheet-tabs { flex-direction: row; flex-wrap: wrap; margin: 4px 0 2px 0; border-bottom-width: 2px; border-color: rgba(107, 82, 56, 0.35); }
+.sheet-tab { font-size: 13px; padding: 5px 9px; margin: 0 4px -2px 0; background-color: rgba(120, 96, 60, 0.12); color: #3a2a18;
+    border-width: 1px 1px 0 1px; border-color: rgba(107, 82, 56, 0.35); border-top-left-radius: 6px; border-top-right-radius: 6px;
+    border-bottom-left-radius: 0; border-bottom-right-radius: 0; -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC"); }
+.sheet-tab-open { background-color: #f1e3c0; border-color: #6b5238; border-bottom-width: 2px; border-bottom-color: #f1e3c0; -unity-font-style: bold; }
+.sheet-scroll { margin-top: 2px; }

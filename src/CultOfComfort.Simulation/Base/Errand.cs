@@ -8,7 +8,7 @@ public enum ErrandGoal
     /// <summary>Have <c>Target</c> finished buildings of <c>Type</c>.</summary>
     Build,
 
-    /// <summary>Collect from a building (of <c>Type</c>, when given).</summary>
+    /// <summary>Collect from a building (of <c>Type</c>, when given). Retired with auto-collect: kept so old books still read.</summary>
     Collect,
 
     /// <summary>Have a <c>Type</c> at level <c>Target</c> or more.</summary>
@@ -52,10 +52,10 @@ public sealed record ErrandView(int Index, int Count, string Id, string Text, in
 /// </summary>
 public sealed record ErrandBook(string Version, IReadOnlyList<Errand> Errands)
 {
-    public static ErrandBook Default { get; } = new("errands-2026.10.2", new Errand[]
+    public static ErrandBook Default { get; } = new("errands-2026.10.3", new Errand[]
     {
         new("woodcutter", "Build a Woodcutter's Lean-to. Comfort starts with firewood.", ErrandGoal.Build, BuildingType.Woodcutter, 1, new ResourceBag(50, 0, 0, 0)),
-        new("collect-timber", "Tap the Lean-to to collect its Timber.", ErrandGoal.Collect, BuildingType.Woodcutter, 1, new ResourceBag(50, 0, 0, 0)),
+        new("storage-hut", "Build a Storage Hut. The Timber stacks itself, but only where there's room.", ErrandGoal.Build, BuildingType.StorageHut, 1, new ResourceBag(100, 0, 0, 0)), // pays the hut back: the tutorial stays on its clock
         new("cottage", "Build a Cottage. Seekers need somewhere to sleep.", ErrandGoal.Build, BuildingType.Cottage, 1, new ResourceBag(60, 0, 0, 0)),
         new("peat-cut", "Build a Peat Cut. No Peat, no warmth, no work.", ErrandGoal.Build, BuildingType.PeatCut, 1, new ResourceBag(40, 40, 0, 0)),
         new("cultist-hut", "Build a Cultist Hut. Devotion keeps the Prophet going.", ErrandGoal.Build, BuildingType.CultistHut, 1, new ResourceBag(0, 0, 0, 20)),

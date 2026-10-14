@@ -52,11 +52,11 @@ namespace CultOfComfort.Client
 
     /// <summary>
     /// The first-player tutorial (GDD 05): rides on the first errands and points at the next tap — build card, ✓,
-    /// the building, the note — until the player has built, collected and claimed. Pure: the HUD draws it.
+    /// the building, the note — until the player has built and claimed. Pure: the HUD draws it.
     /// </summary>
     public static class TutorialCoach
     {
-        /// <summary>The coach follows errands up to and including this one (0: Lean-to, 1: collect, 2: Cottage).</summary>
+        /// <summary>The coach follows errands up to and including this one (0: Lean-to, 1: Storage Hut, 2: Cottage).</summary>
         public const int LastErrand = 2;
 
         public static CoachStep Step(ErrandView errand, BuildingType? placing, IReadOnlyList<BuildingView> buildings, BuildingTable table)
@@ -95,16 +95,6 @@ namespace CultOfComfort.Client
                     }
 
                     return new CoachStep(CoachTarget.BuildCard, $"Tap the {name} card.", type);
-                case ErrandGoal.Collect:
-                    var producer = buildings.Where(b => b.Type == type && b.Level > 0).OrderByDescending(b => b.Ready).FirstOrDefault();
-                    if (producer == null)
-                    {
-                        return new CoachStep(CoachTarget.BuildCard, $"Tap the {name} card.", type);
-                    }
-
-                    return producer.Ready >= 1
-                        ? new CoachStep(CoachTarget.Building, $"Tap the {name} to collect.", type, producer.Id)
-                        : new CoachStep(CoachTarget.None, "It's working. Collect when the icon shows.", type, producer.Id);
                 default:
                     return CoachStep.None;
             }

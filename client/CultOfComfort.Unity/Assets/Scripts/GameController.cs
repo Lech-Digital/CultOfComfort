@@ -118,7 +118,7 @@ namespace CultOfComfort.Client
             _devTools = _village is RemoteBaseGateway remoteVillage ? remoteVillage.Developer : Debug.isDebugBuild;
             _hud.SetDevTools(_devTools);
             LoadVillage();
-            Announce("Build from the drawer below; tap a building to collect or upgrade it.");
+            Announce("Build from the drawer below; tap a building to upgrade it. What they make stacks itself.");
             PlayIntroOnFirstLaunch();
         }
 
@@ -301,7 +301,15 @@ namespace CultOfComfort.Client
         private async void OnSheetAction(string action)
         {
             var parts = action.Split(':');
-            if (parts[0] == "research" && parts.Length == 2)
+            if (action == "hearth:upgrade")
+            {
+                var outcome = await SendVillage(new UpgradeHearth(Guid.NewGuid()));
+                if (outcome.Status == CommandStatus.Accepted)
+                {
+                    Announce("The faithful pile more stones round the fire. It'll be grander soon.");
+                }
+            }
+            else if (parts[0] == "research" && parts.Length == 2)
             {
                 var outcome = await SendVillage(new StartResearch(Guid.NewGuid(), parts[1]));
                 if (outcome.Status == CommandStatus.Accepted)
@@ -430,6 +438,7 @@ namespace CultOfComfort.Client
             if (_phase == GamePhase.Dusk)
             {
                 UpdateDusk();
+                FloatIncome();
             }
             else if (_phase == GamePhase.Night)
             {
@@ -443,6 +452,41 @@ namespace CultOfComfort.Client
             RenderSettings.fogStartDistance = _rig.Distance + 12f;
             RenderSettings.fogEndDistance = _rig.Distance * 2.2f + 40f;
             UpdateHud();
+        }
+
+        private readonly Dictionary<int, float> _income = new Dictionary<int, float>();
+
+        /// <summary>
+        /// Producers float what they've put in the stores ("+3 Timber"): resources stack themselves now (spec
+        /// 2026-10-14 auto-collect), so the village shows it instead of asking for taps. A busy lean-to speaks up about
+        /// every half minute, a slow hut whenever a whole Devotion is in.
+        /// </summary>
+        private void FloatIncome()
+        {
+            if (_snapshot == null || _intro != null)
+            {
+                return;
+            }
+
+            foreach (var b in _snapshot.Buildings)
+            {
+                var resource = BuildingTable.Default.Spec(b.Type).Produces;
+                if (resource == null || b.PerHour <= 0 || b.Wrecked || b.IsUpgrading)
+                {
+                    continue;
+                }
+
+                _income.TryGetValue(b.Id, out var made);
+                made += b.PerHour * Time.deltaTime / 3600f;
+                if (made >= Mathf.Max(1f, b.PerHour / 120f))
+                {
+                    var whole = Mathf.FloorToInt(made);
+                    FloatNote(Shapes.ToWorld(b.Position) + Vector3.up * 1.4f, $"+{whole} {resource}");
+                    made -= whole;
+                }
+
+                _income[b.Id] = made;
+            }
         }
 
         /// <summary>Night falls (and Dawn breaks) over ~1.5 s rather than with a cut.</summary>
@@ -825,22 +869,6 @@ namespace CultOfComfort.Client
                 }
 
                 _cardTerrain = null;
-
-                if (building.Ready >= 1 && !building.Wrecked) // a wreck always opens its card (to repair it)
-                {
-                    var outcome = await SendVillage(new Collect(Guid.NewGuid(), building.Id));
-                    if (outcome.Status == CommandStatus.Accepted)
-                    {
-                        FloatNote(Shapes.ToWorld(tile) + Vector3.up * 1.4f, $"+{outcome.Collected}");
-                    }
-
-                    // Storage full (rejected) or only part of it fitted: open the card so it can still be upgraded or demolished.
-                    var after = _snapshot.Buildings.FirstOrDefault(b => b.Id == building.Id);
-                    if (outcome.Status == CommandStatus.Accepted && (after == null || after.Ready < 1))
-                    {
-                        return;
-                    }
-                }
 
                 _cardBuilding = building.Id;
                 RefreshVillage();

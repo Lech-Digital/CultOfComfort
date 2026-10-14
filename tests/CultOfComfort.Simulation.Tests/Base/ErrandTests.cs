@@ -95,19 +95,18 @@ public class ErrandTests
     }
 
     [Fact]
-    public void Collect_WhileItIsTheErrand_CompletesIt()
+    public void Collect_AnyTime_RetiredBecauseTheStoresFillThemselves()
     {
         // Arrange
-        var state = NewBase(new Errand("collect", "Collect Timber", ErrandGoal.Collect, BuildingType.Woodcutter, 1, new ResourceBag(50, 0, 0, 0)));
+        var state = NewBase(Build(BuildingType.Woodcutter));
         Built(state, BuildingType.Woodcutter, Field);
-        var later = T0.AddHours(1);
-        state.Snapshot(later).Errand!.Done.Should().BeFalse();
 
         // Act
-        state.Apply(new Collect(Guid.NewGuid(), null), later).Status.Should().Be(CommandStatus.Accepted);
+        var outcome = state.Apply(new Collect(Guid.NewGuid(), null), T0.AddHours(1));
 
         // Assert
-        state.Snapshot(later).Errand!.Done.Should().BeTrue();
+        outcome.Status.Should().Be(CommandStatus.Rejected);
+        outcome.Reason.Should().Contain("by themselves");
     }
 
     [Fact]
@@ -192,12 +191,13 @@ public class ErrandTests
     [Fact]
     public void ToData_MidErrand_RestoresTheSameErrandAndItsEvent()
     {
-        // Arrange — on the second errand, whose event (a collect) has happened.
-        var book = new[] { Build(BuildingType.Woodcutter), new Errand("collect", "Collect", ErrandGoal.Collect, null, 1, default) };
+        // Arrange — on the second errand, whose event (a Night seen through) has happened.
+        var book = new[] { Build(BuildingType.Woodcutter), new Errand("night", "Survive a Night", ErrandGoal.SurviveNight, null, 1, default) };
         var state = NewBase(book);
         Built(state, BuildingType.Woodcutter, Field);
         Claim(state);
-        state.Apply(new Collect(Guid.NewGuid(), null), T0.AddHours(1));
+        var night = state.Apply(new BeginNight(Guid.NewGuid()), T0.AddHours(1)).Plan!;
+        state.Apply(new ResolveNight(Guid.NewGuid(), night.Night, Array.Empty<PlayerInput>()), T0.AddHours(1));
 
         // Act
         var back = BaseState.Restore(new BuildingTable { Errands = new ErrandBook("test", book) }, VillageMap.Demo, state.ToData());
@@ -223,7 +223,7 @@ public class ErrandTests
         errands[^2].Goal.Should().Be(ErrandGoal.HearthLevel);
         errands[^2].Target.Should().Be(3);
         errands[^1].Goal.Should().Be(ErrandGoal.WinRaid, "the 12-hour shield after a Night makes a won raid a next-session goal");
-        hearthOne.Sum(e => e.Reward.Timber).Should().Be(300, "the Hearth 1 errands bridge the 450 Timber Hearth 2 after a starter village");
+        hearthOne.Sum(e => e.Reward.Timber).Should().Be(350, "the Hearth 1 errands bridge the 450 Timber Hearth 2 after a starter village (and pay the Storage Hut back)");
         errands.Select(e => e.Id).Should().OnlyHaveUniqueItems();
     }
 

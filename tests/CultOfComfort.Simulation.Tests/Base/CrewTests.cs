@@ -8,7 +8,7 @@ public class CrewTests
     private static readonly DateTimeOffset T0 = new(2026, 10, 14, 12, 0, 0, TimeSpan.Zero);
 
     private static BuildingTable Table(int hearthBeds = 2) =>
-        new() { StartingStock = new ResourceBag(5000, 900, 1000, 300), HearthBeds = hearthBeds, StarterStockMinutes = 0 };
+        new() { StartingStock = new ResourceBag(600, 900, 1000, 300), HearthBeds = hearthBeds, StarterStockMinutes = 0 }; // Timber under the cap, so production shows
 
     private static (BaseState State, int Peat, int Lean) PeatAndLean(int villagers)
     {
@@ -60,7 +60,7 @@ public class CrewTests
 
         // Assert
         (view.Crew, view.CrewNeeded).Should().Be((1, 2));
-        view.Ready.Should().Be(3 * (25 * 666 / 1000), "16 an hour instead of 25");
+        view.PerHour.Should().Be(25 * 666 / 1000, "16 an hour instead of 25");
     }
 
     [Fact]
@@ -133,13 +133,14 @@ public class CrewTests
         state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(15, 5)), T0);
         state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
         var lean = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Woodcutter).Id;
+        var timber = state.Snapshot(T0).Stock.Timber;
 
         // Act
         state.Apply(new SetCrew(Guid.NewGuid(), lean, 0), T0.AddHours(2));
-        var later = state.Snapshot(T0.AddHours(5)).Building(lean).Ready;
+        var later = state.Snapshot(T0.AddHours(5)).Stock.Timber;
 
         // Assert
-        later.Should().Be(200, "two hours at 100, then nothing");
+        (later - timber).Should().Be(200, "two hours at 100, then nothing");
     }
 
     [Fact]

@@ -46,7 +46,6 @@ internal sealed class PaceBot
         var hearthAt = new Dictionary<int, double>();
         while (_now - T0 < length)
         {
-            _state.Apply(new Collect(Guid.NewGuid(), null), _now);
             var s = Snap();
             if (s.HearthLevel != hearth)
             {

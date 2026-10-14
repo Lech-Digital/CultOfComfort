@@ -131,7 +131,9 @@ public class BaseStateRulesTests
         state.Apply(new DemolishBuilding(Guid.NewGuid(), chute), at).Status.Should().Be(CommandStatus.Accepted);
 
         // Assert
-        state.Snapshot(at).Stock.Should().Be(new ResourceBag(500 - 100 + 50, 60, 380, 0));
+        var stock = state.Snapshot(at).Stock;
+        (stock.Timber, stock.Scrap, stock.Devotion).Should().Be((500 - 100 + 50, 380, 0));
+        stock.Peat.Should().Be(59, "four villagers have burned a minute's Peat (the store shows whole Peat left)");
     }
 
     [Fact]

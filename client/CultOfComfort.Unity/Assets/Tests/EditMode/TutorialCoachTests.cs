@@ -75,27 +75,6 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
-        public void Step_CollectWithTimberReady_PointsAtTheLeanTo()
-        {
-            // Act
-            var step = TutorialCoach.Step(Errand(1), null, new[] { Woodcutter(1, 25) }, Table);
-
-            // Assert
-            Assert.AreEqual(CoachTarget.Building, step.Target);
-            Assert.AreEqual(7, step.BuildingId);
-        }
-
-        [Test]
-        public void Step_CollectNothingReadyYet_Waits()
-        {
-            // Act
-            var step = TutorialCoach.Step(Errand(1), null, new[] { Woodcutter(1, 0) }, Table);
-
-            // Assert
-            Assert.IsFalse(step.HasArrow);
-        }
-
-        [Test]
         public void Step_PastTheCottage_TutorialIsOver()
         {
             // Act & Assert

@@ -104,7 +104,7 @@ namespace CultOfComfort.Client
                     : b.Level > 0 && b.CrewNeeded > 0 && b.Crew == 0 ? $"Needs {b.CrewNeeded} villager{(b.CrewNeeded == 1 ? string.Empty : "s")} — build a Cottage"
                     : b.Level > 0 && spec.Produces != null && spec.Produces != ResourceType.Peat && snapshot.Cold ? "Cold — no Peat, nobody works but the peat cutters"
                     : b.Level == 0 ? string.Empty : spec.Produces != null ? $"+{b.PerHour} {spec.Produces}/h{ComfortNote(spec, b.Level)}" : Effect(spec, b.Level) + ComfortNote(spec, b.Level),
-                Ready = spec.Produces != null && b.Level > 0 ? $"{b.Ready}/{b.Capacity} ready" : string.Empty,
+                Ready = spec.Produces != null && b.Level > 0 && b.PerHour > 0 ? "Goes straight into the stores." : string.Empty,
                 ShowCrew = b.Level > 0 && b.CrewNeeded > 0 && !b.Wrecked,
                 CrewLine = CrewLine(snapshot, b),
                 CrewWanted = b.CrewWanted,
