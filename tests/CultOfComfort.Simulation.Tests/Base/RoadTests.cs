@@ -91,7 +91,7 @@ public class RoadTests
 
         // Assert
         lean.Connected.Should().BeTrue();
-        lean.Ready.Should().Be(100);
+        lean.PerHour.Should().Be(100);
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public class RoadTests
         outcome.Status.Should().Be(CommandStatus.Accepted);
         state.Snapshot(T0).Stock.Timber.Should().Be(timber - 2 * TrackToHearth.Length);
         Woodcutter(state, T0.AddHours(1)).Connected.Should().BeTrue();
-        Woodcutter(state, T0.AddHours(1)).Ready.Should().Be(100, "it produces from the moment it was connected");
+        Woodcutter(state, T0.AddHours(1)).PerHour.Should().Be(100, "it produces from the moment it was connected");
     }
 
     [Fact]

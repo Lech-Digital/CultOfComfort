@@ -51,9 +51,9 @@ public class BaseStateEconomyTests
     }
 
     [Fact]
-    public void Snapshot_AfterConstructionAndOneHour_HasProducedFromTheEndTime()
+    public void Snapshot_AfterConstructionAndOneHour_TheTimberIsAlreadyInTheStores()
     {
-        // Arrange — built at T0+30s, producing 100 Timber/h from then.
+        // Arrange — built at T0+30s, producing 100 Timber/h from then, straight into the stores.
         var (state, id) = BaseWithWoodcutter();
 
         // Act
@@ -61,110 +61,76 @@ public class BaseStateEconomyTests
 
         // Assert
         snapshot.Building(id).Level.Should().Be(1);
-        snapshot.Building(id).Ready.Should().Be(125); // an hour + the 25 starter pile
-        snapshot.Building(id).Capacity.Should().Be(800, "8 hours of output");
+        snapshot.Stock.Timber.Should().Be(450 + 25 + 100, "after building: the 25 starter pile and an hour's output");
+        snapshot.Building(id).Ready.Should().Be(0, "nothing waits in the lean-to to be tapped");
         snapshot.ConstructionEndsAtUtc.Should().BeNull();
     }
 
     [Fact]
-    public void Snapshot_LongAbsence_BufferStopsAtCapacity()
+    public void Snapshot_LongAbsence_TheStoresStopAtTheirCap()
     {
         // Arrange
-        var (state, id) = BaseWithWoodcutter();
+        var (state, _) = BaseWithWoodcutter();
 
         // Act
         var snapshot = state.Snapshot(T0.AddDays(3));
 
         // Assert
-        snapshot.Building(id).Ready.Should().Be(800);
+        snapshot.Stock.Timber.Should().Be(1000);
+    }
+
+    [Fact]
+    public void Snapshot_StoresFullThenSpent_ProductionPicksUpAgain()
+    {
+        // Arrange — full of Timber by T0 + 6 h; 100 spent at T0 + 8 h.
+        var (state, _) = BaseWithWoodcutter();
+        var spent = T0.AddHours(8);
+        state.Snapshot(spent).Stock.Timber.Should().Be(1000);
+        Send(state, new PlaceBuilding(Guid.NewGuid(), BuildingType.StorageHut, new GridPosition(20, 11)), spent).Status.Should().Be(CommandStatus.Accepted);
+
+        // Act — the hut (60 s) adds 500 room; half an hour later.
+        var snapshot = state.Snapshot(spent.AddMinutes(30).AddSeconds(60));
+
+        // Assert
+        snapshot.Stock.Timber.Should().BeInRange(950, 951, "nothing was made while full, then 30 minutes (and a minute's building) at 100/h");
     }
 
     [Fact]
     public void Snapshot_ClockBehindAsOf_NothingIsLost()
     {
         // Arrange — an hour of production, then the device clock jumps back a day.
-        var (state, id) = BaseWithWoodcutter();
+        var (state, _) = BaseWithWoodcutter();
         var later = T0.AddSeconds(30).AddHours(1);
         state.Snapshot(later);
 
         // Act
-        var snapshot = state.Snapshot(later.AddDays(-1));
+        var back = state.Snapshot(later.AddDays(-1));
 
         // Assert
-        snapshot.Building(id).Ready.Should().BeGreaterThanOrEqualTo(0);
-        state.Snapshot(later).Building(id).Ready.Should().Be(125); // an hour + the 25 starter pile
+        back.Stock.Timber.Should().Be(575);
+        state.Snapshot(later).Stock.Timber.Should().Be(575);
     }
 
     [Fact]
-    public void Collect_OneBuilding_MovesItsBufferIntoStock()
-    {
-        // Arrange
-        var (state, id) = BaseWithWoodcutter();
-        var at = T0.AddSeconds(30).AddHours(2);
-
-        // Act
-        var outcome = Send(state, new Collect(Guid.NewGuid(), id), at);
-
-        // Assert
-        outcome.Status.Should().Be(CommandStatus.Accepted);
-        outcome.Collected.Should().Be(new ResourceBag(225, 0, 0, 0)); // two hours + the 25 starter pile
-        var snapshot = state.Snapshot(at);
-        snapshot.Stock.Timber.Should().Be(675);
-        snapshot.Building(id).Ready.Should().Be(0);
-    }
-
-    [Fact]
-    public void Collect_StorageNearlyFull_MovesOnlyTheSpaceAndKeepsTheRest()
-    {
-        // Arrange — 450 Timber after building; 8 h = 800 ready; cap 1000 leaves room for 550.
-        var (state, id) = BaseWithWoodcutter();
-        var at = T0.AddDays(1);
-
-        // Act
-        var outcome = Send(state, new Collect(Guid.NewGuid(), id), at);
-
-        // Assert
-        outcome.Collected.Timber.Should().Be(550);
-        var snapshot = state.Snapshot(at);
-        snapshot.Stock.Timber.Should().Be(1000);
-        snapshot.Building(id).Ready.Should().Be(250);
-    }
-
-    [Fact]
-    public void Collect_NothingReady_IsRejected()
-    {
-        // Arrange
-        var (state, id) = BaseWithWoodcutter();
-        Send(state, new Collect(Guid.NewGuid(), id), T0.AddSeconds(31)).Status.Should().Be(CommandStatus.Accepted, "the starter pile");
-
-        // Act
-        var outcome = Send(state, new Collect(Guid.NewGuid(), id), T0.AddSeconds(31));
-
-        // Assert
-        outcome.Status.Should().Be(CommandStatus.Rejected);
-        state.Version.Should().Be(2);
-    }
-
-    [Fact]
-    public void Snapshot_UpgradeFinishedWhileAway_ProducesFromItsEndTime()
+    public void Snapshot_UpgradeFinishedWhileAway_ProducesAtTheNewRateFromItsEndTime()
     {
         // Arrange — the Hearth must be level 2 before a building can reach level 2; start with 900 Timber to afford it.
-        var state = BaseState.CreateNew(new BuildingTable { StartingStock = new ResourceBag(900, 60, 380, 0) }, VillageMap.Demo, T0);
+        var state = BaseState.CreateNew(new BuildingTable { StartingStock = new ResourceBag(900, 600, 380, 0) }, VillageMap.Demo, T0);
         Send(state, new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, Field), T0).Status.Should().Be(CommandStatus.Accepted);
         var id = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Woodcutter).Id;
         var built = T0.AddSeconds(30);
         Send(state, new UpgradeHearth(Guid.NewGuid()), built).Status.Should().Be(CommandStatus.Accepted);
         var hearthDone = built.AddMinutes(10);
-        Send(state, new Collect(Guid.NewGuid(), id), hearthDone); // empty the buffer at a known time
         Send(state, new UpgradeBuilding(Guid.NewGuid(), id), hearthDone).Status.Should().Be(CommandStatus.Accepted);
         var upgradeDone = hearthDone.AddMinutes(5);
 
         // Act — the app was closed for an hour after the upgrade finished.
-        var snapshot = state.Snapshot(upgradeDone.AddHours(1));
+        var atEnd = state.Snapshot(upgradeDone).Stock.Timber;
+        var anHourLater = state.Snapshot(upgradeDone.AddHours(1));
 
-        // Assert — 0.666 left after collecting 16, + 5 min at 100/h while upgrading (8.333) + 1 h at 170/h = 178.999.
-        snapshot.Building(id).Level.Should().Be(2);
-        snapshot.Building(id).Ready.Should().Be(8 + 170);
+        // Assert — level 2, both its slots crewed (four villagers, no other work): the full 170.
+        anHourLater.Building(id).Level.Should().Be(2);
+        (anHourLater.Stock.Timber - atEnd).Should().BeInRange(169, 170);
     }
 
     [Fact]
@@ -219,7 +185,7 @@ public class BaseStateEconomyTests
 
         // Assert
         outcome.Status.Should().Be(CommandStatus.Rejected);
-        outcome.Reason.Should().Contain("350 Timber");
+        outcome.Reason.Should().Contain("300 Timber", "the two lean-tos' starter piles (25 each) went straight into the stores");
     }
 
     [Fact]
@@ -239,19 +205,16 @@ public class BaseStateEconomyTests
     [Fact]
     public void Construction_NewProducerFinished_StartsWithAQuarterHourInStore()
     {
-        // Arrange — the crew finds some deadwood on day one, so the first collect is worth a tap.
+        // Arrange — the crew finds some deadwood on day one: it goes straight into the stores.
         var state = NewBase();
         state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(3, 9)), T0);
-        state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
         var timber = state.Snapshot(T0).Stock.Timber;
 
         // Act
-        var collected = state.Apply(new Collect(Guid.NewGuid(), null), T0);
+        state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
 
         // Assert
-        collected.Status.Should().Be(CommandStatus.Accepted);
-        collected.Collected.Timber.Should().Be(25, "a quarter of the Lean-to's 100/h");
-        state.Snapshot(T0).Stock.Timber.Should().Be(timber + 25);
+        state.Snapshot(T0).Stock.Timber.Should().Be(timber + 25, "a quarter of the Lean-to's 100/h");
     }
 
     [Fact]

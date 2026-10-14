@@ -95,12 +95,14 @@ public class BaseStateDamageTests
         var at = T0.AddHours(1);
         Wreck(state, id, at);
 
+        var timber = state.Snapshot(at).Stock.Timber;
+
         // Act
-        var later = state.Snapshot(at.AddHours(3)).Building(id);
+        var later = state.Snapshot(at.AddHours(3));
 
         // Assert
-        later.Ready.Should().Be(125, "what was made before the raid (and the starter pile) is still there; nothing since");
-        later.PerHour.Should().Be(0);
+        later.Stock.Timber.Should().Be(timber, "nothing made since the raid");
+        later.Building(id).PerHour.Should().Be(0);
     }
 
     [Fact]
@@ -134,8 +136,7 @@ public class BaseStateDamageTests
         outcome.Status.Should().Be(CommandStatus.Accepted);
         var snapshot = state.Snapshot(at.AddHours(1));
         snapshot.Building(id).Wrecked.Should().BeFalse();
-        snapshot.Stock.Timber.Should().Be(450 - 5);
-        snapshot.Building(id).Ready.Should().Be(25 + 1 + 100, "the starter pile, 1 unit made before the raid, then an hour from the repair");
+        snapshot.Stock.Timber.Should().Be(450 + 25 + 1 - 5 + 100, "the starter pile, a unit made before the raid, the repair, then an hour from the repair");
     }
 
     [Fact]

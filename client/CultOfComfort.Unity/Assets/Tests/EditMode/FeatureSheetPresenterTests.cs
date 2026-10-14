@@ -88,5 +88,48 @@ namespace CultOfComfort.Client.Tests
             Assert.IsTrue(sheet.Rows.Any(r => r.Text == "✓ The laser pointer"));
             Assert.IsTrue(sheet.Rows.Any(r => r.Text == "· The magnifying glass"), "not found until Hearth 3");
         }
+
+        [Test]
+        public void Cult_Tabs_EveryRowOnOneOfThem()
+        {
+            // Arrange
+            var (state, now) = Village(2);
+
+            // Act
+            var sheet = FeatureSheetPresenter.Cult(state.Snapshot(now));
+
+            // Assert
+            CollectionAssert.AreEqual(new[] { "Hearth", "People", "Comfort", "Relics", "Errand" }, sheet.Tabs);
+            Assert.IsTrue(sheet.Rows.All(r => sheet.Tabs.Contains(r.Tab)));
+            Assert.IsTrue(sheet.Rows.Any(r => r.Tab == FeatureSheetPresenter.RelicsTab && r.Text == "✓ The laser pointer"));
+        }
+
+        [Test]
+        public void Cult_HearthTabAtLevelOne_OffersTheRaiseAndSaysWhatComesNext()
+        {
+            // Arrange — a rich level 1 village.
+            var (state, now) = Village(1);
+
+            // Act
+            var hearth = FeatureSheetPresenter.Cult(state.Snapshot(now)).Rows.Where(r => r.Tab == FeatureSheetPresenter.HearthTab).ToList();
+
+            // Assert
+            var raise = hearth.Single(r => r.Action == "hearth:upgrade");
+            Assert.AreEqual("Raise", raise.Button);
+            Assert.IsTrue(raise.Enabled);
+            Assert.IsTrue(hearth.Any(r => r.Text != null && r.Text.Contains("The map opens")), "Hearth 2 opens the map");
+            Assert.IsTrue(hearth.Any(r => r.Text != null && r.Text.StartsWith("· New: ") && r.Text.Contains("Cistern")));
+        }
+
+        [Test]
+        public void Unlocks_HearthTwoToThree_TheBathhouseAndMoreMissionaries()
+        {
+            // Act
+            var lines = FeatureSheetPresenter.Unlocks(2, 3, BuildingTable.Default);
+
+            // Assert
+            Assert.IsTrue(lines.Any(l => l.Contains("Bathhouse")));
+            Assert.IsTrue(lines.Any(l => l.StartsWith("2 missionaries at once")));
+        }
     }
 }

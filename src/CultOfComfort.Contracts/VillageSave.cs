@@ -39,6 +39,7 @@ public sealed class VillageSaveDto
     public long populationAsOfTicks;
     public long upkeepAsOfTicks;
     public long upkeepMilli;
+    public List<long> fractionsMilli; // thousandths beyond the whole stock (Timber, Peat, Scrap, Devotion); auto-collect
     public bool cold;
     public int errandIndex; // older saves lack it: 0, so they start the errands (already-true ones are claimable at once)
     public bool errandEventDone;

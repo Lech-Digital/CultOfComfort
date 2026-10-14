@@ -17,6 +17,9 @@ namespace CultOfComfort.Client
         public bool Enabled;
         public string Action;
         public bool Heading;
+
+        /// <summary>The tab this row lives on (null: every tab, or a sheet without tabs).</summary>
+        public string Tab;
     }
 
     public sealed class SheetModel
@@ -24,6 +27,9 @@ namespace CultOfComfort.Client
         public string Title;
         public List<SheetRow> Rows = new List<SheetRow>();
         public string Footer;
+
+        /// <summary>Tabs across the top (empty: one plain list). The view remembers which one is open.</summary>
+        public List<string> Tabs = new List<string>();
     }
 
     /// <summary>The Research, Trolley Market and Cult sheets as models (pure: tested without the UI).</summary>
@@ -104,35 +110,142 @@ namespace CultOfComfort.Client
             return model;
         }
 
-        public static SheetModel Cult(BaseSnapshot snapshot)
+        public const string HearthTab = "Hearth";
+        public const string PeopleTab = "People";
+        public const string ComfortTab = "Comfort";
+        public const string RelicsTab = "Relics";
+        public const string ErrandTab = "Errand";
+
+        public static SheetModel Cult(BaseSnapshot snapshot, BuildingTable table = null)
         {
-            var model = new SheetModel { Title = "The Cult of Comfort", Footer = "Five people and a duck, to begin with. Look at it now." };
-            var away = snapshot.Domain?.Missionaries.Count ?? 0;
-            var workers = snapshot.Buildings.Sum(b => b.Crew);
-            model.Rows.Add(new SheetRow { Heading = true, Text = "The faithful" });
-            model.Rows.Add(new SheetRow { Text = $"{snapshot.Population} villagers in {snapshot.Beds} beds", Detail = $"{workers} at work · {away} out preaching · {Math.Max(0, snapshot.Population - workers - away)} idle" + (snapshot.Cold ? " · cold: the Peat ran out!" : string.Empty) });
-            model.Rows.Add(new SheetRow { Heading = true, Text = $"Comfort {snapshot.Comfort}" });
-            foreach (var (label, amount) in snapshot.ComfortParts ?? Array.Empty<(string, int)>())
+            table = table ?? BuildingTable.Default;
+            var model = new SheetModel
             {
-                model.Rows.Add(new SheetRow { Text = $"{label}  {(amount >= 0 ? "+" : string.Empty)}{amount}" });
+                Title = "The Cult of Comfort", Footer = "Five people and a duck, to begin with. Look at it now.",
+                Tabs = { HearthTab, PeopleTab, ComfortTab, RelicsTab, ErrandTab },
+            };
+            void Add(string tab, SheetRow row)
+            {
+                row.Tab = tab;
+                model.Rows.Add(row);
             }
 
-            model.Rows.Add(new SheetRow { Detail = $"Devotion × {Mathf.Clamp(1f + snapshot.Comfort / 200f, 0.5f, 3f):0.00} from Comfort" });
-            model.Rows.Add(new SheetRow { Heading = true, Text = "Relics from the boot" });
+            // The Hearth: what it is, what the next level costs and brings.
+            var hearth = snapshot.Buildings.First(b => b.Type == BuildingType.Hearth);
+            var card = VillagePresenter.Card(snapshot, table, hearth.Id);
+            var spec = table.Spec(BuildingType.Hearth);
+            Add(HearthTab, new SheetRow { Heading = true, Text = $"The Hearth · level {snapshot.HearthLevel} of {spec.MaxLevel}" });
+            Add(HearthTab, new SheetRow
+            {
+                Text = card.IsUpgrading ? $"Growing · {card.Remaining}" : card.UpgradeLabel,
+                Detail = snapshot.HearthLevel >= spec.MaxLevel ? "As big as a fire gets in this century." : "You can also tap the Hearth itself.",
+                Button = snapshot.HearthLevel < spec.MaxLevel && !card.IsUpgrading ? "Raise" : null,
+                Enabled = card.CanUpgrade,
+                Action = "hearth:upgrade",
+            });
+            if (snapshot.HearthLevel < spec.MaxLevel)
+            {
+                var next = snapshot.HearthLevel + 1;
+                Add(HearthTab, new SheetRow { Heading = true, Text = $"At level {next}" });
+                foreach (var line in Unlocks(snapshot.HearthLevel, next, table))
+                {
+                    Add(HearthTab, new SheetRow { Text = "· " + line });
+                }
+
+                if (!card.CanUpgrade && !card.IsUpgrading)
+                {
+                    Add(HearthTab, new SheetRow
+                    {
+                        Detail = snapshot.ConstructionEndsAtUtc != null ? "The builder is busy: one job at a time."
+                            : $"Needs {VillagePresenter.ShortCost(spec.Levels[snapshot.HearthLevel].Cost)}. You have {VillagePresenter.ShortCost(snapshot.Stock)}.",
+                    });
+                }
+            }
+
+            // The people: who's home, who works, who's idle.
+            var away = snapshot.Domain?.Missionaries.Count ?? 0;
+            var workers = snapshot.Buildings.Sum(b => b.Crew);
+            Add(PeopleTab, new SheetRow { Heading = true, Text = $"{snapshot.Population} villagers in {snapshot.Beds} beds" });
+            Add(PeopleTab, new SheetRow { Text = $"{workers} at work · {away} out preaching · {snapshot.IdleVillagers} idle" + (snapshot.Cold ? " · cold: the Peat ran out!" : string.Empty) });
+            foreach (var b in snapshot.Buildings.Where(b => b.CrewNeeded > 0 && b.Level > 0).OrderBy(b => b.Id))
+            {
+                Add(PeopleTab, new SheetRow { Text = $"{table.Spec(b.Type).Name}", Detail = $"Crew {b.Crew}/{b.CrewNeeded} · +{b.PerHour}/h · tap it in the village to change" });
+            }
+
+            // Comfort.
+            Add(ComfortTab, new SheetRow { Heading = true, Text = $"Comfort {snapshot.Comfort}" });
+            foreach (var (label, amount) in snapshot.ComfortParts ?? Array.Empty<(string, int)>())
+            {
+                Add(ComfortTab, new SheetRow { Text = $"{label}  {(amount >= 0 ? "+" : string.Empty)}{amount}" });
+            }
+
+            Add(ComfortTab, new SheetRow { Detail = $"Devotion × {Mathf.Clamp(1f + snapshot.Comfort / 200f, 0.5f, 3f):0.00} from Comfort" });
+
+            // Relics.
             var found = RelicBook.ForHearth(snapshot.HearthLevel);
-            void Relic(string name, string lore, bool ok) => model.Rows.Add(new SheetRow { Text = (ok ? "✓ " : "· ") + name, Detail = ok ? lore : "Still in the car. He'll work it out at a bigger Hearth." });
+            void Relic(string name, string lore, bool ok) => Add(RelicsTab, new SheetRow { Text = (ok ? "✓ " : "· ") + name, Detail = ok ? lore : "Still in the car. He'll work it out at a bigger Hearth." });
+            Add(RelicsTab, new SheetRow { Heading = true, Text = "Relics from the boot" });
             Relic("The umbrella", "His staff of office. And an umbrella.", true);
             Relic("The Bluetooth speaker", "The Voice from the Box: the Phantom Voice.", true);
             Relic("The laser pointer", "The Finger of God: blinds one raider.", found.HasFlag(CultOfComfort.Simulation.Combat.Relic.LaserPointer));
             Relic("The dynamo torch", "Light without fire: raiders near him are dazzled.", found.HasFlag(CultOfComfort.Simulation.Combat.Relic.DynamoTorch));
             Relic("The magnifying glass", "Sun-fire, while the sun is up.", found.HasFlag(CultOfComfort.Simulation.Combat.Relic.Magnifier));
+
+            // The errand.
             if (snapshot.Errand != null)
             {
-                model.Rows.Add(new SheetRow { Heading = true, Text = $"Errand {snapshot.Errand.Index + 1} of {snapshot.Errand.Count}" });
-                model.Rows.Add(new SheetRow { Text = snapshot.Errand.Text });
+                Add(ErrandTab, new SheetRow { Heading = true, Text = $"Errand {snapshot.Errand.Index + 1} of {snapshot.Errand.Count}" });
+                Add(ErrandTab, new SheetRow { Text = snapshot.Errand.Text, Detail = snapshot.Errand.Done ? "Done: claim it from the note." : $"{snapshot.Errand.Progress}/{snapshot.Errand.Target}" });
+            }
+            else
+            {
+                Add(ErrandTab, new SheetRow { Text = "No errands left. The Prophet is improvising." });
             }
 
             return model;
+        }
+
+        /// <summary>What raising the Hearth from <paramref name="level"/> to <paramref name="next"/> brings: new buildings, more of the old, the map, studies.</summary>
+        public static List<string> Unlocks(int level, int next, BuildingTable table)
+        {
+            var lines = new List<string>();
+            var fresh = table.Specs.Values.Where(s => s.UnlockHearth == next && !BuildingTable.IsRoad(s.Type)).Select(s => s.Name).ToList();
+            if (fresh.Count > 0)
+            {
+                lines.Add("New: " + string.Join(", ", fresh));
+            }
+
+            var more = table.Specs.Values.Where(s => s.UnlockHearth <= level && s.MaxCount(next) > s.MaxCount(level) && s.MaxCount(next) < 1000)
+                .Select(s => $"{s.Name} ×{s.MaxCount(next)}").ToList();
+            if (more.Count > 0)
+            {
+                lines.Add("More room for: " + string.Join(", ", more));
+            }
+
+            var roads = table.Specs.Values.Where(s => s.UnlockHearth == next && BuildingTable.IsRoad(s.Type)).Select(s => s.Name).ToList();
+            if (roads.Count > 0)
+            {
+                lines.Add("Better roads: " + string.Join(", ", roads));
+            }
+
+            lines.Add($"Every building can go up to level {next}");
+            if (next == table.Domain.UnlockHearth)
+            {
+                lines.Add("The map opens: missionaries, offerings, tithes");
+            }
+            else if (table.Domain.Missionaries(next) > table.Domain.Missionaries(level))
+            {
+                lines.Add($"{table.Domain.Missionaries(next)} missionaries at once, walking {table.Domain.Reach(next)} hexes");
+            }
+
+            var studies = table.Research.Techs.Count(t => t.UnlockHearth == next);
+            if (studies > 0)
+            {
+                lines.Add($"{studies} new studies in the car's manual");
+            }
+
+            lines.Add($"The Hearth's own store holds {table.HearthStorageCaps[Math.Min(next, table.HearthStorageCaps.Count) - 1]} of each");
+            return lines;
         }
     }
 
@@ -143,6 +256,9 @@ namespace CultOfComfort.Client
         private readonly Label _title;
         private readonly ScrollView _rows;
         private readonly Label _footer;
+        private readonly VisualElement _tabs;
+        private readonly Dictionary<string, string> _tabOf = new Dictionary<string, string>(); // the open tab per sheet
+        private SheetModel _model;
         private string _shown;
         private string _signature;
 
@@ -161,12 +277,19 @@ namespace CultOfComfort.Client
             close.AddToClassList("map-close");
             header.Add(_title);
             header.Add(close);
+            _tabs = new VisualElement { name = "sheet-tabs" };
+            _tabs.AddToClassList("sheet-tabs");
             _rows = new ScrollView(ScrollViewMode.Vertical);
+            _rows.AddToClassList("sheet-scroll");
             _rows.style.flexGrow = 1;
+            _rows.verticalScrollerVisibility = ScrollerVisibility.Hidden; // swipe to scroll, as on any phone: no bar
+            _rows.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
+            _rows.touchScrollBehavior = ScrollView.TouchScrollBehavior.Elastic;
             _footer = new Label();
             _footer.AddToClassList("small");
             _footer.AddToClassList("map-note");
             _root.Add(header);
+            _root.Add(_tabs);
             _root.Add(_rows);
             _root.Add(_footer);
             _root.style.display = DisplayStyle.None;
@@ -185,20 +308,30 @@ namespace CultOfComfort.Client
 
         public void Show(string id, SheetModel model)
         {
+            var switched = id != _shown;
             _shown = id;
+            _model = model;
             _root.style.display = DisplayStyle.Flex;
             _title.text = model.Title;
             _footer.text = model.Footer ?? string.Empty;
-            var signature = string.Join("|", model.Rows.Select(r => r.Text + r.Detail + r.Enabled));
+            if (!_tabOf.TryGetValue(id, out var tab) || !model.Tabs.Contains(tab))
+            {
+                tab = model.Tabs.FirstOrDefault();
+                _tabOf[id] = tab;
+            }
+
+            DrawTabs(model, tab);
+            var rows = model.Rows.Where(r => tab == null || r.Tab == null || r.Tab == tab).ToList();
+            var signature = tab + "#" + string.Join("|", rows.Select(r => r.Text + r.Detail + r.Enabled + r.Button));
             if (signature == _signature)
             {
                 return; // unchanged: don't rebuild under the player's thumb
             }
 
             _signature = signature;
-            var scroll = _rows.scrollOffset;
+            var scroll = switched ? Vector2.zero : _rows.scrollOffset;
             _rows.Clear();
-            foreach (var row in model.Rows)
+            foreach (var row in rows)
             {
                 var line = new VisualElement();
                 line.AddToClassList("sheet-entry");
@@ -236,6 +369,41 @@ namespace CultOfComfort.Client
             }
 
             _rows.schedule.Execute(() => _rows.scrollOffset = scroll);
+        }
+
+        /// <summary>Opens a tab of the sheet on screen (the tab bar's buttons call this).</summary>
+        public void ShowTab(string tab)
+        {
+            if (_shown == null || _model == null)
+            {
+                return;
+            }
+
+            _tabOf[_shown] = tab;
+            _signature = null;
+            _rows.scrollOffset = Vector2.zero;
+            Show(_shown, _model);
+        }
+
+        private void DrawTabs(SheetModel model, string open)
+        {
+            _tabs.style.display = model.Tabs.Count > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+            if (_tabs.childCount != model.Tabs.Count || !_tabs.Children().Select(c => c.name).SequenceEqual(model.Tabs.Select(t => "tab-" + t)))
+            {
+                _tabs.Clear();
+                foreach (var tab in model.Tabs)
+                {
+                    var name = tab;
+                    var button = new Button(() => ShowTab(name)) { text = tab, name = "tab-" + tab };
+                    button.AddToClassList("sheet-tab");
+                    _tabs.Add(button);
+                }
+            }
+
+            foreach (var child in _tabs.Children())
+            {
+                child.EnableInClassList("sheet-tab-open", child.name == "tab-" + open);
+            }
         }
     }
 }

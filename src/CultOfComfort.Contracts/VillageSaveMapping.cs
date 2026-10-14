@@ -48,6 +48,7 @@ public static class VillageSaveMapping
         populationAsOfTicks = data.PopulationAsOfUtcTicks,
         upkeepAsOfTicks = data.UpkeepAsOfUtcTicks,
         upkeepMilli = data.UpkeepMilli,
+        fractionsMilli = (data.StockFractions ?? new long[4]).ToList(),
         cold = data.Cold,
         errandIndex = data.ErrandIndex,
         errandEventDone = data.ErrandEventDone,
@@ -114,7 +115,8 @@ public static class VillageSaveMapping
             dto.errandEventDone,
             dto.hasDomain && dto.domain != null ? FromDto(dto.domain) : null,
             new ResearchData(dto.researched ?? new List<string>(), string.IsNullOrEmpty(dto.researching) ? null : dto.researching,
-                string.IsNullOrEmpty(dto.researching) ? null : dto.researchEndsTicks));
+                string.IsNullOrEmpty(dto.researching) ? null : dto.researchEndsTicks),
+            dto.fractionsMilli != null && dto.fractionsMilli.Count == 4 && dto.fractionsMilli.TrueForAll(f => f >= 0 && f < 1000) ? dto.fractionsMilli : null);
     }
 
     private static DomainData FromDto(DomainDto d) => new(

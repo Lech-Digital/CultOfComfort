@@ -87,7 +87,7 @@ namespace CultOfComfort.Client.Tests
             // Assert
             Assert.AreEqual(1, Snapshot(game).Errand.Index);
             Assert.AreEqual(timber + 50, Snapshot(game).Stock.Timber);
-            StringAssert.Contains("collect", note.Q<Label>(className: "errand-text").text);
+            StringAssert.Contains("Storage Hut", note.Q<Label>(className: "errand-text").text);
         }
 
         private static HudView Hud(GameController game) =>
@@ -400,7 +400,7 @@ namespace CultOfComfort.Client.Tests
             // Assert
             var snapshot = Snapshot(game);
             Assert.IsFalse(snapshot.Building(id).Wrecked);
-            Assert.AreEqual(450 - 5, snapshot.Stock.Timber, "charged 5 Timber (10% of 50)");
+            Assert.AreEqual(450 + 25 - 5, snapshot.Stock.Timber, "the starter pile went into the stores; the repair charged 5 Timber (10% of 50)");
         }
     
         [UnityTest]
