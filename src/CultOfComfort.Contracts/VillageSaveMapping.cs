@@ -58,12 +58,16 @@ public static class VillageSaveMapping
         domain = data.Domain == null ? new DomainDto() : new DomainDto
         {
             influence = data.Domain.Influence.Select(i => new InfluenceDto { node = i.NodeId, milli = i.InfluenceMilli }).ToList(),
-            missionaries = data.Domain.Missionaries.Select(m => new MissionaryDto { id = m.Id, node = m.NodeId, hours = m.Hours, departedTicks = m.DepartedAtUtcTicks, preached = m.Preached }).ToList(),
+            missionaries = data.Domain.Missionaries.Select(m => new MissionaryDto { id = m.Id, node = m.NodeId, hours = m.Hours, departedTicks = m.DepartedAtUtcTicks, preached = m.Preached, distance = m.Distance ?? 0 }).ToList(),
             offeringsMilli = data.Domain.OfferingsMilli.ToList(),
             asOfTicks = data.Domain.AsOfUtcTicks,
             nextDecayTicks = data.Domain.NextDecayUtcTicks ?? -1,
             lastTitheTicks = data.Domain.LastTitheUtcTicks ?? -1,
             nextMissionaryId = data.Domain.NextMissionaryId,
+            inWorld = data.Domain.World != null,
+            worldQ = data.Domain.World?.Q ?? 0,
+            worldR = data.Domain.World?.R ?? 0,
+            worldTensionMilli = data.Domain.World?.TensionPerHourMilli ?? 0,
         },
     };
 
@@ -115,12 +119,13 @@ public static class VillageSaveMapping
 
     private static DomainData FromDto(DomainDto d) => new(
         (d.influence ?? new List<InfluenceDto>()).Select(i => (i.node, i.milli)).ToList(),
-        (d.missionaries ?? new List<MissionaryDto>()).Select(m => new MissionaryData(m.id, m.node, m.hours, m.departedTicks, m.preached)).ToList(),
+        (d.missionaries ?? new List<MissionaryDto>()).Select(m => new MissionaryData(m.id, m.node, m.hours, m.departedTicks, m.preached, m.distance > 0 ? m.distance : null)).ToList(),
         d.offeringsMilli != null && d.offeringsMilli.Count == 4 ? d.offeringsMilli : new List<long> { 0, 0, 0, 0 },
         d.asOfTicks,
         d.nextDecayTicks < 0 ? null : d.nextDecayTicks,
         d.lastTitheTicks < 0 ? null : d.lastTitheTicks,
-        d.nextMissionaryId);
+        d.nextMissionaryId,
+        d.inWorld ? new WorldLink(d.worldQ, d.worldR, d.worldTensionMilli) : null);
 
     internal static NightDto ToDto(NightPlan plan) => new()
     {

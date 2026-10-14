@@ -33,6 +33,7 @@ public class ContractsTests
         new DebugRaiseTension(Guid.NewGuid(), 50),
         new DebugSkipWarning(Guid.NewGuid()),
         new SendMissionary(Guid.NewGuid(), 7, 4),
+        new SendWorldMissionary(Guid.NewGuid(), 1201, 8, 3),
         new CollectOfferings(Guid.NewGuid()),
         new PayTithe(Guid.NewGuid(), new ResourceBag(100, 20, 30, 40)),
         new StartResearch(Guid.NewGuid(), "sharper-axes"),
@@ -147,5 +148,51 @@ public class DevCommandMappingTests
         // Assert
         fill.Should().BeOfType<DebugFillStores>();
         shield.Should().BeOfType<DebugEndShield>();
+    }
+
+    private static readonly DateTimeOffset T0 = new(2026, 10, 13, 12, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public void ToCommand_ServerOnlyWorldCommands_HaveNoWireForm()
+    {
+        // Arrange
+        var commands = new BaseCommand[]
+        {
+            new JoinWorld(Guid.NewGuid(), 3, 4),
+            new WorldUpdate(Guid.NewGuid(), 5000, 8),
+            new ReceiveOfferings(Guid.NewGuid(), new ResourceBag(10, 0, 0, 0)),
+        };
+
+        foreach (var command in commands)
+        {
+            // Act
+            Action act = () => CommandMapping.ToCommand(new CommandDto { id = Guid.NewGuid().ToString(), type = command.GetType().Name });
+
+            // Assert
+            act.Should().Throw<ArgumentException>($"a client must never send {command.GetType().Name}");
+            CommandMapping.IsServerOnly(command).Should().BeTrue();
+        }
+    }
+
+    [Fact]
+    public void VillageJson_WorldVillage_RoundTripsTheLinkAndMissionaries()
+    {
+        // Arrange — on a world at (12, -7), a world rate, a missionary 3 hexes out.
+        var table = new BuildingTable { StartingStock = new ResourceBag(5000, 900, 900, 900), HearthStorageCaps = new[] { 9000, 9000, 9000 } };
+        var state = BaseState.CreateNew(table, VillageMap.Demo, T0);
+        state.Apply(new UpgradeHearth(Guid.NewGuid()), T0);
+        var later = T0.AddHours(1);
+        state.Apply(new JoinWorld(Guid.NewGuid(), 12, -7), later);
+        state.Apply(new WorldUpdate(Guid.NewGuid(), 3500, 0), later);
+        state.Apply(new SendWorldMissionary(Guid.NewGuid(), 1201, 2, 3), later).Status.Should().Be(CommandStatus.Accepted);
+        var data = state.ToData();
+
+        // Act
+        var back = VillageJson.Read(VillageJson.Write(data));
+
+        // Assert
+        back.Domain.Should().BeEquivalentTo(data.Domain);
+        back.Domain!.World.Should().Be(new WorldLink(12, -7, 3500));
+        back.Domain.Missionaries.Should().ContainSingle().Which.Distance.Should().Be(3);
     }
 }

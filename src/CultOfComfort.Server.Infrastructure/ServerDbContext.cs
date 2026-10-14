@@ -20,11 +20,24 @@ internal sealed class VillageRow
     public DateTimeOffset UpdatedAtUtc { get; set; }
 }
 
+/// <summary>A shared world: its seed and its ledger as one document, plus the version for the optimistic check.</summary>
+internal sealed class WorldRow
+{
+    public int Id { get; set; }
+    public long Seed { get; set; } // the ulong's bit pattern (SQLite has no unsigned 64-bit integers)
+    public long Version { get; set; }
+    public string Json { get; set; } = string.Empty;
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+}
+
 internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options) : DbContext(options)
 {
     public DbSet<PlayerRow> Players => Set<PlayerRow>();
 
     public DbSet<VillageRow> Villages => Set<VillageRow>();
+
+    public DbSet<WorldRow> Worlds => Set<WorldRow>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -43,6 +56,14 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
             e.ToTable("villages");
             e.HasKey(v => v.PlayerId);
             e.Property(v => v.UpdatedAtUtc).HasConversion(v => v.UtcTicks, v => new DateTimeOffset(v, TimeSpan.Zero));
+        });
+        model.Entity<WorldRow>(e =>
+        {
+            e.ToTable("worlds");
+            e.HasKey(w => w.Id);
+            e.Property(w => w.Id).ValueGeneratedNever();
+            e.Property(w => w.CreatedAtUtc).HasConversion(v => v.UtcTicks, v => new DateTimeOffset(v, TimeSpan.Zero));
+            e.Property(w => w.UpdatedAtUtc).HasConversion(v => v.UtcTicks, v => new DateTimeOffset(v, TimeSpan.Zero));
         });
     }
 }

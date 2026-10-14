@@ -42,6 +42,24 @@ namespace CultOfComfort.Client
             return status == 200 ? JsonUtility.FromJson<GuestDto>(text) : null;
         }
 
+        public async Task<WorldDto> JoinWorldAsync(string token, CancellationToken ct)
+        {
+            var (status, text) = await SendAsync("POST", "/api/world/join", token, null, ct);
+            return status == 200 ? JsonUtility.FromJson<WorldDto>(text) : null;
+        }
+
+        public async Task<WorldDto> GetWorldAsync(string token, int q, int r, int radius, CancellationToken ct)
+        {
+            var (status, text) = await SendAsync("GET", $"/api/world?q={q}&r={r}&radius={radius}", token, null, ct);
+            return status == 200 ? JsonUtility.FromJson<WorldDto>(text) : null;
+        }
+
+        public async Task<WorldCollectDto> CollectWorldAsync(string token, CancellationToken ct)
+        {
+            var (status, text) = await SendAsync("POST", "/api/world/collect", token, null, ct);
+            return status == 200 ? JsonUtility.FromJson<WorldCollectDto>(text) : null;
+        }
+
         public Task<ApiReply> SyncAsync(string token, SyncRequestDto request, CancellationToken ct) =>
             VillageAsync("POST", "/api/base/sync", token, JsonUtility.ToJson(request), ct);
 

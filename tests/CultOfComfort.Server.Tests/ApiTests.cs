@@ -230,4 +230,39 @@ public sealed class ApiTests : IClassFixture<ApiTests.Host>
         resolved.village.lastNight.Should().Be(1);
         resolved.village.shieldEndsAtTicks.Should().BeGreaterThan(0);
     }
+
+    [Fact]
+    public async Task World_JoinThenRead_GivesTheSeedAndYourCult()
+    {
+        // Arrange
+        var client = await GuestAsync();
+
+        // Act
+        var joined = await client.PostAsync("/api/world/join", null);
+        var world = await joined.Content.ReadFromJsonAsync<WorldDto>(VillageJson.Options);
+        var read = await (await client.GetAsync($"/api/world?q={world!.q}&r={world.r}&radius=5")).Content.ReadFromJsonAsync<WorldDto>(VillageJson.Options);
+        var village = await (await client.GetAsync("/api/base")).Content.ReadFromJsonAsync<VillageResponseDto>(VillageJson.Options);
+
+        // Assert
+        joined.StatusCode.Should().Be(HttpStatusCode.OK);
+        world.worldId.Should().Be(1);
+        world.cults.Should().Contain(c => c.id == world.cultId && c.name.StartsWith("Cult of "));
+        read!.cultId.Should().Be(world.cultId);
+        read.viewRadius.Should().Be(5);
+        village!.village.domain.inWorld.Should().BeTrue();
+        (village.village.domain.worldQ, village.village.domain.worldR).Should().Be((world.q, world.r));
+    }
+
+    [Fact]
+    public async Task World_ReadBeforeJoining_NotFound()
+    {
+        // Arrange
+        var client = await GuestAsync();
+
+        // Act
+        var read = await client.GetAsync("/api/world");
+
+        // Assert
+        read.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
 }

@@ -18,6 +18,18 @@ namespace CultOfComfort.Client
         public bool Patron;
         public bool Reachable;
         public bool Home;
+
+        /// <summary>Shared world: the strongest rival's share here and its colour number (-1: none), and whether it's the Patron.</summary>
+        public int RivalShare;
+        public int RivalColour = -1;
+        public bool RivalPatron;
+
+        /// <summary>Shared world: a rival cult's village (a camp on the map), and that cult's id.</summary>
+        public bool Camp;
+        public string CultId;
+
+        /// <summary>Outside the window (your village, when you've panned away).</summary>
+        public bool Hidden;
     }
 
     /// <summary>One "send a missionary" choice on a node's card.</summary>
@@ -44,6 +56,10 @@ namespace CultOfComfort.Client
     /// <summary>Everything the map screen draws, built from the Domain view (pure: tested without Unity's UI).</summary>
     public sealed class WorldMapModel
     {
+        public string Title = "The Marchlands";
+
+        /// <summary>The shared world: a window you can drag and zoom (the Marchlands fit the screen).</summary>
+        public bool Pannable;
         public bool Unlocked;
         public List<MapNodeModel> Nodes = new List<MapNodeModel>();
         public List<(int From, int To)> Roads = new List<(int, int)>();

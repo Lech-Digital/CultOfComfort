@@ -96,6 +96,25 @@ namespace CultOfComfort.Client.Tests
                 return Task.FromResult(code);
             }
 
+            public Task<WorldDto> JoinWorldAsync(string token, CancellationToken ct)
+            {
+                if (Down || !Villages.TryGetValue(token, out var data))
+                {
+                    return Task.FromResult<WorldDto>(null);
+                }
+
+                var state = BaseState.Restore(BuildingTable.Default, VillageMap.Demo, data);
+                state.Apply(new JoinWorld(Guid.NewGuid(), 5, -3), Now);
+                Villages[token] = state.ToData();
+                return Task.FromResult(new WorldDto { worldId = 1, seed = 20261014, cultId = token, q = 5, r = -3, viewQ = 5, viewR = -3, viewRadius = 8 });
+            }
+
+            public Task<WorldDto> GetWorldAsync(string token, int q, int r, int radius, CancellationToken ct) =>
+                Task.FromResult(Down ? null : new WorldDto { worldId = 1, seed = 20261014, cultId = token, q = 5, r = -3, viewQ = q, viewR = r, viewRadius = radius });
+
+            public Task<WorldCollectDto> CollectWorldAsync(string token, CancellationToken ct) =>
+                Task.FromResult(Down ? null : new WorldCollectDto { reason = "No offerings yet." });
+
             public Task<GuestDto> RecoverAsync(string code, CancellationToken ct)
             {
                 if (Down || !Codes.TryGetValue(code, out var oldToken))
@@ -368,6 +387,39 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual(1, snapshot.Buildings.Count(b => b.Type == BuildingType.SlurryChute));
             Assert.AreEqual(new GridPosition(7, 6), snapshot.Buildings.Single(b => b.Type == BuildingType.SlurryChute).Position, "phone A's chute");
             StringAssert.EndsWith("-moved", phoneBCredentials.Token);
+        }
+
+        [Test]
+        public async Task WorldAsync_VillageNotOnAWorld_JoinsAndTheMirrorLearnsWhere()
+        {
+            // Arrange
+            var gateway = Gateway();
+            await gateway.SyncNowAsync(None);
+
+            // Act
+            var world = await gateway.WorldAsync(null, null, 4, None);
+            var snapshot = await gateway.LoadAsync(None);
+
+            // Assert
+            Assert.IsNotNull(world);
+            Assert.AreEqual((5, -3), (world.viewQ, world.viewR), "the window opens around the village");
+            Assert.AreEqual(4, world.viewRadius);
+            Assert.AreEqual(new WorldLink(5, -3, 0), snapshot.Domain.World);
+        }
+
+        [Test]
+        public async Task WorldAsync_Offline_Null()
+        {
+            // Arrange
+            var gateway = Gateway();
+            await gateway.SyncNowAsync(None);
+            _server.Down = true;
+
+            // Act
+            var world = await gateway.WorldAsync(null, null, 4, None);
+
+            // Assert
+            Assert.IsNull(world);
         }
 
         [Test]

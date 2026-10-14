@@ -41,6 +41,15 @@ namespace CultOfComfort.Client
 
         /// <summary>A token for the village the code belongs to, or null (unknown code, or no connection).</summary>
         Task<GuestDto> RecoverAsync(string code, CancellationToken ct);
+
+        /// <summary>Puts the village on a shared world (or finds where it already is): the window around it, or null.</summary>
+        Task<WorldDto> JoinWorldAsync(string token, CancellationToken ct);
+
+        /// <summary>The shared world around (q, r), or null (offline, or the village isn't on a world yet).</summary>
+        Task<WorldDto> GetWorldAsync(string token, int q, int r, int radius, CancellationToken ct);
+
+        /// <summary>Takes the world's offerings purse into the stores, or null offline.</summary>
+        Task<WorldCollectDto> CollectWorldAsync(string token, CancellationToken ct);
     }
 
     /// <summary>Outbound port: where the guest token lives on the device.</summary>

@@ -55,5 +55,8 @@ public sealed class SchemaUpgradeTests : IDisposable
         var count = check.CreateCommand();
         count.CommandText = "SELECT COUNT(*) FROM players;";
         ((long)(await count.ExecuteScalarAsync())!).Should().Be(1);
+        var worlds = check.CreateCommand();
+        worlds.CommandText = "SELECT COUNT(*) FROM worlds;";
+        ((long)(await worlds.ExecuteScalarAsync())!).Should().Be(0, "the shared worlds table exists, empty, on an old database");
     }
 }
