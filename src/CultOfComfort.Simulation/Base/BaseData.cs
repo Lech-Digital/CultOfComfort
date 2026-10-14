@@ -37,7 +37,8 @@ public sealed record TreeCutData(int X, int Y, long CutAtUtcTicks);
 
 public sealed record RaidData(int Id, ulong Seed, long WarningEndsAtUtcTicks);
 
-public sealed record BuildingData(int Id, BuildingType Type, int Level, int X, int Y, long? UpgradeEndsAtUtcTicks, long BufferMilli, long AsOfUtcTicks, bool Wrecked = false, bool Rotated = false);
+public sealed record BuildingData(int Id, BuildingType Type, int Level, int X, int Y, long? UpgradeEndsAtUtcTicks, long BufferMilli, long AsOfUtcTicks, bool Wrecked = false, bool Rotated = false,
+    int? Crew = null);
 
 public sealed class InvalidBaseDataException : Exception
 {

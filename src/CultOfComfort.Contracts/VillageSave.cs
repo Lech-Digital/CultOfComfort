@@ -172,6 +172,7 @@ public sealed class BuildingDto
     public long asOfTicks;
     public bool wrecked;
     public bool rotated;
+    public int crew = -1; // the crew the player chose; -1: a full crew
 }
 
 #pragma warning restore SA1307, SA1401, CS8618

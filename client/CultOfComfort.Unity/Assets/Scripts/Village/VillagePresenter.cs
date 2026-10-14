@@ -18,6 +18,9 @@ namespace CultOfComfort.Client
         public string UpgradeLabel; public bool CanUpgrade; public bool CanDemolish; public bool IsUpgrading; public string Remaining; public bool IsHearth;
         public bool IsWrecked; public string RepairLabel; public bool CanRepair;
         public string DemolishLabel = "Demolish"; public bool IsTerrain; public bool CanMove;
+
+        /// <summary>Who works here (spec 2026-10-14 cultist work): the line, and whether − and + do anything.</summary>
+        public bool ShowCrew; public string CrewLine; public int CrewWanted; public bool CanCrewLess; public bool CanCrewMore;
     }
 
     /// <summary>Turns a village snapshot into what the HUD shows. Pure: no Unity, easy to test.</summary>
@@ -97,10 +100,16 @@ namespace CultOfComfort.Client
                 CanRepair = b.Wrecked && snapshot.Stock.Covers(repair),
                 Output = b.Wrecked ? (spec.IsTower ? "Wrecked — won't fire until repaired" : "Wrecked — produces nothing")
                     : !b.Connected ? "Not connected — build a road to it"
+                    : b.Level > 0 && b.CrewNeeded > 0 && b.Crew == 0 && b.CrewWanted == 0 ? "Nobody assigned — add a worker below"
                     : b.Level > 0 && b.CrewNeeded > 0 && b.Crew == 0 ? $"Needs {b.CrewNeeded} villager{(b.CrewNeeded == 1 ? string.Empty : "s")} — build a Cottage"
                     : b.Level > 0 && spec.Produces != null && spec.Produces != ResourceType.Peat && snapshot.Cold ? "Cold — no Peat, nobody works but the peat cutters"
                     : b.Level == 0 ? string.Empty : spec.Produces != null ? $"+{b.PerHour} {spec.Produces}/h{ComfortNote(spec, b.Level)}" : Effect(spec, b.Level) + ComfortNote(spec, b.Level),
-                Ready = spec.Produces != null && b.Level > 0 ? $"{b.Ready}/{b.Capacity} ready" + (b.CrewNeeded > 0 ? $" · Crew {b.Crew}/{b.CrewNeeded}" : string.Empty) : string.Empty,
+                Ready = spec.Produces != null && b.Level > 0 ? $"{b.Ready}/{b.Capacity} ready" : string.Empty,
+                ShowCrew = b.Level > 0 && b.CrewNeeded > 0 && !b.Wrecked,
+                CrewLine = CrewLine(snapshot, b),
+                CrewWanted = b.CrewWanted,
+                CanCrewLess = b.CrewWanted > 0,
+                CanCrewMore = b.CrewWanted < b.CrewNeeded,
                 UpgradeLabel = upgradeLabel,
                 CanUpgrade = !b.Wrecked && !maxed && !b.IsUpgrading && snapshot.ConstructionEndsAtUtc == null && snapshot.Stock.Covers(next.Cost)
                              && (b.Type == BuildingType.Hearth || b.Level + 1 <= snapshot.HearthLevel),
@@ -109,6 +118,18 @@ namespace CultOfComfort.Client
                 IsUpgrading = b.IsUpgrading,
                 Remaining = b.IsUpgrading ? Duration((long)(b.UpgradeEndsAtUtc.Value - snapshot.AsOfUtc).TotalSeconds) + " left" : string.Empty,
             };
+        }
+
+        /// <summary>"Crew 1/2 · 1 idle": who works here of how many it has room for, and who's free to send.</summary>
+        public static string CrewLine(BaseSnapshot snapshot, BuildingView b)
+        {
+            var line = $"Crew {b.Crew}/{b.CrewNeeded}";
+            if (b.Crew < b.CrewWanted)
+            {
+                line += $" · {b.CrewWanted - b.Crew} short";
+            }
+
+            return line + (snapshot.IdleVillagers > 0 ? $" · {snapshot.IdleVillagers} idle" : string.Empty);
         }
 
         /// <summary>The marker-pen note on the Tension strip.</summary>
@@ -134,7 +155,7 @@ namespace CultOfComfort.Client
         {
             if (key == "people")
             {
-                return $"Villagers {s.Population} · beds {s.Beds}";
+                return $"Villagers {s.Population} · beds {s.Beds}" + (s.IdleVillagers > 0 ? $" · {s.IdleVillagers} idle" : string.Empty);
             }
 
             var resource = key switch

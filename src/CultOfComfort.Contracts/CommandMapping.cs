@@ -54,6 +54,9 @@ public static class CommandMapping
             case SendMissionary c:
                 (dto.buildingId, dto.amount) = (c.NodeId, c.Hours);
                 break;
+            case SetCrew c:
+                (dto.buildingId, dto.amount) = (c.BuildingId, c.Crew);
+                break;
             case SendWorldMissionary c:
                 (dto.buildingId, dto.amount, dto.x) = (c.NodeId, c.Hours, c.Distance);
                 break;
@@ -102,6 +105,7 @@ public static class CommandMapping
             nameof(DebugFillStores) => new DebugFillStores(id),
             nameof(DebugEndShield) => new DebugEndShield(id),
             nameof(SendMissionary) => new SendMissionary(id, dto.buildingId, dto.amount),
+            nameof(SetCrew) => new SetCrew(id, dto.buildingId, dto.amount),
             nameof(SendWorldMissionary) => new SendWorldMissionary(id, dto.buildingId, dto.amount, dto.x),
             nameof(CollectOfferings) => new CollectOfferings(id),
             nameof(StartResearch) => new StartResearch(id, dto.tech ?? string.Empty),

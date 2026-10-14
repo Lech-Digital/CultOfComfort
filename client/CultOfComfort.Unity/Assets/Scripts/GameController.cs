@@ -1613,6 +1613,7 @@ namespace CultOfComfort.Client
             _hud.DemolishClicked += () => SendFromCard(b => new DemolishBuilding(Guid.NewGuid(), b.Id), closeCard: true);
             _hud.FinishNowClicked += () => SendFromCard(_ => new FinishConstructionNow(Guid.NewGuid()));
             _hud.RepairClicked += () => SendFromCard(b => new RepairBuilding(Guid.NewGuid(), b.Id));
+            _hud.CrewChanged += crew => SendFromCard(b => new SetCrew(Guid.NewGuid(), b.Id, crew));
             _hud.DevRaiseTensionClicked += () => SendSimple(new DebugRaiseTension(Guid.NewGuid(), 50));
             _hud.DevSkipWarningClicked += () => SendSimple(new DebugSkipWarning(Guid.NewGuid()));
             _hud.DevFillStoresClicked += () => SendSimple(new DebugFillStores(Guid.NewGuid()));

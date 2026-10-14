@@ -14,8 +14,9 @@ namespace CultOfComfort.Simulation.Base;
 /// <param name="Beds">Villagers it houses.</param>
 /// <param name="Comfort">What it adds to the village's Comfort (negative: Squalor).</param>
 /// <param name="PeatPerHour">Peat it burns while it stands (the Bathhouse's stove).</param>
+/// <param name="Slots">Worker slots at this level (0: the spec's <see cref="BuildingSpec.Workers"/>); a full crew makes <paramref name="PerHour"/>.</param>
 public sealed record BuildingLevel(ResourceBag Cost, int BuildSeconds, int PerHour = 0, int StorageBonus = 0, int SluiceCharges = 0, int Health = 0, int Beds = 0,
-    int Comfort = 0, int PeatPerHour = 0);
+    int Comfort = 0, int PeatPerHour = 0, int Slots = 0);
 
 /// <param name="MaxCountByHearth">How many may stand at Hearth level 1, 2, 3.</param>
 public sealed record BuildingSpec(
@@ -36,6 +37,37 @@ public sealed record BuildingSpec(
     public int MaxLevel => Levels.Count;
 
     public int MaxCount(int hearthLevel) => MaxCountByHearth[Math.Min(Math.Max(hearthLevel, 1), MaxCountByHearth.Count) - 1];
+
+    /// <summary>Worker slots at <paramref name="level"/> (0 while unbuilt, or for a building nobody works in).</summary>
+    public int SlotsAt(int level) => Workers == 0 || level < 1 ? 0 : Levels[Math.Min(level, Levels.Count) - 1].Slots is var s && s > 0 ? s : Workers;
+
+    /// <summary>
+    /// The share of the full rate <paramref name="crew"/> workers make out of <paramref name="slots"/>, in thousandths:
+    /// each worker adds less than the one before (GDD 01: diminishing returns per slot).
+    /// </summary>
+    public static int CrewPerMille(int crew, int slots)
+    {
+        if (slots <= 0)
+        {
+            return 1000;
+        }
+
+        int Shares(int n)
+        {
+            var sum = 0;
+            for (var i = 0; i < n; i++)
+            {
+                sum += i < CrewShares.Length ? CrewShares[i] : CrewShares[^1];
+            }
+
+            return sum;
+        }
+
+        return Shares(Math.Min(Math.Max(crew, 0), slots)) * 1000 / Shares(slots);
+    }
+
+    /// <summary>What each worker adds, in order (spec 2026-10-14 cultist work).</summary>
+    private static readonly int[] CrewShares = { 100, 50, 30, 20 };
 }
 
 /// <summary>The village balance (spec: Content). Versioned separately from combat balance.</summary>
@@ -134,14 +166,14 @@ public sealed class BuildingTable
         [BuildingType.Woodcutter] = new(BuildingType.Woodcutter, "Woodcutter's Lean-to", 1, new[] { 2, 3, 4 }, new[]
         {
             new BuildingLevel(new ResourceBag(50, 0, 0, 0), 30, PerHour: 100, Health: 60),
-            new BuildingLevel(new ResourceBag(150, 0, 10, 0), 5 * 60, PerHour: 170, Health: 90),
-            new BuildingLevel(new ResourceBag(400, 0, 40, 0), 20 * 60, PerHour: 260, Health: 120),
+            new BuildingLevel(new ResourceBag(150, 0, 10, 0), 5 * 60, PerHour: 170, Health: 90, Slots: 2),
+            new BuildingLevel(new ResourceBag(400, 0, 40, 0), 20 * 60, PerHour: 260, Health: 120, Slots: 3),
         }, Produces: ResourceType.Timber, Width: 2, Depth: 1, Workers: 1),
         [BuildingType.PeatCut] = new(BuildingType.PeatCut, "Peat Cut", 1, new[] { 1, 2, 3 }, new[]
         {
             new BuildingLevel(new ResourceBag(80, 0, 10, 0), 60, PerHour: 25, Health: 60),
-            new BuildingLevel(new ResourceBag(200, 0, 30, 0), 8 * 60, PerHour: 45, Health: 90),
-            new BuildingLevel(new ResourceBag(500, 0, 80, 0), 30 * 60, PerHour: 70, Health: 120),
+            new BuildingLevel(new ResourceBag(200, 0, 30, 0), 8 * 60, PerHour: 45, Health: 90, Slots: 3),
+            new BuildingLevel(new ResourceBag(500, 0, 80, 0), 30 * 60, PerHour: 70, Health: 120, Slots: 4),
         }, Produces: ResourceType.Peat, Width: 2, Depth: 4, Workers: 2),
         [BuildingType.StorageHut] = new(BuildingType.StorageHut, "Storage Hut", 1, new[] { 1, 2, 3 }, new[]
         {
@@ -153,8 +185,8 @@ public sealed class BuildingTable
         {
             // 2026.10.4: Devotion was the wall before Hearth 3 (~12 h); now ~3 h with two huts, on the GDD clock.
             new BuildingLevel(new ResourceBag(120, 0, 0, 0), 2 * 60, PerHour: 10, Health: 60, Comfort: 3),
-            new BuildingLevel(new ResourceBag(350, 50, 0, 0), 12 * 60, PerHour: 18, Health: 90, Comfort: 5),
-            new BuildingLevel(new ResourceBag(900, 150, 0, 0), 45 * 60, PerHour: 28, Health: 120, Comfort: 8),
+            new BuildingLevel(new ResourceBag(350, 50, 0, 0), 12 * 60, PerHour: 18, Health: 90, Comfort: 5, Slots: 2),
+            new BuildingLevel(new ResourceBag(900, 150, 0, 0), 45 * 60, PerHour: 28, Health: 120, Comfort: 8, Slots: 3),
         }, Produces: ResourceType.Devotion, Width: 3, Depth: 2, Workers: 1),
         [BuildingType.Cistern] = new(BuildingType.Cistern, "Cistern", 2, new[] { 0, 1, 2 }, new[]
         {
@@ -186,12 +218,12 @@ public sealed class BuildingTable
         [BuildingType.MiddenSorter] = new(BuildingType.MiddenSorter, "Midden Sorter", 2, new[] { 0, 1, 2 }, new[]
         {
             new BuildingLevel(new ResourceBag(150, 0, 0, 0), 3 * 60, PerHour: 12, Health: 70, Comfort: -10),
-            new BuildingLevel(new ResourceBag(400, 0, 40, 0), 15 * 60, PerHour: 22, Health: 100, Comfort: -15),
+            new BuildingLevel(new ResourceBag(400, 0, 40, 0), 15 * 60, PerHour: 22, Health: 100, Comfort: -15, Slots: 2),
         }, Produces: ResourceType.Scrap, Width: 2, Depth: 2, Workers: 1),
         [BuildingType.Bathhouse] = new(BuildingType.Bathhouse, "Bathhouse", 3, new[] { 0, 0, 1 }, new[]
         {
             new BuildingLevel(new ResourceBag(1500, 200, 200, 50), 40 * 60, PerHour: 15, Health: 150, Comfort: 40, PeatPerHour: 10),
-            new BuildingLevel(new ResourceBag(3000, 400, 400, 150), 2 * 60 * 60, PerHour: 25, Health: 220, Comfort: 70, PeatPerHour: 15),
+            new BuildingLevel(new ResourceBag(3000, 400, 400, 150), 2 * 60 * 60, PerHour: 25, Health: 220, Comfort: 70, PeatPerHour: 15, Slots: 3),
         }, Produces: ResourceType.Devotion, Width: 3, Depth: 3, Workers: 2),
         [BuildingType.DirtTrack] = new(BuildingType.DirtTrack, "Dirt Track", 1, new[] { Unlimited, Unlimited, Unlimited },
             new[] { new BuildingLevel(new ResourceBag(2, 0, 0, 0), 0) }, UsesBuilder: false),

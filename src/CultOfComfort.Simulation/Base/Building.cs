@@ -32,6 +32,9 @@ public sealed class Building
     public DateTimeOffset? UpgradeEndsAtUtc { get; internal set; }
     public bool IsUpgrading => UpgradeEndsAtUtc != null;
 
+    /// <summary>The crew the player chose (0 to the level's slots); null: a full crew, whatever the level.</summary>
+    public int? CrewWanted { get; internal set; }
+
     /// <summary>Smashed in a Night: produces nothing and gives no bonuses until repaired. Still in the way.</summary>
     public bool Wrecked { get; internal set; }
 

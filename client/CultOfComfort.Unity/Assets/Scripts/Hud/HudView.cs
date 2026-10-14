@@ -429,6 +429,15 @@ namespace CultOfComfort.Client
         public event Action DemolishClicked;
         public event Action FinishNowClicked;
         public event Action RepairClicked;
+
+        /// <summary>The building card's crew − / +: the crew the player now wants there.</summary>
+        public event Action<int> CrewChanged;
+
+        private VisualElement _crewRow;
+        private Label _crewLine;
+        private Button _crewLess;
+        private Button _crewMore;
+        private int _crewWanted;
         public event Action BuildingCardClosed;
         public event Action StartNightClicked;
         public event Action SluiceClicked;
@@ -638,6 +647,11 @@ namespace CultOfComfort.Client
             Show(_repair, card.IsWrecked);
             _repair.text = card.RepairLabel;
             _repair.SetEnabled(card.CanRepair);
+            Show(_crewRow, card.ShowCrew);
+            _crewLine.text = card.CrewLine ?? string.Empty;
+            _crewWanted = card.CrewWanted;
+            _crewLess.SetEnabled(card.CanCrewLess);
+            _crewMore.SetEnabled(card.CanCrewMore);
         }
 
         private void PickCard(BuildCardModel card)
@@ -1197,13 +1211,32 @@ namespace CultOfComfort.Client
             _move.name = "move";
             _repair = ButtonWith(string.Empty, () => RepairClicked?.Invoke(), "plain");
             _repair.name = "repair";
+            _crewRow = new VisualElement { name = "crew-row" };
+            _crewRow.style.flexDirection = FlexDirection.Row;
+            _crewRow.style.alignItems = Align.Center;
+            _crewLine = Text(string.Empty, "sheet-line");
+            _crewLine.name = "crew-line";
+            _crewLine.style.flexGrow = 1;
+            _crewLess = ButtonWith("−", () => CrewChanged?.Invoke(_crewWanted - 1), "plain");
+            _crewLess.name = "crew-less";
+            _crewMore = ButtonWith("+", () => CrewChanged?.Invoke(_crewWanted + 1), "plain");
+            _crewMore.name = "crew-more";
+            foreach (var b in new[] { _crewLess, _crewMore })
+            {
+                b.style.minWidth = 44;
+                b.style.fontSize = 20;
+            }
+
+            _crewRow.Add(_crewLine);
+            _crewRow.Add(_crewLess);
+            _crewRow.Add(_crewMore);
             var close = ButtonWith("Close", () =>
             {
                 Show(_buildingCard, false);
                 BuildingCardClosed?.Invoke();
             }, "plain");
             close.name = "card-close";
-            foreach (var element in new VisualElement[] { title, output, ready, remaining, _repair, upgrade, finishNow, _move, demolish, close })
+            foreach (var element in new VisualElement[] { title, output, ready, _crewRow, remaining, _repair, upgrade, finishNow, _move, demolish, close })
             {
                 sheet.Add(element);
             }
