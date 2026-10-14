@@ -29,8 +29,11 @@ public sealed record DomainNode(int Id, string Name, NodeType Type, int Q, int R
 /// <param name="OfferingsPerHour">Paid per hour at 100 influence.</param>
 public sealed record NodeKind(NodeType Type, int ReceptivityPercent, int WeightPercent, ResourceBag OfferingsPerHour);
 
-/// <summary>A missionary on the road: walking out, preaching, walking home.</summary>
-public sealed record MissionaryData(int Id, int NodeId, int Hours, long DepartedAtUtcTicks, bool Preached);
+/// <summary>A missionary on the road: walking out, preaching, walking home. <paramref name="Distance"/> is set for a place on the shared world (hexes from home); null in the Marchlands.</summary>
+public sealed record MissionaryData(int Id, int NodeId, int Hours, long DepartedAtUtcTicks, bool Preached, int? Distance = null);
+
+/// <summary>The village's place on a shared world (spec 2026-10-14 shared world): where it stands, and the Tension the world's Authorities add per hour.</summary>
+public sealed record WorldLink(int Q, int R, int TensionPerHourMilli);
 
 /// <summary>The Domain as stored: your influence per node (thousandths), the missionaries out, the offerings purse (thousandths of Timber, Peat, Scrap, Devotion).</summary>
 public sealed record DomainData(
@@ -40,7 +43,8 @@ public sealed record DomainData(
     long AsOfUtcTicks,
     long? NextDecayUtcTicks,
     long? LastTitheUtcTicks,
-    int NextMissionaryId);
+    int NextMissionaryId,
+    WorldLink? World = null);
 
 /// <summary>
 /// Lord Wulfric's Marchlands: one fixed domain of 16 places around the village, the Keep five hexes out. The same

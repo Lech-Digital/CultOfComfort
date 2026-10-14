@@ -54,6 +54,9 @@ public static class CommandMapping
             case SendMissionary c:
                 (dto.buildingId, dto.amount) = (c.NodeId, c.Hours);
                 break;
+            case SendWorldMissionary c:
+                (dto.buildingId, dto.amount, dto.x) = (c.NodeId, c.Hours, c.Distance);
+                break;
             case StartResearch c:
                 dto.tech = c.TechId;
                 break;
@@ -99,6 +102,7 @@ public static class CommandMapping
             nameof(DebugFillStores) => new DebugFillStores(id),
             nameof(DebugEndShield) => new DebugEndShield(id),
             nameof(SendMissionary) => new SendMissionary(id, dto.buildingId, dto.amount),
+            nameof(SendWorldMissionary) => new SendWorldMissionary(id, dto.buildingId, dto.amount, dto.x),
             nameof(CollectOfferings) => new CollectOfferings(id),
             nameof(StartResearch) => new StartResearch(id, dto.tech ?? string.Empty),
             nameof(Trade) => new Trade(id, Resource(dto.give), Resource(dto.get), dto.amount),
@@ -106,6 +110,12 @@ public static class CommandMapping
             _ => throw new ArgumentException($"Unknown command '{dto.type}'."),
         };
     }
+
+    /// <summary>
+    /// Commands only the server's world service gives a village (joining, Tension from the world, offerings). They have
+    /// no wire form: <see cref="ToCommand"/> never builds one, so no client can send them.
+    /// </summary>
+    public static bool IsServerOnly(BaseCommand command) => command is JoinWorld or WorldUpdate or ReceiveOfferings;
 
     /// <summary>Development helpers a real server must refuse: they hand out time, Tension or Night results.</summary>
     public static bool IsDevelopmentOnly(BaseCommand command) =>

@@ -60,6 +60,12 @@ public sealed class DomainDto
     public long nextDecayTicks = -1;
     public long lastTitheTicks = -1;
     public int nextMissionaryId = 1;
+
+    /// <summary>On a shared world (spec 2026-10-14 shared world): where the village stands, and the world's Tension rate.</summary>
+    public bool inWorld;
+    public int worldQ;
+    public int worldR;
+    public int worldTensionMilli;
 }
 
 [Serializable]
@@ -77,6 +83,7 @@ public sealed class MissionaryDto
     public int hours;
     public long departedTicks;
     public bool preached;
+    public int distance; // hexes to a shared-world place; 0 in the Marchlands
 }
 
 [Serializable]

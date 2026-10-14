@@ -55,6 +55,11 @@ public sealed partial class BaseState
     private CommandOutcome SendOut(SendMissionary send, DateTimeOffset now)
     {
         var node = Marchlands.Node(send.NodeId);
+        if (_world != null)
+        {
+            return CommandOutcome.Reject("Preach on the world map now.");
+        }
+
         if (HearthLevel < Domain.UnlockHearth)
         {
             return CommandOutcome.Reject($"The Marchlands open at Hearth {Domain.UnlockHearth}.");
@@ -65,29 +70,14 @@ public sealed partial class BaseState
             return CommandOutcome.Reject("Too far for now. A bigger Hearth, a longer walk.");
         }
 
-        if (Domain.EfficiencyPercent(send.Hours) == null)
+        var problem = DispatchProblem(send.Hours);
+        if (problem != null)
         {
-            return CommandOutcome.Reject("Preach for 1, 2, 4 or 8 hours.");
-        }
-
-        if (_missionaries.Count >= Domain.Missionaries(HearthLevel))
-        {
-            return CommandOutcome.Reject("Every missionary is already out.");
-        }
-
-        if (_population - MissionariesAway < 1)
-        {
-            return CommandOutcome.Reject("Nobody to send: every villager is out already.");
-        }
-
-        var cost = Times(Domain.ProvisionsPerHour, send.Hours);
-        if (!_stock.Covers(cost))
-        {
-            return CommandOutcome.Reject($"Provisions: {cost}.");
+            return CommandOutcome.Reject(problem);
         }
 
         MaterializeDomain(now);
-        _stock -= cost;
+        _stock -= Times(Domain.ProvisionsPerHour, send.Hours);
         _missionaries.Add(new MissionaryData(_nextMissionaryId++, node.Id, send.Hours, now.UtcTicks, Preached: false));
         return CommandOutcome.Accept();
     }
@@ -142,17 +132,44 @@ public sealed partial class BaseState
         return CommandOutcome.Accept();
     }
 
+    /// <summary>What stops a missionary going out for <paramref name="hours"/> (Marchlands or world alike), or null.</summary>
+    private string? DispatchProblem(int hours)
+    {
+        if (HearthLevel < Domain.UnlockHearth)
+        {
+            return $"Missionaries go out from Hearth {Domain.UnlockHearth}.";
+        }
+
+        if (Domain.EfficiencyPercent(hours) == null)
+        {
+            return "Preach for 1, 2, 4 or 8 hours.";
+        }
+
+        if (_missionaries.Count >= Domain.Missionaries(HearthLevel))
+        {
+            return "Every missionary is already out.";
+        }
+
+        if (_population - MissionariesAway < 1)
+        {
+            return "Nobody to send: every villager is out already.";
+        }
+
+        var cost = Times(Domain.ProvisionsPerHour, hours);
+        return _stock.Covers(cost) ? null : $"Provisions: {cost}.";
+    }
+
     private static ResourceBag Times(ResourceBag bag, int k) => new(bag.Timber * k, bag.Peat * k, bag.Scrap * k, bag.Devotion * k);
 
     // ---------------- events (in Advance, in time order) ----------------
 
-    private DateTimeOffset MissionaryPreachEnds(MissionaryData m)
-    {
-        var node = Marchlands.Node(m.NodeId)!;
-        return new DateTimeOffset(m.DepartedAtUtcTicks, TimeSpan.Zero).AddMinutes(node.Distance * Domain.MinutesPerHex).AddHours(m.Hours);
-    }
+    /// <summary>Hexes from home: carried by a world missionary, looked up in the Marchlands otherwise.</summary>
+    private static int MissionaryDistance(MissionaryData m) => m.Distance ?? Marchlands.Node(m.NodeId)!.Distance;
 
-    private DateTimeOffset MissionaryHome(MissionaryData m) => MissionaryPreachEnds(m).AddMinutes(Marchlands.Node(m.NodeId)!.Distance * Domain.MinutesPerHex);
+    private DateTimeOffset MissionaryPreachEnds(MissionaryData m) =>
+        new DateTimeOffset(m.DepartedAtUtcTicks, TimeSpan.Zero).AddMinutes(MissionaryDistance(m) * Domain.MinutesPerHex).AddHours(m.Hours);
+
+    private DateTimeOffset MissionaryHome(MissionaryData m) => MissionaryPreachEnds(m).AddMinutes(MissionaryDistance(m) * Domain.MinutesPerHex);
 
     /// <summary>The next thing to happen in the Domain: a sermon ends, a missionary gets home, influence fades a little.</summary>
     private DateTimeOffset? NextDomainEvent()
@@ -196,6 +213,11 @@ public sealed partial class BaseState
 
     private void Preach(MissionaryData m)
     {
+        if (m.Distance != null || _world != null)
+        {
+            return; // on a shared world the server's ledger grants the influence (and sends any Tension spike)
+        }
+
         var node = Marchlands.Node(m.NodeId)!;
         var before = _influenceMilli[node.Id];
         _influenceMilli[node.Id] = Math.Min(100_000, before + Domain.GainMilli(node, m.Hours) * (100 + Bonus(TechEffect.MissionaryPercent)) / 100);
@@ -275,6 +297,11 @@ public sealed partial class BaseState
     /// <summary>Tension the Domain adds per hour (thousandths): your influence, weighted by how much the Authority minds each place.</summary>
     private long DomainTensionPerHourMilli()
     {
+        if (_world != null)
+        {
+            return _world.TensionPerHourMilli;
+        }
+
         long weighted = 0;
         foreach (var node in Marchlands.Nodes)
         {
@@ -319,7 +346,8 @@ public sealed partial class BaseState
         _domainAsOf.UtcTicks,
         _nextDecayAt?.UtcTicks,
         _lastTitheAt?.UtcTicks,
-        _nextMissionaryId);
+        _nextMissionaryId,
+        _world);
 
     private void RestoreDomain(DomainData? data, DateTimeOffset fallback)
     {
@@ -341,7 +369,8 @@ public sealed partial class BaseState
 
         foreach (var m in data.Missionaries)
         {
-            if (Marchlands.Node(m.NodeId) == null || _table.Domain.EfficiencyPercent(m.Hours) == null || m.Id >= data.NextMissionaryId)
+            var placeKnown = m.Distance != null ? m.Distance > 0 && data.World != null : Marchlands.Node(m.NodeId) != null;
+            if (!placeKnown || _table.Domain.EfficiencyPercent(m.Hours) == null || m.Id >= data.NextMissionaryId)
             {
                 throw new InvalidBaseDataException($"impossible missionary {m.Id}");
             }
@@ -363,5 +392,11 @@ public sealed partial class BaseState
         _nextDecayAt = data.NextDecayUtcTicks == null ? null : new DateTimeOffset(data.NextDecayUtcTicks.Value, TimeSpan.Zero);
         _lastTitheAt = data.LastTitheUtcTicks == null ? null : new DateTimeOffset(data.LastTitheUtcTicks.Value, TimeSpan.Zero);
         _nextMissionaryId = Math.Max(1, data.NextMissionaryId);
+        if (data.World != null && data.World.TensionPerHourMilli < 0)
+        {
+            throw new InvalidBaseDataException("impossible world Tension rate");
+        }
+
+        _world = data.World;
     }
 }

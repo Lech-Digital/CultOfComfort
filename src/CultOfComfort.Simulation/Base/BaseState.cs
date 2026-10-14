@@ -472,7 +472,7 @@ public sealed partial class BaseState
         Advance(nowUtc);
         _now = nowUtc;
         MaterializeAll(nowUtc); // whatever this command changes, production up to now was earned under the old rules
-        if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain or SendMissionary or PayTithe)
+        if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain or SendMissionary or SendWorldMissionary or PayTithe)
         {
             return CommandOutcome.Reject("Not now — there's a Night on.") with { Version = Version };
         }
@@ -499,6 +499,10 @@ public sealed partial class BaseState
             DebugFillStores _ => FillStores(nowUtc),
             DebugEndShield _ => EndShield(nowUtc),
             SendMissionary send => SendOut(send, nowUtc),
+            SendWorldMissionary send => SendOutInWorld(send, nowUtc),
+            JoinWorld join => Join(join, nowUtc),
+            WorldUpdate update => ApplyWorldUpdate(update, nowUtc),
+            ReceiveOfferings receive => Receive(receive.Offerings, nowUtc),
             CollectOfferings _ => CollectOfferings(nowUtc),
             PayTithe tithe => Tithe(tithe, nowUtc),
             StartResearch start => StartStudy(start, nowUtc),
