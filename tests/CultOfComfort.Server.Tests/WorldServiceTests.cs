@@ -78,6 +78,7 @@ public class WorldServiceTests
         cult.Should().NotBeNull();
         cult!.Name.Should().StartWith("Cult of ");
         _worlds.Should().ContainSingle().Which.Seed.Should().Be(new WorldOptions().Seed);
+        _worlds.Single().Ledger.Cults.Count(c => c.IsBot).Should().Be(new WorldOptions().Bots, "a new world opens with its bots");
         _stored[player].Domain!.World.Should().Be(new WorldLink(cult.Q, cult.R, 0));
     }
 
@@ -94,7 +95,7 @@ public class WorldServiceTests
 
         // Assert
         second.Should().Be(first);
-        _worlds.Single().Ledger.Cults.Should().ContainSingle();
+        _worlds.Single().Ledger.Cults.Count(c => !c.IsBot).Should().Be(1);
     }
 
     [Fact]

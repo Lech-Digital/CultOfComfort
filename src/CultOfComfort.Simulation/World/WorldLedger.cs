@@ -28,6 +28,7 @@ public sealed class WorldLedger
     private readonly DomainTable _table;
     private readonly Dictionary<string, WorldCult> _cults = new(StringComparer.Ordinal);
     private readonly Dictionary<int, SortedDictionary<string, long>> _holdings = new();
+    private readonly Dictionary<string, SortedSet<int>> _placesOf = new(StringComparer.Ordinal); // where each cult has (or had) influence: an index, may hold stale places
     private readonly List<WorldMissionary> _missionaries = new();
     private readonly Dictionary<string, long[]> _purses = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateTimeOffset> _purseAsOf = new(StringComparer.Ordinal);
@@ -67,6 +68,7 @@ public sealed class WorldLedger
         }
 
         _missionaries.RemoveAll(m => m.CultId == cultId);
+        _placesOf.Remove(cultId);
         _purses.Remove(cultId);
         _purseAsOf.Remove(cultId);
     }
@@ -276,6 +278,7 @@ public sealed class WorldLedger
         }
 
         var gained = fromLoyalty + taken;
+        Track(cultId, nodeId);
         holders[cultId] = (holders.TryGetValue(cultId, out var mine) ? mine : 0) + gained;
         if (holders[cultId] <= 0)
         {
@@ -285,14 +288,30 @@ public sealed class WorldLedger
         return gained;
     }
 
+    /// <summary>The places where the cult holds influence now (in id order).</summary>
+    public IEnumerable<int> PlacesOf(string cultId) =>
+        _placesOf.TryGetValue(cultId, out var places) ? places.Where(n => Influence(n, cultId) > 0) : Enumerable.Empty<int>();
+
+    private void Track(string cultId, int nodeId)
+    {
+        if (!_placesOf.TryGetValue(cultId, out var places))
+        {
+            places = new SortedSet<int>();
+            _placesOf[cultId] = places;
+        }
+
+        places.Add(nodeId);
+    }
+
     // ---------------- offerings and Tension ----------------
 
     public ResourceBag OfferingsPerHour(string cultId)
     {
         long t = 0, p = 0, s = 0, d = 0;
-        foreach (var (nodeId, holders) in _holdings)
+        foreach (var nodeId in PlacesOf(cultId))
         {
-            if (!holders.TryGetValue(cultId, out var influence) || influence <= 0)
+            var influence = Influence(nodeId, cultId);
+            if (influence <= 0)
             {
                 continue;
             }
@@ -314,12 +333,9 @@ public sealed class WorldLedger
     public int TensionPerHourMilli(string cultId)
     {
         long weighted = 0;
-        foreach (var (nodeId, holders) in _holdings)
+        foreach (var nodeId in PlacesOf(cultId))
         {
-            if (holders.TryGetValue(cultId, out var influence))
-            {
-                weighted += influence * _table.Kinds[_map.Node(nodeId)!.Type].WeightPercent;
-            }
+            weighted += Influence(nodeId, cultId) * _table.Kinds[_map.Node(nodeId)!.Type].WeightPercent;
         }
 
         return (int)(weighted * _table.TensionPer100WeightedInfluenceMilli / (Full * 100));
@@ -407,6 +423,7 @@ public sealed class WorldLedger
 
             ledger.Grant(h.NodeId, h.CultId, 0);
             ledger._holdings[h.NodeId][h.CultId] = h.Milli;
+            ledger.Track(h.CultId, h.NodeId);
         }
 
         ledger._missionaries.AddRange(data.Missionaries);

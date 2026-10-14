@@ -56,6 +56,7 @@ internal sealed class WorldService(
                     cult = target.Ledger.Join(id, string.Empty, isBot: false, PlacementSeed(playerId), now);
                     if (cult != null)
                     {
+                        BotCults.Retire(target.Ledger, Math.Max(options.ActiveCults, target.Ledger.Humans));
                         await SaveAsync(target, ct);
                         break;
                     }
@@ -221,7 +222,8 @@ internal sealed class WorldService(
             foreach (var world in _loaded.Values.OrderBy(w => w.Record.Id))
             {
                 var changes = world.Ledger.Advance(now);
-                if (changes.Count == 0)
+                var sent = BotCults.Act(world.Ledger, Domain, now);
+                if (changes.Count == 0 && sent == 0)
                 {
                     continue;
                 }
@@ -283,6 +285,7 @@ internal sealed class WorldService(
         var seed = options.Seed + (ulong)(id - 1);
         var map = WorldGenerator.Generate(seed);
         var ledger = new WorldLedger(map, Domain, now);
+        BotCults.Populate(ledger, options.Bots, seed, now); // the map feels alive before the players arrive
         var record = new WorldRecord(id, seed, 1, ledger.ToData(), now);
         await worlds.AddAsync(record, ct);
         var world = new LoadedWorld(record, map, ledger);

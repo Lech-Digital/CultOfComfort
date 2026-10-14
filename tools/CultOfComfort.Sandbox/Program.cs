@@ -6,9 +6,21 @@ using CultOfComfort.Simulation.Grid;
 
 // Usage: dotnet run --project tools/CultOfComfort.Sandbox -- [--seed N] [--budget N] [--waves N] [--no-sluice] [--out path] [--open]
 //        dotnet run --project tools/CultOfComfort.Sandbox -- pace [errands|builder|rush] [--hours N] [--verbose]
+//        dotnet run --project tools/CultOfComfort.Sandbox -- world [--seed N] [--humans N] [--bots N] [--days N]
 if (args.FirstOrDefault() == "pace")
 {
     PaceBot.Run(args.Skip(1).ToArray());
+    return;
+}
+
+if (args.FirstOrDefault() == "world")
+{
+    var worldSeed = ulong.Parse(ArgValue("--seed") ?? "20261014");
+    var humans = int.Parse(ArgValue("--humans") ?? "500");
+    var bots = int.Parse(ArgValue("--bots") ?? "80");
+    var days = int.Parse(ArgValue("--days") ?? "14");
+    Console.WriteLine($"CULT OF COMFORT — shared world · seed {worldSeed} · {humans} humans arriving over {days / 3.0:F1} days · {bots} bots");
+    Console.Write(CultOfComfort.Simulation.World.WorldSimulation.Format(CultOfComfort.Simulation.World.WorldSimulation.Run(worldSeed, humans, bots, days)));
     return;
 }
 

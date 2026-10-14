@@ -27,6 +27,11 @@ public sealed class WorldOptions
     /// <summary>How often the world tick runs (sermons ending, decay, bots, Tension pushed to villages).</summary>
     public int TickSeconds { get; set; } = 30;
 
+    /// <summary>Bot cults a new world opens with (spec: 80), and the number of active cults bots make way for humans down to (150).</summary>
+    public int Bots { get; set; } = 80;
+
+    public int ActiveCults { get; set; } = 150;
+
     /// <summary>The window GET /api/world returns at most (hexes around the centre).</summary>
     public int MaxViewRadius { get; set; } = 14;
 }
