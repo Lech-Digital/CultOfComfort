@@ -143,8 +143,9 @@ public class ErrandTests
     [Fact]
     public void Snapshot_GateErrand_CountsOnlyGatesOnTheRaidersRoad()
     {
-        // Arrange — one gate in a field, then one across the road.
+        // Arrange — one gate in a fence line away from the road, then one across the road.
         var state = NewBase(new Errand("gate", "Gate the road", ErrandGoal.BuildOnRoad, BuildingType.Gate, 1, new ResourceBag(100, 0, 0, 0)));
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WattleFence, new GridPosition(Field.X, Field.Y + 1)), T0).Status.Should().Be(CommandStatus.Accepted);
         state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Gate, Field), T0).Status.Should().Be(CommandStatus.Accepted);
         state.Snapshot(T0).Errand!.Done.Should().BeFalse();
         var road = VillageMap.Demo.Road[VillageMap.Demo.Road.Count / 2];

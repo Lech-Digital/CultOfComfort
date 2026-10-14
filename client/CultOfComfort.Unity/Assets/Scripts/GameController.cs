@@ -524,6 +524,14 @@ namespace CultOfComfort.Client
                 return;
             }
 
+            if (_hud.ErrandFolded)
+            {
+                _hud.SetErrandFolded(false); // a folded note opens first; the next tap does the errand
+                SetPref(ErrandFoldedKey, false);
+                RefreshVillage();
+                return;
+            }
+
             try
             {
                 switch (note.Hint)
@@ -1292,10 +1300,22 @@ namespace CultOfComfort.Client
         // ---------------- Helpers ----------------
 
         /// <summary>The tutorial's step this frame (Dusk only, no card or report in the way) and, for a building, where it is on screen.</summary>
+        private const string DrawerCollapsedKey = "hud.drawer.collapsed";
+        private const string ErrandFoldedKey = "hud.errand.folded";
+        private const string CoachOffKey = "hud.coach.off";
+
+        private static bool Pref(string key) => PlayerPrefs.GetInt(key, 0) == 1;
+
+        private static void SetPref(string key, bool on)
+        {
+            PlayerPrefs.SetInt(key, on ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
         private CoachStep CoachNow(out Vector2? point)
         {
             point = null;
-            if (_phase != GamePhase.Dusk || _snapshot == null || _showingReport)
+            if (_phase != GamePhase.Dusk || _snapshot == null || _showingReport || Pref(CoachOffKey))
             {
                 return CoachStep.None;
             }
@@ -1413,7 +1433,7 @@ namespace CultOfComfort.Client
             var settings = ScriptableObject.CreateInstance<PanelSettings>();
             settings.themeStyleSheet = Resources.Load<ThemeStyleSheet>("UI/CocTheme");
             settings.scaleMode = PanelScaleMode.ConstantPhysicalSize;
-            settings.referenceDpi = 160f;
+            settings.referenceDpi = 146f; // 2026-10-14: ~10% bigger than the 160 dp reference (owner: text a little bigger)
             settings.fallbackDpi = 160f;
 
             var document = gameObject.AddComponent<UIDocument>();
@@ -1449,7 +1469,7 @@ namespace CultOfComfort.Client
                 _cardBuilding = null;
                 if (type != null && !BuildingTable.IsPaintable(type.Value) && _snapshot != null)
                 {
-                    var near = BuildingTable.Default.Spec(type.Value).IsTower ? CentreTile() : VillageMap.Demo.Hearth; // homes and work by the Hearth
+                    var near = CentreTile(); // owner 2026-10-14: the ghost appears where the player is looking
                     _tool = PlacementTool.StartNew(type.Value, near, _snapshot, VillageMap.Demo, BuildingTable.Default);
                     BringIntoView(_tool.Anchor);
                 }
@@ -1537,7 +1557,31 @@ namespace CultOfComfort.Client
             _hud.ResetTipsClicked += () =>
             {
                 _tips.Reset();
+                SetPref(CoachOffKey, false);
+                SetPref(ErrandFoldedKey, false);
+                _hud.SetErrandFolded(false);
                 Announce("Tips are back. The Prophet clears his throat.");
+            };
+            // Folding things away (owner 2026-10-14), remembered on the device.
+            _hud.SetDrawerCollapsed(Pref(DrawerCollapsedKey));
+            _hud.SetErrandFolded(Pref(ErrandFoldedKey));
+            _hud.DrawerToggleClicked += () =>
+            {
+                var collapsed = !_hud.DrawerCollapsed;
+                _hud.SetDrawerCollapsed(collapsed);
+                SetPref(DrawerCollapsedKey, collapsed);
+                _framePending = 2;
+            };
+            _hud.ErrandFoldClicked += () =>
+            {
+                _hud.SetErrandFolded(true);
+                SetPref(ErrandFoldedKey, true);
+                RefreshVillage();
+            };
+            _hud.CoachDismissClicked += () =>
+            {
+                SetPref(CoachOffKey, true);
+                Announce("The coach steps aside. Settings → Tips again brings him back.");
             };
             _hud.ShowPhase(_phase);
         }

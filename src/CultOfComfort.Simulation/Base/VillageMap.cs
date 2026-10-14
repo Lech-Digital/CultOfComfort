@@ -124,6 +124,24 @@ public sealed record VillageMap(
     /// the village applies, for a cursor hint before the command is sent. Costs, limits and the builder aren't checked.
     /// </summary>
     /// <param name="moving">The building being moved, which doesn't stand in its own way.</param>
+    public const string GateMisplaced = "A gate goes across the raiders' road, or into a wall, fence or road. Not in a field.";
+
+    /// <summary>
+    /// A gate stands on the raiders' road, or next to (side by side) a wall, a fence or a village road tile: where
+    /// something passes through. Alone in a field it would be a door with no house (owner 2026-10-14).
+    /// </summary>
+    public static bool GateFits(IReadOnlyList<GridPosition> tiles, ICollection<GridPosition> raidersRoad, IEnumerable<GridPosition> wallsFencesAndRoads)
+    {
+        if (tiles.Any(raidersRoad.Contains))
+        {
+            return true;
+        }
+
+        var neighbours = new HashSet<GridPosition>(wallsFencesAndRoads);
+        return tiles.Any(t => neighbours.Contains(new GridPosition(t.X + 1, t.Y)) || neighbours.Contains(new GridPosition(t.X - 1, t.Y))
+                              || neighbours.Contains(new GridPosition(t.X, t.Y + 1)) || neighbours.Contains(new GridPosition(t.X, t.Y - 1)));
+    }
+
     public string? PlacementProblem(BaseSnapshot snapshot, BuildingSpec spec, GridPosition anchor, bool rotated, int? moving = null, BuildingTable? table = null)
     {
         var tiles = Footprint.Tiles(spec, anchor, rotated);
@@ -143,6 +161,12 @@ public sealed record VillageMap(
         if (tiles.Any(road.Contains) && spec.Type != BuildingType.Gate)
         {
             return "That's the raiders' road. Build beside it.";
+        }
+
+        if (spec.Type == BuildingType.Gate && !GateFits(tiles, road,
+                snapshot.Buildings.Where(b => b.Id != moving && (BuildingTable.IsRoad(b.Type) || b.Type is BuildingType.WoodenWall or BuildingType.WattleFence)).SelectMany(b => b.Tiles)))
+        {
+            return GateMisplaced;
         }
 
         var roadGates = (table ?? BuildingTable.Default).RoadGates(snapshot.HearthLevel);

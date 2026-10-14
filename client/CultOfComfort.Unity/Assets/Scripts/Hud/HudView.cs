@@ -170,6 +170,10 @@ namespace CultOfComfort.Client
         private readonly Label _errandClaim;
         private VisualElement _hinted;
         private Label _cloud;
+        private Button _drawerToggle;
+        private Button _errandFold;
+        private bool _drawerCollapsed;
+        private bool _errandFolded;
         private readonly HashSet<string> _openFeatures = new HashSet<string>();
         private readonly Dictionary<string, Button> _featureButtons = new Dictionary<string, Button>();
         private VisualElement _devTools;
@@ -312,12 +316,16 @@ namespace CultOfComfort.Client
             _errandText = Text(string.Empty, "errand-text");
             _errandReward = Text(string.Empty, "errand-reward");
             _errandClaim = Text("Claim ✓", "errand-claim");
+            _errandFold = new Button(() => ErrandFoldClicked?.Invoke()) { name = "errand-fold", text = "–" };
+            _errandFold.AddToClassList("errand-fold");
+            _errandFold.RegisterCallback<ClickEvent>(e => e.StopPropagation()); // folding is not a tap on the note
             foreach (var part in new VisualElement[] { _errandHeading, _errandText, _errandReward, _errandClaim })
             {
                 part.pickingMode = PickingMode.Ignore;
                 _errand.Add(part);
             }
 
+            _errand.Add(_errandFold);
             Show(_errand, false);
             centre.Add(_errand);
             centre.Add(_toast);
@@ -334,6 +342,9 @@ namespace CultOfComfort.Client
             _drawer.AddToClassList("drawer");
             _drawer.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
             _drawer.verticalScrollerVisibility = ScrollerVisibility.Hidden;
+            _drawerToggle = new Button(() => DrawerToggleClicked?.Invoke()) { name = "drawer-toggle", text = "▾ Build" };
+            _drawerToggle.AddToClassList("drawer-toggle");
+            _bar.Add(_drawerToggle);
             _duskBar.Add(_drawer);
             _duskBar.Add(_paintDone); // floats just above the cards while painting
             _duskBar.Add(_repairAll);
@@ -388,7 +399,7 @@ namespace CultOfComfort.Client
             _coachArrow.generateVisualContent += DrawCoachArrow;
             _coachLine = Text(string.Empty, "coach-line", "note-yellow");
             _coachLine.name = "coach-line";
-            _coachLine.pickingMode = PickingMode.Ignore;
+            _coachLine.RegisterCallback<ClickEvent>(_ => CoachDismissClicked?.Invoke()); // tap the note to hide the coach
             _root.Add(_coachArrow);
             _root.Add(_coachLine);
             Show(_coachArrow, false);
@@ -437,6 +448,9 @@ namespace CultOfComfort.Client
         public event Action BackToDuskClicked;
         public event Action ResetTipsClicked;
         public event Action ReplayIntroClicked;
+        public event Action DrawerToggleClicked;
+        public event Action ErrandFoldClicked;
+        public event Action CoachDismissClicked;
         public event Action<string> FeatureClicked;
         public event Action DevFillStoresClicked;
         public event Action DevEndShieldClicked;
@@ -679,7 +693,11 @@ namespace CultOfComfort.Client
             _errandHeading.text = note.Progress == null ? note.Heading : $"{note.Heading} · {note.Progress}";
             _errandText.text = note.Text;
             _errandReward.text = note.Reward;
-            Show(_errandReward, !string.IsNullOrEmpty(note.Reward));
+            Show(_errandReward, !_errandFolded && !string.IsNullOrEmpty(note.Reward));
+            if (_errandFolded)
+            {
+                _errandHeading.text += note.Done ? " · done ✓ ▸" : " ▸";
+            }
             Show(_errandClaim, note.Done);
             _errand.EnableInClassList("done", note.Done);
         }
@@ -715,7 +733,7 @@ namespace CultOfComfort.Client
             _coachPoint = buildingPoint;
             if (changed)
             {
-                _coachLine.text = step.Line ?? string.Empty;
+                _coachLine.text = string.IsNullOrEmpty(step.Line) ? string.Empty : step.Line + "  ✕";
                 if (step.Target == CoachTarget.BuildCard && step.Type != null && _cards.TryGetValue(step.Type.Value, out var card))
                 {
                     _drawer.ScrollTo(card);
@@ -731,6 +749,8 @@ namespace CultOfComfort.Client
         {
             switch (_coach.Target)
             {
+                case CoachTarget.BuildCard when _drawerCollapsed:
+                    return Visible(_drawerToggle) ? _drawerToggle.worldBound : (Rect?)null; // open the drawer first
                 case CoachTarget.BuildCard when _coach.Type != null && _cards.TryGetValue(_coach.Type.Value, out var card) && Visible(card):
                     var drawer = _drawer.worldBound;
                     var bounds = card.worldBound;
@@ -872,6 +892,42 @@ namespace CultOfComfort.Client
 
         /// <summary>The root the map overlay hangs on.</summary>
         public VisualElement Root => _root;
+
+        /// <summary>Folds the build drawer away (the board gets the room) or brings it back.</summary>
+        public void SetDrawerCollapsed(bool collapsed)
+        {
+            _drawerCollapsed = collapsed;
+            Show(_drawer, !collapsed);
+            _drawerToggle.text = collapsed ? "▴ Build" : "▾ Build";
+            _framePendingFromHud = true;
+        }
+
+        /// <summary>Set when the HUD's height changed (the board re-frames); read and cleared by the controller.</summary>
+        public bool TakeFrameRequest()
+        {
+            var pending = _framePendingFromHud;
+            _framePendingFromHud = false;
+            return pending;
+        }
+
+        private bool _framePendingFromHud;
+
+        public bool DrawerCollapsed => _drawerCollapsed;
+
+        /// <summary>Folds the errand note to its heading (tap it to unfold) or opens it fully.</summary>
+        public void SetErrandFolded(bool folded)
+        {
+            _errandFolded = folded;
+            _errand.EnableInClassList("folded", folded);
+            Show(_errandText, !folded);
+            Show(_errandFold, !folded);
+            if (folded)
+            {
+                Show(_errandReward, false);
+            }
+        }
+
+        public bool ErrandFolded => _errandFolded;
 
         /// <summary>The sound and music switches in Settings.</summary>
         public void SetAudio(bool sound, bool music)

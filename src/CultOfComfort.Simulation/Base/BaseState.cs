@@ -1010,6 +1010,12 @@ public sealed partial class BaseState
             }
         }
 
+        if (spec.Type == BuildingType.Gate && !VillageMap.GateFits(tiles, _road,
+                _buildings.Where(b => b != ignore && (BuildingTable.IsRoad(b.Type) || b.Type is BuildingType.WoodenWall or BuildingType.WattleFence)).SelectMany(b => b.Tiles)))
+        {
+            return VillageMap.GateMisplaced; // owner 2026-10-14: a gate alone in a field made no sense
+        }
+
         if (spec.Type == BuildingType.Gate && tiles.Any(_road.Contains)
             && _buildings.Count(b => b != ignore && b.Type == BuildingType.Gate && b.Tiles.Any(_road.Contains)) >= _table.RoadGates(HearthLevel))
         {

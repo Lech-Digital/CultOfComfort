@@ -103,4 +103,35 @@ public class RoadGateTests
         battle.Path.Should().Equal(Map.Road);
         hits.Should().BeGreaterThan(0, "they hack at the gate across the road");
     }
+
+    [Fact]
+    public void Place_GateAloneInAField_Refused()
+    {
+        // Arrange
+        var t0 = new DateTimeOffset(2026, 10, 14, 9, 0, 0, TimeSpan.Zero);
+        var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, t0);
+
+        // Act
+        var outcome = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Gate, new GridPosition(14, 4)), t0);
+
+        // Assert
+        outcome.Status.Should().Be(CommandStatus.Rejected);
+        outcome.Reason.Should().Be(VillageMap.GateMisplaced);
+        VillageMap.Demo.PlacementProblem(state.Snapshot(t0), BuildingTable.Default.Spec(BuildingType.Gate), new GridPosition(14, 4), false).Should().Be(VillageMap.GateMisplaced, "the ghost says so too");
+    }
+
+    [Fact]
+    public void Place_GateBesideAWall_Accepted()
+    {
+        // Arrange
+        var t0 = new DateTimeOffset(2026, 10, 14, 9, 0, 0, TimeSpan.Zero);
+        var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, t0);
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.WoodenWall, new GridPosition(13, 4)), t0).Status.Should().Be(CommandStatus.Accepted);
+
+        // Act
+        var outcome = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Gate, new GridPosition(14, 4)), t0);
+
+        // Assert
+        outcome.Status.Should().Be(CommandStatus.Accepted);
+    }
 }
