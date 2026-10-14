@@ -54,7 +54,12 @@ namespace CultOfComfort.Client.Tests
             var home = model.Nodes.Single(n => n.Home);
             Assert.AreEqual(0.5f, home.At.x, 1e-4f);
             Assert.AreEqual(0.5f, home.At.y, 1e-4f);
-            StringAssert.Contains("World 1", model.Title);
+            StringAssert.StartsWith("The ", model.Title, "whose lands these are");
+            StringAssert.DoesNotContain("World", model.Title, "the title must fit beside the close button");
+            Assert.IsTrue(model.Lord.StartsWith("Lord ") || model.Lord.StartsWith("the Bishop of "), model.Lord);
+            StringAssert.Contains(model.Lord.Substring(1), model.TensionLine, "the temper bar says whose temper it is");
+            Assert.IsNotEmpty(model.TensionHelp);
+            Assert.GreaterOrEqual(model.Help.Count, 4, "the ? sheet explains missionaries, offerings, temper and tithes");
         }
 
         [Test]

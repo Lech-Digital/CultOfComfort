@@ -71,6 +71,18 @@ namespace CultOfComfort.Client
         public float TensionFraction;
         public List<TitheOption> Tithes = new List<TitheOption>();
         public string TitheNote;
+
+        /// <summary>Who rules these lands ("Lord Wulfric", "the Bishop of Sumpwell"): the one the tithe goes to.</summary>
+        public string Lord = "Lord Wulfric";
+
+        /// <summary>One line under the temper bar: what Tension does to you.</summary>
+        public string TensionHelp;
+
+        /// <summary>Which window this is (centre and radius): the view keeps a drag's offset until the window changes.</summary>
+        public string ViewKey = string.Empty;
+
+        /// <summary>"How the lands work", for the ? sheet.</summary>
+        public List<string> Help = new List<string>();
     }
 
     public sealed class NodeCardModel
@@ -182,14 +194,37 @@ namespace CultOfComfort.Client
             var tension = snapshot.Tension;
             var max = table.Tension.Max;
             model.TensionFraction = Mathf.Clamp01(tension / (float)max);
-            model.TensionLine = $"Wulfric's Tension {tension}/{max} · +{domain.TensionPerHourMilli / 1000f:0.#}/h" +
-                                (snapshot.RaidWarningEndsAtUtc != null ? " · raid coming!" : string.Empty);
+            model.TensionLine = TemperLine(model.Lord, tension, max, domain.TensionPerHourMilli, snapshot.RaidWarningEndsAtUtc != null);
+            model.TensionHelp = TemperHelp(model.Lord, max);
+            model.Help = Help(model.Lord, table, world: false);
             model.Tithes = Tithes(snapshot, table);
             model.TitheNote = domain.TitheHalfUntilUtc != null
                 ? $"Wulfric was paid recently: tithes work at half strength for {VillagePresenter.Duration((long)(domain.TitheHalfUntilUtc.Value - now).TotalSeconds)}."
                 : "A tithe calms Wulfric down. Pay enough during a warning and he calls the raid off.";
             return model;
         }
+
+        /// <summary>The temper bar's line: how angry the lord is and how fast it's rising.</summary>
+        public static string TemperLine(string lord, int tension, int max, long perHourMilli, bool raidComing) =>
+            $"{Capital(lord)}'s temper: {tension}/{max}" + (perHourMilli > 0 ? $" · rising {perHourMilli / 1000f:0.#}/h" : string.Empty)
+            + (raidComing ? " · raid coming!" : string.Empty);
+
+        public static string TemperHelp(string lord, int max) =>
+            $"Your faith in his lands angers him. At {max} he raids your village. A tithe calms him.";
+
+        /// <summary>What the map is for, in plain words (the ? sheet; shown once, the first time the map opens).</summary>
+        public static List<string> Help(string lord, BuildingTable table, bool world) => new List<string>
+        {
+            "Spread the faith. Tap a place and send a missionary: a villager with provisions walks there, preaches, and wins a share of the place's faith. While away, they don't work at home.",
+            $"Hold {table.Domain.PatronInfluence}% of a place and you're its Patron. The places you hold send offerings (Timber, Peat, Scrap, Devotion); they pile up here until you tap Collect.",
+            world ? "Other players' cults and wandering cults preach here too. The faithful split between you, and faith fades a little every day unless you keep preaching."
+                  : "Faith fades a little every day unless you keep preaching.",
+            $"{Capital(lord)} doesn't like it. The more faith you hold, the faster his temper (Tension) rises. When it's full he raids your village at night.",
+            "Pay a tithe to calm him: resources for a lower temper. During a raid warning, pay enough and he calls the raid off.",
+            "A bigger Hearth sends more missionaries, further.",
+        };
+
+        private static string Capital(string text) => string.IsNullOrEmpty(text) ? text : char.ToUpperInvariant(text[0]) + text.Substring(1);
 
         /// <summary>Small, large, and (during a warning) exactly enough to buy off the raid.</summary>
         public static List<TitheOption> Tithes(BaseSnapshot snapshot, BuildingTable table)
@@ -200,7 +235,7 @@ namespace CultOfComfort.Client
             var options = new List<TitheOption>();
             void Add(string name, ResourceBag bag) => options.Add(new TitheOption
             {
-                Label = $"{name}: {VillagePresenter.ShortCost(bag)} · Tension −{Drop(bag)}", Amount = bag, Enabled = snapshot.Stock.Covers(bag) && snapshot.Tension > 0,
+                Label = $"{name}: {VillagePresenter.ShortCost(bag)} · temper −{Drop(bag)}", Amount = bag, Enabled = snapshot.Stock.Covers(bag) && snapshot.Tension > 0,
             });
             Add("A modest tithe", new ResourceBag(200, 0, 0, 0));
             Add("A generous tithe", new ResourceBag(400, 0, 100, 50));
