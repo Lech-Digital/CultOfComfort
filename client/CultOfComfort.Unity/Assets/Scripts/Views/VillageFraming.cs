@@ -27,8 +27,9 @@ namespace CultOfComfort.Client
                 }
             }
 
-            maxX = Mathf.Min(maxX, Mathf.Max(HomeWidth - 1, map.Hearth.X + 1));
-            maxY = Mathf.Min(maxY, Mathf.Max(HomeHeight - 1, map.Hearth.Y + 1));
+            var hearthEnd = map.HearthTiles[map.HearthTiles.Count - 1];
+            maxX = Mathf.Min(maxX, Mathf.Max(HomeWidth - 1, hearthEnd.X + 1));
+            maxY = Mathf.Min(maxY, Mathf.Max(HomeHeight - 1, hearthEnd.Y + 1));
             return (new Vector2(0f, -maxY), new Vector2(maxX, 0f));
         }
 

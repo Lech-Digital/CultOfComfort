@@ -62,57 +62,7 @@ def sack(part, centre, swatch="daub"):
 
 # ---------------- the Hearth, grown by accretion (spec: Hearth evolution) ----------------
 
-def hearth_ruin(ruin):
-    """Level 1: the reclaimed Roman bath ruin."""
-    ruin.box((1.6, 1.4, 0.18), (0, 0, 0.09), "worn_stone", bevel=0.03, rotation=(0, 0, 1))            # plinth
-    ruin.box((1.5, 0.12, 0.08), (0, -0.66, 0.2), "roman_marble", bevel=0.015)                         # front step
-    ruin.cylinder(0.42, 0.04, (0.12, 0.05, 0.19), "roman_marble", segments=14)                        # pool lip
-    ruin.cylinder(0.36, 0.04, (0.12, 0.05, 0.205), "water", segments=14)                              # the water
-    for x, y, h in ((-0.62, -0.5, 1.15), (-0.62, 0.5, 0.75), (0.62, 0.5, 1.2), (0.62, -0.5, 0.45)):
-        ruin.cylinder(0.09, h, (x, y, 0.18 + h / 2), "roman_marble", segments=10)
-        ruin.cylinder(0.12, 0.06, (x, y, 0.2), "worn_stone", segments=10)
-    ruin.cylinder(0.09, 0.3, (0.3, -0.42, 0.27), "roman_marble", segments=10, rotation=(90, 0, 30))  # fallen drum
-    ruin.box((0.2, 1.25, 0.14), (-0.62, 0.0, 1.38), "roman_marble", bevel=0.02, rotation=(0, -4, 0))  # architrave
-    ruin.box((0.23, 0.6, 0.06), (-0.62, -0.25, 1.48), "worn_stone", bevel=0.01, rotation=(0, -4, 0))
-    ruin.cylinder(0.02, 0.9, (0.75, -0.62, 0.6), "old_wood", segments=5)                              # tarp pole
-    ruin.box((0.72, 0.9, 0.02), (0.55, -0.08, 1.22), "tarp_blue", bevel=0, rotation=(-14, 9, 0))      # the tarp
-    ruin.cylinder(0.008, 0.5, (0.78, -0.45, 1.02), "thatch", segments=4, rotation=(20, 0, 0))
-    for k in range(3):                                                                                 # first log patch
-        ruin.cylinder(0.06, 0.9, (0.1, 0.62, 0.3 + k * 0.12), "fresh_log", segments=7, rotation=(0, 90, 0))
-    ruin.cylinder(0.14, 0.12, (-0.25, -0.25, 0.27), "fieldstone", segments=9, radius_top=0.18)        # brazier
-    ruin.cylinder(0.15, 0.03, (-0.25, -0.25, 0.34), "tarred_wood", segments=9)
-
-
-def hearth_banya(part):
-    """Level 2: a Slavic log banya bolted onto the back of the ruin, shingle-ish roof, stone chimney, second tarp."""
-    for wall in (((0.1, 0.62), (0.95, 0.62)), ((0.95, 0.62), (0.95, 1.35)), ((0.95, 1.35), (0.1, 1.35)), ((0.1, 1.35), (0.1, 0.62))):
-        log_wall(part, *wall, height=0.62, z0=0.18, radius=0.055)
-    thatch_roof(part, 0.85, 0.73, (0.52, 0.985, 0.8), 0.42, lean=-2)
-    part.box((0.18, 0.18, 0.75), (0.82, 1.2, 0.95), "fieldstone", bevel=0.02, rotation=(0, 2, 0))     # chimney
-    part.box((0.36, 0.5, 0.02), (0.3, 1.05, 1.08), "woad", bevel=0, rotation=(8, -22, 10))            # a woad-dyed "tarp" (there is only one Tarp)
-    part.box((0.18, 0.04, 0.34), (0.52, 0.6, 0.36), "tarred_wood", bevel=0.01)                        # banya door
-    part.box((0.1, 0.03, 0.06), (0.78, 0.6, 0.56), "window", bevel=0.005)                              # glowing window
-
-
-def hearth_upper(part):
-    """Level 3: a thatched upper floor on daub walls above the ruin, junk 'copper' pipes into the pool,
-    and a little water wheel."""
-    part.box((0.9, 0.7, 0.42), (-0.3, 0.1, 1.68), "daub", bevel=0.03, rotation=(0, 0, -2))            # upper floor walls
-    for x in (-0.72, 0.12):
-        part.box((0.06, 0.72, 0.44), (x, 0.1, 1.68), "old_wood", bevel=0.01)                          # timber frame
-    part.box((0.92, 0.06, 0.06), (-0.3, -0.25, 1.89), "old_wood", bevel=0.01)
-    thatch_roof(part, 0.9, 0.7, (-0.3, 0.1, 1.9), 0.45, lean=2)
-    part.box((0.12, 0.03, 0.12), (-0.5, -0.26, 1.7), "window", bevel=0.005)
-    # Pipes (gold_trim stands in for salvaged copper) from the banya chimney down into the pool.
-    part.cylinder(0.03, 0.7, (0.55, 0.62, 0.9), "gold_trim", segments=6, rotation=(0, 90, 0))
-    part.cylinder(0.03, 0.6, (0.2, 0.62, 0.62), "gold_trim", segments=6)
-    part.cylinder(0.03, 0.5, (0.2, 0.38, 0.33), "gold_trim", segments=6, rotation=(90, 0, 0))
-    part.cylinder(0.05, 0.05, (0.2, 0.15, 0.33), "ochre_clay", segments=6, rotation=(90, 0, 0))      # a clay tap, after a drawing of a 2024 tap
-    # Water wheel on the right side, turned by nothing in particular.
-    part.cylinder(0.32, 0.08, (1.02, -0.1, 0.42), "old_wood", segments=10, rotation=(0, 90, 0))
-    part.cylinder(0.06, 0.2, (1.02, -0.1, 0.42), "tarred_wood", segments=6, rotation=(0, 90, 0))
-    for k in range(4):
-        part.box((0.1, 0.62, 0.05), (1.02, -0.1, 0.42), "fresh_log", bevel=0.005, rotation=(k * 45, 0, 0))
+# The Hearth's own pieces live in lib/hearth.py.
 
 
 # ---------------- upgrade kit: what a building collects as it levels up (spec: Muddy Satire) ----------------

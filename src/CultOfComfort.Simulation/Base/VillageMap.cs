@@ -46,7 +46,30 @@ public sealed record VillageMap(
         new MapZone(30, 0, 37, 19, 2),
         new MapZone(0, 26, 47, 31, 3),
         new MapZone(38, 0, 47, 25, 3),
-    }, DemoBoulders, SpawnClearance: 3);
+    }, DemoBoulders, SpawnClearance: 3) { HearthSize = 4 };
+
+    /// <summary>
+    /// The Hearth's ground is <c>HearthSize</c> × <c>HearthSize</c> tiles: the Roman ruin and the Prophet's car (owner
+    /// 2026-10-14: "from level one, way bigger"). <see cref="Hearth"/> is the fire, one tile in from the north-west corner.
+    /// Raiders still march to the fire, across the ruin's floor.
+    /// </summary>
+    public int HearthSize { get; init; } = 1;
+
+    private IReadOnlyList<GridPosition>? _hearthTiles;
+
+    public IReadOnlyList<GridPosition> HearthTiles => _hearthTiles ??=
+        Footprint.Tiles(new GridPosition(Hearth.X - (HearthSize - 1) / 2, Hearth.Y - (HearthSize - 1) / 2), HearthSize, HearthSize, false);
+
+    public bool IsHearthTile(GridPosition tile) => HearthTiles.Contains(tile);
+
+    /// <summary>Chebyshev distance from the Hearth's ground (0 on it).</summary>
+    public int DistanceFromHearth(GridPosition tile)
+    {
+        var first = HearthTiles[0];
+        var dx = tile.X < first.X ? first.X - tile.X : System.Math.Max(0, tile.X - (first.X + HearthSize - 1));
+        var dy = tile.Y < first.Y ? first.Y - tile.Y : System.Math.Max(0, tile.Y - (first.Y + HearthSize - 1));
+        return System.Math.Max(dx, dy);
+    }
 
     /// <summary>Rock that can never be cleared: the walls that shape the raiders' road.</summary>
     public bool IsBedrock(GridPosition tile) => Rocks.Contains(tile) && (Boulders == null || !Boulders.Contains(tile));
@@ -79,7 +102,7 @@ public sealed record VillageMap(
             {
                 var tile = new GridPosition(x, y);
                 var hash = (x * 73856093) ^ (y * 19349663) ^ 0x2545F491;
-                var nearHearth = System.Math.Max(System.Math.Abs(x - Hearth.X), System.Math.Abs(y - Hearth.Y)) <= 1;
+                var nearHearth = DistanceFromHearth(tile) <= 1;
                 if ((hash & 0x7fffffff) % 12 == 5 && !road.Contains(tile) && !Rocks.Contains(tile) && !IsInSpawnClearance(tile) && !nearHearth && tile != Spawn)
                 {
                     trees.Add(tile);
@@ -153,7 +176,7 @@ public sealed record VillageMap(
             return $"That land opens at Hearth {OpensAt(locked.Value)}.";
         }
 
-        if (tiles.Any(t => !Contains(t) || t == Spawn || t == Hearth))
+        if (tiles.Any(t => !Contains(t) || t == Spawn || IsHearthTile(t)))
         {
             return "Can't build there.";
         }

@@ -13,7 +13,7 @@ namespace CultOfComfort.Simulation.Base;
 public sealed partial class BaseState
 {
     /// <summary>Saves before footprints (layout version 0) are migrated on load: every building finds room for its shape.</summary>
-    public const int CurrentLayoutVersion = 4; // 4: production flows straight into the stores (no buffers to collect)
+    public const int CurrentLayoutVersion = 5; // 4: production flows straight into the stores; 5: the Hearth's ground is 4×4
 
     private const int RememberedCommands = 64;
     private const int HearthId = 0;
@@ -69,7 +69,7 @@ public sealed partial class BaseState
             _stock = table.StartingStock, _tensionAsOf = nowUtc, _population = table.HearthBeds, _populationAsOf = nowUtc, _upkeepAsOf = nowUtc,
             _domainAsOf = nowUtc,
         };
-        state._buildings.Add(new Building(HearthId, BuildingType.Hearth, map.Hearth, 1, nowUtc));
+        state._buildings.Add(new Building(HearthId, BuildingType.Hearth, map.Hearth, 1, nowUtc, map.HearthTiles));
         return state;
     }
 
@@ -113,7 +113,8 @@ public sealed partial class BaseState
             }
 
             var anchor = new GridPosition(b.X, b.Y);
-            var tiles = data.LayoutVersion >= 1 ? Footprint.Tiles(spec, anchor, b.Rotated) : new[] { anchor }; // shapes arrived in layout version 1
+            var tiles = b.Type == BuildingType.Hearth ? map.HearthTiles
+                : data.LayoutVersion >= 1 ? Footprint.Tiles(spec, anchor, b.Rotated) : new[] { anchor }; // shapes arrived in layout version 1
             state._buildings.Add(new Building(b.Id, b.Type, anchor, b.Level, new DateTimeOffset(b.AsOfUtcTicks, TimeSpan.Zero), tiles, b.Rotated)
             {
                 BufferMilli = b.BufferMilli,
@@ -147,6 +148,10 @@ public sealed partial class BaseState
         if (data.LayoutVersion < 1)
         {
             state.MigrateLayout();
+        }
+        else if (data.LayoutVersion < 5)
+        {
+            state.ClearHearthGround();
         }
 
         if (data.LayoutVersion < 2)
@@ -185,39 +190,69 @@ public sealed partial class BaseState
         _buildings.Add(old.Single(b => b.Type == BuildingType.Hearth));
         foreach (var b in old.Where(b => b.Type != BuildingType.Hearth).OrderBy(b => b.Id))
         {
-            var spec = _table.Spec(b.Type);
-            (GridPosition Anchor, bool Rotated)? spot = null;
-            foreach (var candidate in Candidates(b.Position))
-            {
-                if (FitProblem(spec, candidate.Anchor, candidate.Rotated, checkTrees: false) == null)
-                {
-                    spot = candidate;
-                    break;
-                }
-            }
-
-            if (spot == null)
-            {
-                ResourceBag paid = default;
-                var levelsPaid = Math.Min(b.Level + (b.IsUpgrading ? 1 : 0), spec.MaxLevel);
-                for (var level = 0; level < levelsPaid; level++)
-                {
-                    paid += spec.Levels[level].Cost;
-                }
-
-                _stock += paid;
-                continue;
-            }
-
-            var (anchor, rotated) = spot.Value;
-            _buildings.Add(new Building(b.Id, b.Type, anchor, b.Level, b.AsOfUtc, Footprint.Tiles(spec, anchor, rotated), rotated)
-            {
-                BufferMilli = b.BufferMilli,
-                UpgradeEndsAtUtc = b.UpgradeEndsAtUtc,
-                Wrecked = b.Wrecked,
-                CrewWanted = b.CrewWanted,
-            });
+            Resettle(b);
         }
+    }
+
+    /// <summary>
+    /// A save from before the Hearth's 4×4 ground: whatever stood on the ruin moves off it, the same way (nearest spot
+    /// that fits, else refunded). A road under the ruin just goes; the ruin's own floor carries the network.
+    /// </summary>
+    private void ClearHearthGround()
+    {
+        var hearth = new HashSet<GridPosition>(_map.HearthTiles);
+        var displaced = _buildings.Where(b => b.Type != BuildingType.Hearth && b.Tiles.Any(hearth.Contains)).OrderBy(b => b.Id).ToList();
+        foreach (var b in displaced)
+        {
+            _buildings.Remove(b);
+        }
+
+        _network = null;
+        foreach (var b in displaced.Where(b => !BuildingTable.IsRoad(b.Type)))
+        {
+            Resettle(b);
+        }
+    }
+
+    /// <summary>
+    /// Puts an uprooted building back: its anchor if its shape fits, else turned, else the nearest spot (up to 4 tiles
+    /// away) that fits; with no room it is taken down and everything paid for it comes back.
+    /// </summary>
+    private void Resettle(Building b)
+    {
+        var spec = _table.Spec(b.Type);
+        (GridPosition Anchor, bool Rotated)? spot = null;
+        foreach (var candidate in Candidates(b.Position))
+        {
+            if (FitProblem(spec, candidate.Anchor, candidate.Rotated, checkTrees: false) == null)
+            {
+                spot = candidate;
+                break;
+            }
+        }
+
+        if (spot == null)
+        {
+            ResourceBag paid = default;
+            var levelsPaid = Math.Min(b.Level + (b.IsUpgrading ? 1 : 0), spec.MaxLevel);
+            for (var level = 0; level < levelsPaid; level++)
+            {
+                paid += spec.Levels[level].Cost;
+            }
+
+            _stock += paid;
+            return;
+        }
+
+        var (anchor, rotated) = spot.Value;
+        _buildings.Add(new Building(b.Id, b.Type, anchor, b.Level, b.AsOfUtc, Footprint.Tiles(spec, anchor, rotated), rotated)
+        {
+            BufferMilli = b.BufferMilli,
+            UpgradeEndsAtUtc = b.UpgradeEndsAtUtc,
+            Wrecked = b.Wrecked,
+            CrewWanted = b.CrewWanted,
+        });
+        _network = null;
     }
 
     /// <summary>
@@ -301,9 +336,8 @@ public sealed partial class BaseState
             carriers.UnionWith(b.Tiles);
         }
 
-        var network = new HashSet<GridPosition> { _map.Hearth };
-        var frontier = new Queue<GridPosition>();
-        frontier.Enqueue(_map.Hearth);
+        var network = new HashSet<GridPosition>(_map.HearthTiles);
+        var frontier = new Queue<GridPosition>(_map.HearthTiles);
         while (frontier.Count > 0)
         {
             foreach (var next in Neighbours(frontier.Dequeue()))
@@ -419,7 +453,7 @@ public sealed partial class BaseState
             foreach (var tile in b.Tiles)
             {
                 if (!tiles.Add(tile) || (b.Type != BuildingType.Hearth
-                    && (!_map.IsOpen(tile, HearthLevel) || tile == _map.Spawn || tile == _map.Hearth || (_road.Contains(tile) && b.Type != BuildingType.Gate)
+                    && (!_map.IsOpen(tile, HearthLevel) || tile == _map.Spawn || _map.IsHearthTile(tile) || (_road.Contains(tile) && b.Type != BuildingType.Gate)
                         || _map.IsBedrock(tile) || (_map.IsBoulder(tile) && !_cleared.Contains(tile)))))
                 {
                     Fail($"building {b.Id} stands somewhere it cannot");
@@ -971,7 +1005,7 @@ public sealed partial class BaseState
 
         foreach (var tile in tiles)
         {
-            if (!_map.Contains(tile) || tile == _map.Spawn || tile == _map.Hearth)
+            if (!_map.Contains(tile) || tile == _map.Spawn || _map.IsHearthTile(tile))
             {
                 return "Can't build there.";
             }
@@ -999,7 +1033,7 @@ public sealed partial class BaseState
 
         foreach (var tile in tiles)
         {
-            if (!_map.Contains(tile) || tile == _map.Spawn || tile == _map.Hearth || _buildings.Any(b => b != ignore && b.Tiles.Contains(tile)) || _map.IsBedrock(tile))
+            if (!_map.Contains(tile) || tile == _map.Spawn || _map.IsHearthTile(tile) || _buildings.Any(b => b != ignore && b.Tiles.Contains(tile)) || _map.IsBedrock(tile))
             {
                 return "Can't build there.";
             }

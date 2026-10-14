@@ -11,7 +11,7 @@ public class RoadTests
     // A track from (20,14) round to the Hearth at (17,9): west to x 18, then north to the tile beside the Hearth.
     private static readonly GridPosition[] TrackToHearth =
     {
-        new(19, 14), new(18, 14), new(18, 13), new(18, 12), new(18, 11), new(18, 10), new(18, 9),
+        new(19, 14), new(18, 14), new(18, 13), new(18, 12), // (18,11) is the edge of the Hearth's ruin
     };
 
     private static BuildingTable Table() => new() { StartingStock = new ResourceBag(5000, 900, 1000, 300), StarterStockMinutes = 0 }; // connection maths, no starter pile
@@ -167,16 +167,16 @@ public class RoadTests
     [Fact]
     public void Network_WallsCutRoadsGatesCarryThem()
     {
-        // Arrange — Hearth (17,9) → track (18,9) → gate (19,9) → track (20,9) → lean-to (21,9)–(22,9).
-        var state = WithFinishedWoodcutterAt(21, 9);
-        Paint(state, BuildingType.DirtTrack, new(18, 9), new(20, 9));
-        Place(state, BuildingType.Gate, 19, 9).Status.Should().Be(CommandStatus.Accepted);
+        // Arrange — the Hearth's ruin (east edge x 19) → track (20,11) → gate (21,11) → track (22,11) → lean-to (23,11)–(24,11).
+        var state = WithFinishedWoodcutterAt(23, 11);
+        Paint(state, BuildingType.DirtTrack, new(20, 11), new(22, 11));
+        Place(state, BuildingType.Gate, 21, 11).Status.Should().Be(CommandStatus.Accepted);
         var throughTheGate = Woodcutter(state, T0).Connected;
 
         // Act — swap the gate for a wall.
-        var gate = state.Snapshot(T0).BuildingAt(new GridPosition(19, 9))!.Id;
+        var gate = state.Snapshot(T0).BuildingAt(new GridPosition(21, 11))!.Id;
         state.Apply(new DemolishBuilding(Guid.NewGuid(), gate), T0);
-        Place(state, BuildingType.WoodenWall, 19, 9).Status.Should().Be(CommandStatus.Accepted);
+        Place(state, BuildingType.WoodenWall, 21, 11).Status.Should().Be(CommandStatus.Accepted);
 
         // Assert
         throughTheGate.Should().BeTrue();
@@ -189,7 +189,7 @@ public class RoadTests
         // Arrange
         var state = RichBase();
         var before = state.Snapshot(T0).Caps.Timber;
-        Place(state, BuildingType.StorageHut, 20, 11);
+        Place(state, BuildingType.StorageHut, 22, 13);
         state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
 
         // Act
