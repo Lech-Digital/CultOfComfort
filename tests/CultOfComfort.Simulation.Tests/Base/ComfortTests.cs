@@ -154,3 +154,35 @@ public class ComfortTests
         withBath.Snapshot(later).Comfort.Should().BeGreaterThanOrEqualTo(35 + 40);
     }
 }
+
+public class DevCommandTests
+{
+    private static readonly DateTimeOffset T0 = new(2026, 10, 14, 8, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public void FillStores_AnyVillage_EveryStoreAtItsCap()
+    {
+        // Arrange
+        var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+
+        // Act
+        var outcome = state.Apply(new DebugFillStores(Guid.NewGuid()), T0);
+
+        // Assert
+        outcome.Status.Should().Be(CommandStatus.Accepted);
+        state.Snapshot(T0).Stock.Should().Be(state.Snapshot(T0).Caps);
+    }
+
+    [Fact]
+    public void EndShield_NoShield_Rejected()
+    {
+        // Arrange
+        var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+
+        // Act
+        var outcome = state.Apply(new DebugEndShield(Guid.NewGuid()), T0);
+
+        // Assert
+        outcome.Status.Should().Be(CommandStatus.Rejected);
+    }
+}

@@ -491,6 +491,7 @@ public sealed partial class BaseState
             DebugRaiseTension raise => RaiseTension(raise.Amount, nowUtc),
             DebugSkipWarning _ => SkipWarning(nowUtc),
             DebugFillStores _ => FillStores(nowUtc),
+            DebugEndShield _ => EndShield(nowUtc),
             RepairBuilding repair => Repair(repair.BuildingId, nowUtc),
             _ => CommandOutcome.Reject("Unknown order."),
         };
@@ -1273,6 +1274,18 @@ public sealed partial class BaseState
         var perSecondTimes3600 = TensionRate * 1000L;
         var seconds = (need * 3600 + perSecondTimes3600 - 1) / perSecondTimes3600; // round up: reached, not almost
         return start.AddSeconds(seconds);
+    }
+
+    private CommandOutcome EndShield(DateTimeOffset now)
+    {
+        if (!(_shieldEndsAt > now))
+        {
+            return CommandOutcome.Reject("There is no shield up.");
+        }
+
+        _shieldEndsAt = now;
+        Advance(now);
+        return CommandOutcome.Accept();
     }
 
     private CommandOutcome FillStores(DateTimeOffset now)

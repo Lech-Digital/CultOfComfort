@@ -197,7 +197,7 @@ namespace CultOfComfort.Client
             }
 
             var total = wrecked.Aggregate(default(ResourceBag), (sum, b) => sum + table.RepairCost(b.Type, b.Level));
-            return $"Repair all ({wrecked.Count}) · {total}";
+            return $"Repair all ({wrecked.Count}) · {ShortCost(total)}";
         }
 
         public static FrameState Frame(BaseSnapshot s) => new FrameState(

@@ -436,6 +436,7 @@ namespace CultOfComfort.Client
         public event Action ResetTipsClicked;
         public event Action ReplayIntroClicked;
         public event Action DevFillStoresClicked;
+        public event Action DevEndShieldClicked;
         public event Action VillageCodeClicked;
         public event Action<string> RecoverClicked;
         public event Action SoundToggled;
@@ -1074,6 +1075,9 @@ namespace CultOfComfort.Client
             _devTools.Add(raise);
             _devTools.Add(skip);
             _devTools.Add(fill);
+            var shield = ButtonWith("Lift shield", () => DevEndShieldClicked?.Invoke(), "plain");
+            shield.name = "dev-end-shield";
+            _devTools.Add(shield);
             Show(_devTools, false);
             sheet.Add(_devTools);
             sheet.Add(Text($"Build {Application.version}", "sheet-line", "small"));

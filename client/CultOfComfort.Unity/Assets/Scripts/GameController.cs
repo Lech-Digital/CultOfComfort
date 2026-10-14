@@ -1357,6 +1357,7 @@ namespace CultOfComfort.Client
             _hud.DevRaiseTensionClicked += () => SendSimple(new DebugRaiseTension(Guid.NewGuid(), 50));
             _hud.DevSkipWarningClicked += () => SendSimple(new DebugSkipWarning(Guid.NewGuid()));
             _hud.DevFillStoresClicked += () => SendSimple(new DebugFillStores(Guid.NewGuid()));
+            _hud.DevEndShieldClicked += () => SendSimple(new DebugEndShield(Guid.NewGuid()));
             _hud.BuildingCardClosed += () =>
             {
                 _cardBuilding = null;

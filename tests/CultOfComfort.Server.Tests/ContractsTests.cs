@@ -93,3 +93,27 @@ public class ContractsTests
         doc.RootElement.GetProperty("errandIndex").GetInt32().Should().Be(0);
     }
 }
+
+public class DevCommandMappingTests
+{
+    [Fact]
+    public void IsDevelopmentOnly_TestingCommands_AreRefusedByServers()
+    {
+        // Act & Assert
+        CommandMapping.IsDevelopmentOnly(new DebugFillStores(Guid.NewGuid())).Should().BeTrue();
+        CommandMapping.IsDevelopmentOnly(new DebugEndShield(Guid.NewGuid())).Should().BeTrue();
+        CommandMapping.IsDevelopmentOnly(new Collect(Guid.NewGuid(), null)).Should().BeFalse();
+    }
+
+    [Fact]
+    public void ToCommand_DevCommandsByName_RoundTrip()
+    {
+        // Act
+        var fill = CommandMapping.ToCommand(CommandMapping.ToDto(new DebugFillStores(Guid.NewGuid())));
+        var shield = CommandMapping.ToCommand(CommandMapping.ToDto(new DebugEndShield(Guid.NewGuid())));
+
+        // Assert
+        fill.Should().BeOfType<DebugFillStores>();
+        shield.Should().BeOfType<DebugEndShield>();
+    }
+}

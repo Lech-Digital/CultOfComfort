@@ -85,13 +85,14 @@ public static class CommandMapping
             nameof(DebugRaiseTension) => new DebugRaiseTension(id, dto.amount),
             nameof(DebugSkipWarning) => new DebugSkipWarning(id),
             nameof(DebugFillStores) => new DebugFillStores(id),
+            nameof(DebugEndShield) => new DebugEndShield(id),
             _ => throw new ArgumentException($"Unknown command '{dto.type}'."),
         };
     }
 
     /// <summary>Development helpers a real server must refuse: they hand out time, Tension or Night results.</summary>
     public static bool IsDevelopmentOnly(BaseCommand command) =>
-        command is RecordNightResult or FinishConstructionNow or DebugRaiseTension or DebugSkipWarning or DebugFillStores;
+        command is RecordNightResult or FinishConstructionNow or DebugRaiseTension or DebugSkipWarning or DebugFillStores or DebugEndShield;
 
     public static OutcomeDto ToDto(Guid id, CommandOutcome outcome) => new()
     {
