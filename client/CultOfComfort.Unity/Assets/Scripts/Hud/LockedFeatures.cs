@@ -24,10 +24,10 @@ namespace CultOfComfort.Client
     {
         public static readonly IReadOnlyList<LockedFeature> All = new[]
         {
-            new LockedFeature("map", "Map", "map", "World map: the Prophet is still arguing with the cartographer. Coming soon."),
+            new LockedFeature("map", "Map", "map", "The Marchlands open at Hearth 2. The Prophet is still arguing with the cartographer."),
             new LockedFeature("research", "Research", "research", "Research table unlocks at Hearth 3. He's still reading the manual."),
-            new LockedFeature("missionaries", "Missionaries", "missionaries", "Missionaries: nobody has volunteered yet. Coming soon."),
-            new LockedFeature("tithes", "Tithes", "tithes", "Tithes unlock at Hearth 4. Wulfric hasn't sent the invoice yet."),
+            new LockedFeature("missionaries", "Missionaries", "missionaries", "Missionaries set out at Hearth 2. Nobody has volunteered yet."),
+            new LockedFeature("tithes", "Tithes", "tithes", "Tithes open at Hearth 2. Wulfric hasn't sent the invoice yet."),
             new LockedFeature("shop", "Shop", "shop", "Shop: the till is a bucket. Coming soon."),
             new LockedFeature("cult", "Cult", "cult", "Your cult: five people and a duck. Coming with buildings."),
         };

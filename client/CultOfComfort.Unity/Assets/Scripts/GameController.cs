@@ -80,6 +80,7 @@ namespace CultOfComfort.Client
         private PlayerActionType? _aim; // an aimed skill is armed: the next tap on the board says where (Hot Stones, laser, glass)
         private IntroDirector _intro;
         private AudioDirector _audio;
+        private WorldMapView _map;
         private bool _devTools; // the owner's testing gate is open on this device (lamps any time, dev buttons)
 
         public GamePhase Phase => _phase;
@@ -180,6 +181,79 @@ namespace CultOfComfort.Client
                 _snapshot = null; // the recovered village may be at a lower version: don't let "newer only" keep the old one up
                 _roadVersion = -1;
                 RefreshSnapshot();
+            }
+        }
+
+        // ---------------- the Marchlands (spec 2026-10-14 world map) ----------------
+
+        private void SetUpMap(VisualElement root)
+        {
+            root.styleSheets.Add(Resources.Load<StyleSheet>("UI/WorldMap"));
+            _map = new WorldMapView(root);
+            _map.Closed += () => _map.Show(false);
+            _map.NodeTapped += id => _map.ShowCard(WorldMapPresenter.Card(_snapshot, BuildingTable.Default, id));
+            _map.PreachClicked += async (node, hours) =>
+            {
+                var outcome = await SendVillage(new SendMissionary(Guid.NewGuid(), node, hours));
+                if (outcome.Status == CommandStatus.Accepted)
+                {
+                    _map.CloseCard();
+                    Announce($"A missionary sets off for {DomainMap.Marchlands.Node(node)?.Name}, with sandwiches.");
+                }
+            };
+            _map.CollectClicked += async () =>
+            {
+                var outcome = await SendVillage(new CollectOfferings(Guid.NewGuid()));
+                if (outcome.Status == CommandStatus.Accepted)
+                {
+                    Announce($"The faithful of the Marchlands send {VillagePresenter.ShortCost(outcome.Collected)}.");
+                }
+            };
+            _map.TitheClicked += async amount =>
+            {
+                var hadRaid = _snapshot?.RaidWarningEndsAtUtc != null;
+                var outcome = await SendVillage(new PayTithe(Guid.NewGuid(), amount));
+                if (outcome.Status == CommandStatus.Accepted)
+                {
+                    Announce(hadRaid && _snapshot?.RaidWarningEndsAtUtc == null
+                        ? "Wulfric counts the money twice and calls the raid off. For now."
+                        : "Wulfric pockets the tithe. His mood improves slightly.");
+                }
+            };
+            _hud.FeatureClicked += id =>
+            {
+                if (_phase != GamePhase.Dusk || _snapshot == null)
+                {
+                    return;
+                }
+
+                _map.Show(true);
+                _map.Render(WorldMapPresenter.Build(_snapshot, BuildingTable.Default, _snapshot.AsOfUtc));
+                if (id == "tithes")
+                {
+                    _map.ShowTitheSheet();
+                }
+            };
+        }
+
+        /// <summary>Keeps the map current while it is open; opens the shortcuts once the Marchlands are.</summary>
+        private void RefreshMap()
+        {
+            var open = _snapshot?.Domain?.Unlocked == true;
+            foreach (var id in new[] { "map", "missionaries", "tithes" })
+            {
+                _hud.SetFeatureOpen(id, open);
+            }
+
+            if (_map != null && _map.IsOpen && _snapshot != null)
+            {
+                if (_phase != GamePhase.Dusk)
+                {
+                    _map.Show(false);
+                    return;
+                }
+
+                _map.Render(WorldMapPresenter.Build(_snapshot, BuildingTable.Default, _snapshot.AsOfUtc));
             }
         }
 
@@ -864,6 +938,10 @@ namespace CultOfComfort.Client
             if (_snapshot.HearthLevel != _openLevel)
             {
                 var found = RelicNews.Found(_openLevel, _snapshot.HearthLevel);
+                if (_openLevel > 0 && _openLevel < BuildingTable.Default.Domain.UnlockHearth && _snapshot.HearthLevel >= BuildingTable.Default.Domain.UnlockHearth)
+                {
+                    found = (found == null ? string.Empty : found + " ") + "And the Marchlands are open: tap the Map and send a missionary.";
+                }
                 if (found != null)
                 {
                     _hud.Announce(found, Time.time, 7f, prophet: true);
@@ -903,6 +981,7 @@ namespace CultOfComfort.Client
             var hasCard = _cardBuilding != null && _snapshot.Buildings.Any(b => b.Id == _cardBuilding.Value);
             var terrainCard = _cardTerrain != null ? VillagePresenter.TerrainCard(_snapshot, VillageMap.Demo, BuildingTable.Default, _cardTerrain.Value) : null;
             _hud.ShowBuildingCard(hasCard ? VillagePresenter.Card(_snapshot, BuildingTable.Default, _cardBuilding.Value) : terrainCard);
+            RefreshMap();
         }
 
         /// <summary>Asks the village for tonight's plan (the raid that is coming, or an early one) and fights exactly that.</summary>
@@ -1315,6 +1394,7 @@ namespace CultOfComfort.Client
             };
             _hud.GhostConfirmClicked += ConfirmTool;
             _hud.ReplayIntroClicked += () => PlayIntro(VillageComposition.CreateIntroProgress());
+            SetUpMap(root);
             _hud.VillageCodeClicked += ShowVillageCode;
             _hud.RecoverClicked += RecoverVillage;
             _hud.GhostCancelClicked += CancelTool;

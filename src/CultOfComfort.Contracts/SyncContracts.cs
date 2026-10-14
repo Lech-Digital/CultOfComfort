@@ -36,6 +36,12 @@ public sealed class CommandDto
     public int stars;
     public List<int> wrecked;
     public int amount;
+
+    /// <summary>A tithe's resources (PayTithe).</summary>
+    public int timber;
+    public int peat;
+    public int scrap;
+    public int devotion;
 }
 
 /// <summary>One entry of a Night's input log.</summary>

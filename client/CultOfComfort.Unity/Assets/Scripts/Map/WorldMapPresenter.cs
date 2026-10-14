@@ -1,0 +1,254 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using CultOfComfort.Simulation.Base;
+using UnityEngine;
+
+namespace CultOfComfort.Client
+{
+    /// <summary>A place on the map screen: where it sits (0–1 across the map), what it is, how much of it is yours.</summary>
+    public sealed class MapNodeModel
+    {
+        public int Id;
+        public string Name;
+        public string Kind;
+        public string Icon;
+        public Vector2 At;
+        public int Influence;
+        public bool Patron;
+        public bool Reachable;
+        public bool Home;
+    }
+
+    /// <summary>One "send a missionary" choice on a node's card.</summary>
+    public sealed class PreachOption
+    {
+        public int Hours;
+        public string Label;
+        public bool Enabled;
+    }
+
+    public sealed class TitheOption
+    {
+        public string Label;
+        public ResourceBag Amount;
+        public bool Enabled;
+    }
+
+    public sealed class MissionaryModel
+    {
+        public string Text;
+        public Vector2 At;
+    }
+
+    /// <summary>Everything the map screen draws, built from the Domain view (pure: tested without Unity's UI).</summary>
+    public sealed class WorldMapModel
+    {
+        public bool Unlocked;
+        public List<MapNodeModel> Nodes = new List<MapNodeModel>();
+        public List<(int From, int To)> Roads = new List<(int, int)>();
+        public List<MissionaryModel> Missionaries = new List<MissionaryModel>();
+        public string MissionaryLine;
+        public string OfferingsLine;
+        public bool CanCollect;
+        public string TensionLine;
+        public float TensionFraction;
+        public List<TitheOption> Tithes = new List<TitheOption>();
+        public string TitheNote;
+    }
+
+    public sealed class NodeCardModel
+    {
+        public string Title;
+        public string Kind;
+        public List<string> Lines = new List<string>();
+        public List<PreachOption> Options = new List<PreachOption>();
+        public string Note;
+    }
+
+    public static class WorldMapPresenter
+    {
+        public const int HomeId = 0;
+
+        public static string Icon(NodeType type) => type switch
+        {
+            NodeType.Hamlet => "b_cottage",
+            NodeType.Village => "b_cultist_hut",
+            NodeType.MarketTown => "shop",
+            NodeType.Abbey => "research",
+            _ => "swords",
+        };
+
+        public static string Kind(NodeType type) => type switch
+        {
+            NodeType.Hamlet => "Hamlet",
+            NodeType.Village => "Village",
+            NodeType.MarketTown => "Market town",
+            NodeType.Abbey => "Abbey",
+            _ => "Lord Wulfric's seat",
+        };
+
+        /// <summary>Pointy-top hex centres, scaled so the whole domain (and the village at 0, 0) fits 0–1 with a margin.</summary>
+        public static Dictionary<int, Vector2> Layout(IReadOnlyList<DomainNode> nodes)
+        {
+            Vector2 Raw(int q, int r) => new Vector2(Mathf.Sqrt(3f) * (q + r / 2f), 1.5f * r);
+            var raw = nodes.ToDictionary(n => n.Id, n => Raw(n.Q, n.R));
+            raw[HomeId] = Raw(0, 0);
+            var min = new Vector2(raw.Values.Min(v => v.x), raw.Values.Min(v => v.y));
+            var max = new Vector2(raw.Values.Max(v => v.x), raw.Values.Max(v => v.y));
+            const float margin = 0.1f;
+            return raw.ToDictionary(kv => kv.Key, kv => new Vector2(
+                margin + (1 - 2 * margin) * Mathf.InverseLerp(min.x, max.x, kv.Value.x),
+                margin + (1 - 2 * margin) * Mathf.InverseLerp(min.y, max.y, kv.Value.y)));
+        }
+
+        public static WorldMapModel Build(BaseSnapshot snapshot, BuildingTable table, DateTimeOffset now)
+        {
+            var domain = snapshot.Domain;
+            var model = new WorldMapModel { Unlocked = domain != null && domain.Unlocked };
+            if (domain == null)
+            {
+                return model;
+            }
+
+            var nodes = domain.Nodes.Select(n => n.Node).ToList();
+            var layout = Layout(nodes);
+            model.Nodes.Add(new MapNodeModel { Id = HomeId, Name = "Your village", Kind = "Home", Icon = "b_hearth", At = layout[HomeId], Influence = 100, Reachable = true, Home = true });
+            foreach (var n in domain.Nodes)
+            {
+                model.Nodes.Add(new MapNodeModel
+                {
+                    Id = n.Node.Id, Name = n.Node.Name, Kind = Kind(n.Node.Type), Icon = Icon(n.Node.Type), At = layout[n.Node.Id],
+                    Influence = n.InfluencePercent, Patron = n.Patron, Reachable = n.Reachable,
+                });
+            }
+
+            var places = new List<(int Id, int Q, int R)> { (HomeId, 0, 0) };
+            places.AddRange(nodes.Select(n => (n.Id, n.Q, n.R)));
+            foreach (var a in places)
+            {
+                foreach (var b in places.Where(b => b.Id > a.Id && HexDistance(a.Q, a.R, b.Q, b.R) == 1))
+                {
+                    model.Roads.Add((a.Id, b.Id));
+                }
+            }
+
+            foreach (var m in domain.Missionaries)
+            {
+                var node = nodes.First(n => n.Id == m.NodeId);
+                var left = VillagePresenter.Duration((long)Math.Max(0, (m.PhaseEndsAtUtc - now).TotalSeconds));
+                var walk = node.Distance * table.Domain.MinutesPerHex * 60.0;
+                var fraction = walk <= 0 ? 1f : Mathf.Clamp01((float)(1 - (m.PhaseEndsAtUtc - now).TotalSeconds / walk));
+                var at = m.Phase switch
+                {
+                    MissionaryPhase.Travelling => Vector2.Lerp(layout[HomeId], layout[node.Id], fraction),
+                    MissionaryPhase.Returning => Vector2.Lerp(layout[node.Id], layout[HomeId], fraction),
+                    _ => layout[node.Id],
+                };
+                var text = m.Phase switch
+                {
+                    MissionaryPhase.Travelling => $"Walking to {node.Name} · {left}",
+                    MissionaryPhase.Preaching => $"Preaching at {node.Name} · {left} left",
+                    _ => $"Walking home from {node.Name} · {left}",
+                };
+                model.Missionaries.Add(new MissionaryModel { Text = text, At = at });
+            }
+
+            var free = domain.MissionarySlots - domain.Missionaries.Count;
+            model.MissionaryLine = domain.Missionaries.Count == 0
+                ? $"Missionaries: {free} ready. Tap a place to send one."
+                : string.Join("\n", model.Missionaries.Select(m => m.Text)) + (free > 0 ? $"\n{free} more ready." : string.Empty);
+            model.OfferingsLine = domain.OfferingsPerHour.IsZero && domain.Offerings.IsZero
+                ? "Offerings: none yet. Win the faithful first."
+                : $"Offerings: {VillagePresenter.ShortCost(domain.Offerings)} waiting (+{VillagePresenter.ShortCost(domain.OfferingsPerHour)}/h)";
+            model.CanCollect = !domain.Offerings.IsZero;
+
+            var tension = snapshot.Tension;
+            var max = table.Tension.Max;
+            model.TensionFraction = Mathf.Clamp01(tension / (float)max);
+            model.TensionLine = $"Wulfric's Tension {tension}/{max} · +{domain.TensionPerHourMilli / 1000f:0.#}/h" +
+                                (snapshot.RaidWarningEndsAtUtc != null ? " · raid coming!" : string.Empty);
+            model.Tithes = Tithes(snapshot, table);
+            model.TitheNote = domain.TitheHalfUntilUtc != null
+                ? $"Wulfric was paid recently: tithes work at half strength for {VillagePresenter.Duration((long)(domain.TitheHalfUntilUtc.Value - now).TotalSeconds)}."
+                : "A tithe calms Wulfric down. Pay enough during a warning and he calls the raid off.";
+            return model;
+        }
+
+        /// <summary>Small, large, and (during a warning) exactly enough to buy off the raid.</summary>
+        public static List<TitheOption> Tithes(BaseSnapshot snapshot, BuildingTable table)
+        {
+            var domain = snapshot.Domain;
+            var halved = domain?.TitheHalfUntilUtc != null;
+            int Drop(ResourceBag bag) => DomainTable.TitheValue(bag) / table.Domain.TitheValuePerTension / (halved ? 2 : 1);
+            var options = new List<TitheOption>();
+            void Add(string name, ResourceBag bag) => options.Add(new TitheOption
+            {
+                Label = $"{name}: {VillagePresenter.ShortCost(bag)} · Tension −{Drop(bag)}", Amount = bag, Enabled = snapshot.Stock.Covers(bag) && snapshot.Tension > 0,
+            });
+            Add("A modest tithe", new ResourceBag(200, 0, 0, 0));
+            Add("A generous tithe", new ResourceBag(400, 0, 100, 50));
+            if (snapshot.RaidWarningEndsAtUtc != null)
+            {
+                // Under Uneasy (40) calls it off: pay the difference in Devotion-and-Timber, rounded up.
+                var need = Math.Max(1, snapshot.Tension - (table.Tension.Uneasy - 1)) * table.Domain.TitheValuePerTension * (halved ? 2 : 1);
+                var devotion = Math.Min(snapshot.Stock.Devotion, need / 8);
+                var bag = new ResourceBag(Math.Max(0, need - devotion * 4), 0, 0, devotion);
+                Add("Buy off the raid", bag);
+            }
+
+            return options;
+        }
+
+        public static NodeCardModel Card(BaseSnapshot snapshot, BuildingTable table, int nodeId)
+        {
+            var domain = snapshot.Domain;
+            var view = domain?.Nodes.FirstOrDefault(n => n.Node.Id == nodeId);
+            if (view == null)
+            {
+                return new NodeCardModel
+                {
+                    Title = "Your village", Kind = "Home",
+                    Lines = { "The Hearth, the cult, and the Prophet's car in the pool." },
+                };
+            }
+
+            var node = view.Node;
+            var card = new NodeCardModel { Title = node.Name, Kind = Kind(node.Type) };
+            card.Lines.Add(node.Type == NodeType.Keep
+                ? "No offerings: prestige only. Preaching here makes Wulfric furious (+15 Tension)."
+                : $"Offerings at full faith: {VillagePresenter.ShortCost(view.OfferingsPerHour)}/h · Squalor {node.Squalor}");
+            card.Lines.Add($"Your influence: {view.InfluencePercent}%{(view.Patron ? " · you're the Patron (+25% offerings)" : $" · Patron at {table.Domain.PatronInfluence}%")}");
+            card.Lines.Add($"A walk of {VillagePresenter.Duration(view.TravelMinutes * 60L)} each way");
+            if (!domain.Unlocked)
+            {
+                card.Note = $"The Marchlands open at Hearth {table.Domain.UnlockHearth}.";
+                return card;
+            }
+
+            if (!view.Reachable)
+            {
+                card.Note = "Too far for now: a bigger Hearth, a longer walk.";
+                return card;
+            }
+
+            var slotsFree = domain.MissionarySlots - domain.Missionaries.Count > 0;
+            var villagerFree = snapshot.Population - domain.Missionaries.Count > 0;
+            foreach (var (hours, _) in table.Domain.Sessions)
+            {
+                var cost = new ResourceBag(table.Domain.ProvisionsPerHour.Timber * hours, table.Domain.ProvisionsPerHour.Peat * hours,
+                    table.Domain.ProvisionsPerHour.Scrap * hours, table.Domain.ProvisionsPerHour.Devotion * hours);
+                var gain = Math.Min(100 - view.InfluencePercent, (int)(table.Domain.GainMilli(node, hours) / 1000));
+                card.Options.Add(new PreachOption
+                {
+                    Hours = hours, Label = $"Preach {hours}h · +{gain}% · {VillagePresenter.ShortCost(cost)}", Enabled = slotsFree && villagerFree && snapshot.Stock.Covers(cost),
+                });
+            }
+
+            card.Note = !slotsFree ? "Every missionary is out." : !villagerFree ? "Nobody left to send." : "A missionary is a villager: they don't work while away.";
+            return card;
+        }
+
+        private static int HexDistance(int q1, int r1, int q2, int r2) => (Math.Abs(q1 - q2) + Math.Abs(r1 - r2) + Math.Abs(q1 + r1 - q2 - r2)) / 2;
+    }
+}

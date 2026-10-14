@@ -51,6 +51,12 @@ public static class CommandMapping
             case DebugRaiseTension c:
                 dto.amount = c.Amount;
                 break;
+            case SendMissionary c:
+                (dto.buildingId, dto.amount) = (c.NodeId, c.Hours);
+                break;
+            case PayTithe c:
+                (dto.timber, dto.peat, dto.scrap, dto.devotion) = (c.Amount.Timber, c.Amount.Peat, c.Amount.Scrap, c.Amount.Devotion);
+                break;
         }
 
         return dto;
@@ -86,6 +92,9 @@ public static class CommandMapping
             nameof(DebugSkipWarning) => new DebugSkipWarning(id),
             nameof(DebugFillStores) => new DebugFillStores(id),
             nameof(DebugEndShield) => new DebugEndShield(id),
+            nameof(SendMissionary) => new SendMissionary(id, dto.buildingId, dto.amount),
+            nameof(CollectOfferings) => new CollectOfferings(id),
+            nameof(PayTithe) => new PayTithe(id, new ResourceBag(dto.timber, dto.peat, dto.scrap, dto.devotion)),
             _ => throw new ArgumentException($"Unknown command '{dto.type}'."),
         };
     }

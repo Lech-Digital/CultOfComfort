@@ -32,6 +32,9 @@ public class ContractsTests
         new FinishConstructionNow(Guid.NewGuid()),
         new DebugRaiseTension(Guid.NewGuid(), 50),
         new DebugSkipWarning(Guid.NewGuid()),
+        new SendMissionary(Guid.NewGuid(), 7, 4),
+        new CollectOfferings(Guid.NewGuid()),
+        new PayTithe(Guid.NewGuid(), new ResourceBag(100, 20, 30, 40)),
     };
 
     [Theory]
@@ -77,6 +80,30 @@ public class ContractsTests
 
         // Assert
         back.Should().BeEquivalentTo(data, o => o.ComparingByMembers<NightPlan>());
+    }
+
+    [Fact]
+    public void VillageJson_MissionaryOnTheRoad_RoundTripsTheDomain()
+    {
+        // Arrange — Hearth 2, a missionary out, influence landed somewhere, a tithe paid.
+        var table = new BuildingTable { StartingStock = new ResourceBag(5000, 900, 900, 900), HearthStorageCaps = new[] { 9000, 9000, 9000 } };
+        var state = BaseState.CreateNew(table, VillageMap.Demo, T0);
+        state.Apply(new UpgradeHearth(Guid.NewGuid()), T0);
+        var later = T0.AddHours(1);
+        state.Apply(new SendMissionary(Guid.NewGuid(), 1, 1), later);
+        state.Snapshot(later.AddHours(3));
+        state.Apply(new SendMissionary(Guid.NewGuid(), 2, 2), later.AddHours(3));
+        state.Apply(new PayTithe(Guid.NewGuid(), new ResourceBag(100, 0, 0, 0)), later.AddHours(3));
+        var data = state.ToData();
+
+        // Act
+        var back = VillageJson.Read(VillageJson.Write(data));
+
+        // Assert
+        back.Domain.Should().NotBeNull();
+        back.Domain.Should().BeEquivalentTo(data.Domain);
+        BaseState.Restore(table, VillageMap.Demo, back).Snapshot(later.AddDays(2)).Domain.Should()
+            .BeEquivalentTo(BaseState.Restore(table, VillageMap.Demo, data).Snapshot(later.AddDays(2)).Domain);
     }
 
     [Fact]
