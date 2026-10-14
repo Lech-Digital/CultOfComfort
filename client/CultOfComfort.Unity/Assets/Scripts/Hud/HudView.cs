@@ -171,6 +171,7 @@ namespace CultOfComfort.Client
         private VisualElement _hinted;
         private Label _cloud;
         private Label _codeLine;
+        private Label _codeNote;
         private VisualElement _codeRow;
         private VisualElement _codeEntry;
         private TextField _codeInput;
@@ -459,6 +460,7 @@ namespace CultOfComfort.Client
             if (phase != GamePhase.Dusk)
             {
                 Show(_codeLine, false);
+                Show(_codeNote, false);
                 Show(_codeEntry, false);
             }
             Show(_waveStrip, phase == GamePhase.Night);
@@ -752,8 +754,10 @@ namespace CultOfComfort.Client
 
         private void TickCoach(float now)
         {
-            var target = _coach.HasArrow ? CoachTargetBounds() : null;
-            var hasLine = !string.IsNullOrEmpty(_coach.Line) && (target != null || !_coach.HasArrow);
+            // A sheet (settings, a building card, the Dawn card) has the player's attention: the coach waits behind it.
+            var sheetOpen = Visible(_settings) || Visible(_buildingCard) || Visible(_card);
+            var target = _coach.HasArrow && !sheetOpen ? CoachTargetBounds() : null;
+            var hasLine = !sheetOpen && !string.IsNullOrEmpty(_coach.Line) && (target != null || !_coach.HasArrow);
             Show(_coachArrow, target != null);
             Show(_coachLine, hasLine);
             if (!hasLine)
@@ -815,10 +819,12 @@ namespace CultOfComfort.Client
         }
 
         /// <summary>The village code line in Settings (a code, or why there isn't one).</summary>
-        public void ShowVillageCode(string text)
+        public void ShowVillageCode(string text, string note = null)
         {
             _codeLine.text = text;
             Show(_codeLine, !string.IsNullOrEmpty(text));
+            _codeNote.text = note ?? string.Empty;
+            Show(_codeNote, !string.IsNullOrEmpty(note));
         }
 
         /// <summary>After "Bring it back": closes the entry on success, says why not otherwise.</summary>
@@ -1014,6 +1020,9 @@ namespace CultOfComfort.Client
             _codeLine.name = "village-code";
             Show(_codeLine, false);
             sheet.Add(_codeLine);
+            _codeNote = Text(string.Empty, "sheet-line", "small", "code-note");
+            Show(_codeNote, false);
+            sheet.Add(_codeNote);
             _codeEntry = Container("sheet-row");
             _codeInput = new TextField { name = "code-input", maxLength = 16 };
             _codeInput.AddToClassList("code-input");
@@ -1032,13 +1041,13 @@ namespace CultOfComfort.Client
             audioRow.Add(_soundToggle);
             audioRow.Add(_musicToggle);
             sheet.Add(audioRow);
-            var intro = ButtonWith("Watch the intro again", () =>
+            var intro = ButtonWith("Replay intro", () =>
             {
                 Show(_settings, false);
                 ReplayIntroClicked?.Invoke();
             }, "plain");
             intro.name = "replay-intro";
-            var tips = ButtonWith("Show tips again", () => ResetTipsClicked?.Invoke(), "plain");
+            var tips = ButtonWith("Tips again", () => ResetTipsClicked?.Invoke(), "plain");
             tips.name = "reset-tips";
             var replayRow = Container("sheet-row");
             replayRow.Add(tips);

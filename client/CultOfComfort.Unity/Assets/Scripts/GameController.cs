@@ -158,7 +158,7 @@ namespace CultOfComfort.Client
             }
 
             GUIUtility.systemCopyBuffer = code;
-            _hud.ShowVillageCode($"{code}\nCopied. Write it down: type it on a new phone to bring this village back. (Showing a new code retires the old one.)");
+            _hud.ShowVillageCode(code, "Copied. Write it down: type it on a new phone to bring this village back. Showing a new code retires the old one.");
         }
 
         private async void RecoverVillage(string code)

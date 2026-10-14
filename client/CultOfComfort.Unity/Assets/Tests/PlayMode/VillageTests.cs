@@ -110,6 +110,12 @@ namespace CultOfComfort.Client.Tests
             Assert.IsTrue(shown.Arrow, "a new player gets an arrow");
             StringAssert.Contains("Woodcutter", shown.Text);
             Assert.IsTrue(Near(shown.ArrowBounds, root.Q<Button>("card-Woodcutter")), $"arrow {shown.ArrowBounds} over the card {root.Q<Button>("card-Woodcutter").worldBound}");
+            Click(root.Q<Button>("settings-button"));
+            yield return Frames(2);
+            Assert.IsFalse(Hud(game).CoachShown.Arrow, "the coach waits behind an open sheet");
+            Assert.IsFalse(Hud(game).CoachShown.Line);
+            Click(root.Q<Button>("settings-button"));
+            yield return Frames(2);
 
             // Act: pick it — the arrow moves to ✓.
             Click(root.Q<Button>("card-Woodcutter"));
