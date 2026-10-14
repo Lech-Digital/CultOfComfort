@@ -1,3 +1,4 @@
+using CultOfComfort.Server.Application.World;
 using CultOfComfort.Simulation.Base;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -6,8 +7,10 @@ namespace CultOfComfort.Server.Application;
 public static class DependencyInjection
 {
     /// <summary>Registers the village use cases with the rules tables the server plays by.</summary>
-    public static IServiceCollection AddVillageGame(this IServiceCollection services, VillageOptions options, AccountOptions? accounts = null)
+    public static IServiceCollection AddVillageGame(this IServiceCollection services, VillageOptions options, AccountOptions? accounts = null, WorldOptions? world = null)
     {
+        services.AddSingleton(world ?? new WorldOptions());
+        services.AddSingleton<IWorldService, WorldService>();
         services.AddSingleton(options);
         services.AddSingleton(accounts ?? new AccountOptions());
         services.AddSingleton<IAccountService, AccountService>();

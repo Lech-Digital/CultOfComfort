@@ -80,7 +80,7 @@ internal static class VillageEndpoints
         return header.StartsWith("Bearer ", StringComparison.Ordinal) ? await villages.AuthenticateAsync(header["Bearer ".Length..].Trim(), ct) : null;
     }
 
-    private static VillageResponseDto Response(VillageView view, IReadOnlyList<(Guid CommandId, CommandOutcome Outcome)> outcomes) => new()
+    internal static VillageResponseDto Response(VillageView view, IReadOnlyList<(Guid CommandId, CommandOutcome Outcome)> outcomes) => new()
     {
         version = view.Village.Version,
         serverTimeTicks = view.ServerTimeUtc.UtcTicks,

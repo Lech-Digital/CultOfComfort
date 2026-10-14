@@ -1,6 +1,8 @@
 using System.Text.Json;
 using CultOfComfort.Contracts;
 using CultOfComfort.Server.Application;
+using CultOfComfort.Server.Application.World;
+using CultOfComfort.Simulation.World;
 using CultOfComfort.Simulation.Base;
 using Microsoft.EntityFrameworkCore;
 
@@ -86,6 +88,49 @@ internal sealed class SqliteVillageRepository(IDbContextFactory<ServerDbContext>
             .ExecuteUpdateAsync(set => set.SetProperty(v => v.Json, json).SetProperty(v => v.Version, village.Version).SetProperty(v => v.UpdatedAtUtc, now), ct);
         return changed == 1;
     }
+}
+
+internal sealed class SqliteWorldRepository(IDbContextFactory<ServerDbContext> contexts, TimeProvider clock) : IWorldRepository
+{
+    public async Task<IReadOnlyList<WorldRecord>> ListAsync(CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var rows = await db.Worlds.OrderBy(w => w.Id).ToListAsync(ct);
+        return rows.Select(w => new WorldRecord(w.Id, unchecked((ulong)w.Seed), w.Version, WorldJson.Read(w.Json), w.CreatedAtUtc)).ToList();
+    }
+
+    public async Task AddAsync(WorldRecord world, CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        db.Worlds.Add(new WorldRow
+        {
+            Id = world.Id, Seed = unchecked((long)world.Seed), Version = world.Version, Json = WorldJson.Write(world.Ledger),
+            CreatedAtUtc = world.CreatedAtUtc, UpdatedAtUtc = clock.GetUtcNow(),
+        });
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task<bool> TryReplaceAsync(WorldRecord world, long expectedVersion, CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var json = WorldJson.Write(world.Ledger);
+        var now = clock.GetUtcNow();
+        var changed = await db.Worlds
+            .Where(w => w.Id == world.Id && w.Version == expectedVersion)
+            .ExecuteUpdateAsync(set => set.SetProperty(w => w.Json, json).SetProperty(w => w.Version, world.Version).SetProperty(w => w.UpdatedAtUtc, now), ct);
+        return changed == 1;
+    }
+}
+
+/// <summary>A world's ledger as stored (server only: the client never sees the whole ledger).</summary>
+public static class WorldJson
+{
+    private static readonly JsonSerializerOptions Options = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+    public static string Write(WorldLedgerData ledger) => JsonSerializer.Serialize(ledger, Options);
+
+    public static WorldLedgerData Read(string json) => JsonSerializer.Deserialize<WorldLedgerData>(json, Options)
+        ?? throw new InvalidDataException("empty world document");
 }
 
 /// <summary>The village document as stored: the same JSON the device saves (shared <see cref="VillageSaveDto"/>).</summary>

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using CultOfComfort.Contracts;
+using CultOfComfort.Server.Application.World;
 using CultOfComfort.Simulation.Base;
 
 namespace CultOfComfort.Server.Application;
@@ -50,7 +51,8 @@ public interface IVillageService
 /// server applies them at its own clock and replays Nights from their input logs (ADR 0002/0003).
 /// </summary>
 internal sealed class VillageService(
-    IPlayerRepository players, IVillageRepository villages, BuildingTable table, VillageMap map, TimeProvider clock, VillageOptions options)
+    IPlayerRepository players, IVillageRepository villages, BuildingTable table, VillageMap map, TimeProvider clock, VillageOptions options,
+    IWorldService? world = null)
     : IVillageService
 {
     public async Task<GuestAccount> StartGuestAsync(CancellationToken ct)
@@ -88,11 +90,19 @@ internal sealed class VillageService(
 
         var state = BaseState.Restore(table, map, stored);
         var outcomes = new List<(Guid, CommandOutcome)>(commands.Count);
+        var sent = new List<SendWorldMissionary>();
         foreach (var command in commands)
         {
-            var outcome = CommandMapping.IsDevelopmentOnly(command) && !options.AllowDevelopmentCommands && !developer
-                ? new CommandOutcome(CommandStatus.Rejected, state.Version, "Not on a real server.")
-                : state.Apply(command, now);
+            var refusal = CommandMapping.IsServerOnly(command) ? "Only the world gives that."
+                : CommandMapping.IsDevelopmentOnly(command) && !options.AllowDevelopmentCommands && !developer ? "Not on a real server."
+                : command is SendWorldMissionary send ? world == null ? "No shared world here." : await world.MissionaryProblemAsync(playerId, send, ct)
+                : null;
+            var outcome = refusal != null ? new CommandOutcome(CommandStatus.Rejected, state.Version, refusal) : state.Apply(command, now);
+            if (outcome.Status == CommandStatus.Accepted && command is SendWorldMissionary accepted)
+            {
+                sent.Add(accepted);
+            }
+
             outcomes.Add((command.CommandId, outcome));
         }
 
@@ -102,6 +112,11 @@ internal sealed class VillageService(
             // Another request wrote first: nothing of this batch counts; the client re-pulls and retries.
             var current = await villages.FindAsync(playerId, ct) ?? stored;
             return new SyncResult(new VillageView(current, now), Array.Empty<(Guid, CommandOutcome)>(), Conflict: true);
+        }
+
+        foreach (var send in sent)
+        {
+            await world!.MissionarySentAsync(playerId, updated, send, now, ct); // stored first: the villager left whatever happens next
         }
 
         return new SyncResult(new VillageView(updated, now), outcomes, Conflict: false);

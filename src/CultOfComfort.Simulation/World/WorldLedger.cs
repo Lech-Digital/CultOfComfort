@@ -50,9 +50,33 @@ public sealed class WorldLedger
 
     public WorldCult? Cult(string id) => _cults.TryGetValue(id, out var cult) ? cult : null;
 
+    /// <summary>Cults with a real village behind them (the world's capacity counts these).</summary>
+    public int Humans => _cults.Values.Count(c => !c.IsBot);
+
+    /// <summary>Takes a cult off the map: its influence goes back to the Authority, its sermons stop (a bot retiring).</summary>
+    public void Remove(string cultId)
+    {
+        if (!_cults.Remove(cultId))
+        {
+            return;
+        }
+
+        foreach (var holders in _holdings.Values)
+        {
+            holders.Remove(cultId);
+        }
+
+        _missionaries.RemoveAll(m => m.CultId == cultId);
+        _purses.Remove(cultId);
+        _purseAsOf.Remove(cultId);
+    }
+
     // ---------------- joining ----------------
 
-    /// <summary>Places a new cult (random but fair) and adds it; null when the world is full. A cult that is already in stays put.</summary>
+    /// <summary>
+    /// Places a new cult (random but fair) and adds it; null when the world is full. A cult that is already in stays put.
+    /// An empty <paramref name="name"/> names it after the nearest place ("Cult of Muddlecombe").
+    /// </summary>
     public WorldCult? Join(string id, string name, bool isBot, ulong seed, DateTimeOffset at)
     {
         if (_cults.TryGetValue(id, out var existing))
@@ -64,6 +88,12 @@ public sealed class WorldLedger
         if (spot == null)
         {
             return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            var nearest = _map.Near(spot.Value.Q, spot.Value.R, 8).OrderBy(n => n.DistanceTo(spot.Value.Q, spot.Value.R)).ThenBy(n => n.Id).FirstOrDefault();
+            name = nearest == null ? "Cult of Nowhere" : $"Cult of {nearest.Name}";
         }
 
         var cult = new WorldCult(id, name, spot.Value.Q, spot.Value.R, isBot, _cults.Count % 12);

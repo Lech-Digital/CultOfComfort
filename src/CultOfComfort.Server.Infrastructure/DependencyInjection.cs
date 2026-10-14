@@ -1,4 +1,5 @@
 using CultOfComfort.Server.Application;
+using CultOfComfort.Server.Application.World;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -12,6 +13,7 @@ public static class DependencyInjection
         services.AddDbContextFactory<ServerDbContext>(o => o.UseSqlite(connectionString));
         services.AddSingleton<IPlayerRepository, SqlitePlayerRepository>();
         services.AddSingleton<IVillageRepository, SqliteVillageRepository>();
+        services.AddSingleton<IWorldRepository, SqliteWorldRepository>();
         services.AddSingleton<IGoogleTokenVerifier, GoogleTokenVerifier>();
         return services;
     }
@@ -55,6 +57,9 @@ public static class DependencyInjection
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE players ADD COLUMN \"GoogleSubject\" TEXT NULL;", ct);
         }
 
+        await db.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE IF NOT EXISTS worlds (\"Id\" INTEGER NOT NULL PRIMARY KEY, \"Seed\" INTEGER NOT NULL, \"Version\" INTEGER NOT NULL, " +
+            "\"Json\" TEXT NOT NULL, \"CreatedAtUtc\" INTEGER NOT NULL, \"UpdatedAtUtc\" INTEGER NOT NULL);", ct);
         await db.Database.ExecuteSqlRawAsync("CREATE UNIQUE INDEX IF NOT EXISTS \"IX_players_RecoveryCodeHash\" ON players (\"RecoveryCodeHash\");", ct);
         await db.Database.ExecuteSqlRawAsync("CREATE UNIQUE INDEX IF NOT EXISTS \"IX_players_GoogleSubject\" ON players (\"GoogleSubject\");", ct);
     }
