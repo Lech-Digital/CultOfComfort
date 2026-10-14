@@ -150,14 +150,18 @@ namespace CultOfComfort.Client
 
             var tension = snapshot.Tension;
             var max = table.Tension.Max;
+            var (title, lord) = Authority(map, world);
+            model.Title = title;
+            model.Lord = lord;
+            model.ViewKey = $"{cq},{cr},{radius}";
             model.TensionFraction = Mathf.Clamp01(tension / (float)max);
-            model.TensionLine = $"Tension {tension}/{max} · +{(domain?.TensionPerHourMilli ?? 0) / 1000f:0.#}/h" +
-                                (snapshot.RaidWarningEndsAtUtc != null ? " · raid coming!" : string.Empty);
+            model.TensionLine = WorldMapPresenter.TemperLine(lord, tension, max, domain?.TensionPerHourMilli ?? 0, snapshot.RaidWarningEndsAtUtc != null);
+            model.TensionHelp = WorldMapPresenter.TemperHelp(lord, max);
+            model.Help = WorldMapPresenter.Help(lord, table, world: true);
             model.Tithes = WorldMapPresenter.Tithes(snapshot, table);
             model.TitheNote = domain?.TitheHalfUntilUtc != null
-                ? $"The lord was paid recently: tithes work at half strength for {VillagePresenter.Duration((long)(domain.TitheHalfUntilUtc.Value - now).TotalSeconds)}."
-                : "A tithe calms the lord down. Pay enough during a warning and he calls the raid off.";
-            model.Title = AuthorityTitle(map, world);
+                ? $"He was paid recently: tithes work at half strength for {VillagePresenter.Duration((long)(domain.TitheHalfUntilUtc.Value - now).TotalSeconds)}."
+                : $"Each tithe lowers his temper by the amount shown. Pay enough during a raid warning and he calls the raid off. Right after a tithe, the next one works at half strength for a while.";
             return model;
         }
 
@@ -238,11 +242,22 @@ namespace CultOfComfort.Client
         /// <summary>The hexes from your village to a place (what SendWorldMissionary carries).</summary>
         public static int DistanceTo(WorldDto world, int nodeId) => MapFor(world).Node(nodeId)?.DistanceTo(world.q, world.r) ?? 0;
 
-        private static string AuthorityTitle(WorldMap map, WorldDto world)
+        /// <summary>The map's title (whose lands these are) and who rules them ("Lord Thorkel", "the Bishop of Sumpwell").</summary>
+        public static (string Title, string Lord) Authority(WorldMap map, WorldDto world)
         {
             var nearest = map.Near(world.q, world.r, 6).OrderBy(n => n.DistanceTo(world.q, world.r)).ThenBy(n => n.Id).FirstOrDefault();
             var domain = nearest == null ? null : map.Domains.FirstOrDefault(d => d.Id == nearest.DomainId);
-            return domain == null ? $"World {world.worldId}" : $"{domain.Name} · World {world.worldId}";
+            if (domain == null)
+            {
+                return ("The wider world", "the lord");
+            }
+
+            const string lands = "The lands of ";
+            const string see = "The see of ";
+            var lord = domain.Name.StartsWith(lands, StringComparison.Ordinal) ? domain.Name.Substring(lands.Length)
+                : domain.Name.StartsWith(see, StringComparison.Ordinal) ? "the Bishop of " + domain.Name.Substring(see.Length)
+                : "the lord";
+            return (domain.Name, lord);
         }
 
         private static Dictionary<int, List<WorldHoldingDto>> Holdings(WorldDto world) =>

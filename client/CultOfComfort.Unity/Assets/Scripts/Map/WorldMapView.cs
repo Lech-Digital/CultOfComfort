@@ -21,9 +21,15 @@ namespace CultOfComfort.Client
 
         private readonly VisualElement _root;
         private readonly VisualElement _map;
+        private readonly VisualElement _pan;
+        private readonly VisualElement _roads;
         private readonly VisualElement _nodes;
         private readonly VisualElement _walkers;
         private readonly Label _tension;
+        private readonly Label _tensionHelp;
+        private readonly VisualElement _help;
+        private readonly VisualElement _helpLines;
+        private readonly Label _titheTitle;
         private readonly VisualElement _tensionFill;
         private readonly Label _missionaries;
         private readonly Label _offerings;
@@ -61,6 +67,25 @@ namespace CultOfComfort.Client
         private Vector2 _dragBy;
         private bool _dragging;
         private bool _swallowClick;
+        private string _viewKey;
+        private float _heldSince = -1f;
+        private readonly Dictionary<int, Vector2> _touches = new Dictionary<int, Vector2>();
+        private float _pinchFrom;
+
+        /// <summary>A drag too short to move the window by a whole place slides back.</summary>
+        public void ResetPan()
+        {
+            _pan.style.translate = new Translate(0, 0);
+            _heldSince = -1f;
+        }
+
+        /// <summary>The "how the lands work" sheet (shown once by the controller, and by the ? button).</summary>
+        public void ShowHelp()
+        {
+            CloseCard();
+            ShowTithe(false);
+            _help.style.display = DisplayStyle.Flex;
+        }
 
         public WorldMapView(VisualElement parent)
         {
@@ -73,6 +98,8 @@ namespace CultOfComfort.Client
             header.AddToClassList("map-header");
             _title = new Label("The Marchlands");
             _title.AddToClassList("map-title");
+            var help = new Button(ShowHelp) { name = "map-help", text = "?" };
+            help.AddToClassList("map-close");
             var close = new Button(() => Closed?.Invoke()) { name = "map-close", text = "✕" };
             close.AddToClassList("map-close");
             _zoom = new VisualElement();
@@ -89,6 +116,7 @@ namespace CultOfComfort.Client
 
             header.Add(_title);
             header.Add(_zoom);
+            header.Add(help);
             header.Add(close);
             _root.Add(header);
 
@@ -104,24 +132,49 @@ namespace CultOfComfort.Client
             var titheButton = new Button(() => ShowTithe(true)) { name = "map-tithe", text = "Pay a tithe" };
             titheButton.AddToClassList("plain");
             titheButton.AddToClassList("map-small-button");
+            _tensionHelp = new Label { name = "map-tension-help" };
+            _tensionHelp.AddToClassList("map-line");
+            _tensionHelp.AddToClassList("map-help-line");
+            var helpRow = new VisualElement();
+            helpRow.AddToClassList("map-row");
+            _tensionHelp.style.flexGrow = 1;
+            _tensionHelp.style.flexShrink = 1;
+            helpRow.Add(_tensionHelp);
+            helpRow.Add(titheButton);
             tensionRow.Add(_tension);
             tensionRow.Add(bar);
-            tensionRow.Add(titheButton);
+            tensionRow.Add(helpRow);
             _root.Add(tensionRow);
 
             _map = new VisualElement { name = "map-area" };
             _map.AddToClassList("map-area");
-            _map.generateVisualContent += DrawRoads;
+            // Roads, places and walkers move together while a finger drags them (the layer slides, the window refetches).
+            _pan = new VisualElement { pickingMode = PickingMode.Ignore };
+            _pan.AddToClassList("map-layer");
+            _roads = new VisualElement { pickingMode = PickingMode.Ignore };
+            _roads.AddToClassList("map-layer");
+            _roads.generateVisualContent += DrawRoads;
             _nodes = new VisualElement { pickingMode = PickingMode.Ignore };
             _nodes.AddToClassList("map-layer");
             _walkers = new VisualElement { pickingMode = PickingMode.Ignore };
             _walkers.AddToClassList("map-layer");
-            _map.Add(_nodes);
-            _map.Add(_walkers);
+            _pan.Add(_roads);
+            _pan.Add(_nodes);
+            _pan.Add(_walkers);
+            _map.Add(_pan);
             _map.RegisterCallback<GeometryChangedEvent>(_ => Place());
             _map.RegisterCallback<PointerDownEvent>(OnDragStart, TrickleDown.TrickleDown);
             _map.RegisterCallback<PointerMoveEvent>(OnDragMove, TrickleDown.TrickleDown);
             _map.RegisterCallback<PointerUpEvent>(OnDragEnd, TrickleDown.TrickleDown);
+            _map.RegisterCallback<PointerCancelEvent>(e => _touches.Remove(e.pointerId), TrickleDown.TrickleDown);
+            _map.RegisterCallback<WheelEvent>(e =>
+            {
+                if (_model != null && _model.Pannable && Mathf.Abs(e.delta.y) > 0.01f)
+                {
+                    Zoomed?.Invoke(e.delta.y > 0 ? +1 : -1);
+                    e.StopPropagation();
+                }
+            });
             _root.Add(_map);
 
             var footer = new VisualElement();
@@ -155,14 +208,19 @@ namespace CultOfComfort.Client
             _card.Insert(3, _cardOptions);
             _card.Insert(4, _cardNote);
 
-            _tithe = Sheet("map-tithe-sheet", out var titheTitle);
-            titheTitle.text = "Pay Lord Wulfric a tithe";
+            _tithe = Sheet("map-tithe-sheet", out _titheTitle);
+            _titheTitle.text = "Pay Lord Wulfric a tithe";
             _titheOptions = new VisualElement();
             _titheNote = new Label();
             _titheNote.AddToClassList("small");
             _titheNote.AddToClassList("map-note");
-            _tithe.Insert(1, _titheOptions);
-            _tithe.Insert(2, _titheNote);
+            _tithe.Insert(1, _titheNote);
+            _tithe.Insert(2, _titheOptions);
+
+            _help = Sheet("map-help-sheet", out var helpTitle);
+            helpTitle.text = "How the lands work";
+            _helpLines = new VisualElement();
+            _help.Insert(1, _helpLines);
 
             Show(false);
         }
@@ -176,6 +234,7 @@ namespace CultOfComfort.Client
             {
                 CloseCard();
                 ShowTithe(false);
+                _help.style.display = DisplayStyle.None;
             }
         }
 
@@ -205,6 +264,7 @@ namespace CultOfComfort.Client
             if (open)
             {
                 CloseCard();
+                _help.style.display = DisplayStyle.None;
             }
         }
 
@@ -216,11 +276,15 @@ namespace CultOfComfort.Client
             _model = model;
             _title.text = model.Title;
             _zoom.style.display = model.Pannable ? DisplayStyle.Flex : DisplayStyle.None;
-            if (!_dragging)
+            // A released drag keeps its offset until the new window arrives (or, offline, for a few seconds), so the map
+            // doesn't jump back under the finger and then forward again.
+            if (!_dragging && (model.ViewKey != _viewKey || (_heldSince >= 0f && Time.realtimeSinceStartup - _heldSince > 3f)))
             {
-                _nodes.style.translate = new Translate(0, 0);
-                _walkers.style.translate = new Translate(0, 0);
+                _pan.style.translate = new Translate(0, 0);
+                _heldSince = -1f;
             }
+
+            _viewKey = model.ViewKey;
 
             if (rebuild)
             {
@@ -241,6 +305,17 @@ namespace CultOfComfort.Client
             }
 
             _tension.text = model.TensionLine;
+            _tensionHelp.text = model.TensionHelp ?? string.Empty;
+            _titheTitle.text = $"Pay {model.Lord} a tithe";
+            _helpLines.Clear();
+            foreach (var line in model.Help)
+            {
+                var l = new Label("• " + line);
+                l.AddToClassList("sheet-line");
+                l.AddToClassList("wrap");
+                _helpLines.Add(l);
+            }
+
             _tensionFill.style.width = Length.Percent(model.TensionFraction * 100f);
             _missionaries.text = model.MissionaryLine;
             _offerings.text = model.OfferingsLine;
@@ -267,7 +342,7 @@ namespace CultOfComfort.Client
             }
 
             Place();
-            _map.MarkDirtyRepaint();
+            _roads.MarkDirtyRepaint();
         }
 
         public void ShowCard(NodeCardModel card)
@@ -392,6 +467,11 @@ namespace CultOfComfort.Client
 
             var w = _map.resolvedStyle.width;
             var h = _map.resolvedStyle.height;
+            if (float.IsNaN(w) || w <= 0f)
+            {
+                return;
+            }
+
             var at = new Dictionary<int, Vector2>();
             foreach (var n in _model.Nodes)
             {
@@ -441,6 +521,17 @@ namespace CultOfComfort.Client
                 return;
             }
 
+            _touches[e.pointerId] = e.position;
+            if (_touches.Count == 2)
+            {
+                // A second finger: pinch to zoom; the drag stops where it is.
+                _pinchFrom = PinchSpan();
+                _dragFrom = null;
+                _dragging = false;
+                _pan.style.translate = new Translate(0, 0);
+                return;
+            }
+
             _dragFrom = e.position;
             _dragBy = Vector2.zero;
             _dragging = false;
@@ -449,6 +540,24 @@ namespace CultOfComfort.Client
 
         private void OnDragMove(PointerMoveEvent e)
         {
+            if (_touches.ContainsKey(e.pointerId))
+            {
+                _touches[e.pointerId] = e.position;
+            }
+
+            if (_touches.Count >= 2 && _pinchFrom > 1f)
+            {
+                var ratio = PinchSpan() / _pinchFrom;
+                if (ratio > 1.3f || ratio < 0.77f)
+                {
+                    Zoomed?.Invoke(ratio > 1f ? -1 : +1); // fingers apart: closer in (a smaller window)
+                    _pinchFrom = PinchSpan();
+                }
+
+                _swallowClick = true;
+                return;
+            }
+
             if (_dragFrom == null)
             {
                 return;
@@ -462,13 +571,29 @@ namespace CultOfComfort.Client
 
             if (_dragging)
             {
-                _nodes.style.translate = new Translate(_dragBy.x, _dragBy.y);
-                _walkers.style.translate = new Translate(_dragBy.x, _dragBy.y);
+                _pan.style.translate = new Translate(_dragBy.x, _dragBy.y);
             }
+        }
+
+        private float PinchSpan()
+        {
+            using var e = _touches.Values.GetEnumerator();
+            e.MoveNext();
+            var a = e.Current;
+            e.MoveNext();
+            return Vector2.Distance(a, e.Current);
         }
 
         private void OnDragEnd(PointerUpEvent e)
         {
+            var wasPinch = _touches.Count >= 2;
+            _touches.Remove(e.pointerId);
+            if (wasPinch)
+            {
+                _map.schedule.Execute(() => _swallowClick = false).ExecuteLater(50);
+                return;
+            }
+
             if (_dragFrom == null)
             {
                 return;
@@ -487,6 +612,7 @@ namespace CultOfComfort.Client
             var h = _map.resolvedStyle.height;
             if (w > 0f && h > 0f)
             {
+                _heldSince = Time.realtimeSinceStartup;
                 Panned?.Invoke(new Vector2(_dragBy.x / w, _dragBy.y / h));
             }
         }

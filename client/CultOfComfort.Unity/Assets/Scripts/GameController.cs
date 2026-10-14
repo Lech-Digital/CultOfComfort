@@ -237,6 +237,12 @@ namespace CultOfComfort.Client
                 if (_world != null)
                 {
                     var (dq, dr) = SharedWorldPresenter.PanBy(fraction, _world.viewRadius);
+                    if (dq == 0 && dr == 0)
+                    {
+                        _map.ResetPan(); // less than a place: it slides back
+                        return;
+                    }
+
                     _ = FetchWorldAsync(_world.viewQ + dq, _world.viewR + dr);
                 }
             };
@@ -252,9 +258,11 @@ namespace CultOfComfort.Client
                 var outcome = await SendVillage(new PayTithe(Guid.NewGuid(), amount));
                 if (outcome.Status == CommandStatus.Accepted)
                 {
+                    var lord = _world != null ? SharedWorldPresenter.Authority(SharedWorldPresenter.MapFor(_world), _world).Lord : "Wulfric";
+                    lord = char.ToUpperInvariant(lord[0]) + lord.Substring(1);
                     Announce(hadRaid && _snapshot?.RaidWarningEndsAtUtc == null
-                        ? "Wulfric counts the money twice and calls the raid off. For now."
-                        : "Wulfric pockets the tithe. His mood improves slightly.");
+                        ? $"{lord} counts the money twice and calls the raid off. For now."
+                        : $"{lord} pockets the tithe. His temper cools a little.");
                 }
             };
             _sheet = new FeatureSheetView(root);
@@ -288,6 +296,11 @@ namespace CultOfComfort.Client
                 if (id == "tithes")
                 {
                     _map.ShowTitheSheet();
+                }
+                else if (!Pref(MapHelpSeenKey))
+                {
+                    _map.ShowHelp(); // the first visit explains what the lands are for (owner 2026-10-14: "totally unclear")
+                    SetPref(MapHelpSeenKey, true);
                 }
         }
 
@@ -392,8 +405,14 @@ namespace CultOfComfort.Client
         /// <summary>Asks the server for the window around (q, r) (null: around the village), joining a world the first time.</summary>
         private async Task FetchWorldAsync(int? q, int? r)
         {
-            if (_worldFetching || !(_village is RemoteBaseGateway remote))
+            if (!(_village is RemoteBaseGateway remote))
             {
+                return;
+            }
+
+            if (_worldFetching)
+            {
+                _worldNext = (q, r); // a pan or zoom while a fetch is out: fetch that window next, not never
                 return;
             }
 
@@ -416,7 +435,15 @@ namespace CultOfComfort.Client
             {
                 _worldFetching = false;
             }
+
+            if (_worldNext is var (nq, nr) && _worldNext != null)
+            {
+                _worldNext = null;
+                await FetchWorldAsync(nq, nr);
+            }
         }
+
+        private (int? Q, int? R)? _worldNext;
 
         /// <summary>Raised when the first-launch intro ends (played out or skipped).</summary>
         public event Action IntroFinished;
@@ -1424,6 +1451,7 @@ namespace CultOfComfort.Client
 
         /// <summary>The tutorial's step this frame (Dusk only, no card or report in the way) and, for a building, where it is on screen.</summary>
         private const string DrawerCollapsedKey = "hud.drawer.collapsed";
+        private const string MapHelpSeenKey = "map.help.seen";
         private const string ErrandFoldedKey = "hud.errand.folded";
         private const string CoachOffKey = "hud.coach.off";
 

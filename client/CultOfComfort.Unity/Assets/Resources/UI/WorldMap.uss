@@ -1,15 +1,21 @@
 /* The Marchlands (spec 2026-10-14 world map): a parchment map over the village. */
 .world-map { position: absolute; left: 8px; right: 8px; top: 8%; bottom: 3%; padding: 10px 12px; flex-direction: column; }
 .map-header { flex-direction: row; justify-content: space-between; align-items: center; }
-.map-title { font-size: 22px; -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC"); color: #3a2a18; }
-.map-close { font-size: 18px; width: 40px; height: 36px; background-color: rgba(0, 0, 0, 0); border-width: 0; color: #3a2a18; }
+/* The title gives way (ellipsis) so the zoom, help and close buttons are always on screen. Plain Fell: the small-caps
+   face mangles some letter pairs ("Th", "no"). */
+.map-title {
+    font-size: 17px; -unity-font-definition: resource("UI/Fonts/ImFellEnglish"); color: #3a2a18; -unity-font-style: bold;
+    flex-shrink: 1; flex-grow: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 0; margin: 0;
+}
+.map-close { font-size: 18px; width: 36px; height: 36px; flex-shrink: 0; padding: 0; margin: 0 0 0 2px; background-color: rgba(0, 0, 0, 0); border-width: 0; color: #3a2a18; }
+.map-help-line { font-size: 11px; color: #6b5238; }
 .map-tension { margin: 2px 0 4px 0; }
 .map-tension-bar { height: 8px; background-color: rgba(58, 42, 24, 0.2); border-radius: 4px; margin: 3px 0; }
 .map-tension-fill { height: 8px; background-color: #a8322a; border-radius: 4px; width: 0; }
 .map-line { font-size: 12px; color: #3a2a18; white-space: normal; padding: 0; margin: 0; }
 .map-row { flex-direction: row; align-items: center; }
 .map-small-button { font-size: 12px; padding: 3px 10px; margin: 2px 0 2px 6px; align-self: flex-end; }
-.map-area { flex-grow: 1; margin: 4px 0; background-color: rgba(120, 96, 60, 0.12); border-radius: 8px; }
+.map-area { flex-grow: 1; margin: 4px 0; background-color: rgba(120, 96, 60, 0.12); border-radius: 8px; overflow: hidden; }
 .map-layer { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
 .map-node-holder { position: absolute; width: 104px; height: 82px; align-items: center; }
 .map-ring { position: absolute; top: 0; left: 26px; width: 52px; height: 52px; }
@@ -26,12 +32,12 @@
 .map-node-patron > .map-banner { display: flex; }
 .map-walker { position: absolute; width: 18px; height: 18px; border-radius: 9px; background-color: #46618c; border-width: 2px; border-color: #ece6d6; }
 .map-footer { padding-top: 4px; }
-.map-sheet { position: absolute; left: 10px; right: 10px; bottom: 10px; }
+.map-sheet { position: absolute; left: 10px; right: 10px; bottom: 10px; max-height: 85%; }
 .map-note { white-space: normal; margin-top: 4px; }
 .icon-swords { background-image: resource("UI/Icons/swords"); }
 .sheet-entry { flex-direction: row; align-items: center; padding: 4px 2px; border-bottom-width: 1px; border-color: rgba(107, 82, 56, 0.2); }
 .sheet-heading { font-size: 15px; color: #3a2a18; -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC"); margin-top: 8px; white-space: normal; }
-.map-zoom { flex-direction: row; flex-grow: 1; justify-content: flex-end; }
+.map-zoom { flex-direction: row; flex-grow: 0; flex-shrink: 0; justify-content: flex-end; }
 .map-node-camp { background-color: #e3cfa6; border-width: 2px; border-color: #3a2a18; }
 .icon-cult { background-image: resource("UI/Icons/cult"); }
 .sheet-tabs { flex-direction: row; flex-wrap: wrap; margin: 4px 0 2px 0; border-bottom-width: 2px; border-color: rgba(107, 82, 56, 0.35); }
