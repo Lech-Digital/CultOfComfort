@@ -13,7 +13,8 @@ using UnityEngine.TestTools;
 namespace CultOfComfort.Client.Tests
 {
     /// <summary>
-    /// Review tool, not a test: renders the live board with a few shaped buildings into art/previews/world/editor_shapes.png.
+    /// Review tool, not a test: renders the live board with a few shaped buildings round the Hearth at each level into
+    /// art/previews/world/editor_shapes_hearth{level}.png.
     /// Run explicitly: -testPlatform PlayMode -testFilter BoardCapture.
     /// </summary>
     [Explicit, Category("Capture")]
@@ -23,11 +24,17 @@ namespace CultOfComfort.Client.Tests
         public void TearDown() => VillageComposition.Override = null;
 
         [UnityTest]
-        public IEnumerator BoardCapture_Shapes_WritesPng()
+        public IEnumerator BoardCapture_Shapes_WritesPng([Values(1, 2, 3)] int hearthLevel)
         {
             // A village with shapes: a turned lean-to, a storage hut, a cultist hut, a peat trench, fences both ways, a tower.
             var now = DateTimeOffset.UtcNow;
-            var state = BaseState.CreateNew(new BuildingTable { StartingStock = new ResourceBag(5000, 900, 1000, 300) }, VillageMap.Demo, now);
+            var state = BaseState.CreateNew(new BuildingTable { StartingStock = new ResourceBag(9000, 900, 2000, 500) }, VillageMap.Demo, now);
+            for (var level = 1; level < hearthLevel; level++)
+            {
+                state.Apply(new UpgradeHearth(Guid.NewGuid()), now);
+                state.Apply(new FinishConstructionNow(Guid.NewGuid()), now);
+            }
+
             void Build(BuildingType type, int x, int y, bool rotated = false)
             {
                 state.Apply(new PlaceBuilding(Guid.NewGuid(), type, new GridPosition(x, y), rotated), now);
@@ -68,7 +75,7 @@ namespace CultOfComfort.Client.Tests
             camera.targetTexture = null;
             var folder = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "..", "art", "previews", "world"));
             Directory.CreateDirectory(folder);
-            File.WriteAllBytes(Path.Combine(folder, "editor_shapes.png"), texture.EncodeToPNG());
+            File.WriteAllBytes(Path.Combine(folder, $"editor_shapes_hearth{hearthLevel}.png"), texture.EncodeToPNG());
             UnityEngine.Object.Destroy(texture);
             Assert.Pass("written");
         }

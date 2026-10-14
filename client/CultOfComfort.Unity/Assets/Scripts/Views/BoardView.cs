@@ -541,7 +541,7 @@ namespace CultOfComfort.Client
 
         private void BuildHearth()
         {
-            HearthPosition = Shapes.ToWorld(VillageMap.Demo.Hearth);
+            HearthPosition = FootprintBox(VillageMap.Demo.HearthTiles).Centre; // the 4×4 ruin; the fire burns in its middle
             var hearth = new GameObject("Hearth").transform;
             hearth.SetParent(_root, false);
             hearth.localPosition = HearthPosition;
@@ -578,7 +578,7 @@ namespace CultOfComfort.Client
             _hearthModel = model;
             _hearthLevel = level;
             model.transform.localRotation = FaceCamera;
-            model.transform.localScale = Vector3.one * 0.8f; // fits its tile; the columns still tower over the cultists
+            model.transform.localScale = Vector3.one; // authored 1 unit = 1 tile, to fill its 4×4 plot
             _hearthFire = ArtLibrary.FindPart(model.transform, "Fire");
             _hearthSteam = ArtLibrary.FindPart(model.transform, "Steam");
             return true;
@@ -693,7 +693,7 @@ namespace CultOfComfort.Client
             {
                 visual.Root = new GameObject("Hearth works").transform;
                 visual.Root.SetParent(_root, false);
-                visual.Root.localPosition = Shapes.ToWorld(building.Position);
+                visual.Root.localPosition = FootprintBox(building.Tiles).Centre;
             }
             else if (building.Type == BuildingType.SlurryChute || building.Type == BuildingType.SaplingFlinger)
             {
@@ -758,9 +758,10 @@ namespace CultOfComfort.Client
                 }
             }
 
-            visual.Bar = Shapes.Create(PrimitiveType.Cube, Palette.Highlight, new Vector3(0f, 1.5f, 0f), new Vector3(0.7f, 0.07f, 0.07f), visual.Root, "Construction");
+            var barHeight = building.Type == BuildingType.Hearth ? 3f : 1.5f; // over the ruin's columns
+            visual.Bar = Shapes.Create(PrimitiveType.Cube, Palette.Highlight, new Vector3(0f, barHeight, 0f), new Vector3(0.7f, 0.07f, 0.07f), visual.Root, "Construction");
             visual.Bar.SetActive(false);
-            visual.Health = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, 1.3f, 0f), new Vector3(0.7f, 0.07f, 0.07f), visual.Root, "Health");
+            visual.Health = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, barHeight - 0.2f, 0f), new Vector3(0.7f, 0.07f, 0.07f), visual.Root, "Health");
             visual.Health.SetActive(false);
             var icon = ResourceIcon(building.Type);
             if (icon != null && building.Level > 0 && IconSprites.Get(icon) != null)
@@ -797,7 +798,7 @@ namespace CultOfComfort.Client
         {
             var lightGo = new GameObject("Hearth Glow");
             lightGo.transform.SetParent(hearth, false);
-            lightGo.transform.localPosition = new Vector3(0f, 1.2f, -0.6f);
+            lightGo.transform.localPosition = new Vector3(0f, 1.2f, -0.3f);
             _hearthLight = lightGo.AddComponent<Light>();
             _hearthLight.type = LightType.Point;
             _hearthLight.color = Palette.Ember;

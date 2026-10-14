@@ -1,29 +1,14 @@
-"""Hearth, level 2 (log banya bolted on). Level 1: (spec: the Marchlands). A reclaimed Roman bath ruin: a stone plinth, broken marble columns,
-a surviving bit of architrave, a steaming pool, a blue tarp tied over the leaky corner, and a brazier that is
-the actual hearth. `Fire` glows with the Hearth's warmth; `Steam` drifts."""
-from lib.buildings import hearth_banya, hearth_ruin
-from lib.car import crashed_car
-from lib.mesh import Part, root
+"""Hearth, level 2: Camp Comfort. The wheels are off (one rings the fire, one is the sign), the engine block is an altar,
+a wing mirror watches the road, a log banya is bolted on, the first clay-and-woad copies appear. See lib/hearth.py.
+`Fire` glows with the Hearth's warmth; `Steam` drifts."""
+from lib.hearth import build_hearth
+from lib.mesh import root
 
-TRIANGLE_BUDGET = 4500
+TRIANGLE_BUDGET = 10000
 REQUIRED_PARTS = ("Ruin", "Fire", "Steam")
 
 
 def build():
     hearth = root("hearth_l2")
-    ruin = Part("Ruin", parent=hearth)
-    hearth_ruin(ruin)
-    hearth_banya(ruin)
-    ruin_obj = ruin.build()
-    crashed_car(ruin_obj)  # the time machine, where it landed (spec: The Boot)
-
-    (Part("Fire", pivot=(-0.25, -0.25, 0.36), parent=ruin_obj)
-     .cylinder(0.11, 0.3, (-0.25, -0.25, 0.5), "fire", segments=7, radius_top=0.0, smooth=True)
-     .cylinder(0.07, 0.22, (-0.2, -0.22, 0.47), "ember", segments=6, radius_top=0.0, smooth=True, rotation=(8, 10, 0))
-     .build())
-    (Part("Steam", pivot=(0.12, 0.05, 0.3), parent=ruin_obj)
-     .sphere(0.14, (0.08, 0.05, 0.42), "linen", segments=7, rings=5, smooth=True)
-     .sphere(0.11, (0.18, 0.08, 0.6), "linen", segments=7, rings=5, smooth=True)
-     .sphere(0.08, (0.1, 0.12, 0.76), "linen", segments=6, rings=4, smooth=True)
-     .build())
+    build_hearth(hearth, 2)
     return hearth

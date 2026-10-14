@@ -28,7 +28,7 @@ public class BaseStateRulesTests
     [Theory]
     [InlineData(2, 1)]
     [InlineData(10, 5)]
-    [InlineData(17, 8)]
+    [InlineData(17, 7)]
     public void Apply_PlaceOnTheRoad_Rejected(int x, int y)
     {
         // Act — the raiders' road is fixed: build beside it, never on it.

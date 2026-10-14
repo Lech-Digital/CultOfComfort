@@ -235,6 +235,79 @@ public class FootprintTests
     }
 
     [Fact]
+    public void CreateNew_Hearth_CoversFourByFourAroundTheFire()
+    {
+        // Act
+        var hearth = RichBase().Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Hearth);
+
+        // Assert — the fire stays at (17,9); the ruin and the car take (16..19, 8..11).
+        hearth.Position.Should().Be(new GridPosition(17, 9));
+        hearth.Tiles.Should().HaveCount(16).And.Contain(new GridPosition(16, 8)).And.Contain(new GridPosition(19, 11));
+    }
+
+    [Theory]
+    [InlineData(19, 11)]
+    [InlineData(16, 8)]
+    public void Place_OnTheHearthsRuin_Rejected(int x, int y)
+    {
+        // Act
+        var outcome = Place(RichBase(), BuildingType.WattleFence, x, y);
+
+        // Assert
+        outcome.Status.Should().Be(CommandStatus.Rejected);
+        outcome.Reason.Should().Be("Can't build there.");
+    }
+
+    [Fact]
+    public void Place_TouchingTheRuin_IsConnectedWithoutARoad()
+    {
+        // Arrange
+        var state = RichBase();
+
+        // Act — a Storage Hut against the ruin's east wall.
+        Place(state, BuildingType.StorageHut, 20, 10).Status.Should().Be(CommandStatus.Accepted);
+
+        // Assert
+        state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.StorageHut).Connected.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Restore_SaveFromBeforeTheBigHearth_MovesBuildingsOffTheRuinAndDropsItsTracks()
+    {
+        // Arrange — a version-4 save: a Cottage and a Dirt Track on what is now the ruin.
+        var data = RichBase().ToData() with { LayoutVersion = 4, NextId = 4 };
+        data = data with
+        {
+            Buildings = data.Buildings.Concat(new[]
+            {
+                new BuildingData(2, BuildingType.Cottage, 1, 18, 10, null, 0, T0.UtcTicks),
+                new BuildingData(3, BuildingType.DirtTrack, 1, 16, 11, null, 0, T0.UtcTicks),
+            }).ToList(),
+        };
+
+        // Act
+        var restored = BaseState.Restore(new BuildingTable { StartingStock = new ResourceBag(5000, 900, 1000, 300) }, Map, data);
+
+        // Assert
+        var snapshot = restored.Snapshot(T0);
+        var cottage = snapshot.Buildings.Single(b => b.Type == BuildingType.Cottage);
+        cottage.Tiles.Should().NotContain(t => Map.IsHearthTile(t));
+        snapshot.Buildings.Should().NotContain(b => b.Type == BuildingType.DirtTrack);
+        snapshot.Buildings.SelectMany(b => b.Tiles).Should().OnlyHaveUniqueItems();
+        restored.ToData().LayoutVersion.Should().Be(BaseState.CurrentLayoutVersion);
+    }
+
+    [Fact]
+    public void WildTrees_NeverOnOrBesideTheRuin()
+    {
+        // Act
+        var near = Map.WildTrees.Where(t => Map.DistanceFromHearth(t) <= 1);
+
+        // Assert
+        near.Should().BeEmpty();
+    }
+
+    [Fact]
     public void PlacementProblem_FromASnapshot_AgreesWithTheVillage()
     {
         // Arrange — the client's cursor hint must say what the village would say.
