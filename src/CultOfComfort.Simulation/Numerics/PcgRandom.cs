@@ -49,4 +49,6 @@ internal static class RandomStreams
 {
     public const ulong Waves = 1;
     public const ulong Combat = 2;
+    public const ulong World = 3;
+    public const ulong Placement = 4;
 }

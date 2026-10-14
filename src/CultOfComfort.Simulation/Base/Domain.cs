@@ -11,6 +11,9 @@ public enum NodeType
     MarketTown,
     Abbey,
     Keep,
+
+    /// <summary>A Bishop's seat in the shared world (a Warlord's is a <see cref="Keep"/>).</summary>
+    Cathedral,
 }
 
 /// <summary>A place on the Authority's map (hex axial <see cref="Q"/>, <see cref="R"/>; the village is at 0, 0).</summary>
@@ -105,6 +108,7 @@ public sealed record DomainTable(
             [NodeType.MarketTown] = new(NodeType.MarketTown, 50, 150, new ResourceBag(0, 0, 8, 0)),
             [NodeType.Abbey] = new(NodeType.Abbey, 35, 200, new ResourceBag(0, 0, 0, 6)),
             [NodeType.Keep] = new(NodeType.Keep, 15, 300, default),
+            [NodeType.Cathedral] = new(NodeType.Cathedral, 15, 300, default),
         },
         UnlockHearth: 2,
         ReachByHearth: new[] { 0, 3, 5 },
