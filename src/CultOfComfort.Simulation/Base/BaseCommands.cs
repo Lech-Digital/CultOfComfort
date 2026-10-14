@@ -65,6 +65,12 @@ public sealed record CollectOfferings(Guid CommandId) : BaseCommand(CommandId);
 /// <summary>Pays the Authority to calm down: Tension drops by the tithe's worth (and an announced raid may be called off).</summary>
 public sealed record PayTithe(Guid CommandId, ResourceBag Amount) : BaseCommand(CommandId);
 
+/// <summary>Starts a study at the Hearth (one at a time; spec 2026-10-14, research).</summary>
+public sealed record StartResearch(Guid CommandId, string TechId) : BaseCommand(CommandId);
+
+/// <summary>The Trolley Market: buys <paramref name="Amount"/> of <paramref name="Get"/> with <paramref name="Give"/>, at a bad rate.</summary>
+public sealed record Trade(Guid CommandId, ResourceType Give, ResourceType Get, int Amount) : BaseCommand(CommandId);
+
 /// <summary>Development only: fills every store to its cap (for testing the later Hearth levels). A server refuses this.</summary>
 public sealed record DebugFillStores(Guid CommandId) : BaseCommand(CommandId);
 

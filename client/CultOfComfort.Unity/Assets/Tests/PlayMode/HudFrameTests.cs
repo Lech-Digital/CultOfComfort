@@ -371,7 +371,7 @@ namespace CultOfComfort.Client.Tests
             // Assert
             var note = root.Q<Label>("locked-note");
             Assert.IsTrue(Visible(note));
-            StringAssert.Contains("Hearth 3", note.text);
+            StringAssert.Contains("Hearth 2", note.text);
         }
 
         [UnityTest]

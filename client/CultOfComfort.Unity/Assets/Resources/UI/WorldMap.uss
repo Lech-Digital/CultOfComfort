@@ -29,3 +29,5 @@
 .map-sheet { position: absolute; left: 10px; right: 10px; bottom: 10px; }
 .map-note { white-space: normal; margin-top: 4px; }
 .icon-swords { background-image: resource("UI/Icons/swords"); }
+.sheet-entry { flex-direction: row; align-items: center; padding: 4px 2px; border-bottom-width: 1px; border-color: rgba(107, 82, 56, 0.2); }
+.sheet-heading { font-size: 15px; color: #3a2a18; -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC"); margin-top: 8px; white-space: normal; }

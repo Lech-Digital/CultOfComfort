@@ -20,6 +20,12 @@ namespace CultOfComfort.Client
 
         /// <summary>Point at Light the Lamps.</summary>
         StartNight,
+
+        /// <summary>Open the Marchlands map.</summary>
+        Map,
+
+        /// <summary>Open the Research sheet.</summary>
+        Research,
     }
 
     /// <summary>The sticky note under the Hearth panel: the Prophet's current errand (spec 2026-10-13 first-hour arc).</summary>
@@ -60,6 +66,8 @@ namespace CultOfComfort.Client
                 ErrandGoal.Build or ErrandGoal.BuildOnRoad => ErrandHint.BuildCard,
                 ErrandGoal.UpgradeTo or ErrandGoal.Collect => ErrandHint.Building,
                 ErrandGoal.HearthLevel => ErrandHint.Hearth,
+                ErrandGoal.SendMissionary or ErrandGoal.Patron => ErrandHint.Map,
+                ErrandGoal.Study => ErrandHint.Research,
                 _ => ErrandHint.StartNight,
             };
             return new ErrandNote($"Errand {view.Index + 1} of {view.Count}", view.Text, counted ? $"{view.Progress}/{view.Target}" : null,

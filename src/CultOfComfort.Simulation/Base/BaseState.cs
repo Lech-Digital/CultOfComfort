@@ -142,6 +142,7 @@ public sealed partial class BaseState
         }
 
         state.RestoreDomain(data.Domain, state._tensionAsOf);
+        state.RestoreResearch(data.Research);
 
         if (data.LayoutVersion < 1)
         {
@@ -458,7 +459,8 @@ public sealed partial class BaseState
         _cold,
         _errandIndex,
         _errandEventDone,
-        DomainToData());
+        DomainToData(),
+        ResearchToData());
 
     public CommandOutcome Apply(BaseCommand command, DateTimeOffset nowUtc)
     {
@@ -499,6 +501,8 @@ public sealed partial class BaseState
             SendMissionary send => SendOut(send, nowUtc),
             CollectOfferings _ => CollectOfferings(nowUtc),
             PayTithe tithe => Tithe(tithe, nowUtc),
+            StartResearch start => StartStudy(start, nowUtc),
+            Trade trade => DoTrade(trade),
             RepairBuilding repair => Repair(repair.BuildingId, nowUtc),
             _ => CommandOutcome.Reject("Unknown order."),
         };
@@ -524,7 +528,7 @@ public sealed partial class BaseState
         var tension = TensionValue(nowUtc);
         return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
             tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport, _cleared.Concat(_treeCuts.Keys.Where(t => !IsWildTreeStanding(t))).ToList(),
-            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc));
+            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts());
     }
 
     public ResourceBag Caps
@@ -540,6 +544,7 @@ public sealed partial class BaseState
                 }
             }
 
+            cap = cap * (100 + Bonus(TechEffect.StoragePercent)) / 100;
             return new ResourceBag(cap, cap, cap, cap);
         }
     }
@@ -554,7 +559,7 @@ public sealed partial class BaseState
             _buildings.Where(b => b.Type != BuildingType.Hearth && !_table.Spec(b.Type).IsTower && !BuildingTable.IsRoad(b.Type)).SelectMany(b => b.Tiles),
             _buildings.Where(b => b.Type != BuildingType.Hearth && _table.StructureHealth(b.Type, b.Level) > 0).Select(b =>
             {
-                var health = _table.StructureHealth(b.Type, b.Level);
+                var health = _table.StructureHealth(b.Type, b.Level) * (100 + Bonus(TechEffect.HealthPercent)) / 100; // frozen into the plan
                 return new PlacedStructure(b.Id, b.Position, health, b.Wrecked ? 0 : health)
                 {
                     Tiles = b.Tiles, Barrier = BuildingTable.IsBarrier(b.Type), Gate = b.Type == BuildingType.Gate,
@@ -885,6 +890,13 @@ public sealed partial class BaseState
     private CommandOutcome FinishNow(DateTimeOffset now)
     {
         var building = Constructing;
+        if (building == null && _studying != null)
+        {
+            _studyEndsAt = now; // dev: the study finishes too
+            Advance(now);
+            return CommandOutcome.Accept();
+        }
+
         if (building == null)
         {
             return CommandOutcome.Reject("Nothing is being built.");
@@ -893,6 +905,31 @@ public sealed partial class BaseState
         building.UpgradeEndsAtUtc = now;
         Advance(now);
         return CommandOutcome.Accept();
+    }
+
+    // ---------------- the Trolley Market ----------------
+
+    private CommandOutcome DoTrade(Trade trade)
+    {
+        if (trade.Amount <= 0 || trade.Give == trade.Get)
+        {
+            return CommandOutcome.Reject("The trolley doesn't do that.");
+        }
+
+        var price = _table.TradePrice(trade.Give, trade.Get, trade.Amount);
+        if (_stock.Get(trade.Give) < price)
+        {
+            return CommandOutcome.Reject($"That costs {price} {trade.Give}.");
+        }
+
+        var room = Caps.Get(trade.Get) - _stock.Get(trade.Get);
+        if (room < trade.Amount)
+        {
+            return CommandOutcome.Reject($"No room in the stores for {trade.Amount} {trade.Get}.");
+        }
+
+        _stock = _stock - ResourceBag.Of(trade.Give, price) + ResourceBag.Of(trade.Get, trade.Amount);
+        return CommandOutcome.Accept(ResourceBag.Of(trade.Get, trade.Amount));
     }
 
     // ---------------- terrain ----------------
@@ -1028,7 +1065,8 @@ public sealed partial class BaseState
             var arrival = Due(_population < Beds() ? _populationAsOf.AddMinutes(_table.VillagerArrivalMinutes) : (DateTimeOffset?)null, now);
             var runsOut = Due(PeatRunsOutAt(), now);
             var domain = Due(NextDomainEvent(), now);
-            var next = Earliest(construction, crossing, deadline, abandoned, arrival, runsOut, domain);
+            var study = Due(StudyEnds(), now);
+            var next = Earliest(construction, crossing, deadline, abandoned, arrival, runsOut, domain, study);
             if (next == null)
             {
                 MaterializeUpkeep(now);
@@ -1063,6 +1101,10 @@ public sealed partial class BaseState
             else if (next == domain)
             {
                 RunDomainEvents(domain!.Value);
+            }
+            else if (next == study)
+            {
+                CompleteStudy(study!.Value);
             }
             else if (next == crossing)
             {
@@ -1338,8 +1380,10 @@ public sealed partial class BaseState
             return 0;
         }
 
-        var rate = LevelRate(b) * (100 + RoadBonus(b)) / 100;
-        return _table.Spec(b.Type).Produces == ResourceType.Devotion ? DevotionWithComfort(rate) : rate;
+        var produces = _table.Spec(b.Type).Produces;
+        var research = produces == ResourceType.Timber ? Bonus(TechEffect.TimberPercent) : produces == ResourceType.Peat ? Bonus(TechEffect.PeatPercent) : 0;
+        var rate = LevelRate(b) * (100 + RoadBonus(b) + research) / 100;
+        return produces == ResourceType.Devotion ? DevotionWithComfort(rate) : rate;
     }
 
     // ---------------- comfort ----------------
@@ -1355,22 +1399,35 @@ public sealed partial class BaseState
     /// The village's Comfort: the Hearth's, plus every finished, intact building's (homes and baths add, middens
     /// subtract), minus extra Squalor for each home a midden stands beside.
     /// </summary>
-    public int Comfort()
+    public int Comfort() => ComfortParts().Sum(p => p.Amount);
+
+    /// <summary>Where the Comfort comes from (the Cult panel shows this): the Hearth, each kind of building, Squalor, research.</summary>
+    public IReadOnlyList<(string Label, int Amount)> ComfortParts()
     {
-        var comfort = _table.HearthComfort[Math.Min(Math.Max(HearthLevel, 1), _table.HearthComfort.Count) - 1];
+        var parts = new List<(string, int)> { ("Hearth", _table.HearthComfort[Math.Min(Math.Max(HearthLevel, 1), _table.HearthComfort.Count) - 1]) };
         var standing = _buildings.Where(b => b.Level > 0 && !b.Wrecked && b.Type != BuildingType.Hearth).ToList();
-        foreach (var b in standing)
+        foreach (var group in standing.GroupBy(b => b.Type).OrderBy(g => g.Key))
         {
-            comfort += _table.Spec(b.Type).Levels[b.Level - 1].Comfort;
+            var sum = group.Sum(b => _table.Spec(b.Type).Levels[b.Level - 1].Comfort + (b.Type == BuildingType.Bathhouse ? Bonus(TechEffect.BathComfort) : 0));
+            if (sum != 0)
+            {
+                parts.Add((sum > 0 ? _table.Spec(group.Key).Name : _table.Spec(group.Key).Name + " (Squalor)", sum));
+            }
         }
 
-        foreach (var midden in standing.Where(b => b.Type == BuildingType.MiddenSorter))
+        var smell = standing.Where(b => b.Type == BuildingType.MiddenSorter)
+            .Sum(midden => standing.Count(h => IsHome(h.Type) && Gap(midden, h) <= _table.SqualorRange) * _table.SqualorNearHome);
+        if (smell > 0)
         {
-            var homes = standing.Count(h => IsHome(h.Type) && Gap(midden, h) <= _table.SqualorRange);
-            comfort -= homes * _table.SqualorNearHome;
+            parts.Add(("Midden smell next to homes", -smell));
         }
 
-        return comfort;
+        if (Bonus(TechEffect.Comfort) != 0)
+        {
+            parts.Add(("Research", Bonus(TechEffect.Comfort)));
+        }
+
+        return parts;
     }
 
     private static bool IsHome(BuildingType type) => type is BuildingType.Cottage or BuildingType.CultistHut or BuildingType.Bathhouse;

@@ -59,6 +59,9 @@ namespace CultOfComfort.Client.Tests
         [TestCase(ErrandGoal.UpgradeTo, ErrandHint.Building)]
         [TestCase(ErrandGoal.Collect, ErrandHint.Building)]
         [TestCase(ErrandGoal.BuildOnRoad, ErrandHint.BuildCard)]
+        [TestCase(ErrandGoal.SendMissionary, ErrandHint.Map)]
+        [TestCase(ErrandGoal.Patron, ErrandHint.Map)]
+        [TestCase(ErrandGoal.Study, ErrandHint.Research)]
         public void From_OpenErrand_HintMatchesTheGoal(ErrandGoal goal, ErrandHint hint)
         {
             // Act

@@ -51,6 +51,9 @@ public static class VillageSaveMapping
         cold = data.Cold,
         errandIndex = data.ErrandIndex,
         errandEventDone = data.ErrandEventDone,
+        researched = data.Research?.Done.ToList() ?? new List<string>(),
+        researching = data.Research?.Current ?? string.Empty,
+        researchEndsTicks = data.Research?.EndsAtUtcTicks ?? 0,
         hasDomain = data.Domain != null,
         domain = data.Domain == null ? new DomainDto() : new DomainDto
         {
@@ -105,7 +108,9 @@ public static class VillageSaveMapping
             dto.cold,
             dto.errandIndex,
             dto.errandEventDone,
-            dto.hasDomain && dto.domain != null ? FromDto(dto.domain) : null);
+            dto.hasDomain && dto.domain != null ? FromDto(dto.domain) : null,
+            new ResearchData(dto.researched ?? new List<string>(), string.IsNullOrEmpty(dto.researching) ? null : dto.researching,
+                string.IsNullOrEmpty(dto.researching) ? null : dto.researchEndsTicks));
     }
 
     private static DomainData FromDto(DomainDto d) => new(

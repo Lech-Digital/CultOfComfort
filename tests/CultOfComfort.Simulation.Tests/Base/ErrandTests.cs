@@ -215,7 +215,9 @@ public class ErrandTests
         var hearthOne = errands.TakeWhile(e => !(e.Goal == ErrandGoal.HearthLevel && e.Target == 2)).Append(errands.First(e => e.Goal == ErrandGoal.HearthLevel));
 
         // Assert
-        errands.Should().HaveCount(13);
+        errands.Should().HaveCount(16); // 2026-10-14: missionary, study and patron errands after Hearth 2
+        var hearthTwo = errands.ToList().FindIndex(e => e.Goal == ErrandGoal.HearthLevel && e.Target == 2);
+        errands.Skip(hearthTwo + 1).Select(e => e.Goal).Should().Contain(new[] { ErrandGoal.SendMissionary, ErrandGoal.Study, ErrandGoal.Patron }, "the Marchlands and the manual come after Hearth 2");
         errands[0].Type.Should().Be(BuildingType.Woodcutter);
         errands[^2].Goal.Should().Be(ErrandGoal.HearthLevel);
         errands[^2].Target.Should().Be(3);

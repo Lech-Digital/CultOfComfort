@@ -312,3 +312,32 @@ public class DomainTests
         often.Snapshot(end).Domain!.Nodes.Select(n => n.InfluencePercent).Should().Equal(rarely.Snapshot(end).Domain!.Nodes.Select(n => n.InfluencePercent));
     }
 }
+
+public class MarchlandsErrandTests
+{
+    private static readonly DateTimeOffset T0 = new(2026, 10, 14, 9, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public void Errands_MissionaryStudyAndPatron_ReadTheVillage()
+    {
+        // Arrange — a village at the missionary errand (the earlier ones claimed by setting the index through the save).
+        var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+        state.Apply(new UpgradeHearth(Guid.NewGuid()), T0);
+        var now = T0.AddHours(1);
+        state.Apply(new DebugFillStores(Guid.NewGuid()), now);
+        var book = ErrandBook.Default.Errands.ToList();
+        var data = state.ToData() with { ErrandIndex = book.FindIndex(e => e.Goal == ErrandGoal.SendMissionary) };
+        state = BaseState.Restore(BuildingTable.Default, VillageMap.Demo, data);
+
+        // Act & Assert — sending one finishes the missionary errand.
+        state.Snapshot(now).Errand!.Done.Should().BeFalse();
+        state.Apply(new SendMissionary(Guid.NewGuid(), 1, 8), now);
+        state.Snapshot(now).Errand!.Done.Should().BeTrue();
+        state.Apply(new ClaimErrand(Guid.NewGuid()), now).Status.Should().Be(CommandStatus.Accepted);
+
+        // The study errand: a finished study.
+        state.Snapshot(now).Errand!.Goal.Should().Be(ErrandGoal.Study);
+        state.Apply(new StartResearch(Guid.NewGuid(), "sermon-notes"), now);
+        state.Snapshot(now.AddHours(2)).Errand!.Done.Should().BeTrue();
+    }
+}

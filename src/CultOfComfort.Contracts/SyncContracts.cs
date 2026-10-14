@@ -42,6 +42,11 @@ public sealed class CommandDto
     public int peat;
     public int scrap;
     public int devotion;
+
+    /// <summary>StartResearch's tech; Trade's resources.</summary>
+    public string tech;
+    public string give;
+    public string get;
 }
 
 /// <summary>One entry of a Night's input log.</summary>

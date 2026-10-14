@@ -24,7 +24,7 @@ namespace CultOfComfort.Client.Tests
             var research = LockedFeatures.Get("research");
 
             // Assert
-            StringAssert.Contains("Hearth 3", research.Note);
+            StringAssert.Contains("Hearth 2", research.Note);
         }
 
         [Test]
