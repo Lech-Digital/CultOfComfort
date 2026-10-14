@@ -35,6 +35,8 @@ public class ContractsTests
         new SendMissionary(Guid.NewGuid(), 7, 4),
         new CollectOfferings(Guid.NewGuid()),
         new PayTithe(Guid.NewGuid(), new ResourceBag(100, 20, 30, 40)),
+        new StartResearch(Guid.NewGuid(), "sharper-axes"),
+        new Trade(Guid.NewGuid(), ResourceType.Timber, ResourceType.Peat, 25),
     };
 
     [Theory]
@@ -94,6 +96,7 @@ public class ContractsTests
         state.Snapshot(later.AddHours(3));
         state.Apply(new SendMissionary(Guid.NewGuid(), 2, 2), later.AddHours(3));
         state.Apply(new PayTithe(Guid.NewGuid(), new ResourceBag(100, 0, 0, 0)), later.AddHours(3));
+        state.Apply(new StartResearch(Guid.NewGuid(), "sermon-notes"), later.AddHours(3));
         var data = state.ToData();
 
         // Act
@@ -102,6 +105,8 @@ public class ContractsTests
         // Assert
         back.Domain.Should().NotBeNull();
         back.Domain.Should().BeEquivalentTo(data.Domain);
+        back.Research.Should().BeEquivalentTo(data.Research);
+        data.Research!.Current.Should().Be("sermon-notes");
         BaseState.Restore(table, VillageMap.Demo, back).Snapshot(later.AddDays(2)).Domain.Should()
             .BeEquivalentTo(BaseState.Restore(table, VillageMap.Demo, data).Snapshot(later.AddDays(2)).Domain);
     }

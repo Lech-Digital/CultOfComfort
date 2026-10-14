@@ -28,7 +28,9 @@ public sealed record DomainView(
     ResourceBag OfferingsCap,
     ResourceBag OfferingsPerHour,
     int TensionPerHourMilli,
-    DateTimeOffset? TitheHalfUntilUtc);
+    DateTimeOffset? TitheHalfUntilUtc,
+    int MissionaryBonusPercent = 0,
+    int TitheBonusPercent = 0);
 
 /// <summary>The Domain (spec 2026-10-14 world map): missionaries, influence, offerings, tithes.</summary>
 public sealed partial class BaseState
@@ -127,7 +129,7 @@ public sealed partial class BaseState
 
         MaterializeTension(now);
         var halved = _lastTitheAt != null && now < _lastTitheAt.Value.AddHours(Domain.TitheRepeatHours);
-        var reduction = DomainTable.TitheValue(amount) * 1000L / Domain.TitheValuePerTension / (halved ? 2 : 1);
+        var reduction = DomainTable.TitheValue(amount) * 1000L * (100 + Bonus(TechEffect.TithePercent)) / 100 / Domain.TitheValuePerTension / (halved ? 2 : 1);
         _stock -= amount;
         _tensionMilli = Math.Max(0, _tensionMilli - reduction);
         _lastTitheAt = now;
@@ -185,7 +187,7 @@ public sealed partial class BaseState
         {
             for (var id = 0; id < _influenceMilli.Length; id++)
             {
-                _influenceMilli[id] = _influenceMilli[id] * (100 - Domain.DecayPercentPerDay) / 100;
+                _influenceMilli[id] = _influenceMilli[id] * (100 - Math.Max(0, Domain.DecayPercentPerDay - Bonus(TechEffect.SlowerDecay))) / 100;
             }
 
             _nextDecayAt = _influenceMilli.Any(i => i > 0) ? at.AddDays(1) : null;
@@ -196,7 +198,7 @@ public sealed partial class BaseState
     {
         var node = Marchlands.Node(m.NodeId)!;
         var before = _influenceMilli[node.Id];
-        _influenceMilli[node.Id] = Math.Min(100_000, before + Domain.GainMilli(node, m.Hours));
+        _influenceMilli[node.Id] = Math.Min(100_000, before + Domain.GainMilli(node, m.Hours) * (100 + Bonus(TechEffect.MissionaryPercent)) / 100);
         var patronLine = Domain.PatronInfluence * 1000L;
         var spike = 0;
         if (before < patronLine && _influenceMilli[node.Id] >= patronLine)
@@ -306,7 +308,8 @@ public sealed partial class BaseState
         var halfUntil = _lastTitheAt?.AddHours(Domain.TitheRepeatHours);
         return new DomainView(HearthLevel >= Domain.UnlockHearth, nodes, missionaries, Domain.Missionaries(HearthLevel),
             new ResourceBag((int)(purse[0] / 1000), (int)(purse[1] / 1000), (int)(purse[2] / 1000), (int)(purse[3] / 1000)),
-            Times(perHour, Domain.OfferingsBufferHours), perHour, (int)(TensionRateMilli()), halfUntil > now ? halfUntil : null);
+            Times(perHour, Domain.OfferingsBufferHours), perHour, (int)(TensionRateMilli()), halfUntil > now ? halfUntil : null,
+            Bonus(TechEffect.MissionaryPercent), Bonus(TechEffect.TithePercent));
     }
 
     private DomainData DomainToData() => new(

@@ -81,6 +81,7 @@ namespace CultOfComfort.Client
         private IntroDirector _intro;
         private AudioDirector _audio;
         private WorldMapView _map;
+        private FeatureSheetView _sheet;
         private bool _devTools; // the owner's testing gate is open on this device (lamps any time, dev buttons)
 
         public GamePhase Phase => _phase;
@@ -220,29 +221,86 @@ namespace CultOfComfort.Client
                         : "Wulfric pockets the tithe. His mood improves slightly.");
                 }
             };
-            _hud.FeatureClicked += id =>
-            {
+            _sheet = new FeatureSheetView(root);
+            _sheet.ActionClicked += OnSheetAction;
+            _hud.FeatureClicked += OpenFeature;
+        }
+
+        /// <summary>Opens a frame feature: the map (Map, Missionaries, Tithes) or a sheet (Research, Shop, Cult).</summary>
+        private void OpenFeature(string id)
+        {
                 if (_phase != GamePhase.Dusk || _snapshot == null)
                 {
                     return;
                 }
 
+                if (id == "research" || id == "shop" || id == "cult")
+                {
+                    _map.Show(false);
+                    _sheet.Show(id, SheetFor(id));
+                    return;
+                }
+
+                _sheet.Close();
                 _map.Show(true);
                 _map.Render(WorldMapPresenter.Build(_snapshot, BuildingTable.Default, _snapshot.AsOfUtc));
                 if (id == "tithes")
                 {
                     _map.ShowTitheSheet();
                 }
-            };
         }
 
-        /// <summary>Keeps the map current while it is open; opens the shortcuts once the Marchlands are.</summary>
+        private SheetModel SheetFor(string id) => id switch
+        {
+            "research" => FeatureSheetPresenter.Research(_snapshot, _snapshot.AsOfUtc),
+            "shop" => FeatureSheetPresenter.Market(_snapshot, BuildingTable.Default),
+            _ => FeatureSheetPresenter.Cult(_snapshot),
+        };
+
+        private async void OnSheetAction(string action)
+        {
+            var parts = action.Split(':');
+            if (parts[0] == "research" && parts.Length == 2)
+            {
+                var outcome = await SendVillage(new StartResearch(Guid.NewGuid(), parts[1]));
+                if (outcome.Status == CommandStatus.Accepted)
+                {
+                    Announce($"The Prophet opens the manual at \"{BuildingTable.Default.Research.Get(parts[1])?.Name}\" and frowns.");
+                }
+            }
+            else if (parts[0] == "trade" && parts.Length == 4
+                     && Enum.TryParse<ResourceType>(parts[1], out var give) && Enum.TryParse<ResourceType>(parts[2], out var get) && int.TryParse(parts[3], out var amount))
+            {
+                var outcome = await SendVillage(new Trade(Guid.NewGuid(), give, get, amount));
+                if (outcome.Status == CommandStatus.Accepted)
+                {
+                    Announce($"The trolley rattles off and comes back with {amount} {get}.");
+                }
+            }
+        }
+
+        /// <summary>Keeps the map and sheets current while open; opens the shortcuts as the village earns them.</summary>
         private void RefreshMap()
         {
             var open = _snapshot?.Domain?.Unlocked == true;
             foreach (var id in new[] { "map", "missionaries", "tithes" })
             {
                 _hud.SetFeatureOpen(id, open);
+            }
+
+            _hud.SetFeatureOpen("research", _snapshot != null && _snapshot.HearthLevel >= 2);
+            _hud.SetFeatureOpen("shop", true);
+            _hud.SetFeatureOpen("cult", true);
+            if (_sheet?.Shown != null && _snapshot != null)
+            {
+                if (_phase != GamePhase.Dusk)
+                {
+                    _sheet.Close();
+                }
+                else
+                {
+                    _sheet.Show(_sheet.Shown, SheetFor(_sheet.Shown));
+                }
             }
 
             if (_map != null && _map.IsOpen && _snapshot != null)
@@ -484,6 +542,12 @@ namespace CultOfComfort.Client
                         break;
                     case ErrandHint.StartNight:
                         _hud.Hint(null, Time.time);
+                        break;
+                    case ErrandHint.Map:
+                        OpenFeature("map");
+                        break;
+                    case ErrandHint.Research:
+                        OpenFeature("research");
                         break;
                     case ErrandHint.Hearth:
                     case ErrandHint.Building:

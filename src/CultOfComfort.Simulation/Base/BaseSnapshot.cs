@@ -38,7 +38,9 @@ public sealed record BaseSnapshot(
     bool Cold = false,
     ErrandView? Errand = null,
     int Comfort = 0,
-    DomainView? Domain = null)
+    DomainView? Domain = null,
+    IReadOnlyList<TechView>? Research = null,
+    IReadOnlyList<(string Label, int Amount)>? ComfortParts = null)
 {
     public DateTimeOffset? ConstructionEndsAtUtc => Buildings.FirstOrDefault(b => b.IsUpgrading)?.UpgradeEndsAtUtc;
 

@@ -44,6 +44,9 @@ public sealed class VillageSaveDto
     public bool errandEventDone;
     public bool hasDomain; // older saves: no Marchlands yet
     public DomainDto domain;
+    public List<string> researched;   // older saves: none
+    public string researching;        // empty: nothing under way
+    public long researchEndsTicks;
 }
 
 /// <summary>The Marchlands (spec 2026-10-14 world map): influence per node, missionaries, the offerings purse.</summary>

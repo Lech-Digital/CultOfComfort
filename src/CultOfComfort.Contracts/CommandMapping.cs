@@ -54,6 +54,12 @@ public static class CommandMapping
             case SendMissionary c:
                 (dto.buildingId, dto.amount) = (c.NodeId, c.Hours);
                 break;
+            case StartResearch c:
+                dto.tech = c.TechId;
+                break;
+            case Trade c:
+                (dto.give, dto.get, dto.amount) = (c.Give.ToString(), c.Get.ToString(), c.Amount);
+                break;
             case PayTithe c:
                 (dto.timber, dto.peat, dto.scrap, dto.devotion) = (c.Amount.Timber, c.Amount.Peat, c.Amount.Scrap, c.Amount.Devotion);
                 break;
@@ -94,6 +100,8 @@ public static class CommandMapping
             nameof(DebugEndShield) => new DebugEndShield(id),
             nameof(SendMissionary) => new SendMissionary(id, dto.buildingId, dto.amount),
             nameof(CollectOfferings) => new CollectOfferings(id),
+            nameof(StartResearch) => new StartResearch(id, dto.tech ?? string.Empty),
+            nameof(Trade) => new Trade(id, Resource(dto.give), Resource(dto.get), dto.amount),
             nameof(PayTithe) => new PayTithe(id, new ResourceBag(dto.timber, dto.peat, dto.scrap, dto.devotion)),
             _ => throw new ArgumentException($"Unknown command '{dto.type}'."),
         };
@@ -117,6 +125,9 @@ public static class CommandMapping
         hasReport = outcome.Report != null,
         report = outcome.Report == null ? new ReportDto() : VillageSaveMapping.ToDto(outcome.Report),
     };
+
+    private static ResourceType Resource(string? name) =>
+        Enum.TryParse<ResourceType>(name, out var type) ? type : throw new ArgumentException($"Unknown resource '{name}'.");
 
     private static BuildingType Building(CommandDto dto) =>
         Enum.TryParse<BuildingType>(dto.building, out var type) ? type : throw new ArgumentException($"Unknown building '{dto.building}'.");

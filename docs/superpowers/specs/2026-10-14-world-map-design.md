@@ -48,6 +48,15 @@ Every node has a fixed **squalor**. Muddy places convert more easily: receptivit
 - **Tapping a node** opens its card: type, offerings, your influence, travel time, and "Send a missionary" for 1h / 2h / 4h / 8h with costs and expected influence.
 - **Bottom strip:** missionaries on the road ("preaching at Muddlecombe, 1h 20m left"), the offerings purse with Collect, the Tension bar, and Pay a tithe (small / large / buy off the raid).
 
-## Later slices
+## Slice 2 (built 2026-10-14): Research, the Trolley Market, the Cult panel
 
-Research (tech tree eras), the Trolley Market (shop: resource swaps at bad rates), and the Cult panel (villagers, missionaries, Comfort breakdown, relics). Then the shared shard.
+- **Research.** It opens at Hearth 2. The Prophet reads the car's manual: one study at a time, each with a cost and a duration, and its bonus lasts for ever. There are 9 studies over two eras (`ResearchBook`).
+  - **The Mud era (Hearth 2):** Sharper Axes (Timber +15%), Peat Stacking (Peat +15%), Sermon Notes (missionaries +25%), Thicker Walls (buildings +20% health, frozen into each Night's plan).
+  - **The Comfort era (Hearth 3):** Plumbing, Probably (Bathhouse Comfort +20); Tithe Accounting (tithes +25%); Long Sermons (decay −1 point a day); Bigger Storehouses (storage +20%); Hot Water for All (Comfort +15).
+- **The Holy Trolley (Shop).** It's available from the start. You swap one resource for another at 2.5× its worth, where Timber is worth 1, Peat 2, Scrap 2 and Devotion 4. It's a way out of a resource jam, at a price.
+- **The Cult panel.** It shows villagers at work, out preaching or idle; the Comfort breakdown (`Snapshot.ComfortParts`); the relics found and still in the car; and the current errand.
+- **Errands.** Three new errands come after Hearth 2: send a missionary, finish a study, become a Patron. Tapping the note opens the map or Research.
+
+## Later
+
+The shared shard, Hearth 4–5, and more relics.

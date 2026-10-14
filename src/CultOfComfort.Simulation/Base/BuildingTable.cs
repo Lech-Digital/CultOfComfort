@@ -65,6 +65,21 @@ public sealed class BuildingTable
     /// <summary>The Marchlands: missionaries, offerings, tithes (spec 2026-10-14 world map).</summary>
     public DomainTable Domain { get; init; } = DomainTable.Default;
 
+    /// <summary>Studies at the Hearth (spec 2026-10-14, research).</summary>
+    public ResearchBook Research { get; init; } = ResearchBook.Default;
+
+    /// <summary>The Trolley Market's markup: a swap costs this many percent of the goods' worth (Timber 1, Peat 2, Scrap 2, Devotion 4).</summary>
+    public int MarketMarkupPercent { get; init; } = 250;
+
+    /// <summary>What a market swap costs in <paramref name="give"/> for <paramref name="amount"/> of <paramref name="get"/> (rounded up).</summary>
+    public int TradePrice(ResourceType give, ResourceType get, int amount)
+    {
+        static int Worth(ResourceType r) => r switch { ResourceType.Timber => 1, ResourceType.Devotion => 4, _ => 2 };
+        var value = (long)amount * Worth(get) * MarketMarkupPercent;
+        var per = 100L * Worth(give);
+        return (int)((value + per - 1) / per);
+    }
+
     /// <summary>Timber from cutting a wild tree.</summary>
     public int WildTreeTimber { get; init; } = 15;
 
