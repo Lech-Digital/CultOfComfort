@@ -273,7 +273,7 @@ namespace CultOfComfort.Client
             header.AddToClassList("map-header");
             _title = new Label();
             _title.AddToClassList("map-title");
-            var close = new Button(Close) { name = "feature-close", text = "✕" };
+            var close = UiGlyphs.Close("feature-close", Close);
             close.AddToClassList("map-close");
             header.Add(_title);
             header.Add(close);

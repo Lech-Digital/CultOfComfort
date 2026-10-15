@@ -911,7 +911,8 @@ namespace CultOfComfort.Client
         /// <summary>The world map has the screen: the frame, the side buttons and the bar step aside (the toast stays).</summary>
         public void SetMapOpen(bool open)
         {
-            foreach (var element in new[] { _top, _bar, _sideLeft, _sideRight, _errand, _coachArrow, _coachLine })
+            // The village's own floating notes and bubbles point at the village, which isn't on screen.
+            foreach (var element in new[] { _top, _bar, _sideLeft, _sideRight, _errand, _coachArrow, _coachLine, _buildingCard }.Concat(_floaters).Concat(_bubbles))
             {
                 element.style.visibility = open ? Visibility.Hidden : Visibility.Visible;
             }

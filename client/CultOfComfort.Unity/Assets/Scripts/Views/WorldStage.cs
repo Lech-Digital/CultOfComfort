@@ -689,9 +689,19 @@ namespace CultOfComfort.Client
             }
 
             go.name = $"Camp {camp.Key}";
-            go.transform.localPosition = new Vector3(at.x, _land.Height(at), at.y);
+            var ground = _land.Height(at);
+            var wet = ground < WorldLand.WaterLevel + 0.15f;
+            ground = Mathf.Max(ground, WorldLand.WaterLevel + 0.15f);
+            go.transform.localPosition = new Vector3(at.x, ground, at.y);
             go.transform.localRotation = Quaternion.Euler(0f, Hash(camp.Q, camp.R) * 360f, 0f);
             go.transform.localScale = Vector3.one * 0.85f;
+            if (wet)
+            {
+                // Pitched where the land runs wet (the server never sees the lakes): a little mud islet keeps their feet dry.
+                var islet = Shapes.Create(PrimitiveType.Cylinder, Shapes.Hex("#6b5a3a"), Vector3.zero, new Vector3(1.9f, 0.4f, 1.7f), _overlay, "Islet");
+                islet.transform.localPosition = new Vector3(at.x, ground - 0.4f, at.y);
+                islet.transform.SetParent(go.transform, true);
+            }
             var banner = ArtLibrary.FindPart(go.transform, "Banner");
             if (banner != null)
             {
