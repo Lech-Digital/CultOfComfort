@@ -84,6 +84,8 @@ namespace CultOfComfort.Client
         private WorldMapView _map;
         private WorldStage _stage;            // the world map in 3D (spec 2026-10-15 real map)
         private bool _mapHeld;
+        private WorldMapModel _mapModel;
+        private bool _pendingTithe;           // "Tithes" was tapped before the land arrived: open the lord's seat once it has
         private (int Q, int R, int Radius)? _stageWindow; // the window last asked for from where the map camera looks
         private WorldDto _world;              // the shared world's window, as the server last sent it (null: Marchlands, or not fetched yet)
         private int _worldRadius = SharedWorldPresenter.DefaultRadius;
@@ -205,10 +207,18 @@ namespace CultOfComfort.Client
             {
                 _stage.Select(id);
                 _stage.FlyTo(id);
-                _map.ShowCard(_world != null
+                var card = _world != null
                     ? SharedWorldPresenter.Card(_snapshot, BuildingTable.Default, _world, id)
-                    : WorldMapPresenter.Card(_snapshot, BuildingTable.Default, id));
+                    : WorldMapPresenter.Card(_snapshot, BuildingTable.Default, id);
+                if (_mapModel != null && id == _mapModel.SeatId)
+                {
+                    WorldMapPresenter.AddTithe(card, _mapModel); // the tithe is paid at his seat
+                }
+
+                _map.ShowCard(card);
             };
+            _map.TitheRequested += OpenSeat;
+            _map.MissionaryFocused += node => _stage.FlyToMissionary(node);
             _map.CardClosed += () => _stage.Select(null);
             _map.PreachClicked += async (node, hours) =>
             {
@@ -250,6 +260,12 @@ namespace CultOfComfort.Client
                 var outcome = await SendVillage(new PayTithe(Guid.NewGuid(), amount));
                 if (outcome.Status == CommandStatus.Accepted)
                 {
+                    _map.CloseCard();
+                    if (_mapModel != null && _mapModel.SeatId >= 0)
+                    {
+                        _stage.SendTithe(_mapModel.SeatId); // a cart trundles off to his seat
+                    }
+
                     var lord = _world != null ? SharedWorldPresenter.Authority(SharedWorldPresenter.MapFor(_world), _world).Lord : "Wulfric";
                     lord = char.ToUpperInvariant(lord[0]) + lord.Substring(1);
                     Announce(hadRaid && _snapshot?.RaidWarningEndsAtUtc == null
@@ -287,7 +303,12 @@ namespace CultOfComfort.Client
 
                 if (id == "tithes")
                 {
-                    _map.ShowTitheSheet();
+                    _pendingTithe = true;
+                    OpenSeat();
+                }
+                else if (id == "missionaries")
+                {
+                    _map.ShowRoster();
                 }
                 else if (!Pref(MapHelpSeenKey))
                 {
@@ -394,8 +415,28 @@ namespace CultOfComfort.Client
                 };
             }
 
+            _mapModel = model;
             _map.Render(model);
             StageMap(model);
+        }
+
+        /// <summary>Flies to the lord's seat and opens its card, where the tithe is paid (no seat known: the old tithe sheet).</summary>
+        private void OpenSeat()
+        {
+            if (_mapModel?.Land == null || !_stage.IsOpen)
+            {
+                return; // StageMap opens it once the land has arrived (_pendingTithe)
+            }
+
+            _pendingTithe = false;
+            if (_mapModel.SeatId >= 0)
+            {
+                _map.Tap(_mapModel.SeatId);
+            }
+            else
+            {
+                _map.ShowTitheSheet();
+            }
         }
 
         /// <summary>Shows the model on the 3D land: opens it the first time (looking at your village), then keeps the people current.</summary>
@@ -428,12 +469,17 @@ namespace CultOfComfort.Client
                 RivalColour = n.RivalColour >= 0 ? SharedWorldPresenter.CultColours[n.RivalColour % SharedWorldPresenter.CultColours.Length] : Color.grey,
             }).ToList());
             _stage.SetTension(model.SeatId, model.TensionFraction, model.RaidComing);
+            if (_pendingTithe)
+            {
+                OpenSeat();
+            }
         }
 
         private void CloseMap()
         {
             _map.Show(false);
             _stage.Close();
+            _pendingTithe = false;
             _hud.SetMapOpen(false);
             _stageWindow = null;
         }

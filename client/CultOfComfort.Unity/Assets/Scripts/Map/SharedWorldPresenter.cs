@@ -156,6 +156,11 @@ namespace CultOfComfort.Client
 
             var slots = domain?.MissionarySlots ?? 0;
             var free = slots - (domain?.Missionaries.Count ?? 0);
+            model.Roster = WorldMapPresenter.Roster((domain?.Missionaries ?? Array.Empty<MissionaryView>())
+                .Select(m => (m, map.Node(m.NodeId)))
+                .Where(x => x.Item2 != null)
+                .Select(x => (x.m, x.Item2.Name, x.Item2.DistanceTo(world.q, world.r) * table.Domain.MinutesPerHex * 60.0)).ToList(), slots, model.Unlocked, now);
+            model.MissionaryChip = !model.Unlocked ? $"Missionaries go out from Hearth {table.Domain.UnlockHearth}." : WorldMapPresenter.Chip(model.Roster, slots);
             model.MissionaryLine = !model.Unlocked ? $"Missionaries go out from Hearth {table.Domain.UnlockHearth}."
                 : model.Missionaries.Count == 0 ? $"Missionaries: {free} ready. Tap a place to send one."
                 : string.Join("\n", model.Missionaries.Select(m => m.Text)) + (free > 0 ? $"\n{free} more ready." : string.Empty);
