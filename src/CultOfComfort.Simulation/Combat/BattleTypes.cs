@@ -76,6 +76,15 @@ public sealed record BattleSetup(
 
     /// <summary>The relics he can use tonight (none: old replays and the demo hash stay as they were).</summary>
     public Relic Relics { get; init; }
+
+    /// <summary>
+    /// The relics fire themselves when they're ready and worth it (owner 2026-10-15: "laser should act automatically").
+    /// Off for Nights planned before, so their replays stay as they were.
+    /// </summary>
+    public bool AutoRelics { get; init; }
+
+    /// <summary>Cultists out defending: one post each (beside their hut). None for Nights planned before.</summary>
+    public IReadOnlyList<GridPosition> Defenders { get; init; } = System.Array.Empty<GridPosition>();
 }
 
 public sealed record BattleResult(
@@ -126,5 +135,13 @@ public sealed record HotStonesThrown(int Tick, GridPosition Target, int EnemiesA
 
 /// <summary>A relic went off: the laser at <paramref name="TargetId"/> (−1: none), the torch lit, the glass focused on <paramref name="Target"/>.</summary>
 public sealed record RelicUsed(int Tick, PlayerActionType Type, GridPosition Target, int TargetId, int EnemiesAffected) : BattleEvent(Tick);
+
+public sealed record DefenderAttacked(int Tick, int DefenderId, int EnemyId, Fix Damage) : BattleEvent(Tick);
+
+public sealed record DefenderHit(int Tick, int DefenderId, int EnemyId, int Damage, int HealthRemaining) : BattleEvent(Tick);
+
+public sealed record DefenderDowned(int Tick, int DefenderId) : BattleEvent(Tick);
+
+public sealed record DefenderBack(int Tick, int DefenderId) : BattleEvent(Tick);
 
 public sealed record BattleEnded(int Tick, BattleOutcome Outcome, int Stars) : BattleEvent(Tick);

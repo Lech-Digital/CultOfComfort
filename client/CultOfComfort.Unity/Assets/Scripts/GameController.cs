@@ -1573,6 +1573,35 @@ namespace CultOfComfort.Client
 
         // ---------------- Night: live battle ----------------
 
+        private readonly HashSet<int> _openGates = new HashSet<int>();
+
+        /// <summary>A gate swings open while the Prophet or a cultist is within a step and a half of it.</summary>
+        private void OpenGatesForFriends()
+        {
+            _openGates.Clear();
+            if (_battle != null && _snapshot != null)
+            {
+                var friends = new List<Vector2> { new Vector2((float)_battle.Leader.Position.X.ToDouble(), (float)_battle.Leader.Position.Y.ToDouble()) };
+                foreach (var defender in _battle.Defenders)
+                {
+                    if (defender.IsUp)
+                    {
+                        friends.Add(new Vector2((float)defender.Position.X.ToDouble(), (float)defender.Position.Y.ToDouble()));
+                    }
+                }
+
+                foreach (var gate in _snapshot.Buildings.Where(b => b.Type == BuildingType.Gate && !b.Wrecked))
+                {
+                    if (gate.Tiles.Any(t => friends.Any(f => (f - new Vector2(t.X, t.Y)).sqrMagnitude <= 2.25f)))
+                    {
+                        _openGates.Add(gate.Id);
+                    }
+                }
+            }
+
+            _board.SetGatesOpen(_openGates);
+        }
+
         private void UpdateNight()
         {
             if (_aim != null && !AimReady(_aim.Value))
@@ -1594,6 +1623,7 @@ namespace CultOfComfort.Client
             }
 
             ShowStonesTarget();
+            OpenGatesForFriends();
 
             _accumulator += Time.deltaTime * _speed;
             var steps = 0;
@@ -1619,7 +1649,20 @@ namespace CultOfComfort.Client
             }
         }
 
-        private void ToggleAimingStones() => ToggleAim(PlayerActionType.HotStones, "Hot Stone Therapy: tap a tile inside the pebble ring.");
+        /// <summary>
+        /// Hot Stones aims itself at the biggest knot of raiders in reach (owner 2026-10-15: aiming by finger "is not
+        /// really handy"); with nobody in reach it falls back to tapping a tile inside the pebble ring.
+        /// </summary>
+        private void ToggleAimingStones()
+        {
+            if (_battle != null && _aim == null && _battle.IsHotStonesReady && _battle.BestHotStonesTarget() is { } target)
+            {
+                _battle.Intervene(PlayerActionType.HotStones, target);
+                return;
+            }
+
+            ToggleAim(PlayerActionType.HotStones, "Nobody in reach yet: tap a tile inside the pebble ring.");
+        }
 
         /// <summary>Arms an aimed skill (or disarms it on a second press); the next tap on the board fires it.</summary>
         private void ToggleAim(PlayerActionType skill, string prompt)
@@ -1644,7 +1687,7 @@ namespace CultOfComfort.Client
             }
 
             var aiming = aimed != null && _aim == aimed;
-            var text = swooning ? "Fainted" : aiming ? "Pick" : ready ? name : $"{Seconds(readyAtTick)}s";
+            var text = swooning ? "Fainted" : aiming ? "Pick" : ready ? (_battle.AutoRelics ? $"{name} · auto" : name) : $"{Seconds(readyAtTick)}s";
             return new RelicButtonState(true, text, ready, aiming);
         }
 
@@ -2013,9 +2056,23 @@ namespace CultOfComfort.Client
             _hud.SluiceClicked += () => _battle?.Intervene(PlayerActionType.OpenSluiceGate);
             _hud.VoiceClicked += () => _battle?.Intervene(PlayerActionType.PhantomVoice);
             _hud.StonesClicked += ToggleAimingStones;
-            _hud.LaserClicked += () => ToggleAim(PlayerActionType.LaserPointer, "The Finger of God: tap a raider inside the ring.");
-            _hud.TorchClicked += () => _battle?.Intervene(PlayerActionType.DynamoTorch);
-            _hud.SunFireClicked += () => ToggleAim(PlayerActionType.SunFire, "Sun-fire: tap raiders inside the ring while the sun is up.");
+            // Tonight's relics fire themselves (owner 2026-10-15: "laser should act automatically"); a Night planned
+            // before that still aims them by hand.
+            _hud.LaserClicked += () =>
+            {
+                if (_battle?.AutoRelics == true) Announce("The laser picks its own raider: whoever's at a building, or nearest the Hearth.");
+                else ToggleAim(PlayerActionType.LaserPointer, "The Finger of God: tap a raider inside the ring.");
+            };
+            _hud.TorchClicked += () =>
+            {
+                if (_battle?.AutoRelics == true) Announce("The torch lights itself when raiders crowd the Prophet.");
+                else _battle?.Intervene(PlayerActionType.DynamoTorch);
+            };
+            _hud.SunFireClicked += () =>
+            {
+                if (_battle?.AutoRelics == true) Announce("The magnifier finds the thickest knot of raiders while the sun's up.");
+                else ToggleAim(PlayerActionType.SunFire, "Sun-fire: tap raiders inside the ring while the sun is up.");
+            };
             _hud.SpeedClicked += () => _speed = _speed == 1 ? 2 : _speed == 2 ? 4 : 1;
             _hud.RecenterClicked += () => _rig.Reset();
             _hud.BackToDuskClicked += BackToDusk;

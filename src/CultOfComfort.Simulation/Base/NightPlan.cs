@@ -18,7 +18,9 @@ public sealed record NightPlan(
     IReadOnlyList<PlacedTower> Towers,
     IReadOnlyList<GridPosition> Obstacles,
     IReadOnlyList<PlacedStructure> Structures,
-    int Roster = 0)
+    int Roster = 0,
+    bool AutoRelics = false,
+    IReadOnlyList<GridPosition>? Defenders = null)
 {
     public BattleSetup ToBattleSetup(VillageMap map, IReadOnlyList<PlayerInput> inputs) =>
         new(new BattleLayout(map.Width, map.Height, map.Spawn, map.Hearth, Towers, Obstacles, null, Structures, map.Road), Seed, Budget, Waves, inputs) // the fixed road: a gate blocks it, nothing reroutes it
@@ -26,6 +28,8 @@ public sealed record NightPlan(
             ExtraSluiceCharges = ExtraSluiceCharges,
             Roster = CultOfComfort.Simulation.Waves.RaidRoster.ForHearth(Roster),
             Relics = RelicBook.ForHearth(Roster), // Roster is the Hearth level the Night was planned at
+            AutoRelics = AutoRelics,
+            Defenders = Defenders ?? System.Array.Empty<GridPosition>(),
 
         };
 }

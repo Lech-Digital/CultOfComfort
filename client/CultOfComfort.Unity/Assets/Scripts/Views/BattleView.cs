@@ -93,6 +93,98 @@ namespace CultOfComfort.Client
 
             _leaderCurrent = _leaderPrevious = Shapes.ToWorld(battle.Leader.Position);
             _leader.localPosition = _leaderCurrent;
+            foreach (var defender in battle.Defenders)
+            {
+                _defenders[defender.Id] = CreateDefender(defender);
+            }
+        }
+
+        // ---------------- the cultists out defending (spec 2026-10-15) ----------------
+
+        private readonly Dictionary<int, DefenderVisual> _defenders = new Dictionary<int, DefenderVisual>();
+
+        private sealed class DefenderVisual
+        {
+            public Transform Root;
+            public PartAnimator Animator;
+            public Transform HealthBar;
+            public Vector3 Previous;
+            public Vector3 Current;
+            public float Health = 1f;
+            public bool Down;
+            public int TargetId = -1;
+        }
+
+        private DefenderVisual CreateDefender(Defender defender)
+        {
+            var root = new GameObject($"Cultist #{defender.Id}").transform;
+            root.SetParent(_root, false);
+            var at = Shapes.ToWorld(defender.Position);
+            root.localPosition = at;
+            var model = ArtLibrary.Instantiate("cultist", root);
+            PartAnimator animator = null;
+            if (model != null)
+            {
+                animator = model.AddComponent<PartAnimator>();
+                animator.Bind();
+            }
+            else
+            {
+                Shapes.Create(PrimitiveType.Capsule, Shapes.Hex("#46618c"), new Vector3(0f, 0.4f, 0f), new Vector3(0.3f, 0.4f, 0.3f), root, "Cultist");
+            }
+
+            // A woad sash ring at their feet: ours, not theirs.
+            Shapes.Create(PrimitiveType.Cylinder, Shapes.Hex("#46618c"), new Vector3(0f, 0.01f, 0f), new Vector3(0.55f, 0.01f, 0.55f), root, "Ours");
+            var bar = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, 1.05f, 0f), new Vector3(0.5f, 0.05f, 0.05f), root, "Health");
+            return new DefenderVisual { Root = root, Animator = animator, HealthBar = bar.transform, Previous = at, Current = at };
+        }
+
+        private void SyncDefenders()
+        {
+            foreach (var defender in _battle.Defenders)
+            {
+                if (!_defenders.TryGetValue(defender.Id, out var visual))
+                {
+                    continue;
+                }
+
+                visual.Current = Shapes.ToWorld(defender.Position);
+                visual.Health = defender.MaxHealth > 0 ? defender.Health / (float)defender.MaxHealth : 0f;
+                visual.Down = !defender.IsUp;
+                visual.TargetId = defender.TargetId;
+            }
+        }
+
+        private void RenderDefenders(float alpha)
+        {
+            foreach (var pair in _defenders)
+            {
+                var visual = pair.Value;
+                var position = Vector3.Lerp(visual.Previous, visual.Current, alpha);
+                visual.Root.localPosition = position;
+                var moving = (visual.Current - visual.Previous).sqrMagnitude > 0.000001f;
+                Vector3 heading = visual.Current - visual.Previous;
+                if (!moving && visual.TargetId >= 0 && _enemies.TryGetValue(visual.TargetId, out var target))
+                {
+                    heading = target.Root.localPosition - position; // squaring up to the raider they're hitting
+                }
+
+                heading.y = 0f;
+                if (heading.sqrMagnitude > 0.00001f)
+                {
+                    visual.Root.localRotation = Quaternion.Slerp(visual.Root.localRotation, Quaternion.LookRotation(heading.normalized, Vector3.up), 0.3f);
+                }
+
+                if (visual.Animator != null)
+                {
+                    visual.Animator.IsMoving = moving && !visual.Down;
+                    visual.Animator.IsSwooning = visual.Down;
+                }
+
+                visual.HealthBar.gameObject.SetActive(!visual.Down && visual.Health < 0.999f);
+                visual.HealthBar.localScale = new Vector3(0.5f * visual.Health, 0.05f, 0.05f);
+                Shapes.Tint(visual.HealthBar.GetComponent<Renderer>(), visual.Health > 0.4f ? Palette.HealthGood : Palette.HealthBad, _block);
+            }
         }
 
         /// <summary>Primitive stand-in used until art/build.sh has produced the prophet model.</summary>
@@ -130,6 +222,7 @@ namespace CultOfComfort.Client
             }
 
             _enemies.Clear();
+            _defenders.Clear();
             _effects.Clear();
             _battle = null;
             _prophet = null;
@@ -146,6 +239,10 @@ namespace CultOfComfort.Client
             }
 
             _leaderPrevious = _leaderCurrent;
+            foreach (var visual in _defenders.Values)
+            {
+                visual.Previous = visual.Current;
+            }
         }
 
         /// <summary>Call immediately after <see cref="Battle.Step"/>: syncs visuals and spawns effects for this tick's events.</summary>
@@ -189,6 +286,7 @@ namespace CultOfComfort.Client
             }
 
             _leaderCurrent = Shapes.ToWorld(_battle.Leader.Position);
+            SyncDefenders();
         }
 
         private static readonly Color LaserRed = Shapes.Hex("#ff2340");
@@ -332,6 +430,7 @@ namespace CultOfComfort.Client
                 Shapes.Tint(visual.HealthBarRenderer, visual.Health > 0.4f ? Palette.HealthGood : Palette.HealthBad, _block);
             }
 
+            RenderDefenders(alpha);
             _leader.localPosition = Vector3.Lerp(_leaderPrevious, _leaderCurrent, alpha);
             var leaderHeading = _leaderCurrent - _leaderPrevious;
             if (leaderHeading.sqrMagnitude > 0.00001f)
@@ -402,6 +501,20 @@ namespace CultOfComfort.Client
                     else
                     {
                         SpawnRock(from, to, fired.Critical);
+                    }
+
+                    break;
+                case DefenderAttacked hit:
+                    if (_defenders.TryGetValue(hit.DefenderId, out var striker))
+                    {
+                        striker.Animator?.Attack();
+                    }
+
+                    break;
+                case DefenderBack back:
+                    if (_defenders.TryGetValue(back.DefenderId, out var patched))
+                    {
+                        SpawnPoof(patched.Current); // out of the hut again, bandaged
                     }
 
                     break;

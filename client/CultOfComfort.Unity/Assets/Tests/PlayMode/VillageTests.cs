@@ -135,7 +135,7 @@ namespace CultOfComfort.Client.Tests
         }
 
         [UnityTest]
-        public IEnumerator Night_HearthTwo_RelicButtonsShowAndTheTorchLights()
+        public IEnumerator Night_HearthTwo_RelicButtonsShowAndSayTheyFireThemselves()
         {
             // Arrange — a village whose Hearth reached level 2 (the upgrade finished while we were away).
             var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, _clock.UtcNow);
@@ -172,8 +172,9 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual(DisplayStyle.Flex, root.Q<Button>("laser").resolvedStyle.display);
             Assert.AreEqual(DisplayStyle.None, root.Q<Button>("magnifier").resolvedStyle.display, "the glass waits for Hearth 3");
             var battle = (CultOfComfort.Simulation.Combat.Battle)typeof(GameController).GetField("_battle", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(game);
-            Assert.IsTrue(battle.Leader.IsTorchLit(battle.Tick), "the torch button lights it");
-            Assert.IsNotNull(GameObject.Find("Dynamo Torch"), "and the light shows");
+            Assert.IsTrue(battle.AutoRelics, "tonight's relics fire themselves (owner 2026-10-15)");
+            Assert.IsFalse(battle.InputLog.Any(i => i.Type == CultOfComfort.Simulation.Combat.PlayerActionType.DynamoTorch), "the button explains; it doesn't fire");
+            StringAssert.Contains("auto", root.Q<Button>("torch").Q<Label>().text);
         }
 
         [UnityTest]

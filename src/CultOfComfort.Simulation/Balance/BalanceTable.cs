@@ -110,6 +110,11 @@ public sealed record RelicStats(
     Fix TorchRadius, Fix TorchSlow, int TorchLitTicks, int TorchCooldownTicks,
     Fix SunFireReach, Fix SunFireRadius, int SunFireBurnTicks, Fix SunFireBurnPerSecond, int SunFireCooldownTicks);
 
+/// <summary>A cultist out defending (spec 2026-10-15 defenders): plain folk with a stick, not soldiers.</summary>
+/// <param name="GuardRadius">How far from their post they'll go after a raider (tiles).</param>
+/// <param name="DownTicks">Knocked down: this long being patched up at the hut before they're back.</param>
+public sealed record DefenderStats(int MaxHealth, Fix TilesPerSecond, Fix AttackRange, Fix AttackDamage, int AttackCooldownTicks, Fix GuardRadius, int DownTicks);
+
 /// <summary>
 /// Versioned balance data. A raid pins the version it started with so replays stay valid after rebalancing.
 /// </summary>
@@ -255,6 +260,13 @@ public sealed class BalanceTable
         MuddiedTicks: 3 * TicksPerSecond);
 
     /// <summary>The relics from the boot (GDD 05). Balance 2026.10.14: strong but rare; each has its own catch.</summary>
+    public DefenderStats Defender { get; init; } = new(
+        MaxHealth: 30, TilesPerSecond: Fix.Ratio(8, 5), AttackRange: Fix.One, AttackDamage: Fix.FromInt(4), AttackCooldownTicks: 24,
+        GuardRadius: Fix.FromInt(4), DownTicks: 15 * TicksPerSecond);
+
+    /// <summary>The torch lights itself when this many raiders crowd him (auto relics).</summary>
+    public int TorchAutoCrowd { get; init; } = 2;
+
     public RelicStats Relics { get; init; } = new(
         LaserReach: Fix.FromInt(7), LaserPick: Fix.Ratio(3, 2), LaserBlindTicks: 5 * TicksPerSecond / 2, LaserCooldownTicks: 10 * TicksPerSecond,
         TorchRadius: Fix.Ratio(5, 2), TorchSlow: Fix.Ratio(1, 2), TorchLitTicks: 6 * TicksPerSecond, TorchCooldownTicks: 20 * TicksPerSecond,

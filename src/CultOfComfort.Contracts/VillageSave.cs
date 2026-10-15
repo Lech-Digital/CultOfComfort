@@ -154,6 +154,8 @@ public sealed class NightDto
     public List<TowerDto> towers;
     public List<TileDto> obstacles;
     public List<StructureDto> structures;
+    public bool autoRelics;          // older plans lack it: the relics wait for the player
+    public List<TileDto> defenders;  // older plans lack it: nobody comes out to defend
 }
 
 [Serializable]

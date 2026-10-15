@@ -527,8 +527,67 @@ namespace CultOfComfort.Client
             }
         }
 
+        /// <summary>
+        /// Gates open for friends (owner 2026-10-15: "the gate should open when prophet or other of our allies are coming
+        /// through"): the leaves of <paramref name="open"/> swing back (the gatehouse lifts its portcullis); the rest close.
+        /// </summary>
+        public void SetGatesOpen(ICollection<int> open)
+        {
+            foreach (var (id, visual) in _buildings)
+            {
+                if (visual.Type == BuildingType.Gate)
+                {
+                    visual.WantOpen = open.Contains(id);
+                }
+            }
+        }
+
+        private void SwingGates()
+        {
+            foreach (var visual in _buildings.Values)
+            {
+                if (visual.Type != BuildingType.Gate || (visual.Open <= 0f && !visual.WantOpen))
+                {
+                    continue;
+                }
+
+                if (!visual.PartsFound || (visual.DoorL == null && visual.Portcullis == null))
+                {
+                    visual.PartsFound = true;
+                    visual.DoorL = ArtLibrary.FindPart(visual.Root, "DoorL");
+                    visual.DoorR = ArtLibrary.FindPart(visual.Root, "DoorR");
+                    visual.Portcullis = ArtLibrary.FindPart(visual.Root, "Portcullis");
+                    visual.DoorLRest = visual.DoorL != null ? visual.DoorL.localRotation : Quaternion.identity;
+                    visual.DoorRRest = visual.DoorR != null ? visual.DoorR.localRotation : Quaternion.identity;
+                    visual.PortcullisRest = visual.Portcullis != null ? visual.Portcullis.localPosition : Vector3.zero;
+                }
+
+                visual.Open = Mathf.MoveTowards(visual.Open, visual.WantOpen ? 1f : 0f, Time.deltaTime * 2.5f);
+                var eased = Mathf.SmoothStep(0f, 1f, visual.Open);
+                // Swing about the world's up, whatever axes the model's parts came in with.
+                if (visual.DoorL != null)
+                {
+                    var up = visual.DoorL.parent.InverseTransformDirection(Vector3.up);
+                    visual.DoorL.localRotation = Quaternion.AngleAxis(-100f * eased, up) * visual.DoorLRest;
+                }
+
+                if (visual.DoorR != null)
+                {
+                    var up = visual.DoorR.parent.InverseTransformDirection(Vector3.up);
+                    visual.DoorR.localRotation = Quaternion.AngleAxis(100f * eased, up) * visual.DoorRRest;
+                }
+
+                if (visual.Portcullis != null)
+                {
+                    var up = visual.Portcullis.parent.InverseTransformDirection(Vector3.up).normalized;
+                    visual.Portcullis.localPosition = visual.PortcullisRest + up * 0.8f * eased;
+                }
+            }
+        }
+
         private void LateUpdate()
         {
+            SwingGates();
             // The river ripples: a slow wave travelling downstream.
             for (var i = 0; i < _water.Count; i++)
             {
@@ -880,6 +939,14 @@ namespace CultOfComfort.Client
             public WallLink Mask = (WallLink)(-1);
             public GridPosition Anchor;
             public bool Rotated;
+
+            /// <summary>A gate's moving parts (found on first use) and how open it is, 0–1.</summary>
+            public Transform DoorL, DoorR, Portcullis;
+            public Quaternion DoorLRest, DoorRRest;
+            public Vector3 PortcullisRest;
+            public bool PartsFound;
+            public float Open;
+            public bool WantOpen;
 
             public void Destroy() => UnityEngine.Object.Destroy(Root.gameObject);
         }
