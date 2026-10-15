@@ -10,7 +10,7 @@ namespace CultOfComfort.Client
     public sealed class MapCamera
     {
         public const float MinDistance = 9f;
-        public const float MaxDistance = 40f;
+        public const float MaxDistance = 62f;
         public const float HomeDistance = 19f;
         private const float Pitch = 54f;
         private const float GroundHeight = 0.35f; // the ground's typical height: drags glue to it

@@ -110,6 +110,7 @@ namespace CultOfComfort.Client
                     RivalShare = (int)((rival?.milli ?? 0) / 1000),
                     RivalColour = rival != null && cults.TryGetValue(rival.cult, out var rc) ? rc.colour : -1,
                     RivalPatron = rival?.patron == true,
+                    Seat = node.Type == NodeType.Keep || node.Type == NodeType.Cathedral,
                 });
             }
 
@@ -170,6 +171,8 @@ namespace CultOfComfort.Client
             var (title, lord) = Authority(map, world);
             model.Title = title;
             model.Lord = lord;
+            model.SeatId = Seat(map, world)?.Id ?? -1;
+            model.RaidComing = snapshot.RaidWarningEndsAtUtc != null;
             model.ViewKey = $"{cq},{cr},{radius}";
             model.TensionFraction = Mathf.Clamp01(tension / (float)max);
             model.TensionLine = WorldMapPresenter.TemperLine(lord, tension, max, domain?.TensionPerHourMilli ?? 0, snapshot.RaidWarningEndsAtUtc != null);
@@ -258,6 +261,14 @@ namespace CultOfComfort.Client
 
         /// <summary>The hexes from your village to a place (what SendWorldMissionary carries).</summary>
         public static int DistanceTo(WorldDto world, int nodeId) => MapFor(world).Node(nodeId)?.DistanceTo(world.q, world.r) ?? 0;
+
+        /// <summary>The seat of the lord whose lands your village is in (nearest place's domain), or null.</summary>
+        public static WorldNode Seat(WorldMap map, WorldDto world)
+        {
+            var nearest = map.Near(world.q, world.r, 6).OrderBy(n => n.DistanceTo(world.q, world.r)).ThenBy(n => n.Id).FirstOrDefault();
+            var domain = nearest == null ? null : map.Domains.FirstOrDefault(d => d.Id == nearest.DomainId);
+            return domain == null ? null : map.Node(domain.SeatNodeId);
+        }
 
         /// <summary>The map's title (whose lands these are) and who rules them ("Lord Thorkel", "the Bishop of Sumpwell").</summary>
         public static (string Title, string Lord) Authority(WorldMap map, WorldDto world)

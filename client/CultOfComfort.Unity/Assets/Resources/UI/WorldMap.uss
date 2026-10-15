@@ -65,3 +65,4 @@
 .map-plate-selected > .map-plate-name { background-color: #ffe7a8; border-color: #e8a54b; }
 .map-plate-patron > .map-banner { display: flex; }
 .map-plate > .map-banner { top: -12px; right: -8px; }
+.map-plate-seat > .map-plate-name { background-color: #3a2a18; color: #f1e3c0; border-color: #a8322a; font-size: 11px; }

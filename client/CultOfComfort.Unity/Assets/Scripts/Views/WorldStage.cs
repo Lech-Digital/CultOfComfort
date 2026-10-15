@@ -26,6 +26,15 @@ namespace CultOfComfort.Client
         public float Fraction;
     }
 
+    /// <summary>Who holds a place's faith, for the rings on the ground when the map is zoomed far out.</summary>
+    public sealed class StageFaith
+    {
+        public int Id;
+        public float Mine;
+        public float Rival;
+        public Color RivalColour;
+    }
+
     /// <summary>
     /// The world map in 3D (owner 2026-10-15: "more of a real map, like in kingshot"): the land of <see cref="WorldLand"/>
     /// streamed in chunks round the camera, every place a little settlement, your village with its Hearth, rival
@@ -57,6 +66,20 @@ namespace CultOfComfort.Client
         private readonly Dictionary<int, Vector3> _anchors = new Dictionary<int, Vector3>();
         private GameObject _home;
         private int _homeLevel = -1;
+        private readonly List<StageFaith> _faith = new List<StageFaith>();
+        private readonly Dictionary<int, (GameObject Mine, GameObject Rival)> _rings = new Dictionary<int, (GameObject, GameObject)>();
+        private Transform _ringRoot;
+        private float _ringSync;
+        private static Mesh _annulus;
+        private int _seatId = -1;
+        private float _tension;
+        private bool _raidComing;
+        private Transform _warBanner;
+        private readonly List<Marcher> _patrols = new List<Marcher>();
+        private readonly List<Marcher> _column = new List<Marcher>();
+        private Transform _raidTrail;
+        private readonly List<GameObject> _raidDots = new List<GameObject>();
+        private List<Vector2> _warPath = new List<Vector2>();
         private int _selected = int.MinValue;
 
         public MapCamera Rig => _rig;
@@ -108,6 +131,16 @@ namespace CultOfComfort.Client
             _selection.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
             _selection.gameObject.SetActive(false);
             _groundBase = Resources.Load<Material>("BaseLit");
+            _ringRoot = new GameObject("Faith rings").transform;
+            _ringRoot.SetParent(transform, false);
+            _warBanner = new GameObject("War banner").transform;
+            _warBanner.SetParent(transform, false);
+            Shapes.Create(PrimitiveType.Cylinder, Palette.Wood, new Vector3(0f, 1f, 0f), new Vector3(0.06f, 1f, 0.06f), _warBanner, "Pole");
+            Shapes.Create(PrimitiveType.Cube, Shapes.Hex("#8a2f24"), new Vector3(0.32f, 1.7f, 0f), new Vector3(0.6f, 0.42f, 0.03f), _warBanner, "Flag");
+            Shapes.Create(PrimitiveType.Cube, Palette.Ember, new Vector3(0.32f, 1.7f, -0.02f), new Vector3(0.2f, 0.2f, 0.02f), _warBanner, "Device");
+            _warBanner.gameObject.SetActive(false);
+            _raidTrail = new GameObject("Raid trail").transform;
+            _raidTrail.SetParent(transform, false);
         }
 
         /// <summary>Shows the land (switching from the village's camera), looking at <paramref name="focus"/>.</summary>
@@ -327,11 +360,223 @@ namespace CultOfComfort.Client
                 walker.Tick(_land, Time.deltaTime);
             }
 
+            UpdateRings();
+            UpdateTension(Time.deltaTime);
+
             if (_selected != int.MinValue && _selection.gameObject.activeSelf)
             {
                 var pulse = 2.2f + Mathf.Sin(Time.time * 4f) * 0.12f;
                 _selection.localScale = new Vector3(pulse, 0.02f, pulse);
             }
+        }
+
+        /// <summary>Who holds what in the places in view (the rings the far view shows).</summary>
+        public void SetFaith(IReadOnlyList<StageFaith> faith)
+        {
+            _faith.Clear();
+            _faith.AddRange(faith);
+            _ringSync = 0f;
+        }
+
+        /// <summary>
+        /// The lord's temper on the land (spec 2026-10-15, point 6): past a third his war banner flies over his seat and
+        /// grows; past that his patrols walk the road to your village; when a raid is coming a column marches on it.
+        /// </summary>
+        public void SetTension(int seatId, float fraction, bool raidComing)
+        {
+            if (_land == null)
+            {
+                return;
+            }
+
+            if (seatId != _seatId)
+            {
+                _seatId = seatId;
+                ClearMarchers();
+                _warPath = seatId >= 0 ? _land.Path(seatId, WorldMapPresenter.HomeId) : new List<Vector2>();
+            }
+
+            _tension = fraction;
+            _raidComing = raidComing;
+            var patrols = _warPath.Count < 2 || fraction < 0.35f ? 0 : Mathf.Min(4, 1 + (int)((fraction - 0.35f) / 0.18f));
+            while (_patrols.Count > patrols)
+            {
+                _patrols[_patrols.Count - 1].Destroy();
+                _patrols.RemoveAt(_patrols.Count - 1);
+            }
+
+            while (_patrols.Count < patrols)
+            {
+                var i = _patrols.Count;
+                _patrols.Add(new Marcher(_overlay, "manatarms", _warPath, 0.55f + i * 0.07f, 0.15f + i * 0.21f, pingPong: true, 0.2f, 0.85f));
+            }
+
+            var column = raidComing && _warPath.Count >= 2 ? 6 : 0;
+            while (_column.Count > column)
+            {
+                _column[_column.Count - 1].Destroy();
+                _column.RemoveAt(_column.Count - 1);
+            }
+
+            while (_column.Count < column)
+            {
+                var i = _column.Count;
+                _column.Add(new Marcher(_overlay, i % 3 == 0 ? "manatarms" : "levy", _warPath, 0.7f, 0.45f - i * 0.025f, pingPong: false, 0.3f, 0.93f));
+            }
+        }
+
+        private void ClearMarchers()
+        {
+            foreach (var m in _patrols.Concat(_column))
+            {
+                m.Destroy();
+            }
+
+            _patrols.Clear();
+            _column.Clear();
+            foreach (var dot in _raidDots)
+            {
+                Destroy(dot);
+            }
+
+            _raidDots.Clear();
+        }
+
+        private void UpdateTension(float dt)
+        {
+            var banner = _seatId >= 0 && _tension >= 0.3f && TryLand(_seatId, out var seat);
+            _warBanner.gameObject.SetActive(banner);
+            if (banner)
+            {
+                TryLand(_seatId, out var at);
+                var size = 0.8f + _tension * 1.4f + (_raidComing ? 0.5f : 0f);
+                _warBanner.localPosition = new Vector3(at.x + 0.6f, _land.Height(at) + 0.6f, at.y + 0.3f);
+                _warBanner.localScale = Vector3.one * size;
+                _warBanner.localRotation = Quaternion.Euler(0f, Mathf.Sin(Time.time * 2.3f) * 12f, Mathf.Sin(Time.time * 3.1f) * 3f);
+            }
+
+            foreach (var m in _patrols.Concat(_column))
+            {
+                m.Tick(_land, dt);
+            }
+
+            // A red trail ahead of the column, the way it's going.
+            var dots = _raidComing && _warPath.Count >= 2 ? 14 : 0;
+            while (_raidDots.Count < dots)
+            {
+                var dot = Shapes.Create(PrimitiveType.Cylinder, Shapes.Hex("#a8322a"), Vector3.zero, new Vector3(0.14f, 0.01f, 0.14f), _raidTrail, "Dot");
+                dot.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
+                _raidDots.Add(dot);
+            }
+
+            for (var k = 0; k < _raidDots.Count; k++)
+            {
+                var shown = k < dots;
+                _raidDots[k].SetActive(shown);
+                if (shown)
+                {
+                    var t = Mathf.Lerp(0.55f, 1f, (k + Mathf.Repeat(Time.time * 0.8f, 1f)) / dots);
+                    var p = WorldLand.Along(_warPath, t);
+                    _raidDots[k].transform.localPosition = new Vector3(p.x, _land.Height(p) + 0.05f, p.y);
+                }
+            }
+        }
+
+        /// <summary>Rings on the ground round each place in view: yours inside (hi-vis), the strongest rival's outside.</summary>
+        private void UpdateRings()
+        {
+            var show = Mathf.InverseLerp(20f, 30f, _rig.Distance);
+            _ringRoot.gameObject.SetActive(show > 0.01f);
+            if (show <= 0.01f)
+            {
+                return;
+            }
+
+            _ringRoot.localScale = new Vector3(1f, 1f, 1f);
+            if ((_ringSync -= Time.deltaTime) > 0f)
+            {
+                return;
+            }
+
+            _ringSync = 0.5f;
+            var wanted = new HashSet<int>();
+            foreach (var f in _faith)
+            {
+                if (!TryLand(f.Id, out var at) || (f.Mine <= 0.005f && f.Rival <= 0.005f))
+                {
+                    continue;
+                }
+
+                wanted.Add(f.Id);
+                if (!_rings.TryGetValue(f.Id, out var ring))
+                {
+                    ring = (Ring(new Color(0.91f, 1f, 0.23f)), Ring(Color.white));
+                    _rings[f.Id] = ring;
+                }
+
+                // Inside the levelled ground round the place, so the hills don't swallow them.
+                var h = _land.Height(at) + 0.08f;
+                Place(ring.Mine, at, h, 0.9f, f.Mine);
+                ring.Rival.GetComponent<Renderer>().sharedMaterial = Shapes.Material(f.RivalColour);
+                Place(ring.Rival, at, h - 0.01f, 1.25f, f.Rival);
+            }
+
+            foreach (var gone in _rings.Keys.Where(k => !wanted.Contains(k)).ToList())
+            {
+                Destroy(_rings[gone].Mine);
+                Destroy(_rings[gone].Rival);
+                _rings.Remove(gone);
+            }
+
+            void Place(GameObject ring, Vector2 at, float height, float radius, float share)
+            {
+                ring.SetActive(share > 0.005f);
+                var r = radius + share * 0.35f;
+                ring.transform.localPosition = new Vector3(at.x, height, at.y);
+                ring.transform.localScale = new Vector3(r, 1f, r);
+            }
+        }
+
+        private GameObject Ring(Color colour)
+        {
+            if (_annulus == null)
+            {
+                _annulus = Annulus(0.8f, 48);
+            }
+
+            var go = new GameObject("Ring");
+            go.transform.SetParent(_ringRoot, false);
+            go.AddComponent<MeshFilter>().sharedMesh = _annulus;
+            var renderer = go.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = Shapes.Material(colour);
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            return go;
+        }
+
+        /// <summary>A flat ring, outer radius 1, facing up.</summary>
+        private static Mesh Annulus(float inner, int segments)
+        {
+            var vertices = new Vector3[segments * 2];
+            var triangles = new int[segments * 6];
+            for (var i = 0; i < segments; i++)
+            {
+                var a = i * Mathf.PI * 2f / segments;
+                var d = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                vertices[i * 2] = d;
+                vertices[i * 2 + 1] = d * inner;
+                var n = (i + 1) % segments;
+                triangles[i * 6] = i * 2;
+                triangles[i * 6 + 1] = i * 2 + 1;
+                triangles[i * 6 + 2] = n * 2;
+                triangles[i * 6 + 3] = n * 2;
+                triangles[i * 6 + 4] = i * 2 + 1;
+                triangles[i * 6 + 5] = n * 2 + 1;
+            }
+
+            var mesh = new Mesh { name = "Annulus", vertices = vertices, triangles = triangles };
+            mesh.normals = vertices.Select(_ => Vector3.up).ToArray();
+            mesh.RecalculateBounds();
+            return mesh;
         }
 
         // ---------------- chunks ----------------
@@ -445,6 +690,15 @@ namespace CultOfComfort.Client
 
             _walkers.Clear();
             _anchors.Clear();
+            foreach (var ring in _rings.Values)
+            {
+                Destroy(ring.Mine);
+                Destroy(ring.Rival);
+            }
+
+            _rings.Clear();
+            ClearMarchers();
+            _seatId = -1;
         }
 
         private Chunk MakeChunk((int X, int Z) key, ChunkData data)
@@ -923,6 +1177,82 @@ namespace CultOfComfort.Client
                 UnityEngine.Object.Destroy(_figure);
                 UnityEngine.Object.Destroy(_trail.gameObject);
             }
+        }
+        /// <summary>One of the lord's men on the road between his seat and your village.</summary>
+        private sealed class Marcher
+        {
+            private readonly GameObject _figure;
+            private readonly PartAnimator _animator;
+            private readonly List<Vector2> _path;
+            private readonly float _speed;
+            private readonly bool _pingPong;
+            private readonly float _from;
+            private readonly float _to;
+            private readonly float _length;
+            private float _t;
+            private int _direction = 1;
+
+            public Marcher(Transform parent, string model, List<Vector2> path, float speed, float start, bool pingPong, float from, float to)
+            {
+                _figure = ArtLibrary.Instantiate(model, parent) ?? Shapes.Create(PrimitiveType.Capsule, Palette.ManAtArms, Vector3.zero, new Vector3(0.3f, 0.4f, 0.3f), parent);
+                _figure.transform.localScale = Vector3.one * 0.4f;
+                if (_figure.GetComponentsInChildren<Transform>().Any(t => t.name == "Body"))
+                {
+                    _animator = _figure.AddComponent<PartAnimator>();
+                    _animator.Bind();
+                    _animator.IsMoving = true;
+                }
+
+                _path = path;
+                _speed = speed;
+                _pingPong = pingPong;
+                _from = from;
+                _to = to;
+                for (var k = 1; k < path.Count; k++)
+                {
+                    _length += Vector2.Distance(path[k - 1], path[k]);
+                }
+
+                _t = Mathf.Lerp(from, to, Mathf.Repeat(start, 1f));
+            }
+
+            public void Tick(WorldLand land, float dt)
+            {
+                if (_length <= 0f)
+                {
+                    return;
+                }
+
+                _t += _direction * _speed * dt / _length;
+                if (_t > _to)
+                {
+                    if (_pingPong)
+                    {
+                        _t = _to;
+                        _direction = -1;
+                    }
+                    else
+                    {
+                        _t = _from;
+                    }
+                }
+                else if (_t < _from)
+                {
+                    _t = _from;
+                    _direction = 1;
+                }
+
+                var at = WorldLand.Along(_path, _t);
+                var ahead = WorldLand.Along(_path, Mathf.Clamp01(_t + _direction * 0.01f));
+                _figure.transform.localPosition = new Vector3(at.x, land.Height(at), at.y);
+                var look = ahead - at;
+                if (look.sqrMagnitude > 0.00001f)
+                {
+                    _figure.transform.localRotation = Quaternion.LookRotation(new Vector3(look.x, 0f, look.y));
+                }
+            }
+
+            public void Destroy() => UnityEngine.Object.Destroy(_figure);
         }
     }
 }

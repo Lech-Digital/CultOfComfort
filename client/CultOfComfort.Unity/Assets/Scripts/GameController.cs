@@ -422,6 +422,12 @@ namespace CultOfComfort.Client
             }).ToList();
             var walkers = model.Missionaries.Select(m => new StageWalker { NodeId = m.NodeId, Phase = m.Phase, Fraction = m.Fraction }).ToList();
             _stage.SetPeople(_snapshot.HearthLevel, camps, walkers);
+            _stage.SetFaith(model.Nodes.Where(n => !n.Home && !n.Camp).Select(n => new StageFaith
+            {
+                Id = n.Id, Mine = n.Influence / 100f, Rival = n.RivalShare / 100f,
+                RivalColour = n.RivalColour >= 0 ? SharedWorldPresenter.CultColours[n.RivalColour % SharedWorldPresenter.CultColours.Length] : Color.grey,
+            }).ToList());
+            _stage.SetTension(model.SeatId, model.TensionFraction, model.RaidComing);
         }
 
         private void CloseMap()
