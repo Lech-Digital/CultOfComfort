@@ -10,6 +10,7 @@ namespace CultOfComfort.Client
         public BuildingType Type; public string Name; public string Icon; public string Cost; public string Time;
         public bool Locked; public string LockText; public bool Affordable;
         public string Size = string.Empty; // "2×4"; empty for a 1×1
+        public string Category = VillagePresenter.Work;
     }
 
     public sealed class BuildingCardModel
@@ -49,6 +50,25 @@ namespace CultOfComfort.Client
             _ => "b_sapling_flinger",
         };
 
+        public const string Work = "Work";
+        public const string Homes = "Homes";
+        public const string Defence = "Defence";
+        public const string Roads = "Roads";
+        public const string Land = "Land";
+
+        /// <summary>The build drawer's tabs, in order (owner 2026-10-15: "not really easy to find them in the scroll").</summary>
+        public static readonly string[] Categories = { Work, Homes, Defence, Roads, Land };
+
+        /// <summary>Which tab a building sits under: what it's for, in a word.</summary>
+        public static string Category(BuildingType type) => type switch
+        {
+            BuildingType.Cottage or BuildingType.CultistHut or BuildingType.Bathhouse or BuildingType.StorageHut or BuildingType.Cistern => Homes,
+            BuildingType.SlurryChute or BuildingType.SaplingFlinger or BuildingType.WattleFence or BuildingType.WoodenWall or BuildingType.Gate => Defence,
+            BuildingType.DirtTrack or BuildingType.PlankWalk or BuildingType.CobbledRoad => Roads,
+            BuildingType.Stone or BuildingType.Tree => Land,
+            _ => Work,
+        };
+
         public static IReadOnlyList<BuildCardModel> BuildCards(BaseSnapshot snapshot, BuildingTable table) =>
             table.Specs.Values.Where(s => s.Type != BuildingType.Hearth).Select(spec =>
             {
@@ -63,6 +83,7 @@ namespace CultOfComfort.Client
                     LockText = snapshot.HearthLevel < spec.UnlockHearth ? $"Hearth {spec.UnlockHearth}" : locked ? "Max built" : string.Empty,
                     Affordable = snapshot.Stock.Covers(cost),
                     Size = spec.Width == 1 && spec.Depth == 1 ? string.Empty : $"{spec.Width}×{spec.Depth}",
+                    Category = Category(spec.Type),
                 };
             }).ToList();
 

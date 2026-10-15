@@ -373,3 +373,12 @@
 .landscape .night-bar > .hint { display: none; }
 .landscape .relics { flex-direction: row; }
 .landscape .relics > .relic { height: 44px; }
+/* the build drawer's tabs (owner 2026-10-15: "introduce categories with buildings") */
+.build-tabs { flex-direction: row; margin: 0 0 4px 0; }
+.build-tab {
+    font-size: 13px; padding: 3px 10px; margin: 0 4px 0 0; border-radius: 10px; color: #f6e7c4; background-color: rgba(246, 231, 196, 0.12);
+    border-width: 1px; border-color: rgba(246, 231, 196, 0.35); -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC");
+}
+.build-tab-open { background-color: #f6e7c4; color: #3a2a18; border-color: #f6e7c4; }
+.landscape .build-tabs { flex-direction: column; margin: 0 6px 0 0; }
+.landscape .build-tab { font-size: 11px; padding: 1px 8px; margin: 1px 0; }

@@ -24,7 +24,6 @@ namespace CultOfComfort.Client
         private Transform _hearth;
         private GameObject _hearthModel;
         private int _hearthLevel = 1;
-        private readonly List<GameObject> _roadTiles = new List<GameObject>();
         private Transform _root;
         private Transform _roadRoot;
         private GameObject _cursor;
@@ -52,14 +51,7 @@ namespace CultOfComfort.Client
             _roadRoot = new GameObject("Road").transform;
             _roadRoot.SetParent(_root, false);
 
-            for (var y = 0; y < VillageMap.Demo.Height; y++)
-            {
-                for (var x = 0; x < VillageMap.Demo.Width; x++)
-                {
-                    var color = (x + y) % 2 == 0 ? Palette.Ground : Palette.GroundAlt; // all mud: grass means "not your land"
-                    Shapes.Create(PrimitiveType.Cube, color, new Vector3(x, -0.1f, -y), new Vector3(1f, 0.2f, 1f), _root, "Tile");
-                }
-            }
+            BuildGround();
 
             foreach (var rock in rocks)
             {
@@ -100,6 +92,7 @@ namespace CultOfComfort.Client
                 SwapHearthModel(hearthLevel);
             }
 
+            UpdateRoads(buildings);
             var seen = new HashSet<int>();
             var barriers = new HashSet<GridPosition>(buildings.Where(b => BuildingTable.IsBarrier(b.Type)).SelectMany(b => b.Tiles));
             foreach (var building in buildings)
@@ -373,18 +366,104 @@ namespace CultOfComfort.Client
             }
         }
 
+        /// <summary>The raiders' track across the land, painted into the ground (the village's own roads paint over it).</summary>
         public void ShowRoad(IReadOnlyList<GridPosition> path)
         {
-            foreach (var go in _roadTiles)
+            _raidersPath = path?.ToList() ?? new List<GridPosition>();
+            PaintGround();
+        }
+
+        // ---------------- the ground (owner 2026-10-15: "make the [tiles] less visible") ----------------
+
+        private Texture2D _groundTexture;
+        private Color32[] _groundBare;
+        private List<GridPosition> _raidersPath = new List<GridPosition>();
+        private readonly Dictionary<GridPosition, RoadSurface> _villageRoads = new Dictionary<GridPosition, RoadSurface>();
+        private readonly HashSet<GridPosition> _roadJoins = new HashSet<GridPosition>();
+        private string _roadSignature = string.Empty;
+
+        /// <summary>One sheet of painted mud over the whole board: no checkerboard, no seams between tiles.</summary>
+        private void BuildGround()
+        {
+            var width = VillageMap.Demo.Width;
+            var height = VillageMap.Demo.Height;
+            _groundBare = GroundPainter.Ground(width, height);
+            _groundTexture = new Texture2D(width * GroundPainter.PixelsPerTile, height * GroundPainter.PixelsPerTile, TextureFormat.RGBA32, true)
             {
-                Destroy(go);
+                wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Trilinear, anisoLevel = 4, name = "Village ground",
+            };
+            var mesh = new Mesh { name = "Village ground" };
+            mesh.SetVertices(new[]
+            {
+                new Vector3(-0.5f, 0f, 0.5f), new Vector3(width - 0.5f, 0f, 0.5f),
+                new Vector3(-0.5f, 0f, -(height - 0.5f)), new Vector3(width - 0.5f, 0f, -(height - 0.5f)),
+            });
+            // Tile row 0 (the board's top edge, z = 0.5) is the texture's first row.
+            mesh.SetUVs(0, new[] { new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0f, 1f), new Vector2(1f, 1f) });
+            mesh.SetTriangles(new[] { 0, 1, 2, 2, 1, 3 }, 0);
+            mesh.SetNormals(new[] { Vector3.up, Vector3.up, Vector3.up, Vector3.up });
+            mesh.RecalculateBounds();
+            var ground = new GameObject("Ground");
+            ground.transform.SetParent(_root, false);
+            ground.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var material = new Material(Resources.Load<Material>("BaseLit")) { mainTexture = _groundTexture, color = Color.white };
+            material.SetFloat("_Smoothness", 0.05f);
+            ground.AddComponent<MeshRenderer>().sharedMaterial = material;
+            // A thin skirt below, so the board's edge has some depth from a low camera.
+            Shapes.Create(PrimitiveType.Cube, Palette.Ground, new Vector3((width - 1) / 2f, -0.11f, -(height - 1) / 2f), new Vector3(width, 0.2f, height), _root, "Ground skirt");
+            PaintGround();
+        }
+
+        private void PaintGround()
+        {
+            if (_groundTexture == null)
+            {
+                return;
             }
 
-            _roadTiles.Clear();
-            foreach (var tile in path)
+            var roads = new Dictionary<GridPosition, RoadSurface>();
+            foreach (var tile in _raidersPath)
             {
-                _roadTiles.Add(Shapes.Create(PrimitiveType.Cube, Palette.Road, Shapes.ToWorld(tile, 0.005f), new Vector3(0.8f, 0.02f, 0.8f), _roadRoot, "Road"));
+                roads[tile] = RoadSurface.RaidersTrack;
             }
+
+            foreach (var (tile, surface) in _villageRoads)
+            {
+                roads[tile] = surface;
+            }
+
+            var pixels = GroundPainter.WithRoads(_groundBare, VillageMap.Demo.Width, VillageMap.Demo.Height, roads, _roadJoins);
+            // Our rows run top to bottom; a texture's run bottom to top, and the mesh's UVs already account for it.
+            _groundTexture.SetPixels32(pixels);
+            _groundTexture.Apply(true, false);
+        }
+
+        /// <summary>The village's own roads (and what they join: the Hearth, gates) from the buildings; repaints when they change.</summary>
+        private void UpdateRoads(IReadOnlyList<BuildingView> buildings)
+        {
+            var roads = buildings.Where(b => BuildingTable.IsRoad(b.Type)).OrderBy(b => b.Position.X).ThenBy(b => b.Position.Y).ToList();
+            var joins = buildings.Where(b => b.Type == BuildingType.Hearth || b.Type == BuildingType.Gate).SelectMany(b => b.Tiles).ToList();
+            var signature = string.Join(";", roads.Select(r => $"{r.Position.X},{r.Position.Y},{(int)r.Type}")) + "|" + string.Join(";", joins.Select(t => $"{t.X},{t.Y}"));
+            if (signature == _roadSignature)
+            {
+                return;
+            }
+
+            _roadSignature = signature;
+            _villageRoads.Clear();
+            foreach (var road in roads)
+            {
+                _villageRoads[road.Position] = road.Type switch
+                {
+                    BuildingType.PlankWalk => RoadSurface.Planks,
+                    BuildingType.CobbledRoad => RoadSurface.Cobbles,
+                    _ => RoadSurface.Dirt,
+                };
+            }
+
+            _roadJoins.Clear();
+            _roadJoins.UnionWith(joins);
+            PaintGround();
         }
 
         public void ShowCursor(GridPosition? tile, bool valid) =>
@@ -723,12 +802,7 @@ namespace CultOfComfort.Client
                 visual.Root.localPosition = centre;
                 if (BuildingTable.IsRoad(building.Type))
                 {
-                    // A road is the ground itself: flat, full tile, never a "building" with bars and badges.
-                    var tile = ArtLibrary.Instantiate(BuildingArt.BaseModel(building.Type), visual.Root);
-                    if (tile == null)
-                    {
-                        Shapes.Create(PrimitiveType.Cube, Palette.Road, new Vector3(0f, 0.01f, 0f), new Vector3(0.98f, 0.02f, 0.98f), visual.Root, "Road");
-                    }
+                    // A road is the ground itself: painted into it (GroundPainter), joined to its neighbours, never a "building".
 
                     visual.Bar = new GameObject("No bar");
                     visual.Bar.transform.SetParent(visual.Root, false);
