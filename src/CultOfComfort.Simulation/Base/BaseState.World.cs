@@ -26,15 +26,15 @@ public sealed partial class BaseState
             return CommandOutcome.Reject("Too far for now. A bigger Hearth, a longer walk.");
         }
 
-        var problem = DispatchProblem(send.Hours);
+        var (problem, preacher) = Dispatch(send.Hours, send.PreacherId);
         if (problem != null)
         {
             return CommandOutcome.Reject(problem);
         }
 
         MaterializeDomain(now);
-        _stock -= Times(Domain.ProvisionsPerHour, send.Hours);
-        _missionaries.Add(new MissionaryData(_nextMissionaryId++, send.NodeId, send.Hours, now.UtcTicks, Preached: false, send.Distance));
+        _stock -= Preachers.Provisions(preacher, Times(Domain.ProvisionsPerHour, send.Hours));
+        _missionaries.Add(new MissionaryData(_nextMissionaryId++, send.NodeId, send.Hours, now.UtcTicks, Preached: false, send.Distance, preacher));
         return CommandOutcome.Accept();
     }
 

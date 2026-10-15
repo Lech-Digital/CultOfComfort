@@ -67,6 +67,43 @@ public sealed class DomainDto
     public int worldQ;
     public int worldR;
     public int worldTensionMilli;
+
+    /// <summary>The Mission House (spec 2026-10-15): preachers' experience and the latest road reports.</summary>
+    public List<PreacherXpDto> preachers;
+    public List<RoadReportDto> reports;
+
+    /// <summary>The lord's demand, if one is open, and when the next comes (-1: the clock hasn't started).</summary>
+    public bool hasDemand;
+    public int demandId;
+    public int demandTimber;
+    public int demandPeat;
+    public int demandScrap;
+    public int demandDevotion;
+    public long demandDueTicks;
+    public long nextDemandTicks = -1;
+    public int nextDemandId = 1;
+}
+
+[Serializable]
+public sealed class PreacherXpDto
+{
+    public int id;
+    public int xp;
+}
+
+[Serializable]
+public sealed class RoadReportDto
+{
+    public int preacher;
+    public int node;
+    public bool inWorld;
+    public int hours;
+    public string find;
+    public int timber;
+    public int peat;
+    public int scrap;
+    public int devotion;
+    public long homeTicks;
 }
 
 [Serializable]
@@ -85,6 +122,7 @@ public sealed class MissionaryDto
     public long departedTicks;
     public bool preached;
     public int distance; // hexes to a shared-world place; 0 in the Marchlands
+    public int preacher; // the Mission House preacher who went; 0 for one sent before it
 }
 
 [Serializable]

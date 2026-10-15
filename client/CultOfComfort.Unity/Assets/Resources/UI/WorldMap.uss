@@ -87,3 +87,19 @@
 }
 .map-go-home-icon { width: 30px; height: 30px; margin: 0; padding: 0; background-color: rgba(0, 0, 0, 0); border-width: 0; }
 .map-go-home-text { font-size: 14px; color: #3a2a18; -unity-font-style: bold; margin: 0 0 0 2px; padding: 0; }
+/* The lord's demand and the Mission House (spec 2026-10-15). */
+.map-demand { margin-top: 4px; padding: 4px 6px; background-color: rgba(168, 50, 42, 0.12); border-radius: 6px; border-width: 1px; border-color: rgba(168, 50, 42, 0.5); }
+.map-demand-line { font-size: 11px; color: #5a1f18; }
+.map-card-demand { padding: 6px 8px; margin: 2px 0 6px 0; background-color: rgba(168, 50, 42, 0.12); border-radius: 6px; border-width: 1px; border-color: rgba(168, 50, 42, 0.5); }
+.map-card-preachers { flex-direction: row; flex-wrap: wrap; margin: 4px 0 0 0; }
+.map-preacher-chip { font-size: 12px; padding: 4px 8px; margin: 2px 4px 2px 0; border-radius: 12px; background-color: rgba(120, 96, 60, 0.12); border-width: 1px; border-color: #8a6a3a; color: #3a2a18; }
+.map-preacher-chip-on { background-color: #46618c; color: #f1e3c0; border-color: #2b3d5c; }
+.house-intro { margin: 2px 0 6px 0; }
+.house-card { padding: 8px 10px; margin: 4px 0; border-radius: 8px; border-width: 1px; border-color: rgba(107, 82, 56, 0.45); background-color: rgba(255, 248, 230, 0.5); }
+.house-portrait { width: 44px; height: 44px; border-radius: 22px; margin-right: 8px; align-items: center; justify-content: center; border-width: 2px; border-color: #3a2a18; }
+.house-portrait-home { background-color: #46618c; }
+.house-portrait-out { background-color: #8a6a43; }
+.house-initial { font-size: 22px; color: #f1e3c0; -unity-font-style: bold; margin: 0; padding: 0; }
+.house-name { font-size: 16px; color: #3a2a18; -unity-font-style: bold; margin: 0; padding: 0; }
+.house-xp-fill { height: 6px; background-color: #d9b45a; border-radius: 3px; width: 0; }
+.house-report { font-size: 12px; margin-top: 3px; }

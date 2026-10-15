@@ -184,6 +184,7 @@ namespace CultOfComfort.Client
             model.TensionHelp = WorldMapPresenter.TemperHelp(lord, max);
             model.Help = WorldMapPresenter.Help(lord, table, world: true);
             model.Tithes = WorldMapPresenter.Tithes(snapshot, table);
+            WorldMapPresenter.SetDemand(model, snapshot, now);
             model.TitheNote = domain?.TitheHalfUntilUtc != null
                 ? $"He was paid recently: tithes work at half strength for {VillagePresenter.Duration((long)(domain.TitheHalfUntilUtc.Value - now).TotalSeconds)}."
                 : $"Each tithe lowers his temper by the amount shown. Pay enough during a raid warning and he calls the raid off. Right after a tithe, the next one works at half strength for a while.";
@@ -191,7 +192,7 @@ namespace CultOfComfort.Client
         }
 
         /// <summary>The card for a tapped place (or camp, or your village), with who holds what there.</summary>
-        public static NodeCardModel Card(BaseSnapshot snapshot, BuildingTable table, WorldDto world, int nodeId)
+        public static NodeCardModel Card(BaseSnapshot snapshot, BuildingTable table, WorldDto world, int nodeId, int preacherId = 0)
         {
             var map = MapFor(world);
             var cults = (world.cults ?? new List<WorldCultDto>()).ToDictionary(c => c.id);
@@ -245,22 +246,13 @@ namespace CultOfComfort.Client
                 return card;
             }
 
-            var slotsFree = domain.MissionarySlots - domain.Missionaries.Count > 0;
-            var villagerFree = snapshot.Population - domain.Missionaries.Count > 0;
             var asMarchlands = new DomainNode(node.Id, node.Name, node.Type, node.Q, node.R, node.Squalor);
-            foreach (var (hours, _) in table.Domain.Sessions)
+            WorldMapPresenter.AddPreachOptions(card, snapshot, table, asMarchlands, myShare, preacherId);
+            if (card.SelectedPreacher != 0 && here.Any(h => h.cult != world.cultId))
             {
-                var p = table.Domain.ProvisionsPerHour;
-                var cost = new ResourceBag(p.Timber * hours, p.Peat * hours, p.Scrap * hours, p.Devotion * hours);
-                var gain = Math.Min(100 - myShare, (int)(table.Domain.GainMilli(asMarchlands, hours) * (100 + domain.MissionaryBonusPercent) / 100 / 1000));
-                card.Options.Add(new PreachOption
-                {
-                    Hours = hours, Label = $"Preach {hours}h · +{gain}% · {VillagePresenter.ShortCost(cost)}", Enabled = slotsFree && villagerFree && snapshot.Stock.Covers(cost),
-                });
+                card.Note += " Rivals preach here too: your gain comes first from the Authority, then from them.";
             }
 
-            card.Note = !slotsFree ? "Every missionary is out." : !villagerFree ? "Nobody left to send."
-                : here.Any(h => h.cult != world.cultId) ? "Rivals preach here too: your gain comes first from the Authority, then from them." : "A missionary is a villager: they don't work while away.";
             return card;
         }
 

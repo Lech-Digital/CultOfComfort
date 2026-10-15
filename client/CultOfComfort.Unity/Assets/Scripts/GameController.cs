@@ -86,6 +86,12 @@ namespace CultOfComfort.Client
         private bool _mapHeld;
         private WorldMapModel _mapModel;
         private bool _pendingTithe;
+        private MissionHouseView _house;
+        private int _sendPreacher;            // who the next sermon is for (picked in the Mission House or on the card); 0: the first free
+        private int _cardPreacher;
+        private int _cardNode;
+        private int _seenDemand = int.MinValue; // the demand last seen (MinValue: nothing seen yet, so no toast on launch)
+        private int _metDemand = -1;
         private readonly List<(Vector2 At, Color Colour)> _miniMarks = new List<(Vector2, Color)>();           // "Tithes" was tapped before the land arrived: open the lord's seat once it has
         private (int Q, int R, int Radius)? _stageWindow; // the window last asked for from where the map camera looks
         private WorldDto _world;              // the shared world's window, as the server last sent it (null: Marchlands, or not fetched yet)
@@ -208,31 +214,46 @@ namespace CultOfComfort.Client
             {
                 _stage.Select(id);
                 _stage.FlyTo(id, aboveCard: true);
-                var card = _world != null
-                    ? SharedWorldPresenter.Card(_snapshot, BuildingTable.Default, _world, id)
-                    : WorldMapPresenter.Card(_snapshot, BuildingTable.Default, id);
-                if (_mapModel != null && id == _mapModel.SeatId)
-                {
-                    WorldMapPresenter.AddTithe(card, _mapModel); // the tithe is paid at his seat
-                }
-
-                _map.ShowCard(card);
+                ShowPlaceCard(id);
+            };
+            _map.PreacherPicked += id =>
+            {
+                _sendPreacher = id;
+                ShowPlaceCard(_cardNode);
             };
             _map.TitheRequested += OpenSeat;
-            _map.MissionaryFocused += node => _stage.FlyToMissionary(node);
+            _map.MissionariesClicked += OpenMissionHouse;
+            _map.DemandDelivered += DeliverDemand;
             _map.CardClosed += () => _stage.Select(null);
             _map.PreachClicked += async (node, hours) =>
             {
                 var world = _world;
+                var preacher = _cardPreacher;
                 var outcome = await SendVillage(world != null
-                    ? new SendWorldMissionary(Guid.NewGuid(), node, hours, SharedWorldPresenter.DistanceTo(world, node))
-                    : (BaseCommand)new SendMissionary(Guid.NewGuid(), node, hours));
+                    ? new SendWorldMissionary(Guid.NewGuid(), node, hours, SharedWorldPresenter.DistanceTo(world, node), preacher)
+                    : (BaseCommand)new SendMissionary(Guid.NewGuid(), node, hours, preacher));
                 if (outcome.Status == CommandStatus.Accepted)
                 {
                     _map.CloseCard();
+                    _sendPreacher = 0;
+                    _map.SetStatus(null);
                     var name = world != null ? SharedWorldPresenter.MapFor(world).Node(node)?.Name : DomainMap.Marchlands.Node(node)?.Name;
-                    Announce($"A missionary sets off for {name}, with sandwiches.");
+                    Announce($"{(preacher > 0 ? Preachers.Name(preacher) : "A missionary")} sets off for {name}, with sandwiches.");
                 }
+            };
+            _house = new MissionHouseView(root);
+            _house.SendClicked += id =>
+            {
+                // Pick a place for them: the map opens, and the card offers them first.
+                _sendPreacher = id;
+                _house.Show(false);
+                OpenFeature("map");
+            };
+            _house.ShowClicked += node =>
+            {
+                _house.Show(false);
+                OpenFeature("map");
+                _stage.FlyToMissionary(node);
             };
             _map.CollectClicked += async () =>
             {
@@ -269,8 +290,7 @@ namespace CultOfComfort.Client
                         _stage.SendTithe(_mapModel.SeatId); // a cart trundles off to his seat
                     }
 
-                    var lord = _world != null ? SharedWorldPresenter.Authority(SharedWorldPresenter.MapFor(_world), _world).Lord : "Wulfric";
-                    lord = char.ToUpperInvariant(lord[0]) + lord.Substring(1);
+                    var lord = LordName();
                     Announce(hadRaid && _snapshot?.RaidWarningEndsAtUtc == null
                         ? $"{lord} counts the money twice and calls the raid off. For now."
                         : $"{lord} pockets the tithe. His temper cools a little.");
@@ -292,11 +312,19 @@ namespace CultOfComfort.Client
                 if (id == "research" || id == "shop" || id == "cult")
                 {
                     CloseMap();
+                    _house.Show(false);
                     _sheet.Show(id, SheetFor(id));
                     return;
                 }
 
+                if (id == "missionaries")
+                {
+                    OpenMissionHouse();
+                    return;
+                }
+
                 _sheet.Close();
+                _house.Show(false);
                 _map.Show(true);
                 RenderMap();
                 if (_village is RemoteBaseGateway)
@@ -309,15 +337,107 @@ namespace CultOfComfort.Client
                     _pendingTithe = true;
                     OpenSeat();
                 }
-                else if (id == "missionaries")
-                {
-                    _map.ShowRoster();
-                }
                 else if (!Pref(MapHelpSeenKey))
                 {
                     _map.ShowHelp(); // the first visit explains what the lands are for (owner 2026-10-14: "totally unclear")
                     SetPref(MapHelpSeenKey, true);
                 }
+        }
+
+        /// <summary>The Mission House (spec 2026-10-15): the preachers, what they're doing, what the road told them.</summary>
+        private void OpenMissionHouse()
+        {
+            if (_snapshot == null)
+            {
+                return;
+            }
+
+            CloseMap();
+            _sheet.Close();
+            _house.Render(MissionHousePresenter.Build(_snapshot, BuildingTable.Default, PlaceName, _snapshot.AsOfUtc, WalkSeconds));
+            _house.Show(true);
+        }
+
+        /// <summary>The walk to a place, one way, in seconds.</summary>
+        private double WalkSeconds(int nodeId, bool inWorld) => BuildingTable.Default.Domain.MinutesPerHex * 60.0
+            * (inWorld ? (_world != null ? SharedWorldPresenter.DistanceTo(_world, nodeId) : 0) : DomainMap.Marchlands.Node(nodeId)?.Distance ?? 0);
+
+        /// <summary>A place's name, on the shared world or in the Marchlands.</summary>
+        private string PlaceName(int nodeId, bool inWorld) =>
+            inWorld ? (_world != null ? SharedWorldPresenter.MapFor(_world).Node(nodeId)?.Name : null) ?? "a far place"
+                : DomainMap.Marchlands.Node(nodeId)?.Name ?? "somewhere";
+
+        /// <summary>The card for a place: preach options for the picked preacher; at the lord's seat, his demand and the tithe.</summary>
+        private void ShowPlaceCard(int id)
+        {
+            if (_snapshot == null)
+            {
+                return;
+            }
+
+            var card = _world != null
+                ? SharedWorldPresenter.Card(_snapshot, BuildingTable.Default, _world, id, _sendPreacher)
+                : WorldMapPresenter.Card(_snapshot, BuildingTable.Default, id, _sendPreacher);
+            if (_mapModel != null && id == _mapModel.SeatId)
+            {
+                WorldMapPresenter.AddTithe(card, _mapModel); // the tithe (and any demand) is paid at his seat
+            }
+
+            _cardNode = id;
+            _cardPreacher = card.SelectedPreacher;
+            _map.ShowCard(card);
+        }
+
+        private async void DeliverDemand(int demandId)
+        {
+            var hadRaid = _snapshot?.RaidWarningEndsAtUtc != null;
+            var outcome = await SendVillage(new MeetDemand(Guid.NewGuid(), demandId));
+            if (outcome.Status != CommandStatus.Accepted)
+            {
+                Announce(outcome.Reason ?? "He won't take it.");
+                return;
+            }
+
+            _metDemand = demandId;
+            _map.CloseCard();
+            if (_mapModel != null && _mapModel.SeatId >= 0)
+            {
+                _stage.SendTithe(_mapModel.SeatId); // the cart goes off with exactly what he asked for
+            }
+
+            var lord = LordName();
+            Announce(hadRaid && _snapshot?.RaidWarningEndsAtUtc == null
+                ? $"{lord} gets exactly what he asked for, and calls the raid off. He almost smiles."
+                : $"{lord} gets exactly what he asked for. His temper cools a lot.");
+        }
+
+        private string LordName()
+        {
+            var lord = _world != null ? SharedWorldPresenter.Authority(SharedWorldPresenter.MapFor(_world), _world).Lord : "Wulfric";
+            return char.ToUpperInvariant(lord[0]) + lord.Substring(1);
+        }
+
+        /// <summary>The lord's demands as they come and go: a toast when one arrives, another if it ran out unpaid; a dot on Tithes while one is open.</summary>
+        private void WatchDemand()
+        {
+            var demand = _snapshot?.Domain?.Demand;
+            _hud.SetFeatureBadge("tithes", demand != null);
+            var id = demand?.Id ?? -1;
+            if (id == _seenDemand)
+            {
+                return;
+            }
+
+            if (demand != null && _seenDemand != int.MinValue)
+            {
+                Announce($"{LordName()} demands {VillagePresenter.ShortCost(demand.Amount)}. Deliver within {VillagePresenter.Duration((long)(demand.DueAtUtc - _snapshot.AsOfUtc).TotalSeconds)}, or else. (Tithes)");
+            }
+            else if (demand == null && _seenDemand > 0 && _metDemand != _seenDemand)
+            {
+                Announce($"You ignored {LordName()}'s demand. His temper flares (+{Demands.MissPenalty}).");
+            }
+
+            _seenDemand = id;
         }
 
         private SheetModel SheetFor(string id) => id switch
@@ -367,6 +487,12 @@ namespace CultOfComfort.Client
             }
 
             _hud.SetFeatureOpen("research", _snapshot != null && _snapshot.HearthLevel >= 2);
+            WatchDemand();
+            if (_house != null && _house.IsOpen && _snapshot != null)
+            {
+                _house.Render(MissionHousePresenter.Build(_snapshot, BuildingTable.Default, PlaceName, _snapshot.AsOfUtc, WalkSeconds));
+            }
+
             _hud.SetFeatureOpen("shop", true);
             _hud.SetFeatureOpen("cult", true);
             if (_sheet?.Shown != null && _snapshot != null)
@@ -451,7 +577,7 @@ namespace CultOfComfort.Client
                 return;
             }
 
-            _map.SetStatus(null);
+            _map.SetStatus(_sendPreacher > 0 ? $"Tap a place to send {Preachers.Name(_sendPreacher)}." : null);
             if (!_stage.IsOpen || _stage.Land != model.Land)
             {
                 _hud.SetMapOpen(true);
@@ -487,6 +613,7 @@ namespace CultOfComfort.Client
             _map.Show(false);
             _stage.Close();
             _pendingTithe = false;
+            _sendPreacher = 0;
             _hud.SetMapOpen(false);
             _stageWindow = null;
         }

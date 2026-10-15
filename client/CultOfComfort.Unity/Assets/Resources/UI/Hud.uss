@@ -340,3 +340,4 @@
 /* the build drawer slides shut and open rather than snapping the bar (owner 2026-10-14: "the screen jumps") */
 .drawer { transition-property: height, margin-bottom, opacity; transition-duration: 0.22s, 0.22s, 0.18s; transition-timing-function: ease-out-cubic; }
 .bar .drawer.collapsed, .landscape .bar .drawer.collapsed, .portrait .bar .drawer.collapsed { height: 0; margin-bottom: 0; opacity: 0; }
+.feature-badge { position: absolute; top: 2px; right: 2px; width: 14px; height: 14px; border-radius: 7px; background-color: #c0392b; border-width: 2px; border-color: #f1e3c0; }
