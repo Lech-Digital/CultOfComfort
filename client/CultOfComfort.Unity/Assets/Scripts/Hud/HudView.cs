@@ -172,6 +172,9 @@ namespace CultOfComfort.Client
         private Label _cloud;
         private Button _drawerToggle;
         private VisualElement _drawerChevron;
+        private VisualElement _buildTabs;
+        private string _buildTab = VillagePresenter.Work;
+        private readonly Dictionary<BuildingType, string> _cardCategory = new Dictionary<BuildingType, string>();
         private Button _errandFold;
         private bool _drawerCollapsed;
         private bool _errandFolded;
@@ -339,6 +342,17 @@ namespace CultOfComfort.Client
             _bar = Panel("bar");
             _duskBar = Container("dusk-bar");
             _duskBar.name = "dusk-bar";
+            _buildTabs = Container("build-tabs");
+            _buildTabs.name = "build-tabs";
+            _buildTabs.pickingMode = PickingMode.Position;
+            foreach (var category in VillagePresenter.Categories)
+            {
+                var name = category;
+                var tab = new Button(() => ShowBuildTab(name)) { name = $"tab-{category}", text = category };
+                tab.AddToClassList("build-tab");
+                _buildTabs.Add(tab);
+            }
+
             _drawer = new ScrollView(ScrollViewMode.Horizontal) { name = "build-drawer" };
             _drawer.AddToClassList("drawer");
             _drawer.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
@@ -371,6 +385,7 @@ namespace CultOfComfort.Client
             _drawerToggle.Add(_drawerChevron);
             _drawerToggle.Add(new Label("Build") { pickingMode = PickingMode.Ignore });
             _bar.Add(_drawerToggle);
+            _duskBar.Add(_buildTabs);
             _duskBar.Add(_drawer);
             _duskBar.Add(_paintDone); // floats just above the cards while painting
             _duskBar.Add(_repairAll);
@@ -592,14 +607,34 @@ namespace CultOfComfort.Client
                     }
 
                     _cards[card.Type] = button;
+                    _cardCategory[card.Type] = card.Category;
                     _drawer.Add(button);
                 }
+
+                ShowBuildTab(_buildTab);
             }
 
             foreach (var pair in _cards)
             {
                 pair.Value.EnableInClassList("selected", pair.Key == selected);
             }
+        }
+
+        /// <summary>Shows one tab of the build drawer: only its cards, scrolled back to the start.</summary>
+        public void ShowBuildTab(string category)
+        {
+            _buildTab = category;
+            foreach (var (type, button) in _cards)
+            {
+                Show(button, !_cardCategory.TryGetValue(type, out var c) || c == category);
+            }
+
+            foreach (var tab in _buildTabs.Children())
+            {
+                tab.EnableInClassList("build-tab-open", tab.name == $"tab-{category}");
+            }
+
+            _drawer.scrollOffset = Vector2.zero;
         }
 
         /// <summary>Done shows while a paint tool (roads, fences, walls) is on.</summary>
@@ -755,6 +790,11 @@ namespace CultOfComfort.Client
 
             if (card != null)
             {
+                if (_cardCategory.TryGetValue(card.Value, out var category) && category != _buildTab)
+                {
+                    ShowBuildTab(category); // the coach points at a card: its tab opens
+                }
+
                 _drawer.ScrollTo(_hinted);
             }
 
@@ -971,6 +1011,7 @@ namespace CultOfComfort.Client
         {
             _drawerCollapsed = collapsed;
             _drawer.EnableInClassList("collapsed", collapsed); // slides (USS transition) instead of snapping the bar
+            Show(_buildTabs, !collapsed);
             _drawerChevron.userData = collapsed;
             _drawerChevron.MarkDirtyRepaint();
             _framePendingFromHud = true;
