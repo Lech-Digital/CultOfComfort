@@ -523,6 +523,7 @@ namespace CultOfComfort.Client
             Show(_sideLeft, phase == GamePhase.Dusk);
             Show(_sideRight, phase == GamePhase.Dusk);
             Show(_duskBar, phase == GamePhase.Dusk);
+            Show(_drawerToggle, phase == GamePhase.Dusk); // nothing to build in the dark
             Show(_nightBar, phase == GamePhase.Night);
             Show(_bar, phase != GamePhase.Dawn);
             Show(_card, phase == GamePhase.Dawn);
@@ -1119,8 +1120,11 @@ namespace CultOfComfort.Client
                 _bubbles[i].EnableInClassList("hidden", at == null);
                 if (at != null)
                 {
-                    _bubbles[i].style.left = at.Value.x - 70f;
-                    _bubbles[i].style.top = at.Value.y - 64f;
+                    // Bubbles stay below the frame and the health bars: speech never covers the numbers.
+                    var floor = (_top.layout.yMax > 0f ? _top.layout.yMax : 0f) + 4f;
+                    var bubbleWidth = _bubbles[i].layout.width > 1f ? _bubbles[i].layout.width : 180f;
+                    _bubbles[i].style.left = Mathf.Clamp(at.Value.x - bubbleWidth / 2f, 4f, Mathf.Max(4f, _root.layout.width - bubbleWidth - 4f));
+                    _bubbles[i].style.top = Mathf.Max(floor, at.Value.y - 64f);
                 }
             }
 

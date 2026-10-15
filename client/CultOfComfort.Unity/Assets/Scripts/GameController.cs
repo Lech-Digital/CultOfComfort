@@ -110,6 +110,7 @@ namespace CultOfComfort.Client
         private void Start()
         {
             Application.targetFrameRate = 60;
+            Screen.sleepTimeout = SleepTimeout.NeverSleep; // the screen never dims or locks while the game is open (owner 2026-10-15)
             PointerInput.Enable();
             _rocks = VillageMap.Demo.Rocks;
 
@@ -2106,9 +2107,12 @@ namespace CultOfComfort.Client
         /// On first frame and on every rotation: restack the HUD, then re-frame the camera once UI Toolkit has laid
         /// the new HUD out (a couple of frames later), so the board fits between the status panel and the bar.
         /// </summary>
+        /// <summary>Captures render at a phone's size without one: the screen the layout and the camera frame for.</summary>
+        public Vector2Int? ScreenOverride { get; set; }
+
         private void TrackOrientation()
         {
-            var size = new Vector2Int(Screen.width, Screen.height);
+            var size = ScreenOverride ?? new Vector2Int(Screen.width, Screen.height);
             if (size != _screenSize)
             {
                 _screenSize = size;
