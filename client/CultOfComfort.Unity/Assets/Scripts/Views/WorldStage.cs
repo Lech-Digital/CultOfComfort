@@ -805,7 +805,7 @@ namespace CultOfComfort.Client
             {
                 _figure = ArtLibrary.Instantiate("cultist", parent) ?? Shapes.Create(PrimitiveType.Capsule, Shapes.Hex("#46618c"), Vector3.zero, new Vector3(0.3f, 0.4f, 0.3f), parent);
                 _figure.name = "Missionary";
-                _figure.transform.localScale = Vector3.one * 0.55f;
+                _figure.transform.localScale = Vector3.one * 0.4f;
                 if (_figure.GetComponentsInChildren<Transform>().Any(t => t.name == "Body"))
                 {
                     _animator = _figure.AddComponent<PartAnimator>();
