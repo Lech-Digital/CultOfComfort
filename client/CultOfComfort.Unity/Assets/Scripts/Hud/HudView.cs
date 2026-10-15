@@ -356,7 +356,7 @@ namespace CultOfComfort.Client
                 var w = context.visualElement.resolvedStyle.width;
                 var h = context.visualElement.resolvedStyle.height;
                 var p = context.painter2D;
-                p.strokeColor = new Color(0.23f, 0.16f, 0.09f);
+                p.strokeColor = context.visualElement.parent?.resolvedStyle.color ?? Color.white; // the button's own text colour
                 p.lineWidth = 2.2f;
                 p.lineCap = LineCap.Round;
                 p.lineJoin = LineJoin.Round;
