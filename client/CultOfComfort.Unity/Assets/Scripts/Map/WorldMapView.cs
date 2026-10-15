@@ -40,8 +40,14 @@ namespace CultOfComfort.Client
         private readonly Label _titheNote;
         private readonly Label _title;
         private readonly Label _status;
-        private readonly VisualElement _roster;
-        private readonly VisualElement _rosterRows;
+        private readonly VisualElement _demandRow;
+        private readonly Label _demandLine;
+        private readonly Button _demandButton;
+        private readonly VisualElement _cardDemand;
+        private readonly Label _cardDemandLine;
+        private readonly Button _cardDemandButton;
+        private readonly VisualElement _cardPreachers;
+        private int _demandId = -1;
         private readonly VisualElement _cardTithe;
         private readonly Label _cardTemper;
         private readonly VisualElement _cardTemperFill;
@@ -70,8 +76,14 @@ namespace CultOfComfort.Client
         /// <summary>"Pay a tithe": the controller flies to the lord's seat and opens its card.</summary>
         public event Action TitheRequested;
 
-        /// <summary>A missionary's row in the roster was tapped (the place they're bound for).</summary>
-        public event Action<int> MissionaryFocused;
+        /// <summary>The missionaries button: the controller opens the Mission House.</summary>
+        public event Action MissionariesClicked;
+
+        /// <summary>Deliver what the lord demanded (the demand's id).</summary>
+        public event Action<int> DemandDelivered;
+
+        /// <summary>A preacher was picked on a place's card (the controller redraws the card for them).</summary>
+        public event Action<int> PreacherPicked;
 
         /// <summary>The minimap was tapped or dragged: the land point under the finger.</summary>
         public event Action<Vector2> MinimapPicked;
@@ -147,6 +159,21 @@ namespace CultOfComfort.Client
             temperRow.Add(titheButton);
             top.Add(temperRow);
             top.Add(bar);
+            _demandRow = new VisualElement { name = "map-demand" };
+            _demandRow.AddToClassList("map-row");
+            _demandRow.AddToClassList("map-demand");
+            _demandLine = new Label { name = "map-demand-line" };
+            _demandLine.AddToClassList("map-line");
+            _demandLine.AddToClassList("map-demand-line");
+            _demandLine.style.flexGrow = 1;
+            _demandLine.style.flexShrink = 1;
+            _demandButton = new Button(() => DemandDelivered?.Invoke(_demandId)) { name = "map-deliver", text = "Deliver" };
+            _demandButton.AddToClassList("plain");
+            _demandButton.AddToClassList("map-small-button");
+            _demandRow.Add(_demandLine);
+            _demandRow.Add(_demandButton);
+            _demandRow.style.display = DisplayStyle.None;
+            top.Add(_demandRow);
             _root.Add(top);
 
             _status = new Label { name = "map-status", pickingMode = PickingMode.Ignore };
@@ -199,7 +226,7 @@ namespace CultOfComfort.Client
             bottom.AddToClassList("map-bottom");
             _missionaries = new Label { name = "map-missionaries", pickingMode = PickingMode.Ignore };
             _missionaries.AddToClassList("map-line");
-            var missionariesButton = new Button(ShowRoster) { name = "map-missionaries-button" };
+            var missionariesButton = new Button(() => MissionariesClicked?.Invoke()) { name = "map-missionaries-button" };
             missionariesButton.AddToClassList("plain");
             missionariesButton.AddToClassList("map-chip");
             missionariesButton.Add(_missionaries);
@@ -261,11 +288,20 @@ namespace CultOfComfort.Client
             _cardTithe.Add(_cardTitheNote);
             _cardTithe.Add(_cardTitheOptions);
             _card.Q<ScrollView>("map-card-body").Insert(1, _cardTithe);
-
-            _roster = Sheet("map-roster", out var rosterTitle, null);
-            rosterTitle.text = "Missionaries";
-            _rosterRows = new VisualElement();
-            _roster.Insert(1, _rosterRows);
+            _cardDemand = new VisualElement { name = "map-card-demand" };
+            _cardDemand.AddToClassList("map-card-demand");
+            _cardDemandLine = new Label();
+            _cardDemandLine.AddToClassList("sheet-line");
+            _cardDemandLine.AddToClassList("wrap");
+            _cardDemandButton = new Button(() => DemandDelivered?.Invoke(_demandId)) { name = "card-deliver", text = "Deliver what he asks" };
+            _cardDemandButton.AddToClassList("plain");
+            _cardDemand.Add(_cardDemandLine);
+            _cardDemand.Add(_cardDemandButton);
+            _cardTithe.Insert(0, _cardDemand);
+            _cardPreachers = new VisualElement { name = "map-card-preachers" };
+            _cardPreachers.AddToClassList("map-card-preachers");
+            var body = _card.Q<ScrollView>("map-card-body");
+            body.Insert(body.IndexOf(_cardOptions), _cardPreachers);
 
             _tithe = Sheet("map-tithe-sheet", out _titheTitle, null);
             _titheTitle.text = "Pay Lord Wulfric a tithe";
@@ -315,17 +351,7 @@ namespace CultOfComfort.Client
                 CloseCard();
                 ShowTithe(false);
                 _help.style.display = DisplayStyle.None;
-                _roster.style.display = DisplayStyle.None;
             }
-        }
-
-        /// <summary>The roster: every missionary, where they are and how far along; tap one to fly to them.</summary>
-        public void ShowRoster()
-        {
-            CloseCard();
-            ShowTithe(false);
-            _help.style.display = DisplayStyle.None;
-            _roster.style.display = DisplayStyle.Flex;
         }
 
         /// <summary>The "how the lands work" sheet (shown once by the controller, and by the ? button).</summary>
@@ -416,47 +442,10 @@ namespace CultOfComfort.Client
 
             _tensionFill.style.width = Length.Percent(model.TensionFraction * 100f);
             _missionaries.text = string.IsNullOrEmpty(model.MissionaryChip) ? model.MissionaryLine : model.MissionaryChip;
-            _rosterRows.Clear();
-            foreach (var row in model.Roster)
-            {
-                var node = row.NodeId;
-                var entry = new Button(() =>
-                {
-                    if (node >= 0)
-                    {
-                        _roster.style.display = DisplayStyle.None;
-                        MissionaryFocused?.Invoke(node);
-                    }
-                });
-                entry.AddToClassList("plain");
-                entry.AddToClassList("map-roster-row");
-                var title = new Label(row.Title);
-                title.AddToClassList("map-roster-title");
-                var detail = new Label(row.Detail);
-                detail.AddToClassList("small");
-                var track = new VisualElement();
-                track.AddToClassList("map-roster-bar");
-                var fill = new VisualElement();
-                fill.AddToClassList("map-roster-fill");
-                fill.style.width = Length.Percent(row.Progress * 100f);
-                track.Add(fill);
-                entry.Add(title);
-                entry.Add(detail);
-                if (node >= 0)
-                {
-                    entry.Add(track);
-                }
-
-                _rosterRows.Add(entry);
-            }
-
-            if (model.Roster.Count == 0)
-            {
-                var none = new Label(model.MissionaryLine);
-                none.AddToClassList("sheet-line");
-                none.AddToClassList("wrap");
-                _rosterRows.Add(none);
-            }
+            _demandRow.style.display = model.DemandLine != null ? DisplayStyle.Flex : DisplayStyle.None;
+            _demandLine.text = model.DemandLine ?? string.Empty;
+            _demandButton.SetEnabled(model.DemandAffordable);
+            _demandId = model.DemandId;
             _offerings.text = model.OfferingsLine;
             _collect.SetEnabled(model.CanCollect);
             _titheOptions.Clear();
@@ -557,10 +546,25 @@ namespace CultOfComfort.Client
         {
             ShowTithe(false);
             _help.style.display = DisplayStyle.None;
-            _roster.style.display = DisplayStyle.None;
             _cardTithe.style.display = card.Seat ? DisplayStyle.Flex : DisplayStyle.None;
+            _cardPreachers.Clear();
+            foreach (var p in card.Preachers)
+            {
+                var id = p.Id;
+                var chip = new Button(() => PreacherPicked?.Invoke(id)) { text = p.Label, name = $"pick-{id}" };
+                chip.AddToClassList("map-preacher-chip");
+                chip.EnableInClassList("map-preacher-chip-on", p.Selected);
+                chip.SetEnabled(p.Enabled);
+                _cardPreachers.Add(chip);
+            }
+
+            _cardPreachers.style.display = card.Preachers.Count > 1 ? DisplayStyle.Flex : DisplayStyle.None;
             if (card.Seat)
             {
+                _cardDemand.style.display = card.DemandLine != null ? DisplayStyle.Flex : DisplayStyle.None;
+                _cardDemandLine.text = card.DemandLine ?? string.Empty;
+                _cardDemandButton.SetEnabled(card.DemandAffordable);
+                _demandId = card.DemandId >= 0 ? card.DemandId : _demandId;
                 _cardTemper.text = card.Temper;
                 _cardTemperFill.style.width = Length.Percent(card.TemperFraction * 100f);
                 _cardTemperHelp.text = card.TemperHelp ?? string.Empty;

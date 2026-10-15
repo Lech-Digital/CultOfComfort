@@ -507,7 +507,7 @@ public sealed partial class BaseState
         Advance(nowUtc);
         _now = nowUtc;
         MaterializeAll(nowUtc); // whatever this command changes, production up to now was earned under the old rules
-        if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain or SendMissionary or SendWorldMissionary or PayTithe or SetCrew)
+        if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain or SendMissionary or SendWorldMissionary or PayTithe or MeetDemand or SetCrew)
         {
             return CommandOutcome.Reject("Not now — there's a Night on.") with { Version = Version };
         }
@@ -541,6 +541,7 @@ public sealed partial class BaseState
             ReceiveOfferings receive => Receive(receive.Offerings, nowUtc),
             CollectOfferings _ => CollectOfferings(nowUtc),
             PayTithe tithe => Tithe(tithe, nowUtc),
+            MeetDemand meet => Meet(meet, nowUtc),
             StartResearch start => StartStudy(start, nowUtc),
             Trade trade => DoTrade(trade),
             RepairBuilding repair => Repair(repair.BuildingId, nowUtc),
@@ -1285,6 +1286,11 @@ public sealed partial class BaseState
         if (endedAt > building.AsOfUtc)
         {
             building.AsOfUtc = endedAt; // never backwards: time already counted is never counted again
+        }
+
+        if (building.Type == BuildingType.Hearth && building.Level == _table.Domain.UnlockHearth)
+        {
+            StartDemands(endedAt);
         }
 
         var spec = _table.Spec(building.Type);

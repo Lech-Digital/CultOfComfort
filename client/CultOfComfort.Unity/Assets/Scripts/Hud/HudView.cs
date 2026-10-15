@@ -930,6 +930,28 @@ namespace CultOfComfort.Client
             }
         }
 
+        /// <summary>A red dot on a frame button: something wants you there (the lord's demand on Tithes).</summary>
+        public void SetFeatureBadge(string id, bool on)
+        {
+            if (!_featureButtons.TryGetValue(id, out var button))
+            {
+                return;
+            }
+
+            var badge = button.Q(className: "feature-badge");
+            if (badge == null && on)
+            {
+                badge = new VisualElement { pickingMode = PickingMode.Ignore };
+                badge.AddToClassList("feature-badge");
+                button.Add(badge);
+            }
+
+            if (badge != null)
+            {
+                badge.style.display = on ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+        }
+
         /// <summary>The root the map overlay hangs on.</summary>
         public VisualElement Root => _root;
 

@@ -33,7 +33,10 @@ public class ContractsTests
         new DebugRaiseTension(Guid.NewGuid(), 50),
         new DebugSkipWarning(Guid.NewGuid()),
         new SendMissionary(Guid.NewGuid(), 7, 4),
+        new SendMissionary(Guid.NewGuid(), 7, 4, PreacherId: 2),
         new SendWorldMissionary(Guid.NewGuid(), 1201, 8, 3),
+        new SendWorldMissionary(Guid.NewGuid(), 1201, 8, 3, PreacherId: 1),
+        new MeetDemand(Guid.NewGuid(), 4),
         new SetCrew(Guid.NewGuid(), 4, 1),
         new CollectOfferings(Guid.NewGuid()),
         new PayTithe(Guid.NewGuid(), new ResourceBag(100, 20, 30, 40)),
@@ -111,6 +114,30 @@ public class ContractsTests
         data.Research!.Current.Should().Be("sermon-notes");
         BaseState.Restore(table, VillageMap.Demo, back).Snapshot(later.AddDays(2)).Domain.Should()
             .BeEquivalentTo(BaseState.Restore(table, VillageMap.Demo, data).Snapshot(later.AddDays(2)).Domain);
+    }
+
+    [Fact]
+    public void VillageJson_DemandPreachersAndReports_RoundTrip()
+    {
+        // Arrange — Hearth 2 done, Brother Damp home from 8 hours of preaching, the lord's first demand open.
+        var table = new BuildingTable { StartingStock = new ResourceBag(5000, 900, 900, 900), HearthStorageCaps = new[] { 9000, 9000, 9000 } };
+        var state = BaseState.CreateNew(table, VillageMap.Demo, T0);
+        state.Apply(new UpgradeHearth(Guid.NewGuid()), T0);
+        state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+        state.Apply(new SendMissionary(Guid.NewGuid(), 1, 8, PreacherId: 1), T0);
+        var later = T0.AddHours(11);
+        state.Snapshot(later).Domain!.Demand.Should().NotBeNull();
+        var data = state.ToData();
+
+        // Act
+        var back = VillageJson.Read(VillageJson.Write(data));
+
+        // Assert
+        back.Domain.Should().BeEquivalentTo(data.Domain);
+        back.Domain!.Reports.Should().ContainSingle();
+        back.Domain.Demand.Should().NotBeNull();
+        BaseState.Restore(table, VillageMap.Demo, back).Snapshot(later).Domain.Should()
+            .BeEquivalentTo(BaseState.Restore(table, VillageMap.Demo, data).Snapshot(later).Domain);
     }
 
     [Fact]

@@ -366,7 +366,7 @@ namespace CultOfComfort.Client
         {
             if (TryLand(id, out var at))
             {
-                _rig.FlyTo(aboveCard ? at - new Vector2(0f, _rig.Distance * 0.32f) : at);
+                _rig.FlyTo(aboveCard ? at - new Vector2(0f, _rig.Distance * 0.2f) : at);
             }
         }
 

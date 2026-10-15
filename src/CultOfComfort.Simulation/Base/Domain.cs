@@ -29,8 +29,9 @@ public sealed record DomainNode(int Id, string Name, NodeType Type, int Q, int R
 /// <param name="OfferingsPerHour">Paid per hour at 100 influence.</param>
 public sealed record NodeKind(NodeType Type, int ReceptivityPercent, int WeightPercent, ResourceBag OfferingsPerHour);
 
-/// <summary>A missionary on the road: walking out, preaching, walking home. <paramref name="Distance"/> is set for a place on the shared world (hexes from home); null in the Marchlands.</summary>
-public sealed record MissionaryData(int Id, int NodeId, int Hours, long DepartedAtUtcTicks, bool Preached, int? Distance = null);
+/// <summary>A missionary on the road: walking out, preaching, walking home. <paramref name="Distance"/> is set for a place on the shared world (hexes from home); null in the Marchlands.
+/// <paramref name="PreacherId"/> is the Mission House preacher who went (0: from before the Mission House).</summary>
+public sealed record MissionaryData(int Id, int NodeId, int Hours, long DepartedAtUtcTicks, bool Preached, int? Distance = null, int PreacherId = 0);
 
 /// <summary>The village's place on a shared world (spec 2026-10-14 shared world): where it stands, and the Tension the world's Authorities add per hour.</summary>
 public sealed record WorldLink(int Q, int R, int TensionPerHourMilli);
@@ -44,7 +45,12 @@ public sealed record DomainData(
     long? NextDecayUtcTicks,
     long? LastTitheUtcTicks,
     int NextMissionaryId,
-    WorldLink? World = null);
+    WorldLink? World = null,
+    IReadOnlyList<(int PreacherId, int Xp)>? PreacherXp = null,
+    IReadOnlyList<RoadReport>? Reports = null,
+    DemandData? Demand = null,
+    long? NextDemandUtcTicks = null,
+    int NextDemandId = 1);
 
 /// <summary>
 /// Lord Wulfric's Marchlands: one fixed domain of 16 places around the village, the Keep five hexes out. The same

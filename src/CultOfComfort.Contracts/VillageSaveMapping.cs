@@ -59,7 +59,7 @@ public static class VillageSaveMapping
         domain = data.Domain == null ? new DomainDto() : new DomainDto
         {
             influence = data.Domain.Influence.Select(i => new InfluenceDto { node = i.NodeId, milli = i.InfluenceMilli }).ToList(),
-            missionaries = data.Domain.Missionaries.Select(m => new MissionaryDto { id = m.Id, node = m.NodeId, hours = m.Hours, departedTicks = m.DepartedAtUtcTicks, preached = m.Preached, distance = m.Distance ?? 0 }).ToList(),
+            missionaries = data.Domain.Missionaries.Select(m => new MissionaryDto { id = m.Id, node = m.NodeId, hours = m.Hours, departedTicks = m.DepartedAtUtcTicks, preached = m.Preached, distance = m.Distance ?? 0, preacher = m.PreacherId }).ToList(),
             offeringsMilli = data.Domain.OfferingsMilli.ToList(),
             asOfTicks = data.Domain.AsOfUtcTicks,
             nextDecayTicks = data.Domain.NextDecayUtcTicks ?? -1,
@@ -69,6 +69,21 @@ public static class VillageSaveMapping
             worldQ = data.Domain.World?.Q ?? 0,
             worldR = data.Domain.World?.R ?? 0,
             worldTensionMilli = data.Domain.World?.TensionPerHourMilli ?? 0,
+            preachers = (data.Domain.PreacherXp ?? Array.Empty<(int, int)>()).Select(p => new PreacherXpDto { id = p.Item1, xp = p.Item2 }).ToList(),
+            reports = (data.Domain.Reports ?? Array.Empty<RoadReport>()).Select(r => new RoadReportDto
+            {
+                preacher = r.PreacherId, node = r.NodeId, inWorld = r.InWorld, hours = r.Hours, find = r.Find.ToString(),
+                timber = r.Gift.Timber, peat = r.Gift.Peat, scrap = r.Gift.Scrap, devotion = r.Gift.Devotion, homeTicks = r.HomeAtUtcTicks,
+            }).ToList(),
+            hasDemand = data.Domain.Demand != null,
+            demandId = data.Domain.Demand?.Id ?? 0,
+            demandTimber = data.Domain.Demand?.Amount.Timber ?? 0,
+            demandPeat = data.Domain.Demand?.Amount.Peat ?? 0,
+            demandScrap = data.Domain.Demand?.Amount.Scrap ?? 0,
+            demandDevotion = data.Domain.Demand?.Amount.Devotion ?? 0,
+            demandDueTicks = data.Domain.Demand?.DueAtUtcTicks ?? 0,
+            nextDemandTicks = data.Domain.NextDemandUtcTicks ?? -1,
+            nextDemandId = data.Domain.NextDemandId,
         },
     };
 
@@ -121,13 +136,19 @@ public static class VillageSaveMapping
 
     private static DomainData FromDto(DomainDto d) => new(
         (d.influence ?? new List<InfluenceDto>()).Select(i => (i.node, i.milli)).ToList(),
-        (d.missionaries ?? new List<MissionaryDto>()).Select(m => new MissionaryData(m.id, m.node, m.hours, m.departedTicks, m.preached, m.distance > 0 ? m.distance : null)).ToList(),
+        (d.missionaries ?? new List<MissionaryDto>()).Select(m => new MissionaryData(m.id, m.node, m.hours, m.departedTicks, m.preached, m.distance > 0 ? m.distance : null, m.preacher)).ToList(),
         d.offeringsMilli != null && d.offeringsMilli.Count == 4 ? d.offeringsMilli : new List<long> { 0, 0, 0, 0 },
         d.asOfTicks,
         d.nextDecayTicks < 0 ? null : d.nextDecayTicks,
         d.lastTitheTicks < 0 ? null : d.lastTitheTicks,
         d.nextMissionaryId,
-        d.inWorld ? new WorldLink(d.worldQ, d.worldR, d.worldTensionMilli) : null);
+        d.inWorld ? new WorldLink(d.worldQ, d.worldR, d.worldTensionMilli) : null,
+        (d.preachers ?? new List<PreacherXpDto>()).Select(p => (p.id, p.xp)).ToList(),
+        (d.reports ?? new List<RoadReportDto>()).Select(r => new RoadReport(r.preacher, r.node, r.inWorld, r.hours,
+            Enum.TryParse<RoadFind>(r.find, out var find) ? find : RoadFind.Nothing, new ResourceBag(r.timber, r.peat, r.scrap, r.devotion), r.homeTicks)).ToList(),
+        d.hasDemand ? new DemandData(d.demandId, new ResourceBag(d.demandTimber, d.demandPeat, d.demandScrap, d.demandDevotion), d.demandDueTicks) : null,
+        d.nextDemandTicks < 0 ? null : d.nextDemandTicks,
+        Math.Max(1, d.nextDemandId));
 
     internal static NightDto ToDto(NightPlan plan) => new()
     {

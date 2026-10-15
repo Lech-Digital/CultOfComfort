@@ -58,6 +58,15 @@ namespace CultOfComfort.Client
         public int NodeId = -1;
     }
 
+    /// <summary>A preacher to pick on a place's card (who goes).</summary>
+    public sealed class PreacherChoice
+    {
+        public int Id;
+        public string Label;
+        public bool Selected;
+        public bool Enabled;
+    }
+
     public sealed class TitheOption
     {
         public string Label;
@@ -119,6 +128,11 @@ namespace CultOfComfort.Client
         /// <summary>One line on the map's bottom button: who's out, or how many are ready.</summary>
         public string MissionaryChip = string.Empty;
 
+        /// <summary>The lord's open demand in a line (null: none), its id, and whether the stores cover it.</summary>
+        public string DemandLine;
+        public int DemandId = -1;
+        public bool DemandAffordable;
+
         /// <summary>The land the 3D map shows (null: nothing to show yet, e.g. waiting for the server).</summary>
         public WorldLand Land;
     }
@@ -138,6 +152,15 @@ namespace CultOfComfort.Client
         public string TemperHelp;
         public List<TitheOption> Tithes = new List<TitheOption>();
         public string TitheNote;
+
+        /// <summary>The lord's open demand, shown first on his seat's card.</summary>
+        public string DemandLine;
+        public int DemandId = -1;
+        public bool DemandAffordable;
+
+        /// <summary>Who would go (the Mission House's preachers), and who is picked.</summary>
+        public List<PreacherChoice> Preachers = new List<PreacherChoice>();
+        public int SelectedPreacher;
     }
 
     public static class WorldMapPresenter
@@ -255,6 +278,7 @@ namespace CultOfComfort.Client
             model.TensionHelp = TemperHelp(model.Lord, max);
             model.Help = Help(model.Lord, table, world: false);
             model.Tithes = Tithes(snapshot, table);
+            SetDemand(model, snapshot, now);
             model.TitheNote = domain.TitheHalfUntilUtc != null
                 ? $"Wulfric was paid recently: tithes work at half strength for {VillagePresenter.Duration((long)(domain.TitheHalfUntilUtc.Value - now).TotalSeconds)}."
                 : "A tithe calms Wulfric down. Pay enough during a warning and he calls the raid off.";
@@ -315,11 +339,73 @@ namespace CultOfComfort.Client
         public static void AddTithe(NodeCardModel card, WorldMapModel model)
         {
             card.Seat = true;
+            card.DemandLine = model.DemandLine;
+            card.DemandId = model.DemandId;
+            card.DemandAffordable = model.DemandAffordable;
             card.Temper = model.TensionLine;
             card.TemperFraction = model.TensionFraction;
             card.TemperHelp = model.TensionHelp;
             card.Tithes = model.Tithes;
             card.TitheNote = model.TitheNote;
+        }
+
+        private static readonly string[] Reasons =
+        {
+            "for his new stables", "for the Bishop's feast", "to mend the drawbridge (again)", "for his daughter's dowry",
+            "for a portrait of himself", "to restock the moat's eels", "for a war he's \"thinking about\"", "for reasons he won't explain",
+        };
+
+        /// <summary>The lord's demand on the model: a line, its id, and whether you can pay it now.</summary>
+        public static void SetDemand(WorldMapModel model, BaseSnapshot snapshot, DateTimeOffset now)
+        {
+            var demand = snapshot.Domain?.Demand;
+            if (demand == null)
+            {
+                return;
+            }
+
+            var left = VillagePresenter.Duration((long)Math.Max(0, (demand.DueAtUtc - now).TotalSeconds));
+            model.DemandLine = $"{Capital(model.Lord)} demands {VillagePresenter.ShortCost(demand.Amount)} {Reasons[demand.Reason % Reasons.Length]}. "
+                               + $"{left} left · deliver: temper −{demand.TemperDrop} · ignore: +{demand.Penalty}";
+            model.DemandId = demand.Id;
+            model.DemandAffordable = snapshot.Stock.Covers(demand.Amount);
+        }
+
+        /// <summary>
+        /// The preach options for a place: who goes (the free preachers, <paramref name="preacherId"/> if free, else the
+        /// first), and for how long, with the faith that preacher wins and the provisions they pack.
+        /// </summary>
+        public static void AddPreachOptions(NodeCardModel card, BaseSnapshot snapshot, BuildingTable table, DomainNode node, int influence, int preacherId)
+        {
+            var domain = snapshot.Domain;
+            var preachers = domain?.Preachers ?? Array.Empty<PreacherView>();
+            var free = preachers.Where(p => p.MissionaryId == null).ToList();
+            var chosen = free.FirstOrDefault(p => p.Id == preacherId) ?? free.FirstOrDefault();
+            card.SelectedPreacher = chosen?.Id ?? 0;
+            foreach (var p in preachers)
+            {
+                card.Preachers.Add(new PreacherChoice
+                {
+                    Id = p.Id, Label = $"{p.Name} · L{p.Level}", Selected = p.Id == card.SelectedPreacher, Enabled = p.MissionaryId == null,
+                });
+            }
+
+            var villagerFree = snapshot.Population - domain.Missionaries.Count > 0;
+            foreach (var (hours, _) in table.Domain.Sessions)
+            {
+                var full = new ResourceBag(table.Domain.ProvisionsPerHour.Timber * hours, table.Domain.ProvisionsPerHour.Peat * hours,
+                    table.Domain.ProvisionsPerHour.Scrap * hours, table.Domain.ProvisionsPerHour.Devotion * hours);
+                var cost = chosen != null ? CultOfComfort.Simulation.Base.Preachers.Provisions(chosen.Id, full) : full;
+                var bonus = domain.MissionaryBonusPercent + (chosen?.BonusPercent ?? 0);
+                var gain = Math.Min(100 - influence, (int)(table.Domain.GainMilli(node, hours) * (100 + bonus) / 100 / 1000));
+                card.Options.Add(new PreachOption
+                {
+                    Hours = hours, Label = $"Preach {hours}h · +{gain}% · {VillagePresenter.ShortCost(cost)}", Enabled = chosen != null && villagerFree && snapshot.Stock.Covers(cost),
+                });
+            }
+
+            card.Note = chosen == null ? "Every preacher is out." : !villagerFree ? "Nobody left to send."
+                : $"{chosen.Name} goes. A preacher is a villager: they don't work while away.";
         }
 
         private static WorldLand _marchlands;
@@ -384,7 +470,7 @@ namespace CultOfComfort.Client
             return options;
         }
 
-        public static NodeCardModel Card(BaseSnapshot snapshot, BuildingTable table, int nodeId)
+        public static NodeCardModel Card(BaseSnapshot snapshot, BuildingTable table, int nodeId, int preacherId = 0)
         {
             var domain = snapshot.Domain;
             var view = domain?.Nodes.FirstOrDefault(n => n.Node.Id == nodeId);
@@ -416,20 +502,7 @@ namespace CultOfComfort.Client
                 return card;
             }
 
-            var slotsFree = domain.MissionarySlots - domain.Missionaries.Count > 0;
-            var villagerFree = snapshot.Population - domain.Missionaries.Count > 0;
-            foreach (var (hours, _) in table.Domain.Sessions)
-            {
-                var cost = new ResourceBag(table.Domain.ProvisionsPerHour.Timber * hours, table.Domain.ProvisionsPerHour.Peat * hours,
-                    table.Domain.ProvisionsPerHour.Scrap * hours, table.Domain.ProvisionsPerHour.Devotion * hours);
-                var gain = Math.Min(100 - view.InfluencePercent, (int)(table.Domain.GainMilli(node, hours) / 1000));
-                card.Options.Add(new PreachOption
-                {
-                    Hours = hours, Label = $"Preach {hours}h · +{gain}% · {VillagePresenter.ShortCost(cost)}", Enabled = slotsFree && villagerFree && snapshot.Stock.Covers(cost),
-                });
-            }
-
-            card.Note = !slotsFree ? "Every missionary is out." : !villagerFree ? "Nobody left to send." : "A missionary is a villager: they don't work while away.";
+            AddPreachOptions(card, snapshot, table, node, view.InfluencePercent, preacherId);
             return card;
         }
 

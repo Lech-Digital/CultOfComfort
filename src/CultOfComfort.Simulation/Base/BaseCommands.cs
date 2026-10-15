@@ -56,14 +56,17 @@ public sealed record DebugRaiseTension(Guid CommandId, int Amount) : BaseCommand
 /// <summary>Development only: ends a raid's warning now. A server refuses this.</summary>
 public sealed record DebugSkipWarning(Guid CommandId) : BaseCommand(CommandId);
 
-/// <summary>Sends a missionary to preach at a node of the Domain for 1, 2, 4 or 8 hours (spec 2026-10-14 world map).</summary>
-public sealed record SendMissionary(Guid CommandId, int NodeId, int Hours) : BaseCommand(CommandId);
+/// <summary>
+/// Sends a missionary to preach at a node of the Domain for 1, 2, 4 or 8 hours (spec 2026-10-14 world map):
+/// <paramref name="PreacherId"/> of the Mission House, or 0 for the first free one.
+/// </summary>
+public sealed record SendMissionary(Guid CommandId, int NodeId, int Hours, int PreacherId = 0) : BaseCommand(CommandId);
 
 /// <summary>Sets how many villagers should work a building (0 to its slots; spec 2026-10-14 cultist work).</summary>
 public sealed record SetCrew(Guid CommandId, int BuildingId, int Crew) : BaseCommand(CommandId);
 
 /// <summary>Sends a missionary to a place on the shared world, <paramref name="Distance"/> hexes away (the server checks the distance against the world).</summary>
-public sealed record SendWorldMissionary(Guid CommandId, int NodeId, int Hours, int Distance) : BaseCommand(CommandId);
+public sealed record SendWorldMissionary(Guid CommandId, int NodeId, int Hours, int Distance, int PreacherId = 0) : BaseCommand(CommandId);
 
 /// <summary>Server only: the village joins a shared world at (Q, R). The Marchlands are left behind; the purse stays.</summary>
 public sealed record JoinWorld(Guid CommandId, int Q, int R) : BaseCommand(CommandId);
@@ -79,6 +82,9 @@ public sealed record CollectOfferings(Guid CommandId) : BaseCommand(CommandId);
 
 /// <summary>Pays the Authority to calm down: Tension drops by the tithe's worth (and an announced raid may be called off).</summary>
 public sealed record PayTithe(Guid CommandId, ResourceBag Amount) : BaseCommand(CommandId);
+
+/// <summary>Delivers what the lord demanded (spec 2026-10-15): his temper drops twice a tithe's worth.</summary>
+public sealed record MeetDemand(Guid CommandId, int DemandId) : BaseCommand(CommandId);
 
 /// <summary>Starts a study at the Hearth (one at a time; spec 2026-10-14, research).</summary>
 public sealed record StartResearch(Guid CommandId, string TechId) : BaseCommand(CommandId);

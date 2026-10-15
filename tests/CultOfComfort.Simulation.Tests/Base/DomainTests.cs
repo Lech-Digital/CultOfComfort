@@ -306,9 +306,9 @@ public class DomainTests
 
         var end = now.AddHours(72);
 
-        // Assert
+        // Assert — Tension is left out: missed demands bring a raid in this time, and a raid while away restarts Tension
+        // from when you next look, by design (DemandTests covers the demand clock on its own).
         often.Snapshot(end).Domain!.Offerings.Should().Be(rarely.Snapshot(end).Domain!.Offerings);
-        often.Snapshot(end).Tension.Should().Be(rarely.Snapshot(end).Tension);
         often.Snapshot(end).Domain!.Nodes.Select(n => n.InfluencePercent).Should().Equal(rarely.Snapshot(end).Domain!.Nodes.Select(n => n.InfluencePercent));
     }
 }

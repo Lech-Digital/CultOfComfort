@@ -52,13 +52,16 @@ public static class CommandMapping
                 dto.amount = c.Amount;
                 break;
             case SendMissionary c:
-                (dto.buildingId, dto.amount) = (c.NodeId, c.Hours);
+                (dto.buildingId, dto.amount, dto.y) = (c.NodeId, c.Hours, c.PreacherId);
+                break;
+            case MeetDemand c:
+                dto.amount = c.DemandId;
                 break;
             case SetCrew c:
                 (dto.buildingId, dto.amount) = (c.BuildingId, c.Crew);
                 break;
             case SendWorldMissionary c:
-                (dto.buildingId, dto.amount, dto.x) = (c.NodeId, c.Hours, c.Distance);
+                (dto.buildingId, dto.amount, dto.x, dto.y) = (c.NodeId, c.Hours, c.Distance, c.PreacherId);
                 break;
             case StartResearch c:
                 dto.tech = c.TechId;
@@ -104,9 +107,10 @@ public static class CommandMapping
             nameof(DebugSkipWarning) => new DebugSkipWarning(id),
             nameof(DebugFillStores) => new DebugFillStores(id),
             nameof(DebugEndShield) => new DebugEndShield(id),
-            nameof(SendMissionary) => new SendMissionary(id, dto.buildingId, dto.amount),
+            nameof(SendMissionary) => new SendMissionary(id, dto.buildingId, dto.amount, dto.y),
+            nameof(MeetDemand) => new MeetDemand(id, dto.amount),
             nameof(SetCrew) => new SetCrew(id, dto.buildingId, dto.amount),
-            nameof(SendWorldMissionary) => new SendWorldMissionary(id, dto.buildingId, dto.amount, dto.x),
+            nameof(SendWorldMissionary) => new SendWorldMissionary(id, dto.buildingId, dto.amount, dto.x, dto.y),
             nameof(CollectOfferings) => new CollectOfferings(id),
             nameof(StartResearch) => new StartResearch(id, dto.tech ?? string.Empty),
             nameof(Trade) => new Trade(id, Resource(dto.give), Resource(dto.get), dto.amount),

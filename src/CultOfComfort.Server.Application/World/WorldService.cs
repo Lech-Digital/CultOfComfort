@@ -190,7 +190,10 @@ internal sealed class WorldService(
     public async Task MissionarySentAsync(Guid playerId, BaseData village, SendWorldMissionary send, DateTimeOffset departedAt, CancellationToken ct)
     {
         var id = CultId(playerId);
-        var bonus = BaseState.Restore(table, villageMap, village).Snapshot(departedAt).Domain?.MissionaryBonusPercent ?? 0;
+        // The sermon's bonus is the village's: research plus the preacher's level and quirk (spec 2026-10-15 Mission House).
+        var domain = BaseState.Restore(table, villageMap, village).Snapshot(departedAt).Domain;
+        var bonus = domain?.Missionaries.Where(m => m.NodeId == send.NodeId).OrderByDescending(m => m.Id).FirstOrDefault()?.BonusPercent
+                    ?? domain?.MissionaryBonusPercent ?? 0;
         await _gate.WaitAsync(ct);
         try
         {
