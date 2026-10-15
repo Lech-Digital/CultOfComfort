@@ -171,6 +171,7 @@ namespace CultOfComfort.Client
         private VisualElement _hinted;
         private Label _cloud;
         private Button _drawerToggle;
+        private VisualElement _drawerChevron;
         private Button _errandFold;
         private bool _drawerCollapsed;
         private bool _errandFolded;
@@ -342,8 +343,33 @@ namespace CultOfComfort.Client
             _drawer.AddToClassList("drawer");
             _drawer.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
             _drawer.verticalScrollerVisibility = ScrollerVisibility.Hidden;
-            _drawerToggle = new Button(() => DrawerToggleClicked?.Invoke()) { name = "drawer-toggle", text = "▾ Build" };
+            _drawerToggle = new Button(() => DrawerToggleClicked?.Invoke()) { name = "drawer-toggle", text = string.Empty };
             _drawerToggle.AddToClassList("drawer-toggle");
+            // A drawn chevron: the Fell fonts have no ▾ / ▴ (the phone showed a box).
+            _drawerChevron = new VisualElement { pickingMode = PickingMode.Ignore, userData = false };
+            _drawerChevron.style.width = 14;
+            _drawerChevron.style.height = 10;
+            _drawerChevron.style.marginRight = 6;
+            _drawerChevron.generateVisualContent += context =>
+            {
+                var up = context.visualElement.userData is bool b && b;
+                var w = context.visualElement.resolvedStyle.width;
+                var h = context.visualElement.resolvedStyle.height;
+                var p = context.painter2D;
+                p.strokeColor = new Color(0.23f, 0.16f, 0.09f);
+                p.lineWidth = 2.2f;
+                p.lineCap = LineCap.Round;
+                p.lineJoin = LineJoin.Round;
+                p.BeginPath();
+                p.MoveTo(new Vector2(1f, up ? h - 2f : 2f));
+                p.LineTo(new Vector2(w / 2f, up ? 2f : h - 2f));
+                p.LineTo(new Vector2(w - 1f, up ? h - 2f : 2f));
+                p.Stroke();
+            };
+            _drawerToggle.style.flexDirection = FlexDirection.Row;
+            _drawerToggle.style.alignItems = Align.Center;
+            _drawerToggle.Add(_drawerChevron);
+            _drawerToggle.Add(new Label("Build") { pickingMode = PickingMode.Ignore });
             _bar.Add(_drawerToggle);
             _duskBar.Add(_drawer);
             _duskBar.Add(_paintDone); // floats just above the cards while painting
@@ -922,7 +948,8 @@ namespace CultOfComfort.Client
         {
             _drawerCollapsed = collapsed;
             _drawer.EnableInClassList("collapsed", collapsed); // slides (USS transition) instead of snapping the bar
-            _drawerToggle.text = collapsed ? "▴ Build" : "▾ Build";
+            _drawerChevron.userData = collapsed;
+            _drawerChevron.MarkDirtyRepaint();
             _framePendingFromHud = true;
         }
 

@@ -159,7 +159,8 @@ namespace CultOfComfort.Client
             NodeType.Village => "Village",
             NodeType.MarketTown => "Market town",
             NodeType.Abbey => "Abbey",
-            _ => "Lord Wulfric's seat",
+            NodeType.Cathedral => "A bishop's seat",
+            _ => "A lord's seat",
         };
 
         /// <summary>Pointy-top hex centres, scaled so the whole domain (and the village at 0, 0) fits 0–1 with a margin.</summary>

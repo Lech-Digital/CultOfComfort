@@ -85,7 +85,8 @@ namespace CultOfComfort.Client
         private WorldStage _stage;            // the world map in 3D (spec 2026-10-15 real map)
         private bool _mapHeld;
         private WorldMapModel _mapModel;
-        private bool _pendingTithe;           // "Tithes" was tapped before the land arrived: open the lord's seat once it has
+        private bool _pendingTithe;
+        private readonly List<(Vector2 At, Color Colour)> _miniMarks = new List<(Vector2, Color)>();           // "Tithes" was tapped before the land arrived: open the lord's seat once it has
         private (int Q, int R, int Radius)? _stageWindow; // the window last asked for from where the map camera looks
         private WorldDto _world;              // the shared world's window, as the server last sent it (null: Marchlands, or not fetched yet)
         private int _worldRadius = SharedWorldPresenter.DefaultRadius;
@@ -206,7 +207,7 @@ namespace CultOfComfort.Client
             _map.NodeTapped += id =>
             {
                 _stage.Select(id);
-                _stage.FlyTo(id);
+                _stage.FlyTo(id, aboveCard: true);
                 var card = _world != null
                     ? SharedWorldPresenter.Card(_snapshot, BuildingTable.Default, _world, id)
                     : WorldMapPresenter.Card(_snapshot, BuildingTable.Default, id);
@@ -253,7 +254,9 @@ namespace CultOfComfort.Client
                 }
             };
             _map.Zoomed += step => _stage.Rig.Zoom(step > 0 ? 0.7f : 1.43f, new Vector2(Screen.width / 2f, Screen.height / 2f));
-            _map.Recentred += () => _stage.FlyTo(WorldMapPresenter.HomeId);
+            _map.Recentred += () => _stage.GoHome();
+            _map.HomeClicked += () => _stage.GoHome();
+            _map.MinimapPicked += at => _stage.Rig.FlyTo(at);
             _map.TitheClicked += async amount =>
             {
                 var hadRaid = _snapshot?.RaidWarningEndsAtUtc != null;
@@ -469,6 +472,10 @@ namespace CultOfComfort.Client
                 RivalColour = n.RivalColour >= 0 ? SharedWorldPresenter.CultColours[n.RivalColour % SharedWorldPresenter.CultColours.Length] : Color.grey,
             }).ToList());
             _stage.SetTension(model.SeatId, model.TensionFraction, model.RaidComing);
+            // The minimap's dots: every lord's seat in the world (dark), and the rival camps in view (their colours).
+            _miniMarks.Clear();
+            _miniMarks.AddRange(model.Land.Places.Where(p => p.Type == NodeType.Keep || p.Type == NodeType.Cathedral).Select(p => (p.At, new Color(0.35f, 0.12f, 0.1f, 0.65f))));
+            _miniMarks.AddRange(camps.Select(c => (model.Land.Spot(c.Q, c.R), c.Colour)));
             if (_pendingTithe)
             {
                 OpenSeat();
@@ -530,6 +537,8 @@ namespace CultOfComfort.Client
             }
 
             _map.PlaceLabels(id => _stage.TryViewport(id, out var at) ? at : (Vector2?)null, rig.Distance);
+            _map.SetMinimap(_stage.Minimap, _stage.Bound);
+            _map.UpdateMinimap(rig.Focus, _stage.ViewHalfWidth(), _stage.HomeAt, _miniMarks);
             if (_world != null && _village is RemoteBaseGateway)
             {
                 var (q, r) = _stage.FocusHex();

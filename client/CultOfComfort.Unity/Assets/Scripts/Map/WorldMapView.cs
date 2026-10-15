@@ -73,6 +73,20 @@ namespace CultOfComfort.Client
         /// <summary>A missionary's row in the roster was tapped (the place they're bound for).</summary>
         public event Action<int> MissionaryFocused;
 
+        /// <summary>The minimap was tapped or dragged: the land point under the finger.</summary>
+        public event Action<Vector2> MinimapPicked;
+
+        /// <summary>The big Home button: back to your village.</summary>
+        public event Action HomeClicked;
+
+        private readonly VisualElement _minimap;
+        private Texture2D _minimapTexture;
+        private float _miniBound = 1f;
+        private Vector2 _miniFocus;
+        private float _miniHalf;
+        private Vector2? _miniHome;
+        private readonly List<(Vector2 At, Color Colour)> _miniMarks = new List<(Vector2, Color)>();
+
         public WorldMapView(VisualElement parent)
         {
             _root = new VisualElement { name = "world-map", pickingMode = PickingMode.Ignore };
@@ -139,9 +153,46 @@ namespace CultOfComfort.Client
             _status.AddToClassList("map-status");
             _root.Add(_status);
 
+            // The minimap, top right under the temper: the whole world small, tap or drag it to travel.
+            var miniRow = new VisualElement { pickingMode = PickingMode.Ignore };
+            miniRow.AddToClassList("map-mini-row");
+            _minimap = new VisualElement { name = "map-minimap" };
+            _minimap.AddToClassList("map-minimap");
+            _minimap.generateVisualContent += DrawMinimap;
+            _minimap.RegisterCallback<PointerDownEvent>(e =>
+            {
+                _minimap.CapturePointer(e.pointerId);
+                PickMinimap(e.localPosition);
+                e.StopPropagation();
+            });
+            _minimap.RegisterCallback<PointerMoveEvent>(e =>
+            {
+                if (_minimap.HasPointerCapture(e.pointerId))
+                {
+                    PickMinimap(e.localPosition);
+                }
+            });
+            _minimap.RegisterCallback<PointerUpEvent>(e => _minimap.ReleasePointer(e.pointerId));
+            miniRow.Add(_minimap);
+            _root.Add(miniRow);
+
             var spacer = new VisualElement { pickingMode = PickingMode.Ignore };
             spacer.style.flexGrow = 1;
             _root.Add(spacer);
+
+            var homeRow = new VisualElement { pickingMode = PickingMode.Ignore };
+            homeRow.AddToClassList("map-home-row");
+            var homeButton = new Button(() => HomeClicked?.Invoke()) { name = "map-go-home" };
+            homeButton.AddToClassList("map-go-home");
+            var homeIcon = UiGlyphs.Home("map-go-home-icon", () => HomeClicked?.Invoke());
+            homeIcon.pickingMode = PickingMode.Ignore;
+            homeIcon.AddToClassList("map-go-home-icon");
+            var homeText = new Label("Home") { pickingMode = PickingMode.Ignore };
+            homeText.AddToClassList("map-go-home-text");
+            homeButton.Add(homeIcon);
+            homeButton.Add(homeText);
+            homeRow.Add(homeButton);
+            _root.Add(homeRow);
 
             var bottom = new VisualElement { name = "map-bottom" };
             bottom.AddToClassList("panel");
@@ -175,10 +226,16 @@ namespace CultOfComfort.Client
             _cardNote = new Label();
             _cardNote.AddToClassList("small");
             _cardNote.AddToClassList("map-note");
-            _card.Insert(1, _cardKind);
-            _card.Insert(2, _cardLines);
-            _card.Insert(3, _cardOptions);
-            _card.Insert(4, _cardNote);
+            // The card scrolls inside a sheet that leaves the top of the map in view (the place stays visible).
+            var cardBody = new ScrollView(ScrollViewMode.Vertical) { name = "map-card-body" };
+            cardBody.verticalScrollerVisibility = ScrollerVisibility.Hidden;
+            cardBody.style.flexShrink = 1;
+            _card.style.maxHeight = Length.Percent(58);
+            _card.Insert(1, cardBody);
+            cardBody.Add(_cardKind);
+            cardBody.Add(_cardLines);
+            cardBody.Add(_cardOptions);
+            cardBody.Add(_cardNote);
             _cardTithe = new VisualElement { name = "map-card-tithe" };
             _cardTemper = new Label();
             _cardTemper.AddToClassList("sheet-line");
@@ -203,7 +260,7 @@ namespace CultOfComfort.Client
             _cardTithe.Add(titheHeading);
             _cardTithe.Add(_cardTitheNote);
             _cardTithe.Add(_cardTitheOptions);
-            _card.Insert(2, _cardTithe);
+            _card.Q<ScrollView>("map-card-body").Insert(1, _cardTithe);
 
             _roster = Sheet("map-roster", out var rosterTitle, null);
             rosterTitle.text = "Missionaries";
@@ -331,13 +388,9 @@ namespace CultOfComfort.Client
 
         public void Render(WorldMapModel model)
         {
-            var rebuild = _model == null || !_model.Nodes.Select(n => n.Id).SequenceEqual(model.Nodes.Select(n => n.Id));
             _model = model;
             _title.text = model.Title;
-            if (rebuild)
-            {
-                BuildPlates();
-            }
+            BuildPlates();
 
             foreach (var node in model.Nodes)
             {
@@ -551,6 +604,90 @@ namespace CultOfComfort.Client
 
         public bool HasPlate(int id) => _plates.ContainsKey(id);
 
+        /// <summary>Gives the minimap its picture of the world (±<paramref name="bound"/> land units round the centre).</summary>
+        public void SetMinimap(Texture2D texture, float bound)
+        {
+            if (texture == _minimapTexture)
+            {
+                return;
+            }
+
+            _minimapTexture = texture;
+            _miniBound = bound;
+            _minimap.style.backgroundImage = texture != null ? new StyleBackground(texture) : new StyleBackground(StyleKeyword.None);
+            _minimap.MarkDirtyRepaint();
+        }
+
+        /// <summary>Where the camera looks (a box), your village (blue) and the seats and camps (dots).</summary>
+        public void UpdateMinimap(Vector2 focus, float halfWidth, Vector2? home, IEnumerable<(Vector2 At, Color Colour)> marks)
+        {
+            if (Vector2.Distance(focus, _miniFocus) < 0.05f && Mathf.Abs(halfWidth - _miniHalf) < 0.05f && home == _miniHome)
+            {
+                return;
+            }
+
+            _miniFocus = focus;
+            _miniHalf = halfWidth;
+            _miniHome = home;
+            _miniMarks.Clear();
+            _miniMarks.AddRange(marks);
+            _minimap.MarkDirtyRepaint();
+        }
+
+        private Vector2 MiniToLocal(Vector2 land, float size) => new Vector2((land.x / _miniBound * 0.5f + 0.5f) * size, (0.5f - land.y / _miniBound * 0.5f) * size);
+
+        private void PickMinimap(Vector2 local)
+        {
+            var size = _minimap.resolvedStyle.width;
+            if (size <= 1f)
+            {
+                return;
+            }
+
+            MinimapPicked?.Invoke(new Vector2((local.x / size - 0.5f) * 2f * _miniBound, (0.5f - local.y / size) * 2f * _miniBound));
+        }
+
+        private void DrawMinimap(MeshGenerationContext context)
+        {
+            var size = _minimap.resolvedStyle.width;
+            if (size <= 1f || _minimapTexture == null)
+            {
+                return;
+            }
+
+            var p = context.painter2D;
+            foreach (var (at, colour) in _miniMarks)
+            {
+                p.fillColor = colour;
+                p.BeginPath();
+                p.Arc(MiniToLocal(at, size), 1.7f, 0f, 360f);
+                p.Fill();
+            }
+
+            if (_miniHome != null)
+            {
+                p.fillColor = new Color(0.27f, 0.38f, 0.55f);
+                p.strokeColor = new Color(0.95f, 0.92f, 0.84f);
+                p.lineWidth = 1.5f;
+                p.BeginPath();
+                p.Arc(MiniToLocal(_miniHome.Value, size), 4.5f, 0f, 360f);
+                p.Fill();
+                p.Stroke();
+            }
+
+            var centre = MiniToLocal(_miniFocus, size);
+            var half = Mathf.Max(3f, _miniHalf / _miniBound * 0.5f * size);
+            p.strokeColor = new Color(1f, 0.97f, 0.85f);
+            p.lineWidth = 1.8f;
+            p.BeginPath();
+            p.MoveTo(centre + new Vector2(-half, -half * 1.5f));
+            p.LineTo(centre + new Vector2(half, -half * 1.5f));
+            p.LineTo(centre + new Vector2(half, half * 0.9f));
+            p.LineTo(centre + new Vector2(-half, half * 0.9f));
+            p.ClosePath();
+            p.Stroke();
+        }
+
         /// <summary>A place was tapped on the land (the controller picked it): same as tapping its plate.</summary>
         public void Tap(int id)
         {
@@ -558,14 +695,37 @@ namespace CultOfComfort.Client
             NodeTapped?.Invoke(id);
         }
 
+        /// <summary>
+        /// Keeps a plate per place in the window: new places get one, places gone lose theirs, the rest are kept (the
+        /// window moves with the camera, and rebuilding a hundred plates each time stuttered on the phone).
+        /// </summary>
         private void BuildPlates()
         {
-            _labels.Clear();
-            _plates.Clear();
-            _rings.Clear();
+            var wanted = new HashSet<int>(_model.Nodes.Select(n => n.Id));
+            foreach (var gone in _plates.Keys.Where(k => !wanted.Contains(k)).ToList())
+            {
+                _plates[gone].RemoveFromHierarchy();
+                _plates.Remove(gone);
+                _rings.Remove(gone);
+            }
+
             foreach (var node in _model.Nodes)
             {
                 var id = node.Id;
+                if (_plates.TryGetValue(id, out var existing))
+                {
+                    // Camps are numbered by their order in the window: the same id can be another camp now.
+                    var label = existing.Q<Label>(className: "map-plate-name");
+                    if (label.text == node.Name)
+                    {
+                        continue;
+                    }
+
+                    existing.RemoveFromHierarchy();
+                    _plates.Remove(id);
+                    _rings.Remove(id);
+                }
+
                 var plate = new Button(() => Tap(id)) { name = $"node-{id}", pickingMode = PickingMode.Ignore };
                 plate.AddToClassList("map-plate");
                 plate.EnableInClassList("map-plate-home", node.Home);

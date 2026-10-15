@@ -59,6 +59,7 @@ namespace CultOfComfort.Client
         private Material _groundBase;
         private readonly Dictionary<(int, int), Chunk> _chunks = new Dictionary<(int, int), Chunk>();
         private readonly Dictionary<(int, int), Task<ChunkData>> _building = new Dictionary<(int, int), Task<ChunkData>>();
+        private readonly Dictionary<(int, int), Task<Merged>> _remerge = new Dictionary<(int, int), Task<Merged>>();
         private readonly Dictionary<string, PropMesh[]> _propMeshes = new Dictionary<string, PropMesh[]>();
         private readonly Dictionary<string, GameObject> _camps = new Dictionary<string, GameObject>();
         private readonly List<StageCamp> _campList = new List<StageCamp>();
@@ -90,6 +91,15 @@ namespace CultOfComfort.Client
         public bool IsOpen => gameObject.activeSelf;
 
         public Camera Camera => _camera;
+
+        /// <summary>The whole world small, for the minimap (null until it's been drawn, a moment after opening).</summary>
+        public Texture2D Minimap { get; private set; }
+
+        /// <summary>How far the land runs from its centre (the minimap covers ±this).</summary>
+        public float Bound => _land == null ? 1f : (_land.Radius + 1.5f) * WorldLand.HexSize * Mathf.Sqrt(3f);
+
+        private Task<Color32[]> _minimapTask;
+        private const int MinimapSize = 128;
 
         public static WorldStage Create()
         {
@@ -147,11 +157,39 @@ namespace CultOfComfort.Client
         /// <summary>Shows the land (switching from the village's camera), looking at <paramref name="focus"/>.</summary>
         public void Open(WorldLand land, Vector2 focus, Camera main)
         {
+            foreach (var model in MergedModels)
+            {
+                Meshes(model); // cached here, read by the workers
+            }
+
             if (land != _land)
             {
                 Clear();
                 _land = land;
                 _rig.SetBound((land.Radius - 0.5f) * WorldLand.HexSize * Mathf.Sqrt(3f));
+                if (Minimap != null)
+                {
+                    Destroy(Minimap);
+                    Minimap = null;
+                }
+
+                var bound = Bound;
+                _minimapTask = Task.Run(() =>
+                {
+                    var pixels = new Color32[MinimapSize * MinimapSize];
+                    for (var j = 0; j < MinimapSize; j++)
+                    {
+                        for (var i = 0; i < MinimapSize; i++)
+                        {
+                            var at = new Vector2((i + 0.5f) / MinimapSize * 2f - 1f, (j + 0.5f) / MinimapSize * 2f - 1f) * bound;
+                            var h = land.Height(at);
+                            Color c = h < WorldLand.WaterLevel ? WaterColour : land.Colour(at);
+                            pixels[j * MinimapSize + i] = c;
+                        }
+                    }
+
+                    return pixels;
+                });
             }
 
             _main = main;
@@ -197,6 +235,7 @@ namespace CultOfComfort.Client
             }
 
             var campsChanged = camps.Count != _campList.Count || camps.Where((c, i) => c.Key != _campList[i].Key).Any();
+            var oldSpots = CampSpots();
             foreach (var camp in camps)
             {
                 if (!_camps.ContainsKey(camp.Key))
@@ -213,6 +252,11 @@ namespace CultOfComfort.Client
 
             _campList.Clear();
             _campList.AddRange(camps);
+            foreach (var stale in _anchors.Keys.Where(k => k < 0).ToList())
+            {
+                _anchors.Remove(stale); // camp ids are their order in the window: they shift as it moves
+            }
+
             foreach (var camp in camps)
             {
                 _anchors[camp.Id] = AnchorOf(_land.Spot(camp.Q, camp.R), 1.2f);
@@ -220,9 +264,18 @@ namespace CultOfComfort.Client
 
             if (campsChanged)
             {
-                foreach (var chunk in _chunks.Values)
+                // Only the chunks a camp arrived in or left re-merge their trees, on a worker.
+                var newSpots = CampSpots();
+                var moved = oldSpots.Except(newSpots).Concat(newSpots.Except(oldSpots)).ToList();
+                foreach (var (key, chunk) in _chunks)
                 {
-                    chunk.SetProps(MergeProps(chunk.Data.Props));
+                    var min = new Vector2(key.Item1 * WorldLand.ChunkSize - 1.5f, key.Item2 * WorldLand.ChunkSize - 1.5f);
+                    var max = min + Vector2.one * (WorldLand.ChunkSize + 3f);
+                    if (moved.Any(m => m.x >= min.x && m.x <= max.x && m.y >= min.y && m.y <= max.y))
+                    {
+                        var props = chunk.Data.Props;
+                        _remerge[key] = Task.Run(() => Merge(props, newSpots));
+                    }
                 }
             }
 
@@ -285,11 +338,35 @@ namespace CultOfComfort.Client
             }
         }
 
-        public void FlyTo(int id)
+        /// <summary>Back to your village, at the usual height.</summary>
+        public void GoHome()
+        {
+            if (TryLand(WorldMapPresenter.HomeId, out var at))
+            {
+                _rig.FlyTo(at, MapCamera.HomeDistance);
+            }
+        }
+
+        /// <summary>Your village's land position (for the minimap), if it's on this land.</summary>
+        public Vector2? HomeAt => TryLand(WorldMapPresenter.HomeId, out var at) ? at : (Vector2?)null;
+
+        /// <summary>Half the width of the ground in view (the minimap's view box).</summary>
+        public float ViewHalfWidth()
+        {
+            if (_rig.TryScreenToLand(new Vector2(0f, _camera.pixelHeight * 0.5f), out var left))
+            {
+                return Mathf.Abs(_rig.Focus.x - left.x);
+            }
+
+            return _rig.Distance * 0.5f;
+        }
+
+        /// <summary>Flies to a place; <paramref name="aboveCard"/> leaves it in the top part of the screen, clear of a card.</summary>
+        public void FlyTo(int id, bool aboveCard = false)
         {
             if (TryLand(id, out var at))
             {
-                _rig.FlyTo(at);
+                _rig.FlyTo(aboveCard ? at - new Vector2(0f, _rig.Distance * 0.32f) : at);
             }
         }
 
@@ -381,6 +458,17 @@ namespace CultOfComfort.Client
             }
 
             _rig.Tick(Time.deltaTime);
+            if (_minimapTask != null && _minimapTask.IsCompleted)
+            {
+                if (_minimapTask.Status == TaskStatus.RanToCompletion)
+                {
+                    Minimap = new Texture2D(MinimapSize, MinimapSize, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+                    Minimap.SetPixels32(_minimapTask.Result);
+                    Minimap.Apply(false, true);
+                }
+
+                _minimapTask = null;
+            }
             var focus = _rig.Focus;
             _water.localPosition = new Vector3(focus.x, WorldLand.WaterLevel - 0.04f, focus.y);
             RenderSettings.fogStartDistance = _rig.Distance + 14f;
@@ -641,12 +729,22 @@ namespace CultOfComfort.Client
             var min = new Vector2Int(Mathf.FloorToInt((lo.x - margin) / WorldLand.ChunkSize), Mathf.FloorToInt((lo.y - margin) / WorldLand.ChunkSize));
             var max = new Vector2Int(Mathf.FloorToInt((hi.x + margin) / WorldLand.ChunkSize), Mathf.FloorToInt((hi.y + margin) / WorldLand.ChunkSize));
 
-            // Finished builds become meshes (a few per frame, so the map never stutters).
+            foreach (var key in _remerge.Keys.Where(k => _remerge[k].IsCompleted).ToList())
+            {
+                if (_remerge[key].Status == TaskStatus.RanToCompletion && _chunks.TryGetValue(key, out var chunk))
+                {
+                    chunk.SetProps(ToMesh(_remerge[key].Result));
+                }
+
+                _remerge.Remove(key);
+            }
+
+            // Finished builds become meshes (one per frame, so the map never stutters).
             var done = 0;
             foreach (var key in _building.Keys.ToList())
             {
                 var task = _building[key];
-                if (!task.IsCompleted || done >= 2)
+                if (!task.IsCompleted || done >= 1)
                 {
                     continue;
                 }
@@ -672,6 +770,7 @@ namespace CultOfComfort.Client
             }
 
             var land = _land;
+            var camps = CampSpots();
             foreach (var key in wanted.OrderBy(k => (new Vector2((k.Item1 + 0.5f) * WorldLand.ChunkSize, (k.Item2 + 0.5f) * WorldLand.ChunkSize) - focus).sqrMagnitude))
             {
                 if (_building.Count >= 3)
@@ -680,10 +779,8 @@ namespace CultOfComfort.Client
                 }
 
                 var (cx, cz) = key;
-                _building[key] = Task.Run(() => new ChunkData
-                {
-                    Heights = land.ChunkHeights(cx, cz), Colours = land.ChunkColours(cx, cz), Props = land.Props(cx, cz),
-                });
+                // Everything but the GPU upload happens on a worker: the land, its shading, and the merged trees and settlements.
+                _building[key] = Task.Run(() => Grow(land, cx, cz, camps));
             }
 
             foreach (var key in _chunks.Keys.Where(k => k.Item1 < min.x - 2 || k.Item1 > max.x + 2 || k.Item2 < min.y - 2 || k.Item2 > max.y + 2).ToList())
@@ -707,6 +804,7 @@ namespace CultOfComfort.Client
 
             _chunks.Clear();
             _building.Clear();
+            _remerge.Clear();
             foreach (var camp in _camps.Values)
             {
                 Destroy(camp);
@@ -774,17 +872,7 @@ namespace CultOfComfort.Client
                 }
             }
 
-            // Normals from the land itself (not the mesh), so neighbouring chunks shade without a seam.
-            var normals = new Vector3[n * n];
-            const float e = 0.5f;
-            for (var k = 0; k < vertices.Length; k++)
-            {
-                var at = new Vector2(vertices[k].x, vertices[k].z);
-                var dx = _land.Height(at + new Vector2(e, 0f)) - _land.Height(at - new Vector2(e, 0f));
-                var dz = _land.Height(at + new Vector2(0f, e)) - _land.Height(at - new Vector2(0f, e));
-                normals[k] = new Vector3(-dx, 2f * e, -dz).normalized;
-            }
-
+            var normals = data.Normals;
             var mesh = new Mesh { name = $"Land {key.X},{key.Z}" };
             mesh.SetVertices(vertices);
             mesh.SetNormals(normals);
@@ -810,15 +898,16 @@ namespace CultOfComfort.Client
             trees.AddComponent<MeshFilter>();
             trees.AddComponent<MeshRenderer>().sharedMaterial = ArtLibrary.PaletteMaterial;
             var chunk = new Chunk { Ground = ground, Mesh = mesh, Texture = texture, Material = material, Data = data, Trees = trees };
-            chunk.SetProps(MergeProps(data.Props));
-            foreach (var place in _land.Places)
+            foreach (var id in data.PlaceIds)
             {
-                if (place.Type != null && place.At.x >= origin.x && place.At.x < origin.x + size && place.At.y >= origin.y && place.At.y < origin.y + size)
+                if (_land.TryPlace(id, out var place))
                 {
-                    chunk.Places.Add(Settle(place, ground.transform));
-                    chunk.PlaceIds.Add(place.Id);
+                    Anchor(place);
+                    chunk.PlaceIds.Add(id);
                 }
             }
+
+            chunk.SetProps(ToMesh(data.Merged));
 
             return chunk;
         }
@@ -827,7 +916,60 @@ namespace CultOfComfort.Client
         /// The chunk's trees, rocks and mountains merged into one mesh (one draw for the lot), minus any standing where a
         /// camp has pitched.
         /// </summary>
-        private Mesh MergeProps(List<LandProp> props)
+        private Mesh MergeProps(List<LandProp> props) => ToMesh(Merge(props, CampSpots()));
+
+        private List<Vector2> CampSpots() => _campList.Select(c => _land.Spot(c.Q, c.R)).ToList();
+
+        /// <summary>
+        /// A chunk grown on a worker thread: heights, normals from the land itself (so neighbouring chunks shade without
+        /// a seam), colours, and its trees, rocks and settlements merged into one mesh's worth of arrays.
+        /// </summary>
+        private ChunkData Grow(WorldLand land, int cx, int cz, List<Vector2> camps)
+        {
+            var data = new ChunkData { Heights = land.ChunkHeights(cx, cz), Colours = land.ChunkColours(cx, cz), Props = land.Props(cx, cz) };
+            var n = WorldLand.ChunkCells + 1;
+            var size = WorldLand.ChunkSize;
+            var origin = new Vector2(cx * size, cz * size);
+            data.Normals = new Vector3[n * n];
+            const float e = 0.5f;
+            for (var j = 0; j < n; j++)
+            {
+                for (var i = 0; i < n; i++)
+                {
+                    var at = origin + new Vector2(i / (float)WorldLand.ChunkCells * size, j / (float)WorldLand.ChunkCells * size);
+                    var dx = land.Height(at + new Vector2(e, 0f)) - land.Height(at - new Vector2(e, 0f));
+                    var dz = land.Height(at + new Vector2(0f, e)) - land.Height(at - new Vector2(0f, e));
+                    data.Normals[j * n + i] = new Vector3(-dx, 2f * e, -dz).normalized;
+                }
+            }
+
+            // The settlements join the trees in the chunk's one mesh: far out, hundreds of places cost a single draw.
+            foreach (var place in land.Places)
+            {
+                if (place.Type != null && place.At.x >= origin.x && place.At.x < origin.x + size && place.At.y >= origin.y && place.At.y < origin.y + size)
+                {
+                    data.Props.AddRange(Settlement(place));
+                    data.PlaceIds.Add(place.Id);
+                }
+            }
+
+            data.Merged = Merge(data.Props, camps);
+            return data;
+        }
+
+        private static Mesh ToMesh(Merged merged)
+        {
+            var mesh = new Mesh { name = "Trees", indexFormat = merged.Vertices.Count > 65000 ? IndexFormat.UInt32 : IndexFormat.UInt16 };
+            mesh.SetVertices(merged.Vertices);
+            mesh.SetNormals(merged.Normals);
+            mesh.SetUVs(0, merged.Uvs);
+            mesh.SetTriangles(merged.Triangles, 0);
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        /// <summary>Props into one mesh's arrays (worker-safe: only the meshes cached on opening are read).</summary>
+        private Merged Merge(List<LandProp> props, List<Vector2> camps)
         {
             var vertices = new List<Vector3>();
             var normals = new List<Vector3>();
@@ -836,13 +978,18 @@ namespace CultOfComfort.Client
             foreach (var prop in props)
             {
                 var at = new Vector2(prop.At.x, prop.At.z);
-                if (_campList.Any(c => Vector2.Distance(_land.Spot(c.Q, c.R), at) < 1.2f))
+                if (camps.Any(c => Vector2.Distance(c, at) < 1.2f))
                 {
                     continue;
                 }
 
                 var root = Matrix4x4.TRS(prop.At, Quaternion.Euler(0f, prop.Yaw, 0f), Vector3.one * prop.Scale);
-                foreach (var part in Meshes(prop.Model))
+                if (!_propMeshes.TryGetValue(prop.Model, out var parts))
+                {
+                    continue;
+                }
+
+                foreach (var part in parts)
                 {
                     var m = root * part.Local;
                     var first = vertices.Count;
@@ -864,14 +1011,13 @@ namespace CultOfComfort.Client
                 }
             }
 
-            var mesh = new Mesh { name = "Trees", indexFormat = vertices.Count > 65000 ? IndexFormat.UInt32 : IndexFormat.UInt16 };
-            mesh.SetVertices(vertices);
-            mesh.SetNormals(normals);
-            mesh.SetUVs(0, uvs);
-            mesh.SetTriangles(triangles, 0);
-            mesh.RecalculateBounds();
-            return mesh;
+            return new Merged { Vertices = vertices, Normals = normals, Uvs = uvs, Triangles = triangles };
         }
+
+        private static readonly string[] MergedModels =
+        {
+            "pine", "oak", "birch", "crag", "mountain", "cottage", "cottage_l2", "haycart", "well", "world_market", "world_abbey", "world_keep", "world_cathedral",
+        };
 
         private PropMesh[] Meshes(string model)
         {
@@ -896,25 +1042,16 @@ namespace CultOfComfort.Client
         // ---------------- settlements ----------------
 
         /// <summary>A place's buildings, laid out round its spot: what stands there says what it is.</summary>
-        private GameObject Settle(LandPlace place, Transform parent)
+        private List<LandProp> Settlement(LandPlace place)
         {
-            var root = new GameObject(place.Type == null ? "Your village" : $"Place {place.Id}");
-            root.transform.SetParent(parent, false);
+            var props = new List<LandProp>();
             var yaw = Hash(place.Q, place.R) * 360f;
             var spin = Quaternion.Euler(0f, yaw, 0f);
             void Put(string model, float x, float z, float scale, float turn = 0f)
             {
                 var offset = spin * new Vector3(x, 0f, z);
                 var at = place.At + new Vector2(offset.x, offset.z);
-                var go = ArtLibrary.Instantiate(model, root.transform);
-                if (go == null)
-                {
-                    return;
-                }
-
-                go.transform.localPosition = new Vector3(at.x, _land.Height(at), at.y);
-                go.transform.localRotation = Quaternion.Euler(0f, yaw + turn, 0f);
-                go.transform.localScale = Vector3.one * scale;
+                props.Add(new LandProp(model, new Vector3(at.x, _land.Height(at), at.y), yaw + turn, scale));
             }
 
             var s = ModelScale;
@@ -930,11 +1067,6 @@ namespace CultOfComfort.Client
                         Put("cultist_hut", 0.1f, 1.0f, s, 180f);
                     }
 
-                    var pole = Shapes.Create(PrimitiveType.Cylinder, Palette.Wood, Vector3.zero, new Vector3(0.05f, 0.75f, 0.05f), root.transform, "Pole");
-                    var flag = Shapes.Create(PrimitiveType.Cube, Shapes.Hex("#46618c"), Vector3.zero, new Vector3(0.42f, 0.28f, 0.03f), root.transform, "Flag");
-                    var foot = place.At + new Vector2(-0.75f, -0.55f);
-                    pole.transform.localPosition = new Vector3(foot.x, _land.Height(foot) + 0.75f, foot.y);
-                    flag.transform.localPosition = pole.transform.localPosition + new Vector3(0.22f, 0.55f, 0f);
                     break;
                 case NodeType.Hamlet:
                     Put("cottage", -0.35f, 0.1f, s, 10f);
@@ -966,7 +1098,34 @@ namespace CultOfComfort.Client
                     break;
             }
 
+            return props;
+        }
+
+        private void Anchor(LandPlace place) =>
             _anchors[place.Id] = AnchorOf(place.At, place.Type == NodeType.Keep || place.Type == NodeType.Cathedral ? 1.9f : 1.2f);
+
+        /// <summary>Your village: its own objects (the Hearth changes with its level), with the cult's flag.</summary>
+        private GameObject Settle(LandPlace place, Transform parent)
+        {
+            var root = new GameObject("Your village");
+            root.transform.SetParent(parent, false);
+            Anchor(place);
+            foreach (var prop in Settlement(place))
+            {
+                var go = ArtLibrary.Instantiate(prop.Model, root.transform);
+                if (go != null)
+                {
+                    go.transform.localPosition = prop.At;
+                    go.transform.localRotation = Quaternion.Euler(0f, prop.Yaw, 0f);
+                    go.transform.localScale = Vector3.one * prop.Scale;
+                }
+            }
+
+            var pole = Shapes.Create(PrimitiveType.Cylinder, Palette.Wood, Vector3.zero, new Vector3(0.05f, 0.75f, 0.05f), root.transform, "Pole");
+            var flag = Shapes.Create(PrimitiveType.Cube, Shapes.Hex("#46618c"), Vector3.zero, new Vector3(0.42f, 0.28f, 0.03f), root.transform, "Flag");
+            var foot = place.At + new Vector2(-0.75f, -0.55f);
+            pole.transform.localPosition = new Vector3(foot.x, _land.Height(foot) + 0.75f, foot.y);
+            flag.transform.localPosition = pole.transform.localPosition + new Vector3(0.22f, 0.55f, 0f);
             return root;
         }
 
@@ -1048,8 +1207,19 @@ namespace CultOfComfort.Client
 
         private void OnDestroy() => Clear();
 
+        private sealed class Merged
+        {
+            public List<Vector3> Vertices;
+            public List<Vector3> Normals;
+            public List<Vector2> Uvs;
+            public List<int> Triangles;
+        }
+
         private sealed class ChunkData
         {
+            public Vector3[] Normals;
+            public Merged Merged;
+            public readonly List<int> PlaceIds = new List<int>();
             public float[] Heights;
             public Color32[] Colours;
             public List<LandProp> Props;
@@ -1072,7 +1242,6 @@ namespace CultOfComfort.Client
             public Material Material;
             public ChunkData Data;
             public GameObject Trees;
-            public readonly List<GameObject> Places = new List<GameObject>();
             public readonly List<int> PlaceIds = new List<int>();
 
             public void SetProps(Mesh props)
