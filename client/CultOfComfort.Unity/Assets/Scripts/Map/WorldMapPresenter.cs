@@ -34,6 +34,9 @@ namespace CultOfComfort.Client
 
         /// <summary>Outside the window (your village, when you've panned away).</summary>
         public bool Hidden;
+
+        /// <summary>A lord's seat (keep or cathedral): its plate stays up when zoomed far out.</summary>
+        public bool Seat;
     }
 
     /// <summary>One "send a missionary" choice on a node's card.</summary>
@@ -92,6 +95,12 @@ namespace CultOfComfort.Client
 
         /// <summary>"How the lands work", for the ? sheet.</summary>
         public List<string> Help = new List<string>();
+
+        /// <summary>The seat of the lord whose temper this is (the 3D map flies his war banner and sends his patrols), or -1.</summary>
+        public int SeatId = -1;
+
+        /// <summary>He has had enough: a raid is coming tonight.</summary>
+        public bool RaidComing;
 
         /// <summary>The land the 3D map shows (null: nothing to show yet, e.g. waiting for the server).</summary>
         public WorldLand Land;
@@ -161,6 +170,7 @@ namespace CultOfComfort.Client
                 {
                     Id = n.Node.Id, Name = n.Node.Name, Kind = Kind(n.Node.Type), Icon = Icon(n.Node.Type), At = layout[n.Node.Id], Q = n.Node.Q, R = n.Node.R,
                     Influence = n.InfluencePercent, Patron = n.Patron, Reachable = n.Reachable,
+                    Seat = n.Node.Type == NodeType.Keep || n.Node.Type == NodeType.Cathedral,
                 });
             }
 
@@ -206,6 +216,8 @@ namespace CultOfComfort.Client
 
             var tension = snapshot.Tension;
             var max = table.Tension.Max;
+            model.SeatId = nodes.FirstOrDefault(n => n.Type == NodeType.Keep)?.Id ?? -1;
+            model.RaidComing = snapshot.RaidWarningEndsAtUtc != null;
             model.TensionFraction = Mathf.Clamp01(tension / (float)max);
             model.TensionLine = TemperLine(model.Lord, tension, max, domain.TensionPerHourMilli, snapshot.RaidWarningEndsAtUtc != null);
             model.TensionHelp = TemperHelp(model.Lord, max);

@@ -45,6 +45,9 @@ namespace CultOfComfort.Client.Tests
             var camps = free.Select((h, i) => new StageCamp { Id = -(i + 1), Key = $"cult{i}", Q = h.Q, R = h.R, Colour = SharedWorldPresenter.CultColours[i] }).ToList();
             var target = map.Near(home.Q, home.R, 3).First(n => n.Type != NodeType.Keep);
             stage.SetPeople(2, camps, new[] { new StageWalker { NodeId = target.Id, Phase = MissionaryPhase.Travelling, Fraction = 0.4f } });
+            stage.SetFaith(map.Near(home.Q, home.R, 6).Where((n, i) => i % 3 == 0)
+                .Select((n, i) => new StageFaith { Id = n.Id, Mine = (i % 4) * 0.2f, Rival = i % 2 == 0 ? 0.3f : 0f, RivalColour = SharedWorldPresenter.CultColours[i % 5] }).ToList());
+            stage.SetTension(keep.Id, 0.8f, raidComing: true);
             yield return new WaitForSecondsRealtime(4f);
             var output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "..", "art", "previews", "world"));
             Directory.CreateDirectory(output);

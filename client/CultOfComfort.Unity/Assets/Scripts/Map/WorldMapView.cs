@@ -340,6 +340,7 @@ namespace CultOfComfort.Client
             }
 
             ApplySafeArea(panel);
+            var far = distance > FarDistance;
             var size = new Vector2(_root.layout.width, _root.layout.height);
             var centre = size / 2f;
             var shown = new List<(MapNodeModel Node, Vector2 At)>();
@@ -363,7 +364,8 @@ namespace CultOfComfort.Client
                 var width = plate.layout.width > 1f ? plate.layout.width : 34f + node.Name.Length * 6f;
                 var height = plate.layout.height > 1f ? plate.layout.height : 26f;
                 var rect = new Rect(local.x - width / 2f - 3f, local.y - height - 2f, width + 6f, height + 4f);
-                if (node.Id != _selected && !node.Home && taken.Any(r => r.Overlaps(rect)))
+                // Far out the map reads like a realm: only seats, camps, your village and your holdings keep a plate.
+                if (node.Id != _selected && !node.Home && ((far && Priority(node) > 3) || taken.Any(r => r.Overlaps(rect))))
                 {
                     plate.style.display = DisplayStyle.None;
                     continue;
@@ -378,7 +380,10 @@ namespace CultOfComfort.Client
         }
 
         private int Priority(MapNodeModel node) =>
-            node.Home || node.Id == _selected ? 0 : node.Camp ? 1 : node.Patron ? 2 : node.Influence > 0 || node.RivalShare > 0 ? 3 : 4;
+            node.Home || node.Id == _selected ? 0 : node.Seat || node.Camp ? 1 : node.Patron ? 2 : node.Influence > 0 ? 3 : 4;
+
+        /// <summary>Past this camera distance the map shows the realm, not the hamlets.</summary>
+        public const float FarDistance = 30f;
 
         /// <summary>The panels keep clear of the camera cutout and the gesture bar (UI Toolkit ignores the safe area).</summary>
         private void ApplySafeArea(IPanel panel)
@@ -452,6 +457,7 @@ namespace CultOfComfort.Client
                 plate.AddToClassList("map-plate");
                 plate.EnableInClassList("map-plate-home", node.Home);
                 plate.EnableInClassList("map-plate-camp", node.Camp);
+                plate.EnableInClassList("map-plate-seat", node.Seat);
                 var ring = new VisualElement { pickingMode = PickingMode.Ignore, userData = default(RingShares) };
                 ring.AddToClassList("map-plate-ring");
                 ring.generateVisualContent += DrawRing;

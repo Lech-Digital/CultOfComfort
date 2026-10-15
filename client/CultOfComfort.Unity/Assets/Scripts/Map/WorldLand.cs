@@ -90,6 +90,8 @@ namespace CultOfComfort.Client
         private readonly List<(int A, int B)> _roadEnds = new List<(int, int)>();
         private readonly Dictionary<(int, int), List<int>> _roadBuckets = new Dictionary<(int, int), List<int>>();
         private readonly Dictionary<int, int> _placeIndex = new Dictionary<int, int>();
+        private readonly List<Vector2> _seats = new List<Vector2>();
+        private static readonly Color BorderInk = Shapes.Hex("#5a2a20");
 
         /// <param name="seed">The world's seed.</param>
         /// <param name="radius">The world's radius in hexes (mountains beyond).</param>
@@ -177,7 +179,45 @@ namespace CultOfComfort.Client
             colour = Color.Lerp(colour, Trodden, Mathf.Clamp01((PlaceFlat - 0.6f - near) * 1.4f) * 0.55f);
             var onRoad = Mathf.Clamp01((RoadHalfWidth + 0.08f - road) / 0.12f);
             colour = Color.Lerp(colour, river > 0.5f ? Planks : RoadMud, onRoad);
+            if (h >= WaterLevel && edge < 0f)
+            {
+                colour = Color.Lerp(colour, BorderInk, Border(at) * 0.75f);
+            }
+
             return colour;
+        }
+
+        /// <summary>
+        /// 0–1: how much of a domain border is drawn here. Each lord's lands are the ground nearest his seat (as the
+        /// world's generator hands out places); the border is a dashed line of ink where two seats are about as near.
+        /// </summary>
+        public float Border(Vector2 at)
+        {
+            if (_seats.Count < 2)
+            {
+                return 0f;
+            }
+
+            var first = float.MaxValue;
+            var second = float.MaxValue;
+            foreach (var seat in _seats)
+            {
+                var d = (seat - at).sqrMagnitude;
+                if (d < first)
+                {
+                    second = first;
+                    first = d;
+                }
+                else if (d < second)
+                {
+                    second = d;
+                }
+            }
+
+            var gap = Mathf.Sqrt(second) - Mathf.Sqrt(first);
+            var line = Mathf.Clamp01((0.32f - gap) / 0.12f);
+            var dash = (Mathf.Repeat(at.x * 0.8f, 1f) < 0.55f) == (Mathf.Repeat(at.y * 0.8f, 1f) < 0.55f) ? 1f : 0.15f; // dashed whichever way it runs
+            return line * dash;
         }
 
         /// <summary>Trees, rocks and the mountains round the edge, in the chunk at (cx, cz).</summary>
@@ -335,6 +375,10 @@ namespace CultOfComfort.Client
         private void AddPlace(LandPlace place)
         {
             _placeIndex[place.Id] = _places.Count;
+            if (place.Type == NodeType.Keep || place.Type == NodeType.Cathedral)
+            {
+                _seats.Add(place.At);
+            }
             _places.Add(place);
             _placeGround.Add(Mathf.Clamp(Natural(place.At, out _) * 0.6f + 0.15f, 0.2f, 1.4f));
             Bucket(_placeBuckets, place.At, place.At, _places.Count - 1, PlaceFlat);
