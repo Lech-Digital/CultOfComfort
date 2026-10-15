@@ -43,6 +43,23 @@ namespace CultOfComfort.Client
             return map;
         }
 
+        private static WorldLand _land;
+        private static (long Seed, int Q, int R) _landKey;
+
+        /// <summary>The world's land for the 3D map, grown once per world (and per village spot).</summary>
+        public static WorldLand LandFor(WorldDto world)
+        {
+            var key = (world.seed, world.q, world.r);
+            if (_land == null || _landKey != key)
+            {
+                var map = MapFor(world);
+                _land = new WorldLand(unchecked((ulong)world.seed), map.Shape.Radius, map.Nodes.Select(n => (n.Id, n.Type, n.Q, n.R)), (world.q, world.r));
+                _landKey = key;
+            }
+
+            return _land;
+        }
+
         /// <summary>Hex (q, r) at 0–1 across a window of <paramref name="radius"/> around (cq, cr) (pointy-top, a fixed scale so panning doesn't jump).</summary>
         public static Vector2 At(int q, int r, int cq, int cr, int radius)
         {
@@ -68,7 +85,7 @@ namespace CultOfComfort.Client
         public static WorldMapModel Build(BaseSnapshot snapshot, BuildingTable table, WorldDto world, DateTimeOffset now)
         {
             var domain = snapshot.Domain;
-            var model = new WorldMapModel { Unlocked = domain != null && domain.Unlocked, Pannable = true };
+            var model = new WorldMapModel { Unlocked = domain != null && domain.Unlocked, Pannable = true, Land = LandFor(world) };
             var map = MapFor(world);
             var (cq, cr, radius) = (world.viewQ, world.viewR, world.viewRadius);
             var reach = table.Domain.Reach(snapshot.HearthLevel);
@@ -78,7 +95,7 @@ namespace CultOfComfort.Client
             model.Nodes.Add(new MapNodeModel
             {
                 Id = WorldMapPresenter.HomeId, Name = "Your village", Kind = "Home", Icon = "b_hearth", At = At(world.q, world.r, cq, cr, radius),
-                Influence = 100, Reachable = true, Home = true, Hidden = Hex.Distance(world.q, world.r, cq, cr) > radius,
+                Influence = 100, Reachable = true, Home = true, Hidden = Hex.Distance(world.q, world.r, cq, cr) > radius, Q = world.q, R = world.r,
             });
             foreach (var node in map.Near(cq, cr, radius).OrderBy(n => n.Id))
             {
@@ -88,7 +105,7 @@ namespace CultOfComfort.Client
                 model.Nodes.Add(new MapNodeModel
                 {
                     Id = node.Id, Name = node.Name, Kind = WorldMapPresenter.Kind(node.Type), Icon = WorldMapPresenter.Icon(node.Type),
-                    At = At(node.Q, node.R, cq, cr, radius), Influence = (int)((mine?.milli ?? 0) / 1000), Patron = mine?.patron == true,
+                    At = At(node.Q, node.R, cq, cr, radius), Q = node.Q, R = node.R, Influence = (int)((mine?.milli ?? 0) / 1000), Patron = mine?.patron == true,
                     Reachable = model.Unlocked && node.DistanceTo(world.q, world.r) <= reach,
                     RivalShare = (int)((rival?.milli ?? 0) / 1000),
                     RivalColour = rival != null && cults.TryGetValue(rival.cult, out var rc) ? rc.colour : -1,
@@ -110,7 +127,7 @@ namespace CultOfComfort.Client
             {
                 model.Nodes.Add(new MapNodeModel
                 {
-                    Id = -(++camp), Name = cult.name, Kind = "Rival cult", Icon = "cult", At = At(cult.q, cult.r, cq, cr, radius),
+                    Id = -(++camp), Name = cult.name, Kind = "Rival cult", Icon = "cult", At = At(cult.q, cult.r, cq, cr, radius), Q = cult.q, R = cult.r,
                     Influence = 0, Reachable = false, RivalShare = 100, RivalColour = cult.colour, Camp = true, CultId = cult.id,
                 });
             }
@@ -133,7 +150,7 @@ namespace CultOfComfort.Client
                 var text = m.Phase == MissionaryPhase.Travelling ? $"Walking to {node.Name} · {left}"
                     : m.Phase == MissionaryPhase.Preaching ? $"Preaching at {node.Name} · {left} left"
                     : $"Walking home from {node.Name} · {left}";
-                model.Missionaries.Add(new MissionaryModel { Text = text, At = at });
+                model.Missionaries.Add(new MissionaryModel { Text = text, At = at, NodeId = node.Id, Phase = m.Phase, Fraction = fraction });
             }
 
             var slots = domain?.MissionarySlots ?? 0;

@@ -82,6 +82,9 @@ namespace CultOfComfort.Client
         private IntroDirector _intro;
         private AudioDirector _audio;
         private WorldMapView _map;
+        private WorldStage _stage;            // the world map in 3D (spec 2026-10-15 real map)
+        private bool _mapHeld;
+        private (int Q, int R, int Radius)? _stageWindow; // the window last asked for from where the map camera looks
         private WorldDto _world;              // the shared world's window, as the server last sent it (null: Marchlands, or not fetched yet)
         private int _worldRadius = SharedWorldPresenter.DefaultRadius;
         private float _worldFetchedAt = -999f;
@@ -196,10 +199,17 @@ namespace CultOfComfort.Client
         {
             root.styleSheets.Add(Resources.Load<StyleSheet>("UI/WorldMap"));
             _map = new WorldMapView(root);
-            _map.Closed += () => _map.Show(false);
-            _map.NodeTapped += id => _map.ShowCard(_world != null
-                ? SharedWorldPresenter.Card(_snapshot, BuildingTable.Default, _world, id)
-                : WorldMapPresenter.Card(_snapshot, BuildingTable.Default, id));
+            _stage = WorldStage.Create();
+            _map.Closed += CloseMap;
+            _map.NodeTapped += id =>
+            {
+                _stage.Select(id);
+                _stage.FlyTo(id);
+                _map.ShowCard(_world != null
+                    ? SharedWorldPresenter.Card(_snapshot, BuildingTable.Default, _world, id)
+                    : WorldMapPresenter.Card(_snapshot, BuildingTable.Default, id));
+            };
+            _map.CardClosed += () => _stage.Select(null);
             _map.PreachClicked += async (node, hours) =>
             {
                 var world = _world;
@@ -232,26 +242,8 @@ namespace CultOfComfort.Client
                     Announce($"The faithful of the Marchlands send {VillagePresenter.ShortCost(outcome.Collected)}.");
                 }
             };
-            _map.Panned += fraction =>
-            {
-                if (_world != null)
-                {
-                    var (dq, dr) = SharedWorldPresenter.PanBy(fraction, _world.viewRadius);
-                    if (dq == 0 && dr == 0)
-                    {
-                        _map.ResetPan(); // less than a place: it slides back
-                        return;
-                    }
-
-                    _ = FetchWorldAsync(_world.viewQ + dq, _world.viewR + dr);
-                }
-            };
-            _map.Zoomed += step =>
-            {
-                _worldRadius = Mathf.Clamp(_worldRadius + step, SharedWorldPresenter.MinRadius, SharedWorldPresenter.MaxRadius);
-                _ = FetchWorldAsync(_world?.viewQ, _world?.viewR);
-            };
-            _map.Recentred += () => _ = FetchWorldAsync(null, null);
+            _map.Zoomed += step => _stage.Rig.Zoom(step > 0 ? 0.7f : 1.43f, new Vector2(Screen.width / 2f, Screen.height / 2f));
+            _map.Recentred += () => _stage.FlyTo(WorldMapPresenter.HomeId);
             _map.TitheClicked += async amount =>
             {
                 var hadRaid = _snapshot?.RaidWarningEndsAtUtc != null;
@@ -280,7 +272,7 @@ namespace CultOfComfort.Client
 
                 if (id == "research" || id == "shop" || id == "cult")
                 {
-                    _map.Show(false);
+                    CloseMap();
                     _sheet.Show(id, SheetFor(id));
                     return;
                 }
@@ -369,7 +361,7 @@ namespace CultOfComfort.Client
             {
                 if (_phase != GamePhase.Dusk)
                 {
-                    _map.Show(false);
+                    CloseMap();
                     return;
                 }
 
@@ -384,21 +376,120 @@ namespace CultOfComfort.Client
         /// <summary>The shared world when the server has sent it; the Marchlands for a village that isn't on a world (offline play).</summary>
         private void RenderMap()
         {
+            WorldMapModel model;
             if (_world != null)
             {
-                _map.Render(SharedWorldPresenter.Build(_snapshot, BuildingTable.Default, _world, _snapshot.AsOfUtc));
+                model = SharedWorldPresenter.Build(_snapshot, BuildingTable.Default, _world, _snapshot.AsOfUtc);
             }
             else if (_snapshot.Domain?.World == null)
             {
-                _map.Render(WorldMapPresenter.Build(_snapshot, BuildingTable.Default, _snapshot.AsOfUtc));
+                model = WorldMapPresenter.Build(_snapshot, BuildingTable.Default, _snapshot.AsOfUtc);
             }
             else
             {
-                _map.Render(new WorldMapModel
+                model = new WorldMapModel
                 {
                     Title = "The wider world", MissionaryLine = "The world map needs a connection. The faithful will wait.",
                     OfferingsLine = string.Empty, TensionLine = $"Tension {_snapshot.Tension}/{BuildingTable.Default.Tension.Max}",
-                });
+                };
+            }
+
+            _map.Render(model);
+            StageMap(model);
+        }
+
+        /// <summary>Shows the model on the 3D land: opens it the first time (looking at your village), then keeps the people current.</summary>
+        private void StageMap(WorldMapModel model)
+        {
+            if (model.Land == null)
+            {
+                _map.SetStatus(_village is RemoteBaseGateway ? "Finding your way to the wider world…" : null);
+                return;
+            }
+
+            _map.SetStatus(null);
+            if (!_stage.IsOpen || _stage.Land != model.Land)
+            {
+                _hud.SetMapOpen(true);
+                var home = model.Land.TryPlace(WorldMapPresenter.HomeId, out var place) ? place.At : Vector2.zero;
+                _stage.Open(model.Land, home, _camera);
+            }
+
+            var camps = model.Nodes.Where(n => n.Camp).Select(n => new StageCamp
+            {
+                Id = n.Id, Key = n.CultId, Q = n.Q, R = n.R,
+                Colour = n.RivalColour >= 0 ? SharedWorldPresenter.CultColours[n.RivalColour % SharedWorldPresenter.CultColours.Length] : Color.grey,
+            }).ToList();
+            var walkers = model.Missionaries.Select(m => new StageWalker { NodeId = m.NodeId, Phase = m.Phase, Fraction = m.Fraction }).ToList();
+            _stage.SetPeople(_snapshot.HearthLevel, camps, walkers);
+        }
+
+        private void CloseMap()
+        {
+            _map.Show(false);
+            _stage.Close();
+            _hud.SetMapOpen(false);
+            _stageWindow = null;
+        }
+
+        /// <summary>
+        /// Fingers on the open map move its camera (a flick glides on); a tap picks the place under it, or closes the
+        /// card. As the view moves, the server is asked for the window round where the camera looks.
+        /// </summary>
+        private void UpdateMap()
+        {
+            PointerInput.GetPressedPointers(_pointers);
+            _gesture = _gestures.Update(_pointers, _map.IsOverPanel);
+            var rig = _stage.Rig;
+            if (_gesture.Panned)
+            {
+                rig.Drag(_gesture.PanFrom, _gesture.PanTo, Time.deltaTime);
+                _mapHeld = true;
+            }
+
+            if (_pointers.Count == 0 && _mapHeld)
+            {
+                _mapHeld = false;
+                rig.Release();
+            }
+
+            if (_gesture.Pinched)
+            {
+                rig.Zoom(_gesture.PinchRatio, _gesture.PinchCenter);
+            }
+
+            var scroll = PointerInput.ScrollDelta();
+            if (Mathf.Abs(scroll) > 0.01f && PointerInput.TryGetHover(out var mouse) && !_map.IsOverPanel(mouse))
+            {
+                rig.Zoom(Mathf.Pow(1.0015f, scroll), mouse);
+            }
+
+            if (_gesture.Tapped)
+            {
+                var picked = _stage.Pick(_gesture.TapPosition);
+                if (picked != null && _map.HasPlate(picked.Value))
+                {
+                    _map.Tap(picked.Value);
+                }
+                else
+                {
+                    _map.CloseCard();
+                }
+            }
+
+            _map.PlaceLabels(id => _stage.TryViewport(id, out var at) ? at : (Vector2?)null, rig.Distance);
+            if (_world != null && _village is RemoteBaseGateway)
+            {
+                var (q, r) = _stage.FocusHex();
+                var radius = Mathf.Clamp(_stage.ViewRadiusHexes() + 1, SharedWorldPresenter.MinRadius, 14);
+                var last = _stageWindow ?? (_world.viewQ, _world.viewR, _world.viewRadius);
+                var moved = CultOfComfort.Simulation.World.Hex.Distance(q, r, last.Q, last.R);
+                if (moved >= 2 || radius > last.Radius || radius < last.Radius - 3)
+                {
+                    _stageWindow = (q, r, radius);
+                    _worldRadius = radius;
+                    _ = FetchWorldAsync(q, r);
+                }
             }
         }
 
@@ -461,7 +552,15 @@ namespace CultOfComfort.Client
             }
 
             TrackOrientation();
-            ReadGestures();
+            if (_stage != null && _stage.IsOpen && _map.IsOpen)
+            {
+                UpdateMap();
+            }
+            else
+            {
+                ReadGestures();
+            }
+
             if (_phase == GamePhase.Dusk)
             {
                 UpdateDusk();
@@ -476,8 +575,11 @@ namespace CultOfComfort.Client
             _board.SetHearthWarmth(_battle == null ? 1f : _battle.HearthHealth / (float)_battle.HearthMaxHealth);
             _rig.SetShake(UnityEngine.Random.insideUnitSphere * _battleView.CameraShake);
             // The haze keeps its distance from the camera, so zooming out over the valley doesn't drown it in fog.
-            RenderSettings.fogStartDistance = _rig.Distance + 12f;
-            RenderSettings.fogEndDistance = _rig.Distance * 2.2f + 40f;
+            if (_stage == null || !_stage.IsOpen)
+            {
+                RenderSettings.fogStartDistance = _rig.Distance + 12f;
+                RenderSettings.fogEndDistance = _rig.Distance * 2.2f + 40f;
+            }
             UpdateHud();
         }
 

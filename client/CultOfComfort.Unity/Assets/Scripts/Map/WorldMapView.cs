@@ -8,23 +8,19 @@ using UnityEngine.UIElements;
 namespace CultOfComfort.Client
 {
     /// <summary>
-    /// The Marchlands on parchment (spec 2026-10-14 world map): hex places joined by roads, a ring of your influence on
-    /// each, banners where you're Patron, missionaries walking the roads; a card for the tapped place; offerings and the
-    /// tithe at the bottom. Draws <see cref="WorldMapModel"/>; raises events for the controller.
+    /// The screen over the 3D world map (spec 2026-10-15 real map): the lord's temper at the top, missionaries and
+    /// offerings at the bottom, and between them nothing but the land (<see cref="WorldStage"/>), with a name plate
+    /// floating over every place: its name and a ring of who holds its faith. A card slides up for the tapped place.
+    /// Draws <see cref="WorldMapModel"/>; raises events for the controller. Fingers on the land go to the controller,
+    /// which moves the camera: the plates never catch them.
     /// </summary>
     public sealed class WorldMapView
     {
-        private const float NodeSize = 52f;
-        private static readonly Color Ink = new Color(0.23f, 0.17f, 0.1f);
         private static readonly Color Faith = new Color(0.91f, 1f, 0.23f);
         private static readonly Color Loyalty = new Color(0.55f, 0.18f, 0.14f);
 
         private readonly VisualElement _root;
-        private readonly VisualElement _map;
-        private readonly VisualElement _pan;
-        private readonly VisualElement _roads;
-        private readonly VisualElement _nodes;
-        private readonly VisualElement _walkers;
+        private readonly VisualElement _labels;
         private readonly Label _tension;
         private readonly Label _tensionHelp;
         private readonly VisualElement _help;
@@ -43,9 +39,12 @@ namespace CultOfComfort.Client
         private readonly VisualElement _tithe;
         private readonly VisualElement _titheOptions;
         private readonly Label _titheNote;
-        private readonly Dictionary<int, Button> _nodeButtons = new Dictionary<int, Button>();
+        private readonly Label _title;
+        private readonly Label _status;
+        private readonly Dictionary<int, VisualElement> _plates = new Dictionary<int, VisualElement>();
         private readonly Dictionary<int, VisualElement> _rings = new Dictionary<int, VisualElement>();
         private WorldMapModel _model;
+        private int _selected;
 
         public event Action Closed;
         public event Action<int> NodeTapped;
@@ -53,57 +52,33 @@ namespace CultOfComfort.Client
         public event Action CollectClicked;
         public event Action<ResourceBag> TitheClicked;
 
-        /// <summary>The shared world was dragged by this fraction of the map (x, y in 0–1).</summary>
-        public event Action<Vector2> Panned;
-
         /// <summary>Zoom: +1 shows more of the world, -1 less.</summary>
         public event Action<int> Zoomed;
 
         public event Action Recentred;
 
-        private readonly Label _title;
-        private readonly VisualElement _zoom;
-        private Vector2? _dragFrom;
-        private Vector2 _dragBy;
-        private bool _dragging;
-        private bool _swallowClick;
-        private string _viewKey;
-        private float _heldSince = -1f;
-        private readonly Dictionary<int, Vector2> _touches = new Dictionary<int, Vector2>();
-        private float _pinchFrom;
-
-        /// <summary>A drag too short to move the window by a whole place slides back.</summary>
-        public void ResetPan()
-        {
-            _pan.style.translate = new Translate(0, 0);
-            _heldSince = -1f;
-        }
-
-        /// <summary>The "how the lands work" sheet (shown once by the controller, and by the ? button).</summary>
-        public void ShowHelp()
-        {
-            CloseCard();
-            ShowTithe(false);
-            _help.style.display = DisplayStyle.Flex;
-        }
+        /// <summary>The card was closed (the controller lifts the ring off the place).</summary>
+        public event Action CardClosed;
 
         public WorldMapView(VisualElement parent)
         {
-            _root = new VisualElement { name = "world-map" };
-            _root.AddToClassList("world-map");
-            _root.AddToClassList("panel");
+            _root = new VisualElement { name = "world-map", pickingMode = PickingMode.Ignore };
+            _root.AddToClassList("world-map-3d");
             parent.Add(_root);
 
+            _labels = new VisualElement { name = "map-labels", pickingMode = PickingMode.Ignore };
+            _labels.AddToClassList("map-layer");
+            _root.Add(_labels);
+
+            var top = new VisualElement { name = "map-top" };
+            top.AddToClassList("panel");
+            top.AddToClassList("map-top");
             var header = new VisualElement();
             header.AddToClassList("map-header");
             _title = new Label("The Marchlands");
             _title.AddToClassList("map-title");
-            var help = new Button(ShowHelp) { name = "map-help", text = "?" };
-            help.AddToClassList("map-close");
-            var close = new Button(() => Closed?.Invoke()) { name = "map-close", text = "✕" };
-            close.AddToClassList("map-close");
-            _zoom = new VisualElement();
-            _zoom.AddToClassList("map-zoom");
+            var zoom = new VisualElement();
+            zoom.AddToClassList("map-zoom");
             foreach (var (text, name, act) in new (string, string, Action)[]
                      {
                          ("⌂", "map-home", () => Recentred?.Invoke()), ("−", "map-zoom-out", () => Zoomed?.Invoke(+1)), ("+", "map-zoom-in", () => Zoomed?.Invoke(-1)),
@@ -111,17 +86,19 @@ namespace CultOfComfort.Client
             {
                 var b = new Button(act) { name = name, text = text };
                 b.AddToClassList("map-close");
-                _zoom.Add(b);
+                zoom.Add(b);
             }
 
+            var help = new Button(ShowHelp) { name = "map-help", text = "?" };
+            help.AddToClassList("map-close");
+            var close = new Button(() => Closed?.Invoke()) { name = "map-close", text = "✕" };
+            close.AddToClassList("map-close");
             header.Add(_title);
-            header.Add(_zoom);
+            header.Add(zoom);
             header.Add(help);
             header.Add(close);
-            _root.Add(header);
+            top.Add(header);
 
-            var tensionRow = new VisualElement();
-            tensionRow.AddToClassList("map-tension");
             var bar = new VisualElement();
             bar.AddToClassList("map-tension-bar");
             _tensionFill = new VisualElement();
@@ -135,50 +112,28 @@ namespace CultOfComfort.Client
             _tensionHelp = new Label { name = "map-tension-help" };
             _tensionHelp.AddToClassList("map-line");
             _tensionHelp.AddToClassList("map-help-line");
-            var helpRow = new VisualElement();
-            helpRow.AddToClassList("map-row");
             _tensionHelp.style.flexGrow = 1;
             _tensionHelp.style.flexShrink = 1;
+            var helpRow = new VisualElement();
+            helpRow.AddToClassList("map-row");
             helpRow.Add(_tensionHelp);
             helpRow.Add(titheButton);
-            tensionRow.Add(_tension);
-            tensionRow.Add(bar);
-            tensionRow.Add(helpRow);
-            _root.Add(tensionRow);
+            top.Add(_tension);
+            top.Add(bar);
+            top.Add(helpRow);
+            _root.Add(top);
 
-            _map = new VisualElement { name = "map-area" };
-            _map.AddToClassList("map-area");
-            // Roads, places and walkers move together while a finger drags them (the layer slides, the window refetches).
-            _pan = new VisualElement { pickingMode = PickingMode.Ignore };
-            _pan.AddToClassList("map-layer");
-            _roads = new VisualElement { pickingMode = PickingMode.Ignore };
-            _roads.AddToClassList("map-layer");
-            _roads.generateVisualContent += DrawRoads;
-            _nodes = new VisualElement { pickingMode = PickingMode.Ignore };
-            _nodes.AddToClassList("map-layer");
-            _walkers = new VisualElement { pickingMode = PickingMode.Ignore };
-            _walkers.AddToClassList("map-layer");
-            _pan.Add(_roads);
-            _pan.Add(_nodes);
-            _pan.Add(_walkers);
-            _map.Add(_pan);
-            _map.RegisterCallback<GeometryChangedEvent>(_ => Place());
-            _map.RegisterCallback<PointerDownEvent>(OnDragStart, TrickleDown.TrickleDown);
-            _map.RegisterCallback<PointerMoveEvent>(OnDragMove, TrickleDown.TrickleDown);
-            _map.RegisterCallback<PointerUpEvent>(OnDragEnd, TrickleDown.TrickleDown);
-            _map.RegisterCallback<PointerCancelEvent>(e => _touches.Remove(e.pointerId), TrickleDown.TrickleDown);
-            _map.RegisterCallback<WheelEvent>(e =>
-            {
-                if (_model != null && _model.Pannable && Mathf.Abs(e.delta.y) > 0.01f)
-                {
-                    Zoomed?.Invoke(e.delta.y > 0 ? +1 : -1);
-                    e.StopPropagation();
-                }
-            });
-            _root.Add(_map);
+            _status = new Label { name = "map-status", pickingMode = PickingMode.Ignore };
+            _status.AddToClassList("map-status");
+            _root.Add(_status);
 
-            var footer = new VisualElement();
-            footer.AddToClassList("map-footer");
+            var spacer = new VisualElement { pickingMode = PickingMode.Ignore };
+            spacer.style.flexGrow = 1;
+            _root.Add(spacer);
+
+            var bottom = new VisualElement { name = "map-bottom" };
+            bottom.AddToClassList("panel");
+            bottom.AddToClassList("map-bottom");
             _missionaries = new Label { name = "map-missionaries" };
             _missionaries.AddToClassList("map-line");
             var offeringsRow = new VisualElement();
@@ -186,16 +141,17 @@ namespace CultOfComfort.Client
             _offerings = new Label { name = "map-offerings" };
             _offerings.AddToClassList("map-line");
             _offerings.style.flexGrow = 1;
+            _offerings.style.flexShrink = 1;
             _collect = new Button(() => CollectClicked?.Invoke()) { name = "map-collect", text = "Collect" };
             _collect.AddToClassList("plain");
             _collect.AddToClassList("map-small-button");
             offeringsRow.Add(_offerings);
             offeringsRow.Add(_collect);
-            footer.Add(_missionaries);
-            footer.Add(offeringsRow);
-            _root.Add(footer);
+            bottom.Add(_missionaries);
+            bottom.Add(offeringsRow);
+            _root.Add(bottom);
 
-            _card = Sheet("map-card", out _cardTitle);
+            _card = Sheet("map-card", out _cardTitle, () => CardClosed?.Invoke());
             _cardKind = new Label();
             _cardKind.AddToClassList("small");
             _cardLines = new VisualElement();
@@ -208,7 +164,7 @@ namespace CultOfComfort.Client
             _card.Insert(3, _cardOptions);
             _card.Insert(4, _cardNote);
 
-            _tithe = Sheet("map-tithe-sheet", out _titheTitle);
+            _tithe = Sheet("map-tithe-sheet", out _titheTitle, null);
             _titheTitle.text = "Pay Lord Wulfric a tithe";
             _titheOptions = new VisualElement();
             _titheNote = new Label();
@@ -217,7 +173,7 @@ namespace CultOfComfort.Client
             _tithe.Insert(1, _titheNote);
             _tithe.Insert(2, _titheOptions);
 
-            _help = Sheet("map-help-sheet", out var helpTitle);
+            _help = Sheet("map-help-sheet", out var helpTitle, null);
             helpTitle.text = "How the lands work";
             _helpLines = new VisualElement();
             _help.Insert(1, _helpLines);
@@ -226,6 +182,27 @@ namespace CultOfComfort.Client
         }
 
         public bool IsOpen => _root.resolvedStyle.display == DisplayStyle.Flex;
+
+        /// <summary>True when a screen point (pixels, y up) is on the map's own panels, sheets or buttons, not the land.</summary>
+        public bool IsOverPanel(Vector2 screen)
+        {
+            var panel = _root.panel;
+            if (panel == null || !IsOpen)
+            {
+                return false;
+            }
+
+            var picked = panel.Pick(RuntimePanelUtils.ScreenToPanel(panel, new Vector2(screen.x, Screen.height - screen.y)));
+            for (var e = picked; e != null; e = e.parent)
+            {
+                if (e == _root)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         public void Show(bool open)
         {
@@ -238,11 +215,33 @@ namespace CultOfComfort.Client
             }
         }
 
-        public void CloseCard() => _card.style.display = DisplayStyle.None;
+        /// <summary>The "how the lands work" sheet (shown once by the controller, and by the ? button).</summary>
+        public void ShowHelp()
+        {
+            CloseCard();
+            ShowTithe(false);
+            _help.style.display = DisplayStyle.Flex;
+        }
+
+        public void CloseCard()
+        {
+            if (_card.style.display != DisplayStyle.None)
+            {
+                _card.style.display = DisplayStyle.None;
+                CardClosed?.Invoke();
+            }
+        }
 
         public void ShowTitheSheet() => ShowTithe(true);
 
-        private VisualElement Sheet(string name, out Label title)
+        /// <summary>A line over the land while it waits for the server ("Finding your way…"), or null.</summary>
+        public void SetStatus(string text)
+        {
+            _status.text = text ?? string.Empty;
+            _status.style.display = string.IsNullOrEmpty(text) ? DisplayStyle.None : DisplayStyle.Flex;
+        }
+
+        private VisualElement Sheet(string name, out Label title, Action closed)
         {
             var sheet = new VisualElement { name = name };
             sheet.AddToClassList("panel");
@@ -250,7 +249,11 @@ namespace CultOfComfort.Client
             title = new Label();
             title.AddToClassList("sheet-title");
             sheet.Add(title);
-            var close = new Button(() => sheet.style.display = DisplayStyle.None) { text = "Close" };
+            var close = new Button(() =>
+            {
+                sheet.style.display = DisplayStyle.None;
+                closed?.Invoke();
+            }) { text = "Close" };
             close.AddToClassList("plain");
             sheet.Add(close);
             sheet.style.display = DisplayStyle.None;
@@ -272,33 +275,20 @@ namespace CultOfComfort.Client
 
         public void Render(WorldMapModel model)
         {
-            var rebuild = _model == null || !_model.Nodes.Select(n => (n.Id, n.At)).SequenceEqual(model.Nodes.Select(n => (n.Id, n.At)));
+            var rebuild = _model == null || !_model.Nodes.Select(n => n.Id).SequenceEqual(model.Nodes.Select(n => n.Id));
             _model = model;
             _title.text = model.Title;
-            _zoom.style.display = model.Pannable ? DisplayStyle.Flex : DisplayStyle.None;
-            // A released drag keeps its offset until the new window arrives (or, offline, for a few seconds), so the map
-            // doesn't jump back under the finger and then forward again.
-            if (!_dragging && (model.ViewKey != _viewKey || (_heldSince >= 0f && Time.realtimeSinceStartup - _heldSince > 3f)))
-            {
-                _pan.style.translate = new Translate(0, 0);
-                _heldSince = -1f;
-            }
-
-            _viewKey = model.ViewKey;
-
             if (rebuild)
             {
-                BuildNodes();
+                BuildPlates();
             }
 
             foreach (var node in model.Nodes)
             {
-                var button = _nodeButtons[node.Id];
-                button.EnableInClassList("map-node-far", !node.Reachable);
-                button.EnableInClassList("map-node-patron", node.Patron);
-                button.EnableInClassList("map-node-camp", node.Camp);
-                button.Q<Label>(className: "map-node-share").text = node.Home || node.Camp ? string.Empty : $"{node.Influence}%";
-                button.parent.style.display = node.Hidden ? DisplayStyle.None : DisplayStyle.Flex;
+                var plate = _plates[node.Id];
+                plate.EnableInClassList("map-plate-far", !node.Reachable && !node.Home && !node.Camp);
+                plate.EnableInClassList("map-plate-patron", node.Patron);
+                _rings[node.Id].Q<Label>(className: "map-plate-share").text = node.Home || node.Camp ? string.Empty : $"{node.Influence}%";
                 _rings[node.Id].userData = new RingShares(node.Home ? 1f : node.Influence / 100f, node.RivalShare / 100f,
                     node.RivalColour >= 0 ? SharedWorldPresenter.CultColours[node.RivalColour % SharedWorldPresenter.CultColours.Length] : Color.clear);
                 _rings[node.Id].MarkDirtyRepaint();
@@ -332,22 +322,67 @@ namespace CultOfComfort.Client
             }
 
             _titheNote.text = model.TitheNote;
-            _walkers.Clear();
-            foreach (var walker in model.Missionaries)
+        }
+
+        /// <summary>
+        /// Moves every plate over its place (<paramref name="screenOf"/>: 0–1 across and down the view; null when off screen). Far out
+        /// (<paramref name="distance"/>), small places drop their names so the land doesn't drown in labels.
+        /// </summary>
+        public void PlaceLabels(Func<int, Vector2?> screenOf, float distance)
+        {
+            var panel = _root.panel;
+            if (panel == null || _model == null)
             {
-                var dot = new VisualElement { pickingMode = PickingMode.Ignore };
-                dot.AddToClassList("map-walker");
-                dot.userData = walker.At;
-                _walkers.Add(dot);
+                return;
             }
 
-            Place();
-            _roads.MarkDirtyRepaint();
+            ApplySafeArea(panel);
+            var far = distance > 27f;
+            foreach (var node in _model.Nodes)
+            {
+                var plate = _plates[node.Id];
+                var at = screenOf(node.Id);
+                if (at == null)
+                {
+                    plate.style.display = DisplayStyle.None;
+                    continue;
+                }
+
+                var local = new Vector2(at.Value.x * _root.layout.width, at.Value.y * _root.layout.height);
+                plate.style.display = DisplayStyle.Flex;
+                plate.style.left = local.x;
+                plate.style.top = local.y;
+                plate.EnableInClassList("map-plate-quiet", far && !node.Home && !node.Camp && !node.Patron && node.Id != _selected);
+                plate.EnableInClassList("map-plate-selected", node.Id == _selected);
+            }
         }
+
+        /// <summary>The panels keep clear of the camera cutout and the gesture bar (UI Toolkit ignores the safe area).</summary>
+        private void ApplySafeArea(IPanel panel)
+        {
+            var area = Screen.safeArea;
+            var topLeft = RuntimePanelUtils.ScreenToPanel(panel, new Vector2(area.xMin, Screen.height - area.yMax));
+            var bottomRight = RuntimePanelUtils.ScreenToPanel(panel, new Vector2(area.xMax, Screen.height - area.yMin));
+            var full = RuntimePanelUtils.ScreenToPanel(panel, new Vector2(Screen.width, Screen.height));
+            var padding = new Vector4(topLeft.x, topLeft.y + 4f, full.x - bottomRight.x, full.y - bottomRight.y + 4f);
+            if (padding == _padding)
+            {
+                return;
+            }
+
+            _padding = padding;
+            _root.style.paddingLeft = padding.x;
+            _root.style.paddingTop = padding.y;
+            _root.style.paddingRight = padding.z;
+            _root.style.paddingBottom = padding.w;
+        }
+
+        private Vector4 _padding = new Vector4(-1f, -1f, -1f, -1f);
 
         public void ShowCard(NodeCardModel card)
         {
             ShowTithe(false);
+            _help.style.display = DisplayStyle.None;
             _cardTitle.text = card.Title;
             _cardKind.text = card.Kind;
             _cardLines.Clear();
@@ -373,127 +408,53 @@ namespace CultOfComfort.Client
             _card.style.display = DisplayStyle.Flex;
         }
 
-        private int _selected;
+        public bool HasPlate(int id) => _plates.ContainsKey(id);
 
-        private void BuildNodes()
+        /// <summary>A place was tapped on the land (the controller picked it): same as tapping its plate.</summary>
+        public void Tap(int id)
         {
-            _nodes.Clear();
-            _nodeButtons.Clear();
+            _selected = id;
+            NodeTapped?.Invoke(id);
+        }
+
+        private void BuildPlates()
+        {
+            _labels.Clear();
+            _plates.Clear();
             _rings.Clear();
             foreach (var node in _model.Nodes)
             {
                 var id = node.Id;
-                var holder = new VisualElement { pickingMode = PickingMode.Ignore };
-                holder.AddToClassList("map-node-holder");
+                var plate = new Button(() => Tap(id)) { name = $"node-{id}", pickingMode = PickingMode.Ignore };
+                plate.AddToClassList("map-plate");
+                plate.EnableInClassList("map-plate-home", node.Home);
+                plate.EnableInClassList("map-plate-camp", node.Camp);
                 var ring = new VisualElement { pickingMode = PickingMode.Ignore, userData = default(RingShares) };
-                ring.AddToClassList("map-ring");
+                ring.AddToClassList("map-plate-ring");
                 ring.generateVisualContent += DrawRing;
-                var button = new Button(() =>
+                var share = new Label { pickingMode = PickingMode.Ignore };
+                share.AddToClassList("map-plate-share");
+                ring.Add(share);
+                var name = new Label(node.Name) { pickingMode = PickingMode.Ignore };
+                name.AddToClassList("map-plate-name");
+                if (node.Camp && node.RivalColour >= 0)
                 {
-                    if (_swallowClick)
-                    {
-                        _swallowClick = false;
-                        return; // the finger was dragging the map, not tapping
-                    }
-
-                    _selected = id;
-                    NodeTapped?.Invoke(id);
-                }) { name = $"node-{id}" };
-                button.AddToClassList("map-node");
-                if (node.Home)
-                {
-                    button.AddToClassList("map-node-home");
+                    name.style.borderBottomColor = SharedWorldPresenter.CultColours[node.RivalColour % SharedWorldPresenter.CultColours.Length];
                 }
 
-                var icon = new VisualElement { pickingMode = PickingMode.Ignore };
-                icon.AddToClassList("icon");
-                icon.AddToClassList("icon-" + node.Icon);
-                icon.AddToClassList("map-node-icon");
-                var share = new Label { pickingMode = PickingMode.Ignore };
-                share.AddToClassList("map-node-share");
                 var banner = new VisualElement { pickingMode = PickingMode.Ignore };
                 banner.AddToClassList("map-banner");
-                button.Add(icon);
-                button.Add(share);
-                button.Add(banner);
-                var name = new Label(node.Name) { pickingMode = PickingMode.Ignore };
-                name.AddToClassList("map-node-name");
-                holder.Add(ring);
-                holder.Add(button);
-                holder.Add(name);
-                holder.userData = node.At;
-                if (_model.Pannable)
+                if (!node.Home && !node.Camp)
                 {
-                    holder.style.scale = new Scale(new Vector2(0.72f, 0.72f)); // the shared world packs more places into the window
+                    plate.Add(ring);
                 }
 
-                _nodes.Add(holder);
-                _nodeButtons[id] = button;
+                plate.Add(name);
+                plate.Add(banner);
+                plate.style.display = DisplayStyle.None;
+                _labels.Add(plate);
+                _plates[id] = plate;
                 _rings[id] = ring;
-            }
-        }
-
-        /// <summary>Puts every node and walker at its 0–1 spot within the map area.</summary>
-        private void Place()
-        {
-            var w = _map.resolvedStyle.width;
-            var h = _map.resolvedStyle.height;
-            if (float.IsNaN(w) || w <= 0f)
-            {
-                return;
-            }
-
-            foreach (var holder in _nodes.Children())
-            {
-                var at = (Vector2)holder.userData;
-                holder.style.left = at.x * w - NodeSize;
-                holder.style.top = at.y * h - NodeSize / 2f;
-            }
-
-            foreach (var dot in _walkers.Children())
-            {
-                var at = (Vector2)dot.userData;
-                dot.style.left = at.x * w - 9f;
-                dot.style.top = at.y * h - 30f;
-            }
-        }
-
-        private void DrawRoads(MeshGenerationContext context)
-        {
-            if (_model == null)
-            {
-                return;
-            }
-
-            var w = _map.resolvedStyle.width;
-            var h = _map.resolvedStyle.height;
-            if (float.IsNaN(w) || w <= 0f)
-            {
-                return;
-            }
-
-            var at = new Dictionary<int, Vector2>();
-            foreach (var n in _model.Nodes)
-            {
-                at[n.Id] = new Vector2(n.At.x * w, n.At.y * h);
-            }
-
-            var p = context.painter2D;
-            p.strokeColor = new Color(Ink.r, Ink.g, Ink.b, 0.45f);
-            p.lineWidth = 3f;
-            p.lineCap = LineCap.Round;
-            foreach (var (from, to) in _model.Roads)
-            {
-                // A wobbly track, drawn as a few dashes: medieval things are wonky.
-                var a = at[from];
-                var b = at[to];
-                for (var k = 0; k < 5; k++)
-                {
-                    p.BeginPath();
-                    p.MoveTo(Vector2.Lerp(a, b, k / 5f + 0.03f));
-                    p.LineTo(Vector2.Lerp(a, b, (k + 0.7f) / 5f));
-                    p.Stroke();
-                }
             }
         }
 
@@ -514,109 +475,6 @@ namespace CultOfComfort.Client
             public Color RivalColour { get; }
         }
 
-        private void OnDragStart(PointerDownEvent e)
-        {
-            if (_model == null || !_model.Pannable)
-            {
-                return;
-            }
-
-            _touches[e.pointerId] = e.position;
-            if (_touches.Count == 2)
-            {
-                // A second finger: pinch to zoom; the drag stops where it is.
-                _pinchFrom = PinchSpan();
-                _dragFrom = null;
-                _dragging = false;
-                _pan.style.translate = new Translate(0, 0);
-                return;
-            }
-
-            _dragFrom = e.position;
-            _dragBy = Vector2.zero;
-            _dragging = false;
-            _swallowClick = false;
-        }
-
-        private void OnDragMove(PointerMoveEvent e)
-        {
-            if (_touches.ContainsKey(e.pointerId))
-            {
-                _touches[e.pointerId] = e.position;
-            }
-
-            if (_touches.Count >= 2 && _pinchFrom > 1f)
-            {
-                var ratio = PinchSpan() / _pinchFrom;
-                if (ratio > 1.3f || ratio < 0.77f)
-                {
-                    Zoomed?.Invoke(ratio > 1f ? -1 : +1); // fingers apart: closer in (a smaller window)
-                    _pinchFrom = PinchSpan();
-                }
-
-                _swallowClick = true;
-                return;
-            }
-
-            if (_dragFrom == null)
-            {
-                return;
-            }
-
-            _dragBy = (Vector2)e.position - _dragFrom.Value;
-            if (!_dragging && _dragBy.magnitude > 14f)
-            {
-                _dragging = true;
-            }
-
-            if (_dragging)
-            {
-                _pan.style.translate = new Translate(_dragBy.x, _dragBy.y);
-            }
-        }
-
-        private float PinchSpan()
-        {
-            using var e = _touches.Values.GetEnumerator();
-            e.MoveNext();
-            var a = e.Current;
-            e.MoveNext();
-            return Vector2.Distance(a, e.Current);
-        }
-
-        private void OnDragEnd(PointerUpEvent e)
-        {
-            var wasPinch = _touches.Count >= 2;
-            _touches.Remove(e.pointerId);
-            if (wasPinch)
-            {
-                _map.schedule.Execute(() => _swallowClick = false).ExecuteLater(50);
-                return;
-            }
-
-            if (_dragFrom == null)
-            {
-                return;
-            }
-
-            _dragFrom = null;
-            if (!_dragging)
-            {
-                return;
-            }
-
-            _dragging = false;
-            _swallowClick = true; // the button under the finger would take this as a tap
-            _map.schedule.Execute(() => _swallowClick = false).ExecuteLater(50);
-            var w = _map.resolvedStyle.width;
-            var h = _map.resolvedStyle.height;
-            if (w > 0f && h > 0f)
-            {
-                _heldSince = Time.realtimeSinceStartup;
-                Panned?.Invoke(new Vector2(_dragBy.x / w, _dragBy.y / h));
-            }
-        }
-
         private static void DrawRing(MeshGenerationContext context)
         {
             var ring = context.visualElement;
@@ -625,16 +483,16 @@ namespace CultOfComfort.Client
             var r = ring.resolvedStyle.width / 2f;
             var centre = new Vector2(r, r);
             var p = context.painter2D;
-            p.lineWidth = 5f;
-            p.strokeColor = new Color(Loyalty.r, Loyalty.g, Loyalty.b, 0.55f);
+            p.lineWidth = 4f;
+            p.strokeColor = new Color(Loyalty.r, Loyalty.g, Loyalty.b, 0.7f);
             p.BeginPath();
-            p.Arc(centre, r - 3f, 0f, 360f);
+            p.Arc(centre, r - 2f, 0f, 360f);
             p.Stroke();
             if (share > 0f)
             {
                 p.strokeColor = Faith;
                 p.BeginPath();
-                p.Arc(centre, r - 3f, -90f, -90f + 360f * share);
+                p.Arc(centre, r - 2f, -90f, -90f + 360f * share);
                 p.Stroke();
             }
 
@@ -643,11 +501,9 @@ namespace CultOfComfort.Client
                 var from = -90f + 360f * share;
                 p.strokeColor = shares.RivalColour;
                 p.BeginPath();
-                p.Arc(centre, r - 3f, from, from + 360f * Mathf.Min(shares.Rival, 1f - share));
+                p.Arc(centre, r - 2f, from, from + 360f * Mathf.Min(shares.Rival, 1f - share));
                 p.Stroke();
             }
         }
-
-        private static void Show(VisualElement element, bool shown) => element.style.display = shown ? DisplayStyle.Flex : DisplayStyle.None;
     }
 }

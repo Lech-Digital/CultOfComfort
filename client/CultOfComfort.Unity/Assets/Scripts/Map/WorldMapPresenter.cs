@@ -14,6 +14,10 @@ namespace CultOfComfort.Client
         public string Kind;
         public string Icon;
         public Vector2 At;
+
+        /// <summary>Where it is in the world (hex), for the 3D map.</summary>
+        public int Q;
+        public int R;
         public int Influence;
         public bool Patron;
         public bool Reachable;
@@ -51,6 +55,11 @@ namespace CultOfComfort.Client
     {
         public string Text;
         public Vector2 At;
+
+        /// <summary>Where they're going, what they're doing, and how far along that walk (or sermon) they are, 0–1.</summary>
+        public int NodeId;
+        public MissionaryPhase Phase;
+        public float Fraction;
     }
 
     /// <summary>Everything the map screen draws, built from the Domain view (pure: tested without Unity's UI).</summary>
@@ -83,6 +92,9 @@ namespace CultOfComfort.Client
 
         /// <summary>"How the lands work", for the ? sheet.</summary>
         public List<string> Help = new List<string>();
+
+        /// <summary>The land the 3D map shows (null: nothing to show yet, e.g. waiting for the server).</summary>
+        public WorldLand Land;
     }
 
     public sealed class NodeCardModel
@@ -141,12 +153,13 @@ namespace CultOfComfort.Client
 
             var nodes = domain.Nodes.Select(n => n.Node).ToList();
             var layout = Layout(nodes);
+            model.Land = LandFor(domain);
             model.Nodes.Add(new MapNodeModel { Id = HomeId, Name = "Your village", Kind = "Home", Icon = "b_hearth", At = layout[HomeId], Influence = 100, Reachable = true, Home = true });
             foreach (var n in domain.Nodes)
             {
                 model.Nodes.Add(new MapNodeModel
                 {
-                    Id = n.Node.Id, Name = n.Node.Name, Kind = Kind(n.Node.Type), Icon = Icon(n.Node.Type), At = layout[n.Node.Id],
+                    Id = n.Node.Id, Name = n.Node.Name, Kind = Kind(n.Node.Type), Icon = Icon(n.Node.Type), At = layout[n.Node.Id], Q = n.Node.Q, R = n.Node.R,
                     Influence = n.InfluencePercent, Patron = n.Patron, Reachable = n.Reachable,
                 });
             }
@@ -179,7 +192,7 @@ namespace CultOfComfort.Client
                     MissionaryPhase.Preaching => $"Preaching at {node.Name} · {left} left",
                     _ => $"Walking home from {node.Name} · {left}",
                 };
-                model.Missionaries.Add(new MissionaryModel { Text = text, At = at });
+                model.Missionaries.Add(new MissionaryModel { Text = text, At = at, NodeId = node.Id, Phase = m.Phase, Fraction = fraction });
             }
 
             var free = domain.MissionarySlots - domain.Missionaries.Count;
@@ -202,6 +215,21 @@ namespace CultOfComfort.Client
                 ? $"Wulfric was paid recently: tithes work at half strength for {VillagePresenter.Duration((long)(domain.TitheHalfUntilUtc.Value - now).TotalSeconds)}."
                 : "A tithe calms Wulfric down. Pay enough during a warning and he calls the raid off.";
             return model;
+        }
+
+        private static WorldLand _marchlands;
+
+        /// <summary>The Marchlands' land (offline play): your village in the middle, the domain round it, hills beyond.</summary>
+        public static WorldLand LandFor(DomainView domain)
+        {
+            if (_marchlands == null)
+            {
+                var nodes = domain.Nodes.Select(n => n.Node).ToList();
+                var radius = nodes.Count == 0 ? 4 : nodes.Max(n => HexDistance(0, 0, n.Q, n.R)) + 3;
+                _marchlands = new WorldLand(0x4d415243u, radius, nodes.Select(n => (n.Id, n.Type, n.Q, n.R)), (0, 0));
+            }
+
+            return _marchlands;
         }
 
         /// <summary>The temper bar's line: how angry the lord is and how fast it's rising.</summary>

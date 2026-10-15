@@ -251,8 +251,14 @@ namespace CultOfComfort.Client.Tests
                 yield return null;
             }
 
+            // The 3D map has its own camera: draw it into the capture and let the land stream in round the village.
+            var stage = (WorldStage)typeof(GameController).GetField("_stage", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(game);
+            stage.Camera.targetTexture = world;
+            stage.Camera.aspect = Width / (float)Height;
+            yield return new WaitForSecondsRealtime(4f);
             var output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "..", "art", "previews", "intro"));
-            Save(Camera.main, world, ui, Path.Combine(output, "world_map.png"));
+            yield return null;
+            SaveRendered(world, ui, Path.Combine(output, "world_map.png"));
             using (var submit = NavigationSubmitEvent.GetPooled())
             {
                 var node = document.rootVisualElement.Q<Button>("node-2");
@@ -265,7 +271,13 @@ namespace CultOfComfort.Client.Tests
                 yield return null;
             }
 
-            Save(Camera.main, world, ui, Path.Combine(output, "world_map_card.png"));
+            yield return new WaitForSecondsRealtime(1f);
+            yield return null;
+            SaveRendered(world, ui, Path.Combine(output, "world_map_card.png"));
+            stage.Rig.JumpTo(stage.Rig.Focus, MapCamera.MaxDistance);
+            yield return new WaitForSecondsRealtime(5f);
+            yield return null;
+            SaveRendered(world, ui, Path.Combine(output, "world_map_far.png"));
         }
 
         [UnityTest]
@@ -329,6 +341,27 @@ namespace CultOfComfort.Client.Tests
             camera.targetTexture = world;
             camera.Render();
             camera.targetTexture = null;
+            var image = Read(world);
+            var overlay = Read(ui);
+            var pixels = image.GetPixels();
+            var top = overlay.GetPixels();
+            for (var i = 0; i < pixels.Length; i++)
+            {
+                pixels[i] = Color.Lerp(pixels[i], new Color(top[i].r, top[i].g, top[i].b, 1f), top[i].a);
+            }
+
+            image.SetPixels(pixels);
+            File.WriteAllBytes(path, image.EncodeToPNG());
+            Object.DestroyImmediate(image);
+            Object.DestroyImmediate(overlay);
+        }
+
+        /// <summary>
+        /// Like <see cref="Save"/> for a camera that already draws into <paramref name="world"/> every frame (the 3D
+        /// map: its instanced forests only reach the camera's own render, not a manual one).
+        /// </summary>
+        private static void SaveRendered(RenderTexture world, RenderTexture ui, string path)
+        {
             var image = Read(world);
             var overlay = Read(ui);
             var pixels = image.GetPixels();
