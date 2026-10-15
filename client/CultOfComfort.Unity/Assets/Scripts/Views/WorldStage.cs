@@ -1296,7 +1296,20 @@ namespace CultOfComfort.Client
 
             public int NodeId => _model?.NodeId ?? -1;
 
-            public Vector2 At => _at;
+            /// <summary>Where they are (or, before their first step on screen, where they should be).</summary>
+            public Vector2 At => _placed ? _at : Target();
+
+            private Vector2 Target()
+            {
+                if (_model == null || _path.Count == 0)
+                {
+                    return _at;
+                }
+
+                var fraction = _model.Phase == MissionaryPhase.Travelling ? _model.Fraction : _model.Phase == MissionaryPhase.Returning ? 1f - _model.Fraction : 1f;
+                var target = WorldLand.Along(_path, fraction);
+                return _model.Phase == MissionaryPhase.Preaching ? target + new Vector2(0.75f, -0.55f) : target;
+            }
 
             public void Set(WorldLand land, StageWalker model)
             {
@@ -1317,12 +1330,7 @@ namespace CultOfComfort.Client
                 }
 
                 var fraction = _model.Phase == MissionaryPhase.Travelling ? _model.Fraction : _model.Phase == MissionaryPhase.Returning ? 1f - _model.Fraction : 1f;
-                var target = WorldLand.Along(_path, fraction);
-                if (_model.Phase == MissionaryPhase.Preaching)
-                {
-                    target += new Vector2(0.75f, -0.55f); // in front of the place, holding forth
-                }
-
+                var target = Target(); // preaching: in front of the place, holding forth
                 var previous = _at;
                 _at = _placed ? Vector2.MoveTowards(_at, target, dt * 1.2f) : target;
                 _placed = true;

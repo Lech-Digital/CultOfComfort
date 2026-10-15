@@ -92,6 +92,7 @@ namespace CultOfComfort.Client
         private int _cardNode;
         private int _seenDemand = int.MinValue; // the demand last seen (MinValue: nothing seen yet, so no toast on launch)
         private int _metDemand = -1;
+        private int _pendingFocus = -1;      // a missionary to fly to once the map's land is up
         private readonly List<(Vector2 At, Color Colour)> _miniMarks = new List<(Vector2, Color)>();           // "Tithes" was tapped before the land arrived: open the lord's seat once it has
         private (int Q, int R, int Radius)? _stageWindow; // the window last asked for from where the map camera looks
         private WorldDto _world;              // the shared world's window, as the server last sent it (null: Marchlands, or not fetched yet)
@@ -252,8 +253,13 @@ namespace CultOfComfort.Client
             _house.ShowClicked += node =>
             {
                 _house.Show(false);
+                _pendingFocus = node; // flown to once the land is up (it may still be on its way from the server)
                 OpenFeature("map");
-                _stage.FlyToMissionary(node);
+                if (_stage.IsOpen)
+                {
+                    _stage.FlyToMissionary(node);
+                    _pendingFocus = -1;
+                }
             };
             _map.CollectClicked += async () =>
             {
@@ -354,6 +360,11 @@ namespace CultOfComfort.Client
 
             CloseMap();
             _sheet.Close();
+            if (_world == null && _village is RemoteBaseGateway)
+            {
+                _ = FetchWorldAsync(null, null); // place names on the shared world come with it; the house redraws when it lands
+            }
+
             _house.Render(MissionHousePresenter.Build(_snapshot, BuildingTable.Default, PlaceName, _snapshot.AsOfUtc, WalkSeconds));
             _house.Show(true);
         }
@@ -606,6 +617,12 @@ namespace CultOfComfort.Client
             {
                 OpenSeat();
             }
+
+            if (_pendingFocus >= 0)
+            {
+                _stage.FlyToMissionary(_pendingFocus);
+                _pendingFocus = -1;
+            }
         }
 
         private void CloseMap()
@@ -707,6 +724,11 @@ namespace CultOfComfort.Client
                     {
                         RefreshSnapshot();
                         RenderMap();
+                    }
+
+                    if (_house.IsOpen && _snapshot != null)
+                    {
+                        _house.Render(MissionHousePresenter.Build(_snapshot, BuildingTable.Default, PlaceName, _snapshot.AsOfUtc, WalkSeconds));
                     }
                 }
             }
