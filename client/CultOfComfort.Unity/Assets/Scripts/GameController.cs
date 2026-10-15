@@ -1252,6 +1252,10 @@ namespace CultOfComfort.Client
             try
             {
                 Accept(await _village.LoadAsync(_cts.Token));
+                // The day turns at 04:00 on this phone's clock (spec 2026-10-15 daily errands); quietly, a no-op when unchanged.
+                var offset = (int)Math.Round(TimeZoneInfo.Local.GetUtcOffset(DateTime.UtcNow).TotalMinutes);
+                var clock = await _village.SendAsync(new SetDayClock(Guid.NewGuid(), offset), _cts.Token);
+                Accept(clock.Snapshot);
                 if (_snapshot.NightInProgress != null)
                 {
                     // The app closed mid-Night: the towers finish it on their own.
@@ -1513,6 +1517,8 @@ namespace CultOfComfort.Client
             _hud.SetStartLabel(lampsWait ? "Lamps can wait · build first" : VillagePresenter.StartLabel(_snapshot));
             _hud.SetStartWaiting(lampsWait);
             _hud.ShowErrand(dusk && _tool == null ? ErrandNote.From(_snapshot.Errand) : null); // placing: the note steps aside for the ghost
+            _hud.ShowDaily(dusk && _tool == null && _snapshot.Errand == null ? DailyNote.From(_snapshot.Daily, _snapshot.AsOfUtc) : null);
+            _board.SetCosmetics(_snapshot.Daily?.Cosmetics);
             var hasCard = _cardBuilding != null && _snapshot.Buildings.Any(b => b.Id == _cardBuilding.Value);
             var terrainCard = _cardTerrain != null ? VillagePresenter.TerrainCard(_snapshot, VillageMap.Demo, BuildingTable.Default, _cardTerrain.Value) : null;
             _hud.ShowBuildingCard(hasCard ? VillagePresenter.Card(_snapshot, BuildingTable.Default, _cardBuilding.Value) : terrainCard);
@@ -1551,6 +1557,7 @@ namespace CultOfComfort.Client
             _board.HideBuilding(null);
             _hud.ShowPaintDone(false);
             _hud.ShowErrand(null); // the errand waits for Dawn
+            _hud.ShowDaily(null);
             _hud.ShowRepairAll(null);
             _cardBuilding = null;
             _hud.ShowBuildingCard(null);
@@ -2024,6 +2031,7 @@ namespace CultOfComfort.Client
             };
             _hud.DemolishClicked += () => SendFromCard(b => new DemolishBuilding(Guid.NewGuid(), b.Id), closeCard: true);
             _hud.FinishNowClicked += () => SendFromCard(_ => new FinishConstructionNow(Guid.NewGuid()));
+            _hud.HurryClicked += () => SendFromCard(_ => new SpendTowels(Guid.NewGuid(), TowelUse.Hurry));
             _hud.RepairClicked += () => SendFromCard(b => new RepairBuilding(Guid.NewGuid(), b.Id));
             _hud.CrewChanged += crew => SendFromCard(b => new SetCrew(Guid.NewGuid(), b.Id, crew));
             _hud.DevRaiseTensionClicked += () => SendSimple(new DebugRaiseTension(Guid.NewGuid(), 50));
@@ -2046,6 +2054,36 @@ namespace CultOfComfort.Client
                 StartNight();
             };
             _hud.ErrandClicked += OnErrandClicked;
+            _hud.DailyClaimClicked += async slot =>
+            {
+                var outcome = await SendVillage(new ClaimDaily(Guid.NewGuid(), slot));
+                if (outcome.Status == CommandStatus.Accepted)
+                {
+                    _audio.Play("claim");
+                    Announce($"The Prophet ticks it off the list. +{VillagePresenter.ShortCost(outcome.Collected)}");
+                }
+            };
+            _hud.DailySwapClicked += async slot =>
+            {
+                var outcome = await SendVillage(new SpendTowels(Guid.NewGuid(), TowelUse.Reroll, slot));
+                if (outcome.Status == CommandStatus.Accepted)
+                {
+                    Announce("Two Towels change hands. The Prophet crosses something out and writes something else.");
+                }
+            };
+            _hud.ThermosClicked += async () =>
+            {
+                var before = _snapshot?.Daily?.Cosmetics.Count ?? 0;
+                var outcome = await SendVillage(new ClaimThermos(Guid.NewGuid()));
+                if (outcome.Status == CommandStatus.Accepted)
+                {
+                    _audio.Play("claim");
+                    var week = (_snapshot?.Daily?.Cosmetics.Count ?? 0) > before;
+                    Announce(week
+                        ? $"A whole week of lists! {DailyBook.StreakTowels} more Towels, and something new by the Hearth."
+                        : $"The Prophet unscrews the Thermos. Tea, mostly. +{DailyBook.ThermosTowels} Towels.");
+                }
+            };
             _hud.PillClicked += key =>
             {
                 if (_snapshot != null)

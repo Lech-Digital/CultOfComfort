@@ -83,6 +83,18 @@ public sealed record CollectOfferings(Guid CommandId) : BaseCommand(CommandId);
 /// <summary>Pays the Authority to calm down: Tension drops by the tithe's worth (and an announced raid may be called off).</summary>
 public sealed record PayTithe(Guid CommandId, ResourceBag Amount) : BaseCommand(CommandId);
 
+/// <summary>Claims one of today's errands (its slot, 0–2) once it's done (spec 2026-10-15 daily errands).</summary>
+public sealed record ClaimDaily(Guid CommandId, int Slot) : BaseCommand(CommandId);
+
+/// <summary>Opens the Thermos: all three of today's errands claimed. Towels, Devotion, and the streak goes on.</summary>
+public sealed record ClaimThermos(Guid CommandId) : BaseCommand(CommandId);
+
+/// <summary>Spends Towels: hurry the construction under way, or swap one of today's errands (<paramref name="Slot"/>).</summary>
+public sealed record SpendTowels(Guid CommandId, TowelUse Use, int Slot = 0) : BaseCommand(CommandId);
+
+/// <summary>The player's clock (minutes from UTC): their day starts at 04:00 on it.</summary>
+public sealed record SetDayClock(Guid CommandId, int OffsetMinutes) : BaseCommand(CommandId);
+
 /// <summary>Delivers what the lord demanded (spec 2026-10-15): his temper drops twice a tithe's worth.</summary>
 public sealed record MeetDemand(Guid CommandId, int DemandId) : BaseCommand(CommandId);
 

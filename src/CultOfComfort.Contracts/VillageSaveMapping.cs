@@ -55,6 +55,13 @@ public static class VillageSaveMapping
         researched = data.Research?.Done.ToList() ?? new List<string>(),
         researching = data.Research?.Current ?? string.Empty,
         researchEndsTicks = data.Research?.EndsAtUtcTicks ?? 0,
+        hasDaily = data.Daily != null,
+        daily = data.Daily == null ? new DailyDto() : new DailyDto
+        {
+            day = data.Daily.Day, offsetMinutes = data.Daily.OffsetMinutes, ids = data.Daily.Ids.ToList(), progress = data.Daily.Progress.ToList(),
+            claimed = data.Daily.Claimed.ToList(), thermos = data.Daily.Thermos, streak = data.Daily.Streak, lastThermosDay = data.Daily.LastThermosDay,
+            towels = data.Daily.Towels, cosmetics = data.Daily.Cosmetics.ToList(),
+        },
         hasDomain = data.Domain != null,
         domain = data.Domain == null ? new DomainDto() : new DomainDto
         {
@@ -131,7 +138,11 @@ public static class VillageSaveMapping
             dto.hasDomain && dto.domain != null ? FromDto(dto.domain) : null,
             new ResearchData(dto.researched ?? new List<string>(), string.IsNullOrEmpty(dto.researching) ? null : dto.researching,
                 string.IsNullOrEmpty(dto.researching) ? null : dto.researchEndsTicks),
-            dto.fractionsMilli != null && dto.fractionsMilli.Count == 4 && dto.fractionsMilli.TrueForAll(f => f >= 0 && f < 1000) ? dto.fractionsMilli : null);
+            dto.fractionsMilli != null && dto.fractionsMilli.Count == 4 && dto.fractionsMilli.TrueForAll(f => f >= 0 && f < 1000) ? dto.fractionsMilli : null,
+            dto.hasDaily && dto.daily != null
+                ? new DailyData(dto.daily.day, dto.daily.offsetMinutes, dto.daily.ids ?? new List<string>(), dto.daily.progress ?? new List<int>(),
+                    dto.daily.claimed ?? new List<bool>(), dto.daily.thermos, dto.daily.streak, dto.daily.lastThermosDay, dto.daily.towels, dto.daily.cosmetics ?? new List<string>())
+                : null);
     }
 
     private static DomainData FromDto(DomainDto d) => new(

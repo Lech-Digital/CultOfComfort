@@ -66,6 +66,7 @@ public sealed partial class BaseState
         MaterializeDomain(at);
         _researched.Add(_studying!.Id);
         _studying = null;
+        NoteDaily(DailyGoal.Study, 1, at);
     }
 
     private IReadOnlyList<TechView> ResearchViews() => Research.Techs.Select(t =>

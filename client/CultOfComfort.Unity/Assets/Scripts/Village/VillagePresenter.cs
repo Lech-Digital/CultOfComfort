@@ -18,6 +18,9 @@ namespace CultOfComfort.Client
         public int BuildingId; public BuildingType Type; public string Title; public string Output; public string Ready;
         public string UpgradeLabel; public bool CanUpgrade; public bool CanDemolish; public bool IsUpgrading; public string Remaining; public bool IsHearth;
         public bool IsWrecked; public string RepairLabel; public bool CanRepair;
+
+        /// <summary>Spend a Towel to take half an hour off (spec 2026-10-15 daily errands); null: no Towels to spend.</summary>
+        public string HurryLabel; public bool CanHurry;
         public string DemolishLabel = "Demolish"; public bool IsTerrain; public bool CanMove;
 
         /// <summary>Who works here (spec 2026-10-14 cultist work): the line, and whether − and + do anything.</summary>
@@ -137,6 +140,8 @@ namespace CultOfComfort.Client
                 CanDemolish = b.Type != BuildingType.Hearth && !b.IsUpgrading,
                 CanMove = b.Type != BuildingType.Hearth && !BuildingTable.IsRoad(b.Type),
                 IsUpgrading = b.IsUpgrading,
+                HurryLabel = b.IsUpgrading && snapshot.Daily != null ? $"Hurry {DailyBook.HurryMinutes} min · {DailyBook.HurryCost} Towel ({snapshot.Daily.Towels} left)" : null,
+                CanHurry = b.IsUpgrading && snapshot.Daily != null && snapshot.Daily.Towels >= DailyBook.HurryCost,
                 Remaining = b.IsUpgrading ? Duration((long)(b.UpgradeEndsAtUtc.Value - snapshot.AsOfUtc).TotalSeconds) + " left" : string.Empty,
             };
         }

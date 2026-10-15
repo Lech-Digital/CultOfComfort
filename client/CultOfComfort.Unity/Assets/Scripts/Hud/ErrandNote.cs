@@ -93,7 +93,7 @@ namespace CultOfComfort.Client
             return false;
         }
 
-        private static string Rewards(ResourceBag reward)
+        public static string Rewards(ResourceBag reward)
         {
             var parts = new List<string>();
             if (reward.Timber > 0) parts.Add($"+{reward.Timber} Timber");
