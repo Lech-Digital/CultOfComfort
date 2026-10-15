@@ -45,6 +45,22 @@ def build_icon(name):
     return path
 
 
+BRAND_DIR = os.path.abspath(os.path.join(HERE, "..", "branding"))
+
+
+def build_brand(name):
+    """Big transparent renders for branding (the app icon), composed afterwards by art/make_app_icon.py."""
+    module = importlib.import_module(f"branding.{name}")
+    scene.reset()
+    root = module.build()
+    checks.verify(root, module.TRIANGLE_BUDGET, ())
+    os.makedirs(BRAND_DIR, exist_ok=True)
+    path = os.path.join(BRAND_DIR, f"{name}_render.png")
+    icon.render_icon(root, path, size=getattr(module, "SIZE", 1024))
+    print(f"[art] brand {name} → {path}")
+    return path
+
+
 def _all_icons():
     folder = os.path.join(HERE, "icons")
     return sorted(f[:-3] for f in os.listdir(folder) if f.endswith(".py") and not f.startswith("_"))
@@ -61,7 +77,12 @@ def main(argv):
     parser.add_argument("--all", action="store_true")
     parser.add_argument("--no-preview", action="store_true")
     parser.add_argument("--icons", action="store_true")
+    parser.add_argument("--brand", action="store_true")
     args = parser.parse_args(argv)
+    if args.brand:
+        for name in args.names or ["app_icon"]:
+            build_brand(name)
+        return
     if args.icons:
         for name in args.names or _all_icons():
             build_icon(name)

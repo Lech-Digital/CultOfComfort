@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using UnityEditor;
+using UnityEditor.Android;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
@@ -31,6 +32,7 @@ namespace CultOfComfort.Editor
             PlayerSettings.allowedAutorotateToLandscapeLeft = true;
             PlayerSettings.allowedAutorotateToLandscapeRight = true;
             EditorUserBuildSettings.buildAppBundle = false;
+            ApplyIcons(android);
 
             var options = new BuildPlayerOptions
             {
@@ -46,6 +48,43 @@ namespace CultOfComfort.Editor
             if (summary.result != BuildResult.Succeeded && Application.isBatchMode)
             {
                 EditorApplication.Exit(1);
+            }
+        }
+
+        /// <summary>
+        /// The app icon (art/make_app_icon.py): the hooded duck in its tub on the Hearth's glow. Adaptive layers for
+        /// Android 8+, the full composite for round and legacy launchers and as the default icon.
+        /// </summary>
+        private static void ApplyIcons(NamedBuildTarget android)
+        {
+            const string folder = "Assets/Branding/";
+            AssetDatabase.ImportAsset(folder + "app_icon.png");
+            var full = AssetDatabase.LoadAssetAtPath<Texture2D>(folder + "app_icon.png");
+            var background = AssetDatabase.LoadAssetAtPath<Texture2D>(folder + "app_icon_background.png");
+            var foreground = AssetDatabase.LoadAssetAtPath<Texture2D>(folder + "app_icon_foreground.png");
+            if (full == null || background == null || foreground == null)
+            {
+                Debug.LogWarning("[CoC] App icon missing from Assets/Branding: run art/make_app_icon.py");
+                return;
+            }
+
+            PlayerSettings.SetIcons(NamedBuildTarget.Unknown, new[] { full }, IconKind.Any);
+            var adaptive = PlayerSettings.GetPlatformIcons(android, AndroidPlatformIconKind.Adaptive);
+            foreach (var icon in adaptive)
+            {
+                icon.SetTextures(background, foreground);
+            }
+
+            PlayerSettings.SetPlatformIcons(android, AndroidPlatformIconKind.Adaptive, adaptive);
+            foreach (var kind in new[] { AndroidPlatformIconKind.Round, AndroidPlatformIconKind.Legacy })
+            {
+                var icons = PlayerSettings.GetPlatformIcons(android, kind);
+                foreach (var icon in icons)
+                {
+                    icon.SetTexture(full);
+                }
+
+                PlayerSettings.SetPlatformIcons(android, kind, icons);
             }
         }
     }
