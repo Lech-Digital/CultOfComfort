@@ -278,6 +278,15 @@ namespace CultOfComfort.Client.Tests
             yield return new WaitForSecondsRealtime(5f);
             yield return null;
             SaveRendered(world, ui, Path.Combine(output, "world_map_far.png"));
+
+            // The missionaries' roster, then the lord's seat with the tithe.
+            var view = (WorldMapView)typeof(GameController).GetField("_map", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(game);
+            view.ShowRoster();
+            yield return new WaitForSecondsRealtime(0.5f);
+            SaveRendered(world, ui, Path.Combine(output, "world_map_roster.png"));
+            typeof(GameController).GetMethod("OpenSeat", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(game, null);
+            yield return new WaitForSecondsRealtime(3f);
+            SaveRendered(world, ui, Path.Combine(output, "world_map_tithe.png"));
         }
 
         [UnityTest]

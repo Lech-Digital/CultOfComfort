@@ -77,6 +77,7 @@ namespace CultOfComfort.Client
         private Transform _warBanner;
         private readonly List<Marcher> _patrols = new List<Marcher>();
         private readonly List<Marcher> _column = new List<Marcher>();
+        private readonly List<Marcher> _carts = new List<Marcher>();
         private Transform _raidTrail;
         private readonly List<GameObject> _raidDots = new List<GameObject>();
         private List<Vector2> _warPath = new List<Vector2>();
@@ -246,11 +247,41 @@ namespace CultOfComfort.Client
         public void Select(int? id)
         {
             _selected = id ?? int.MinValue;
-            var found = id != null && _anchors.TryGetValue(id.Value, out _);
+            var at = Vector2.zero;
+            var found = id != null && TryLand(id.Value, out at);
             _selection.gameObject.SetActive(found);
-            if (found && TryLand(id.Value, out var at))
+            if (found)
             {
                 _selection.localPosition = new Vector3(at.x, _land.Height(at) + 0.03f, at.y);
+            }
+        }
+
+        /// <summary>Flies to the missionary bound for a place (or to the place, if none is on the map).</summary>
+        public void FlyToMissionary(int nodeId)
+        {
+            var walker = _walkers.FirstOrDefault(w => w.NodeId == nodeId);
+            if (walker != null)
+            {
+                _rig.FlyTo(walker.At);
+            }
+            else
+            {
+                FlyTo(nodeId);
+            }
+        }
+
+        /// <summary>A cart of tithe trundles from your village to the lord's seat.</summary>
+        public void SendTithe(int seatId)
+        {
+            if (_land == null)
+            {
+                return;
+            }
+
+            var path = _land.Path(WorldMapPresenter.HomeId, seatId);
+            if (path.Count >= 2)
+            {
+                _carts.Add(new Marcher(_overlay, "haycart", path, 1.4f, 0f, pingPong: false, 0f, 1f, once: true));
             }
         }
 
@@ -427,13 +458,14 @@ namespace CultOfComfort.Client
 
         private void ClearMarchers()
         {
-            foreach (var m in _patrols.Concat(_column))
+            foreach (var m in _patrols.Concat(_column).Concat(_carts))
             {
                 m.Destroy();
             }
 
             _patrols.Clear();
             _column.Clear();
+            _carts.Clear();
             foreach (var dot in _raidDots)
             {
                 Destroy(dot);
@@ -455,9 +487,15 @@ namespace CultOfComfort.Client
                 _warBanner.localRotation = Quaternion.Euler(0f, Mathf.Sin(Time.time * 2.3f) * 12f, Mathf.Sin(Time.time * 3.1f) * 3f);
             }
 
-            foreach (var m in _patrols.Concat(_column))
+            foreach (var m in _patrols.Concat(_column).Concat(_carts))
             {
                 m.Tick(_land, dt);
+            }
+
+            foreach (var done in _carts.Where(c => c.Done).ToList())
+            {
+                done.Destroy();
+                _carts.Remove(done);
             }
 
             // A red trail ahead of the column, the way it's going.
@@ -975,7 +1013,14 @@ namespace CultOfComfort.Client
             at = default;
             if (!_anchors.TryGetValue(id, out var anchor))
             {
-                return false;
+                // Not grown yet (far off): the land still knows where it stands.
+                if (_land == null || !_land.TryPlace(id, out var place))
+                {
+                    return false;
+                }
+
+                at = place.At;
+                return true;
             }
 
             at = new Vector2(anchor.x - Origin.x, anchor.z - Origin.z);
@@ -1079,6 +1124,10 @@ namespace CultOfComfort.Client
                 _trail = new GameObject("Trail").transform;
                 _trail.SetParent(parent, false);
             }
+
+            public int NodeId => _model?.NodeId ?? -1;
+
+            public Vector2 At => _at;
 
             public void Set(WorldLand land, StageWalker model)
             {
@@ -1189,11 +1238,13 @@ namespace CultOfComfort.Client
             private readonly float _from;
             private readonly float _to;
             private readonly float _length;
+            private readonly bool _once;
             private float _t;
             private int _direction = 1;
 
-            public Marcher(Transform parent, string model, List<Vector2> path, float speed, float start, bool pingPong, float from, float to)
+            public Marcher(Transform parent, string model, List<Vector2> path, float speed, float start, bool pingPong, float from, float to, bool once = false)
             {
+                _once = once;
                 _figure = ArtLibrary.Instantiate(model, parent) ?? Shapes.Create(PrimitiveType.Capsule, Palette.ManAtArms, Vector3.zero, new Vector3(0.3f, 0.4f, 0.3f), parent);
                 _figure.transform.localScale = Vector3.one * 0.4f;
                 if (_figure.GetComponentsInChildren<Transform>().Any(t => t.name == "Body"))
@@ -1231,6 +1282,11 @@ namespace CultOfComfort.Client
                         _t = _to;
                         _direction = -1;
                     }
+                    else if (_once)
+                    {
+                        _t = _to;
+                        Done = true;
+                    }
                     else
                     {
                         _t = _from;
@@ -1251,6 +1307,9 @@ namespace CultOfComfort.Client
                     _figure.transform.localRotation = Quaternion.LookRotation(new Vector3(look.x, 0f, look.y));
                 }
             }
+
+            /// <summary>A one-way trip (a tithe cart) has arrived.</summary>
+            public bool Done { get; private set; }
 
             public void Destroy() => UnityEngine.Object.Destroy(_figure);
         }

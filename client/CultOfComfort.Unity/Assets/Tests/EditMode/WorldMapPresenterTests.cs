@@ -123,5 +123,45 @@ namespace CultOfComfort.Client.Tests
             // Assert
             Assert.IsNull(state.Snapshot(now).RaidWarningEndsAtUtc, "the suggested amount really calls it off");
         }
+        [Test]
+        public void Roster_OneWalkingTwoSlots_ShowsHerProgressThenAReadySlot()
+        {
+            // Arrange — half way through a 20-minute walk.
+            var m = new MissionaryView(1, 3, 2, MissionaryPhase.Travelling, T0.AddMinutes(10));
+
+            // Act
+            var rows = WorldMapPresenter.Roster(new[] { (m, "Mudwick", 1200.0) }, 2, true, T0);
+
+            // Assert
+            Assert.AreEqual(2, rows.Count);
+            Assert.AreEqual("Walking to Mudwick", rows[0].Title);
+            Assert.AreEqual(0.5f, rows[0].Progress, 0.01f);
+            Assert.AreEqual(3, rows[0].NodeId);
+            Assert.AreEqual(-1, rows[1].NodeId, "the second is ready at home");
+        }
+
+        [Test]
+        public void Roster_Preaching_ProgressIsTheSermon()
+        {
+            // Arrange — a 4-hour sermon with one hour left.
+            var m = new MissionaryView(1, 3, 4, MissionaryPhase.Preaching, T0.AddHours(1));
+
+            // Act
+            var rows = WorldMapPresenter.Roster(new[] { (m, "Mudwick", 1200.0) }, 1, true, T0);
+
+            // Assert
+            Assert.AreEqual(0.75f, rows[0].Progress, 0.01f);
+            StringAssert.Contains("preaching left", rows[0].Detail);
+        }
+
+        [Test]
+        public void Chip_NobodyOut_SaysHowManyAreReady()
+        {
+            // Act
+            var chip = WorldMapPresenter.Chip(WorldMapPresenter.Roster(Array.Empty<(MissionaryView, string, double)>(), 2, true, T0), 2);
+
+            // Assert
+            Assert.AreEqual("Missionaries: 2 ready", chip);
+        }
     }
 }

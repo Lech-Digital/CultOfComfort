@@ -45,3 +45,34 @@ Tithes and missionaries still share the map's panels. Giving them a better home 
 - **Top panel:** the lord's temper and the tithe button. **Bottom panel:** missionaries and offerings. The HUD steps aside while the map is open; the toast stays.
 - **Plates:** each place in the server's window has a floating plate with its name and a ring of faith shares. Far out, small places drop their names. The plates never catch a finger: the controller picks the place nearest a tap, by its model or its plate.
 - **Server window:** follows the camera. When the view moves 2 hexes or zooms out, the controller fetches the window round the new focus, with a radius that covers the view (up to 14).
+
+## Step 2: the realm, the lord's temper, tithes and missionaries
+
+The owner approved this step: "fix this thing and then work on the next points, then work on tithe and missionaries".
+
+### Far out (point 3)
+
+- **Zoom range:** the camera now zooms out to 62.
+- **Domain borders:** each lord's lands are drawn on the ground. They are the ground nearest his seat, with a dashed ink line where two seats are about as near.
+- **Plates:** past distance 30, only seats (on dark plates), camps, your village and your holdings keep a plate.
+- **Faith rings:** each place in view gets rings on the ground. Yours, in hi-vis, is on the inside; the strongest rival's, in its colour, is on the outside. Each ring widens with its share.
+
+### The lord's temper on the land (point 6)
+
+- **War banner:** past a third of his temper, his banner flies over his seat and grows as his temper rises.
+- **Patrols:** past 35%, his men-at-arms walk the road from his seat to your village, 1 to 4 of them.
+- **Raid warning:** a column of six marches on your village behind a red trail.
+
+### Tithes and missionaries: one map, three ways in
+
+| Button | Opens the map… |
+|--------|----------------|
+| Map | on your village |
+| Missionaries | with the roster |
+| Tithes | flown to the lord's seat, with its card open |
+
+- **The roster:** one row for every missionary out (what they're doing, where, and a progress bar for this leg or sermon) and one for every slot ready at home. Tapping a row flies the camera to that missionary.
+- **The tithe is paid at the seat:** the seat's card shows his temper, what it does, and the tithe options. After paying, a cart trundles from your village to his seat.
+- **Map panels:**
+  - The top panel is just his temper and "Pay a tithe", which flies to the seat.
+  - The bottom panel is a missionaries button (who's out, or how many are ready) and the offerings with Collect.

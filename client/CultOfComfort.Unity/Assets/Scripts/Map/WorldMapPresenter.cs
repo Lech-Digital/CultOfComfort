@@ -47,6 +47,17 @@ namespace CultOfComfort.Client
         public bool Enabled;
     }
 
+    /// <summary>One line of the missionaries' roster: a missionary out (where, doing what, how far along) or a free slot.</summary>
+    public sealed class RosterRow
+    {
+        public string Title;
+        public string Detail;
+        public float Progress;
+
+        /// <summary>Where they're bound (the camera flies to them), or -1 for a missionary at home, ready.</summary>
+        public int NodeId = -1;
+    }
+
     public sealed class TitheOption
     {
         public string Label;
@@ -102,6 +113,12 @@ namespace CultOfComfort.Client
         /// <summary>He has had enough: a raid is coming tonight.</summary>
         public bool RaidComing;
 
+        /// <summary>Every missionary slot, out or ready (the Missionaries sheet).</summary>
+        public List<RosterRow> Roster = new List<RosterRow>();
+
+        /// <summary>One line on the map's bottom button: who's out, or how many are ready.</summary>
+        public string MissionaryChip = string.Empty;
+
         /// <summary>The land the 3D map shows (null: nothing to show yet, e.g. waiting for the server).</summary>
         public WorldLand Land;
     }
@@ -113,6 +130,14 @@ namespace CultOfComfort.Client
         public List<string> Lines = new List<string>();
         public List<PreachOption> Options = new List<PreachOption>();
         public string Note;
+
+        /// <summary>The lord's own seat: the tithe is paid here (spec 2026-10-15 tithes at the seat).</summary>
+        public bool Seat;
+        public string Temper;
+        public float TemperFraction;
+        public string TemperHelp;
+        public List<TitheOption> Tithes = new List<TitheOption>();
+        public string TitheNote;
     }
 
     public static class WorldMapPresenter
@@ -205,6 +230,12 @@ namespace CultOfComfort.Client
                 model.Missionaries.Add(new MissionaryModel { Text = text, At = at, NodeId = node.Id, Phase = m.Phase, Fraction = fraction });
             }
 
+            model.Roster = Roster(domain.Missionaries.Select(m =>
+            {
+                var node = nodes.First(n => n.Id == m.NodeId);
+                return (m, node.Name, node.Distance * table.Domain.MinutesPerHex * 60.0);
+            }).ToList(), domain.MissionarySlots, true, now);
+            model.MissionaryChip = Chip(model.Roster, domain.MissionarySlots);
             var free = domain.MissionarySlots - domain.Missionaries.Count;
             model.MissionaryLine = domain.Missionaries.Count == 0
                 ? $"Missionaries: {free} ready. Tap a place to send one."
@@ -227,6 +258,67 @@ namespace CultOfComfort.Client
                 ? $"Wulfric was paid recently: tithes work at half strength for {VillagePresenter.Duration((long)(domain.TitheHalfUntilUtc.Value - now).TotalSeconds)}."
                 : "A tithe calms Wulfric down. Pay enough during a warning and he calls the raid off.";
             return model;
+        }
+
+        /// <summary>The roster: each missionary out, with how far along this leg (or sermon) they are; then the ready ones.</summary>
+        public static List<RosterRow> Roster(IReadOnlyList<(MissionaryView M, string Name, double WalkSeconds)> missionaries, int slots, bool unlocked, DateTimeOffset now)
+        {
+            var rows = new List<RosterRow>();
+            foreach (var (m, name, walk) in missionaries.OrderBy(x => x.M.PhaseEndsAtUtc))
+            {
+                var left = Math.Max(0, (m.PhaseEndsAtUtc - now).TotalSeconds);
+                var leg = m.Phase == MissionaryPhase.Preaching ? m.Hours * 3600.0 : walk;
+                rows.Add(new RosterRow
+                {
+                    Title = m.Phase switch
+                    {
+                        MissionaryPhase.Travelling => $"Walking to {name}",
+                        MissionaryPhase.Preaching => $"Preaching at {name}",
+                        _ => $"Walking home from {name}",
+                    },
+                    Detail = m.Phase switch
+                    {
+                        MissionaryPhase.Travelling => $"arrives in {VillagePresenter.Duration((long)left)}",
+                        MissionaryPhase.Preaching => $"{VillagePresenter.Duration((long)left)} of preaching left",
+                        _ => $"home in {VillagePresenter.Duration((long)left)}",
+                    },
+                    Progress = leg <= 0 ? 1f : Mathf.Clamp01((float)(1 - left / leg)),
+                    NodeId = m.NodeId,
+                });
+            }
+
+            if (unlocked)
+            {
+                for (var i = missionaries.Count; i < slots; i++)
+                {
+                    rows.Add(new RosterRow { Title = "Ready at the Hearth", Detail = "Tap a place on the map to send them.", Progress = 0f });
+                }
+            }
+
+            return rows;
+        }
+
+        /// <summary>The bottom button's line: the first missionary out (and how many), or how many are ready.</summary>
+        public static string Chip(IReadOnlyList<RosterRow> roster, int slots)
+        {
+            var out_ = roster.Where(r => r.NodeId >= 0).ToList();
+            if (out_.Count == 0)
+            {
+                return slots == 0 ? "Missionaries" : $"Missionaries: {slots} ready";
+            }
+
+            return $"{out_[0].Title} · {out_[0].Detail}" + (out_.Count > 1 ? $" (+{out_.Count - 1} out)" : string.Empty);
+        }
+
+        /// <summary>The lord's seat card carries the tithe: his temper, what it does, and what he'll take.</summary>
+        public static void AddTithe(NodeCardModel card, WorldMapModel model)
+        {
+            card.Seat = true;
+            card.Temper = model.TensionLine;
+            card.TemperFraction = model.TensionFraction;
+            card.TemperHelp = model.TensionHelp;
+            card.Tithes = model.Tithes;
+            card.TitheNote = model.TitheNote;
         }
 
         private static WorldLand _marchlands;

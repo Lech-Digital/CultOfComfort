@@ -66,3 +66,11 @@
 .map-plate-patron > .map-banner { display: flex; }
 .map-plate > .map-banner { top: -12px; right: -8px; }
 .map-plate-seat > .map-plate-name { background-color: #3a2a18; color: #f1e3c0; border-color: #a8322a; font-size: 11px; }
+/* Tithes at the seat, missionaries on a roster (spec 2026-10-15). */
+.map-chip { flex-direction: row; justify-content: flex-start; padding: 4px 8px; margin: 0 0 4px 0; }
+.map-chip > .map-line { -unity-text-align: middle-left; }
+.map-roster-row { flex-direction: column; align-items: stretch; padding: 6px 10px; margin: 3px 0; height: auto; min-height: 36px; }
+.map-roster-title { font-size: 14px; color: #3a2a18; -unity-font-style: bold; -unity-text-align: middle-left; white-space: normal; }
+.map-roster-bar { height: 6px; background-color: rgba(58, 42, 24, 0.2); border-radius: 3px; margin-top: 3px; }
+.map-roster-fill { height: 6px; background-color: #46618c; border-radius: 3px; width: 0; }
+.map-roster-row > .small { -unity-text-align: middle-left; white-space: normal; }
