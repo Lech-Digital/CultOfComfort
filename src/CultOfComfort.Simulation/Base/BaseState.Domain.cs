@@ -156,7 +156,7 @@ public sealed partial class BaseState
         }
 
         var slots = Domain.Missionaries(HearthLevel);
-        var busy = _missionaries.Select(m => m.PreacherId).ToHashSet();
+        var busy = PreacherOf().Values.ToHashSet();
         var preacher = requested != 0 ? requested : Enumerable.Range(1, slots).FirstOrDefault(id => !busy.Contains(id));
         if (preacher < 1 || preacher > slots)
         {
@@ -200,6 +200,36 @@ public sealed partial class BaseState
 
     private int PreacherXp(int id) => _preacherXp.TryGetValue(id, out var xp) ? xp : 0;
 
+    /// <summary>
+    /// Which preacher each missionary out is (missionary id → preacher id). One sent before the Mission House has no
+    /// preacher of their own: they count as the lowest seat nobody else holds, so the house never shows a free preacher
+    /// whose seat is out on the road.
+    /// </summary>
+    private Dictionary<int, int> PreacherOf()
+    {
+        var map = new Dictionary<int, int>();
+        var taken = _missionaries.Where(m => m.PreacherId > 0).Select(m => m.PreacherId).ToHashSet();
+        var next = 1;
+        foreach (var m in _missionaries.OrderBy(m => m.Id))
+        {
+            if (m.PreacherId > 0)
+            {
+                map[m.Id] = m.PreacherId;
+                continue;
+            }
+
+            while (taken.Contains(next))
+            {
+                next++;
+            }
+
+            map[m.Id] = next;
+            taken.Add(next);
+        }
+
+        return map;
+    }
+
     /// <summary>Research plus the preacher's level and quirk, in percent.</summary>
     private int SermonBonusPercent(MissionaryData m) =>
         Bonus(TechEffect.MissionaryPercent) + (m.PreacherId > 0 ? Preachers.BonusPercent(m.PreacherId, PreacherXp(m.PreacherId)) : 0);
@@ -207,19 +237,15 @@ public sealed partial class BaseState
     /// <summary>A preacher gets home: experience for the sermon, whatever the road gave (if the stores have room), a report.</summary>
     private void ComeHome(MissionaryData m, DateTimeOffset at)
     {
-        if (m.PreacherId <= 0)
-        {
-            return; // sent before the Mission House: nobody to write a report
-        }
-
-        var (find, gift, xp) = Preachers.Find(m.Id, m.PreacherId, m.Hours);
-        _preacherXp[m.PreacherId] = PreacherXp(m.PreacherId) + Preachers.XpFor(m.PreacherId, m.Hours) + xp;
+        var preacher = m.PreacherId > 0 ? m.PreacherId : PreacherOf()[m.Id]; // one from before the Mission House: their seat's preacher
+        var (find, gift, xp) = Preachers.Find(m.Id, preacher, m.Hours);
+        _preacherXp[preacher] = PreacherXp(preacher) + Preachers.XpFor(preacher, m.Hours) + xp;
         var caps = Caps;
         var taken = new ResourceBag(
             Math.Min(gift.Timber, Math.Max(0, caps.Timber - _stock.Timber)), Math.Min(gift.Peat, Math.Max(0, caps.Peat - _stock.Peat)),
             Math.Min(gift.Scrap, Math.Max(0, caps.Scrap - _stock.Scrap)), Math.Min(gift.Devotion, Math.Max(0, caps.Devotion - _stock.Devotion)));
         _stock += taken;
-        _reports.Add(new RoadReport(m.PreacherId, m.NodeId, m.Distance != null, m.Hours, find, taken, at.UtcTicks));
+        _reports.Add(new RoadReport(preacher, m.NodeId, m.Distance != null, m.Hours, find, taken, at.UtcTicks));
         if (_reports.Count > ReportsKept)
         {
             _reports.RemoveAt(0);
@@ -456,19 +482,20 @@ public sealed partial class BaseState
             return new DomainNodeView(n, (int)(influence / 1000), influence >= Domain.PatronInfluence * 1000L, HearthLevel >= Domain.UnlockHearth && n.Distance <= reach,
                 Domain.Kinds[n.Type].OfferingsPerHour, n.Distance * Domain.MinutesPerHex);
         }).ToList();
+        var preacherOf = PreacherOf();
         var missionaries = _missionaries.Select(m =>
         {
             var preachEnds = MissionaryPreachEnds(m);
             var arrives = preachEnds.AddHours(-m.Hours);
             var phase = m.Preached ? MissionaryPhase.Returning : now < arrives ? MissionaryPhase.Travelling : MissionaryPhase.Preaching;
             return new MissionaryView(m.Id, m.NodeId, m.Hours, phase, phase == MissionaryPhase.Returning ? MissionaryHome(m) : phase == MissionaryPhase.Travelling ? arrives : preachEnds,
-                m.PreacherId, SermonBonusPercent(m));
+                preacherOf[m.Id], SermonBonusPercent(m));
         }).ToList();
         var preachers = Enumerable.Range(1, Domain.Missionaries(HearthLevel)).Select(id =>
         {
             var xp = PreacherXp(id);
             return new PreacherView(id, Preachers.Name(id), Preachers.Quirk(id), Preachers.Level(xp), xp, Preachers.XpForNext(xp), Preachers.BonusPercent(id, xp),
-                _missionaries.FirstOrDefault(m => m.PreacherId == id)?.Id);
+                preacherOf.Where(p => p.Value == id).Select(p => (int?)p.Key).FirstOrDefault());
         }).ToList();
         var demand = _demand == null ? null : new DemandView(_demand.Id, _demand.Amount, new DateTimeOffset(_demand.DueAtUtcTicks, TimeSpan.Zero),
             Demands.TemperDrop(_demand.Amount, Domain) * (100 + Bonus(TechEffect.TithePercent)) / 100, Demands.MissPenalty, Demands.Reason(_demand.Id));

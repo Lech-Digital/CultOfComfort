@@ -140,6 +140,27 @@ public class MissionHouseTests
         restored.Reports.Should().BeEquivalentTo(before.Reports);
     }
 
+    [Fact]
+    public void Snapshot_AMissionarySentBeforeTheMissionHouse_HoldsTheFirstSeat()
+    {
+        // Arrange — an old save's missionary has no preacher of their own (PreacherId 0).
+        var (state, now) = Village(2);
+        state.Apply(new SendMissionary(Guid.NewGuid(), Muddlecombe.Id, 8), now);
+        var data = state.ToData();
+        var old = data with { Domain = data.Domain! with { Missionaries = data.Domain.Missionaries.Select(m => m with { PreacherId = 0 }).ToList() } };
+        var restored = BaseState.Restore(Rich(), VillageMap.Demo, old);
+
+        // Act
+        var domain = restored.Snapshot(now).Domain!;
+        var again = restored.Apply(new SendMissionary(Guid.NewGuid(), Muddlecombe.Id, 1), now);
+
+        // Assert
+        domain.Preachers!.Single().MissionaryId.Should().Be(domain.Missionaries.Single().Id, "Brother Damp's seat is on the road");
+        domain.Missionaries.Single().PreacherId.Should().Be(1);
+        again.Status.Should().Be(CommandStatus.Rejected);
+        restored.Snapshot(now.AddHours(9)).Domain!.Reports.Should().ContainSingle().Which.PreacherId.Should().Be(1, "he writes the report");
+    }
+
     [Theory]
     [InlineData(0, 1)]
     [InlineData(15, 1)]
