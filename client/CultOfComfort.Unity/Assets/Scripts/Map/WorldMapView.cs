@@ -79,9 +79,12 @@ namespace CultOfComfort.Client
             _title.AddToClassList("map-title");
             var zoom = new VisualElement();
             zoom.AddToClassList("map-zoom");
+            var home = UiGlyphs.Home("map-home", () => Recentred?.Invoke());
+            home.AddToClassList("map-close");
+            zoom.Add(home);
             foreach (var (text, name, act) in new (string, string, Action)[]
                      {
-                         ("⌂", "map-home", () => Recentred?.Invoke()), ("−", "map-zoom-out", () => Zoomed?.Invoke(+1)), ("+", "map-zoom-in", () => Zoomed?.Invoke(-1)),
+                         ("−", "map-zoom-out", () => Zoomed?.Invoke(+1)), ("+", "map-zoom-in", () => Zoomed?.Invoke(-1)),
                      })
             {
                 var b = new Button(act) { name = name, text = text };
@@ -91,7 +94,7 @@ namespace CultOfComfort.Client
 
             var help = new Button(ShowHelp) { name = "map-help", text = "?" };
             help.AddToClassList("map-close");
-            var close = new Button(() => Closed?.Invoke()) { name = "map-close", text = "✕" };
+            var close = UiGlyphs.Close("map-close", () => Closed?.Invoke());
             close.AddToClassList("map-close");
             header.Add(_title);
             header.Add(zoom);
@@ -337,25 +340,45 @@ namespace CultOfComfort.Client
             }
 
             ApplySafeArea(panel);
-            var far = distance > 27f;
+            var size = new Vector2(_root.layout.width, _root.layout.height);
+            var centre = size / 2f;
+            var shown = new List<(MapNodeModel Node, Vector2 At)>();
             foreach (var node in _model.Nodes)
             {
-                var plate = _plates[node.Id];
                 var at = screenOf(node.Id);
                 if (at == null)
+                {
+                    _plates[node.Id].style.display = DisplayStyle.None;
+                    continue;
+                }
+
+                shown.Add((node, new Vector2(at.Value.x * size.x, at.Value.y * size.y)));
+            }
+
+            // Most important first; a plate that would overlap one already up waits until there's room (zoom in).
+            var taken = new List<Rect>();
+            foreach (var (node, local) in shown.OrderBy(p => Priority(p.Node)).ThenBy(p => (p.At - centre).sqrMagnitude))
+            {
+                var plate = _plates[node.Id];
+                var width = plate.layout.width > 1f ? plate.layout.width : 34f + node.Name.Length * 6f;
+                var height = plate.layout.height > 1f ? plate.layout.height : 26f;
+                var rect = new Rect(local.x - width / 2f - 3f, local.y - height - 2f, width + 6f, height + 4f);
+                if (node.Id != _selected && !node.Home && taken.Any(r => r.Overlaps(rect)))
                 {
                     plate.style.display = DisplayStyle.None;
                     continue;
                 }
 
-                var local = new Vector2(at.Value.x * _root.layout.width, at.Value.y * _root.layout.height);
+                taken.Add(rect);
                 plate.style.display = DisplayStyle.Flex;
                 plate.style.left = local.x;
                 plate.style.top = local.y;
-                plate.EnableInClassList("map-plate-quiet", far && !node.Home && !node.Camp && !node.Patron && node.Id != _selected);
                 plate.EnableInClassList("map-plate-selected", node.Id == _selected);
             }
         }
+
+        private int Priority(MapNodeModel node) =>
+            node.Home || node.Id == _selected ? 0 : node.Camp ? 1 : node.Patron ? 2 : node.Influence > 0 || node.RivalShare > 0 ? 3 : 4;
 
         /// <summary>The panels keep clear of the camera cutout and the gesture bar (UI Toolkit ignores the safe area).</summary>
         private void ApplySafeArea(IPanel panel)
