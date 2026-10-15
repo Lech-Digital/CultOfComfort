@@ -118,6 +118,12 @@ namespace CultOfComfort.Client
         private readonly VisualElement _settings;
         private readonly Label _probe;
         private readonly Label _toast;
+        private readonly VisualElement _daily;
+        private readonly Label _dailyHeading;
+        private readonly VisualElement _dailyLines;
+        private readonly Button _thermos;
+        private readonly Label _dailyFooter;
+        private string _dailySignature;
         private readonly VisualElement _card;
         private readonly Label _cardTitle;
         private readonly Label _cardSummary;
@@ -332,6 +338,24 @@ namespace CultOfComfort.Client
             _errand.Add(_errandFold);
             Show(_errand, false);
             centre.Add(_errand);
+
+            // The daily list takes the note's place once the starter errands are done (spec 2026-10-15).
+            _daily = new VisualElement { name = "daily-note" };
+            _daily.AddToClassList("errand-note");
+            _daily.AddToClassList("daily-note");
+            _daily.AddToClassList("note-yellow");
+            _dailyHeading = Text(string.Empty, "errand-heading");
+            _dailyHeading.RegisterCallback<ClickEvent>(_ => ErrandFoldClicked?.Invoke()); // the heading folds it, like the errand
+            _dailyLines = new VisualElement { name = "daily-lines" };
+            _thermos = ButtonWith("Open the Thermos", () => ThermosClicked?.Invoke(), "daily-thermos");
+            _thermos.name = "daily-thermos";
+            _dailyFooter = Text(string.Empty, "daily-footer");
+            _daily.Add(_dailyHeading);
+            _daily.Add(_dailyLines);
+            _daily.Add(_thermos);
+            _daily.Add(_dailyFooter);
+            Show(_daily, false);
+            centre.Add(_daily);
             centre.Add(_toast);
             centre.Add(_lockedNote);
             middle.Add(_sideLeft);
@@ -469,6 +493,11 @@ namespace CultOfComfort.Client
         public event Action UpgradeClicked;
         public event Action DemolishClicked;
         public event Action FinishNowClicked;
+
+        /// <summary>Spend a Towel: half an hour off the construction.</summary>
+        public event Action HurryClicked;
+
+        private Button _hurry;
         public event Action RepairClicked;
 
         /// <summary>The building card's crew − / +: the crew the player now wants there.</summary>
@@ -703,6 +732,12 @@ namespace CultOfComfort.Client
             _upgrade.text = card.UpgradeLabel;
             _upgrade.SetEnabled(card.CanUpgrade);
             Show(_finishNow, card.IsUpgrading && _devMode);
+            Show(_hurry, card.HurryLabel != null);
+            if (card.HurryLabel != null)
+            {
+                _hurry.text = card.HurryLabel;
+                _hurry.SetEnabled(card.CanHurry);
+            }
             Show(_demolish, card.CanDemolish);
             _demolish.text = card.DemolishLabel;
             Show(_move, card.CanMove);
@@ -758,6 +793,60 @@ namespace CultOfComfort.Client
         public void SetStartWaiting(bool waiting) => _root.Q<Button>("start-night")?.EnableInClassList("waiting", waiting);
 
         /// <summary>The current errand (null hides the note: no errands left, or a Night is on).</summary>
+        public event Action<int> DailyClaimClicked;
+        public event Action<int> DailySwapClicked;
+        public event Action ThermosClicked;
+
+        /// <summary>Today's list (null: hidden): a line per errand with Claim, or Swap for 2 Towels; the Thermos; the footer.</summary>
+        public void ShowDaily(DailyNote note)
+        {
+            Show(_daily, note != null);
+            if (note == null)
+            {
+                return;
+            }
+
+            _dailyHeading.text = note.Heading + (_errandFolded ? " ▸" : string.Empty);
+            Show(_dailyLines, !_errandFolded);
+            Show(_dailyFooter, !_errandFolded);
+            Show(_thermos, note.ThermosReady);
+            _dailyFooter.text = note.Footer;
+            var signature = _errandFolded + "#" + string.Join("|", note.Lines.Select(l => $"{l.Text}{l.Progress}{l.CanClaim}{l.Claimed}{l.CanSwap}"));
+            if (signature == _dailySignature)
+            {
+                return;
+            }
+
+            _dailySignature = signature;
+            _dailyLines.Clear();
+            foreach (var line in note.Lines)
+            {
+                var slot = line.Slot;
+                var row = Container("daily-line");
+                row.pickingMode = PickingMode.Position;
+                row.EnableInClassList("daily-claimed", line.Claimed);
+                row.Add(Text(line.Text + (string.IsNullOrEmpty(line.Progress) ? string.Empty : $" ({line.Progress})"), "daily-text"));
+                var under = Container("daily-under");
+                under.pickingMode = PickingMode.Position;
+                under.Add(Text(line.Claimed ? "Paid." : line.Reward, "errand-reward"));
+                if (line.CanClaim)
+                {
+                    var claim = ButtonWith("Claim", () => DailyClaimClicked?.Invoke(slot), "daily-button");
+                    claim.name = $"daily-claim-{slot}";
+                    under.Add(claim);
+                }
+                else if (line.CanSwap)
+                {
+                    var swap = ButtonWith($"Swap · {DailyBook.RerollCost} Towels", () => DailySwapClicked?.Invoke(slot), "daily-button", "daily-swap");
+                    swap.name = $"daily-swap-{slot}";
+                    under.Add(swap);
+                }
+
+                row.Add(under);
+                _dailyLines.Add(row);
+            }
+        }
+
         public void ShowErrand(ErrandNote note)
         {
             Show(_errand, note != null);
@@ -1309,6 +1398,8 @@ namespace CultOfComfort.Client
             upgrade.name = "upgrade";
             finishNow = ButtonWith("Finish now (dev)", () => FinishNowClicked?.Invoke(), "plain");
             finishNow.name = "finish-now";
+            _hurry = ButtonWith("Hurry", () => HurryClicked?.Invoke(), "plain");
+            _hurry.name = "hurry";
             demolish = ButtonWith("Demolish", () => DemolishClicked?.Invoke(), "plain");
             demolish.name = "demolish";
             _move = ButtonWith("Move", () => MoveClicked?.Invoke(), "plain");
@@ -1340,7 +1431,7 @@ namespace CultOfComfort.Client
                 BuildingCardClosed?.Invoke();
             }, "plain");
             close.name = "card-close";
-            foreach (var element in new VisualElement[] { title, output, ready, _crewRow, remaining, _repair, upgrade, finishNow, _move, demolish, close })
+            foreach (var element in new VisualElement[] { title, output, ready, _crewRow, remaining, _repair, upgrade, _hurry, finishNow, _move, demolish, close })
             {
                 sheet.Add(element);
             }

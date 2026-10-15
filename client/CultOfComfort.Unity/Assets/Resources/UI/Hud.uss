@@ -382,3 +382,18 @@
 .build-tab-open { background-color: #f6e7c4; color: #3a2a18; border-color: #f6e7c4; }
 .landscape .build-tabs { flex-direction: column; margin: 0 6px 0 0; }
 .landscape .build-tab { font-size: 11px; padding: 1px 8px; margin: 1px 0; }
+/* the Prophet's daily list (spec 2026-10-15) */
+.daily-note { width: 68%; max-width: 340px; }
+.daily-text { font-size: 12px; white-space: normal; color: #2b2215; -unity-font-definition: resource("UI/Fonts/PermanentMarker"); }
+.daily-claimed .daily-text { opacity: 0.5; }
+.daily-button { font-size: 11px; padding: 2px 8px; margin-left: 6px; height: 26px; border-radius: 6px; background-color: rgba(43, 34, 21, 0.85); color: #f6e7c4; border-width: 0; }
+.daily-swap { background-color: rgba(43, 34, 21, 0.35); color: #2b2215; }
+.daily-thermos { margin-top: 6px; height: 30px; font-size: 13px; border-radius: 8px; background-color: #46618c; color: #f6e7c4; border-width: 0; }
+.daily-footer { font-size: 10px; color: #5a4632; margin-top: 4px; white-space: normal; }
+.daily-note { padding: 5px 9px 6px 9px; }
+.daily-line { flex-direction: column; align-items: stretch; align-self: stretch; margin-top: 3px; }
+.daily-under { flex-direction: row; align-items: center; justify-content: space-between; }
+.daily-text { font-size: 10px; margin: 0; padding: 0; }
+.daily-line .errand-reward { font-size: 9px; margin: 0; }
+.daily-button { flex-shrink: 0; height: 22px; font-size: 10px; padding: 1px 6px; }
+.daily-footer { font-size: 9px; margin-top: 2px; }

@@ -41,7 +41,8 @@ public sealed record BaseSnapshot(
     DomainView? Domain = null,
     IReadOnlyList<TechView>? Research = null,
     IReadOnlyList<(string Label, int Amount)>? ComfortParts = null,
-    int IdleVillagers = 0)
+    int IdleVillagers = 0,
+    DailyView? Daily = null)
 {
     public DateTimeOffset? ConstructionEndsAtUtc => Buildings.FirstOrDefault(b => b.IsUpgrading)?.UpgradeEndsAtUtc;
 

@@ -37,6 +37,11 @@ public class ContractsTests
         new SendWorldMissionary(Guid.NewGuid(), 1201, 8, 3),
         new SendWorldMissionary(Guid.NewGuid(), 1201, 8, 3, PreacherId: 1),
         new MeetDemand(Guid.NewGuid(), 4),
+        new ClaimDaily(Guid.NewGuid(), 2),
+        new ClaimThermos(Guid.NewGuid()),
+        new SpendTowels(Guid.NewGuid(), TowelUse.Reroll, 1),
+        new SpendTowels(Guid.NewGuid(), TowelUse.Hurry),
+        new SetDayClock(Guid.NewGuid(), 120),
         new SetCrew(Guid.NewGuid(), 4, 1),
         new CollectOfferings(Guid.NewGuid()),
         new PayTithe(Guid.NewGuid(), new ResourceBag(100, 20, 30, 40)),
@@ -138,6 +143,23 @@ public class ContractsTests
         back.Domain.Demand.Should().NotBeNull();
         BaseState.Restore(table, VillageMap.Demo, back).Snapshot(later).Domain.Should()
             .BeEquivalentTo(BaseState.Restore(table, VillageMap.Demo, data).Snapshot(later).Domain);
+    }
+
+    [Fact]
+    public void VillageJson_DailyList_RoundTrips()
+    {
+        // Arrange
+        var data = BaseState.CreateNew(new BuildingTable(), VillageMap.Demo, T0).ToData() with
+        {
+            ErrandIndex = ErrandBook.Default.Errands.Count,
+            Daily = new DailyData(20376, 120, new[] { "preach", "build", "trade" }, new[] { 3, 2, 0 }, new[] { false, true, false }, false, 4, 20375, 9, new[] { "golden-duck" }),
+        };
+
+        // Act
+        var back = VillageJson.Read(VillageJson.Write(data));
+
+        // Assert
+        back.Daily.Should().BeEquivalentTo(data.Daily);
     }
 
     [Fact]

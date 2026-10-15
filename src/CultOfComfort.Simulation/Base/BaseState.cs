@@ -144,6 +144,7 @@ public sealed partial class BaseState
 
         state.RestoreDomain(data.Domain, state._tensionAsOf);
         state.RestoreResearch(data.Research);
+        state.RestoreDaily(data.Daily);
 
         if (data.LayoutVersion < 1)
         {
@@ -495,7 +496,8 @@ public sealed partial class BaseState
         _errandEventDone,
         DomainToData(),
         ResearchToData(),
-        _fractions.ToList());
+        _fractions.ToList(),
+        DailyToData());
 
     public CommandOutcome Apply(BaseCommand command, DateTimeOffset nowUtc)
     {
@@ -505,8 +507,10 @@ public sealed partial class BaseState
         }
 
         Advance(nowUtc);
+        EnsureDay(nowUtc);
         _now = nowUtc;
         MaterializeAll(nowUtc); // whatever this command changes, production up to now was earned under the old rules
+        var roadsBefore = _buildings.Count(b => BuildingTable.IsRoad(b.Type));
         if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain or SendMissionary or SendWorldMissionary or PayTithe or MeetDemand or SetCrew)
         {
             return CommandOutcome.Reject("Not now — there's a Night on.") with { Version = Version };
@@ -542,6 +546,10 @@ public sealed partial class BaseState
             CollectOfferings _ => CollectOfferings(nowUtc),
             PayTithe tithe => Tithe(tithe, nowUtc),
             MeetDemand meet => Meet(meet, nowUtc),
+            ClaimDaily claim => ClaimDailyErrand(claim, nowUtc),
+            ClaimThermos _ => OpenThermos(nowUtc),
+            SpendTowels spend => Spend(spend, nowUtc),
+            SetDayClock clock => SetClock(clock),
             StartResearch start => StartStudy(start, nowUtc),
             Trade trade => DoTrade(trade),
             RepairBuilding repair => Repair(repair.BuildingId, nowUtc),
@@ -552,6 +560,8 @@ public sealed partial class BaseState
         SettlePeople(nowUtc);
         if (outcome.Status == CommandStatus.Accepted)
         {
+            NoteDailyCommand(command, outcome, nowUtc, roadsBefore);
+            EnsureDay(nowUtc); // the last starter errand claimed: the first daily list is today's
             Version++;
             Remember(command.CommandId);
         }
@@ -562,6 +572,7 @@ public sealed partial class BaseState
     public BaseSnapshot Snapshot(DateTimeOffset nowUtc)
     {
         Advance(nowUtc);
+        EnsureDay(nowUtc);
         _now = nowUtc;
         var views = _buildings.Select(b => new BuildingView(
             b.Id, b.Type, b.Level, b.Position, 0, 0, Rate(b), b.UpgradeEndsAtUtc, b.Wrecked, b.Rotated, b.Tiles, IsConnected(b),
@@ -569,7 +580,7 @@ public sealed partial class BaseState
         var tension = TensionValue(nowUtc);
         return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
             tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport, _cleared.Concat(_treeCuts.Keys.Where(t => !IsWildTreeStanding(t))).ToList(),
-            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts(), IdleVillagers());
+            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts(), IdleVillagers(), DailyViewAt(nowUtc));
     }
 
     public ResourceBag Caps
@@ -864,7 +875,7 @@ public sealed partial class BaseState
         var salvage = Math.Min(_table.Salvage(night.Stars), Math.Max(0, Caps.Scrap - _stock.Scrap));
         _stock += new ResourceBag(0, 0, salvage, 0);
         LastNightRecorded = night.Night;
-        NoteNight(night.Stars);
+        NoteNight(night.Stars, now);
         foreach (var id in night.WreckedBuildingIds ?? Array.Empty<int>())
         {
             var building = Find(id);
@@ -1279,7 +1290,7 @@ public sealed partial class BaseState
         _raid = null;
         _night = null;
         LastNightRecorded = plan.Night;
-        NoteNight(result.Stars);
+        NoteNight(result.Stars, at);
         var report = new NightReport(plan.Night, plan.Scheduled, whileAway, result.Stars, result.HearthHealth, result.HearthMaxHealth, wrecked, salvage, result.StateHashHex);
         if (whileAway)
         {

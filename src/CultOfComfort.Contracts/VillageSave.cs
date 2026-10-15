@@ -48,6 +48,24 @@ public sealed class VillageSaveDto
     public List<string> researched;   // older saves: none
     public string researching;        // empty: nothing under way
     public long researchEndsTicks;
+    public bool hasDaily;             // older saves: no daily list yet
+    public DailyDto daily;
+}
+
+/// <summary>The Prophet's daily list (spec 2026-10-15): today's errands, the Thermos, the streak, the Towels.</summary>
+[Serializable]
+public sealed class DailyDto
+{
+    public int day;
+    public int offsetMinutes;
+    public List<string> ids;
+    public List<int> progress;
+    public List<bool> claimed;
+    public bool thermos;
+    public int streak;
+    public int lastThermosDay;
+    public int towels;
+    public List<string> cosmetics;
 }
 
 /// <summary>The Marchlands (spec 2026-10-14 world map): influence per node, missionaries, the offerings purse.</summary>

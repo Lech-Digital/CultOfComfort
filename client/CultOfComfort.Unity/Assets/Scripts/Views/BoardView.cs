@@ -527,6 +527,40 @@ namespace CultOfComfort.Client
             }
         }
 
+        private GameObject _goldenDuck;
+
+        /// <summary>The week's prizes on show (spec 2026-10-15 daily errands): the golden duck sits on the Hearth's ruin.</summary>
+        public void SetCosmetics(IReadOnlyList<string> cosmetics)
+        {
+            var duck = cosmetics != null && cosmetics.Contains("golden-duck");
+            if (duck == (_goldenDuck != null))
+            {
+                return;
+            }
+
+            if (!duck)
+            {
+                Destroy(_goldenDuck);
+                _goldenDuck = null;
+                return;
+            }
+
+            var at = Shapes.ToWorld(new GridPosition(VillageMap.Demo.Hearth.X + 2, VillageMap.Demo.Hearth.Y + 2), 0.05f);
+            _goldenDuck = Place("rubber_duck", at, 200f, 1.6f);
+            if (_goldenDuck == null)
+            {
+                _goldenDuck = Shapes.Create(PrimitiveType.Sphere, Shapes.Hex("#e8c547"), at + Vector3.up * 0.2f, Vector3.one * 0.4f, _root, "Golden duck");
+                return;
+            }
+
+            _goldenDuck.name = "Golden duck";
+            var gold = new MaterialPropertyBlock();
+            foreach (var renderer in _goldenDuck.GetComponentsInChildren<Renderer>())
+            {
+                Shapes.Tint(renderer, Shapes.Hex("#ffd34d"), gold);
+            }
+        }
+
         /// <summary>
         /// Gates open for friends (owner 2026-10-15: "the gate should open when prophet or other of our allies are coming
         /// through"): the leaves of <paramref name="open"/> swing back (the gatehouse lifts its portcullis); the rest close.

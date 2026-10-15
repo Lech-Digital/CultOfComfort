@@ -246,6 +246,7 @@ public sealed partial class BaseState
             Math.Min(gift.Scrap, Math.Max(0, caps.Scrap - _stock.Scrap)), Math.Min(gift.Devotion, Math.Max(0, caps.Devotion - _stock.Devotion)));
         _stock += taken;
         _reports.Add(new RoadReport(preacher, m.NodeId, m.Distance != null, m.Hours, find, taken, at.UtcTicks));
+        NoteDaily(DailyGoal.RoadFind, find == RoadFind.Nothing ? 0 : 1, at);
         if (_reports.Count > ReportsKept)
         {
             _reports.RemoveAt(0);

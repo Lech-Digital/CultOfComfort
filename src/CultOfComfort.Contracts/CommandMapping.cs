@@ -57,6 +57,15 @@ public static class CommandMapping
             case MeetDemand c:
                 dto.amount = c.DemandId;
                 break;
+            case ClaimDaily c:
+                dto.amount = c.Slot;
+                break;
+            case SpendTowels c:
+                (dto.give, dto.amount) = (c.Use.ToString(), c.Slot);
+                break;
+            case SetDayClock c:
+                dto.amount = c.OffsetMinutes;
+                break;
             case SetCrew c:
                 (dto.buildingId, dto.amount) = (c.BuildingId, c.Crew);
                 break;
@@ -109,6 +118,10 @@ public static class CommandMapping
             nameof(DebugEndShield) => new DebugEndShield(id),
             nameof(SendMissionary) => new SendMissionary(id, dto.buildingId, dto.amount, dto.y),
             nameof(MeetDemand) => new MeetDemand(id, dto.amount),
+            nameof(ClaimDaily) => new ClaimDaily(id, dto.amount),
+            nameof(ClaimThermos) => new ClaimThermos(id),
+            nameof(SpendTowels) => new SpendTowels(id, Enum.TryParse<TowelUse>(dto.give, out var use) ? use : throw new ArgumentException("Towels don't do that."), dto.amount),
+            nameof(SetDayClock) => new SetDayClock(id, dto.amount),
             nameof(SetCrew) => new SetCrew(id, dto.buildingId, dto.amount),
             nameof(SendWorldMissionary) => new SendWorldMissionary(id, dto.buildingId, dto.amount, dto.x, dto.y),
             nameof(CollectOfferings) => new CollectOfferings(id),

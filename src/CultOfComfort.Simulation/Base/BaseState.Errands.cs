@@ -74,8 +74,10 @@ public sealed partial class BaseState
         }
     }
 
-    private void NoteNight(int stars)
+    private void NoteNight(int stars, DateTimeOffset at)
     {
+        NoteDaily(DailyGoal.SurviveNight, 1, at);
+        NoteDaily(DailyGoal.WinNight, stars >= 2 ? 1 : 0, at);
         var errand = CurrentErrand;
         _errandEventDone |= errand?.Goal == ErrandGoal.SurviveNight || (errand?.Goal == ErrandGoal.WinRaid && stars >= errand.Target);
     }
