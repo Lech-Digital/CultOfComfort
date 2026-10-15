@@ -46,3 +46,22 @@
     border-bottom-left-radius: 0; border-bottom-right-radius: 0; -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC"); }
 .sheet-tab-open { background-color: #f1e3c0; border-color: #6b5238; border-bottom-width: 2px; border-bottom-color: #f1e3c0; -unity-font-style: bold; }
 .sheet-scroll { margin-top: 2px; }
+/* The real map (spec 2026-10-15): the land fills the screen; panels at the top and bottom, plates over the places. */
+.world-map-3d { position: absolute; left: 0; right: 0; top: 0; bottom: 0; flex-direction: column; }
+.map-top { padding: 8px 12px 6px 12px; margin: 0 6px; }
+.map-bottom { padding: 8px 12px; margin: 0 6px; }
+.map-status { align-self: center; margin-top: 10px; padding: 4px 10px; font-size: 13px; color: #3a2a18; background-color: rgba(241, 227, 192, 0.85); border-radius: 6px; display: none; }
+.map-plate { position: absolute; flex-direction: row; align-items: center; translate: -50% -100%; padding: 0; margin: 0; background-color: rgba(0, 0, 0, 0); border-width: 0; }
+.map-plate-ring { width: 26px; height: 26px; border-radius: 13px; background-color: rgba(241, 227, 192, 0.92); align-items: center; justify-content: center; margin-right: -4px; }
+.map-plate-share { font-size: 8px; color: #3a2a18; padding: 0; margin: 0; -unity-font-style: bold; }
+.map-plate-name {
+    font-size: 10px; color: #3a2a18; padding: 1px 6px 1px 7px; margin: 0; background-color: rgba(241, 227, 192, 0.92); border-radius: 4px;
+    border-width: 0 0 2px 0; border-color: rgba(107, 82, 56, 0.6); white-space: nowrap; -unity-font-style: bold;
+}
+.map-plate-home > .map-plate-name { background-color: #ffe7a8; border-color: #46618c; font-size: 11px; }
+.map-plate-camp > .map-plate-name { background-color: rgba(227, 207, 166, 0.95); border-width: 0 0 3px 0; }
+.map-plate-far { opacity: 0.6; }
+.map-plate-quiet > .map-plate-name { display: none; }
+.map-plate-selected > .map-plate-name { background-color: #ffe7a8; border-color: #e8a54b; }
+.map-plate-patron > .map-banner { display: flex; }
+.map-plate > .map-banner { top: -12px; right: -8px; }

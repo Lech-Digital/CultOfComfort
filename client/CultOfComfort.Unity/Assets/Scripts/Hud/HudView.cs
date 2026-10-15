@@ -908,6 +908,15 @@ namespace CultOfComfort.Client
         public VisualElement Root => _root;
 
         /// <summary>Folds the build drawer away (the board gets the room) or brings it back.</summary>
+        /// <summary>The world map has the screen: the frame, the side buttons and the bar step aside (the toast stays).</summary>
+        public void SetMapOpen(bool open)
+        {
+            foreach (var element in new[] { _top, _bar, _sideLeft, _sideRight, _errand, _coachArrow, _coachLine })
+            {
+                element.style.visibility = open ? Visibility.Hidden : Visibility.Visible;
+            }
+        }
+
         public void SetDrawerCollapsed(bool collapsed)
         {
             _drawerCollapsed = collapsed;

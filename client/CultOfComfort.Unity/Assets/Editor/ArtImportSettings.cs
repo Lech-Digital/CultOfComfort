@@ -9,6 +9,11 @@ namespace CultOfComfort.Editor
         private const string ArtRoot = "Assets/Resources/Art/";
         private const string UiRoot = "Assets/Resources/UI/";
 
+        /// <summary>The world map merges each chunk's trees and rocks into one mesh, so their vertices must be readable.</summary>
+        private static readonly string[] LandProps = { "pine", "oak", "birch", "crag", "mountain" };
+
+        public override uint GetVersion() => 2;
+
         private void OnPreprocessTexture()
         {
             if (assetPath.StartsWith(UiRoot))
@@ -54,7 +59,7 @@ namespace CultOfComfort.Editor
             importer.importAnimation = false;
             importer.animationType = ModelImporterAnimationType.None;
             importer.importBlendShapes = false;
-            importer.isReadable = false;
+            importer.isReadable = System.Array.IndexOf(LandProps, System.IO.Path.GetFileNameWithoutExtension(assetPath)) >= 0;
         }
     }
 }
