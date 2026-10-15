@@ -63,7 +63,7 @@ namespace CultOfComfort.Client
         public const float WaterLevel = 0f;
         public const float ChunkSize = 16f;
         public const int ChunkPixels = 64;
-        public const int ChunkCells = 16;
+        public const int ChunkCells = 32;
 
         private const float PlaceFlat = 1.7f;
         private const float RoadHalfWidth = 0.2f;
