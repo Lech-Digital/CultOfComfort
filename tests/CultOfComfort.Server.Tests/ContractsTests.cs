@@ -141,6 +141,20 @@ public class ContractsTests
     }
 
     [Fact]
+    public void NightPlan_DefendersAndAutoRelics_RoundTrip()
+    {
+        // Arrange
+        var plan = new NightPlan(3, 99, 40, 4, 0, false, [], [], [], 2, AutoRelics: true, Defenders: new[] { new GridPosition(5, 6), new GridPosition(5, 6) });
+
+        // Act
+        var back = VillageSaveMapping.PlanFromDto(VillageSaveMapping.PlanToDto(plan));
+
+        // Assert
+        back.AutoRelics.Should().BeTrue();
+        back.Defenders.Should().Equal(plan.Defenders);
+    }
+
+    [Fact]
     public void VillageJson_ChosenCrew_RoundTripsAndFullStaysNull()
     {
         // Arrange — a lean-to emptied by the player; the Hearth untouched.

@@ -1201,7 +1201,31 @@ public sealed partial class BaseState
         var budget = _raid != null ? power * (100 + tension - _table.Tension.Hostile) / 100 : Math.Max(power * tension / _table.Tension.Hostile, power / 2);
         var waves = _raid != null && tension >= _table.Tension.Punitive ? 5 : 4;
         var seed = _raid?.Seed ?? (ulong)(946 + night);
-        return new NightPlan(night, seed, budget, waves, SluiceBonus, _raid != null, layout.Towers, layout.Obstacles, layout.Structures, HearthLevel);
+        return new NightPlan(night, seed, budget, waves, SluiceBonus, _raid != null, layout.Towers, layout.Obstacles, layout.Structures, HearthLevel,
+            AutoRelics: true, Defenders: DefenderPosts(layout));
+    }
+
+    /// <summary>
+    /// Who comes out to defend (spec 2026-10-15): each standing Cultist Hut sends out as many cultists as its level, all
+    /// posted on the open tile beside it nearest the Hearth.
+    /// </summary>
+    private List<GridPosition> DefenderPosts(BattleLayout layout)
+    {
+        var posts = new List<GridPosition>();
+        foreach (var hut in _buildings.Where(b => b.Type == BuildingType.CultistHut && b.Level >= 1 && !b.Wrecked).OrderBy(b => b.Id))
+        {
+            var post = hut.Tiles
+                .SelectMany(t => new[] { new GridPosition(t.X + 1, t.Y), new GridPosition(t.X - 1, t.Y), new GridPosition(t.X, t.Y + 1), new GridPosition(t.X, t.Y - 1) })
+                .Where(t => !hut.Tiles.Contains(t) && layout.IsWalkableForLeader(t))
+                .OrderBy(t => Math.Abs(t.X - _map.Hearth.X) + Math.Abs(t.Y - _map.Hearth.Y)).ThenBy(t => t.X).ThenBy(t => t.Y)
+                .Cast<GridPosition?>().FirstOrDefault();
+            if (post != null)
+            {
+                posts.AddRange(Enumerable.Repeat(post.Value, hut.Level));
+            }
+        }
+
+        return posts;
     }
 
     private CommandOutcome Resolve(ResolveNight command, DateTimeOffset now)

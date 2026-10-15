@@ -161,10 +161,15 @@ public static class VillageSaveMapping
             id = st.Id, x = st.Position.X, y = st.Position.Y, max = st.MaxHealth, health = st.Health, barrier = st.Barrier, gate = st.Gate,
             tiles = st.Tiles?.Select(t => new TileDto { x = t.X, y = t.Y }).ToList() ?? new List<TileDto>(),
         }).ToList(),
+        autoRelics = plan.AutoRelics,
+        defenders = (plan.Defenders ?? Array.Empty<GridPosition>()).Select(t => new TileDto { x = t.X, y = t.Y }).ToList(),
     };
 
     /// <summary>A Night plan from its wire form (the server's answer to BeginNight).</summary>
     public static NightPlan PlanFromDto(NightDto d) => FromDto(d);
+
+    /// <summary>A Night plan in its wire form.</summary>
+    public static NightDto PlanToDto(NightPlan plan) => ToDto(plan);
 
     /// <summary>A Night report from its wire form (the server's answer to ResolveNight).</summary>
     public static NightReport ReportFromDto(ReportDto d) => FromDto(d);
@@ -190,7 +195,9 @@ public static class VillageSaveMapping
                 Tiles = st.tiles == null || st.tiles.Count == 0 ? null : st.tiles.Select(t => new GridPosition(t.x, t.y)).ToList(),
                 Barrier = st.barrier, Gate = st.gate,
             }).ToList(),
-            d.roster);
+            d.roster,
+            d.autoRelics,
+            (d.defenders ?? new List<TileDto>()).Select(t => new GridPosition(t.x, t.y)).ToList());
     }
 
     internal static ReportDto ToDto(NightReport r) => new()

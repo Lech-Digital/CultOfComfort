@@ -28,6 +28,8 @@ public sealed class Battle
     private readonly List<Structure> _structures = new();
     private readonly List<BattleEvent> _tickEvents = new();
     private readonly Fnv1aHasher _hasher = new();
+    private readonly List<Defender> _defenders = new();
+    private readonly bool _autoRelics;
     private int _nextSpawnIndex;
     private int _nextEnemyId = 1;
 
@@ -47,7 +49,14 @@ public sealed class Battle
 
         _balance = setup.Balance ?? BalanceTable.Default;
         _relics = setup.Relics;
+        _autoRelics = setup.AutoRelics;
         _layout = setup.Layout;
+        var defenderId = 1;
+        foreach (var post in setup.Defenders ?? Array.Empty<GridPosition>())
+        {
+            _defenders.Add(new Defender(defenderId++, post, (setup.Balance ?? BalanceTable.Default).Defender.MaxHealth));
+        }
+
         Leader = new CultLeader(setup.Layout.LeaderStart, _balance.Leader.MaxHealth);
         _combatRandom = new PcgRandom(setup.Seed, RandomStreams.Combat);
         _seed = setup.Seed;
@@ -81,6 +90,12 @@ public sealed class Battle
             }
         }
     }
+
+    /// <summary>The relics fire themselves tonight (Nights planned since 2026-10-15).</summary>
+    public bool AutoRelics => _autoRelics;
+
+    /// <summary>The cultists out defending (none for Nights planned before they did).</summary>
+    public IReadOnlyList<Defender> Defenders => _defenders;
 
     /// <summary>The village's buildings and towers as they stand (or lie) right now.</summary>
     public IReadOnlyList<Structure> Structures => _structures;
@@ -161,9 +176,15 @@ public sealed class Battle
         SpawnEnemies();
         ReviveLeader();
         ApplyInputs();
+        if (_autoRelics)
+        {
+            FireReadyRelics();
+        }
+
         FireTowers();
         BurnEnemies();
         LeaderAttack();
+        DefendersAct();
         MoveEnemies();
         if (!Leader.IsSwooning(Tick))
         {
@@ -761,6 +782,14 @@ public sealed class Battle
                 continue;
             }
 
+            // A cultist in its way: it stops and fights them (they're easier than the Prophet, and they're right there).
+            if (_defenders.Count > 0 && DefenderInReach(enemy, stats) is { } defender)
+            {
+                enemy.CancelSwing();
+                FightDefender(enemy, stats, defender);
+                continue;
+            }
+
             if (enemy.IsRaiding)
             {
                 FollowRaid(enemy, stats, step);
@@ -1239,6 +1268,269 @@ public sealed class Battle
     }
 
     /// <summary>Stops (on or off the road) and swings or throws at the Prophet. Holding them still is what towers like.</summary>
+    // ---------------- the cultists out defending (spec 2026-10-15) ----------------
+
+    /// <summary>
+    /// Each cultist up and about goes for the raider nearest them within guard range of their post, hits it when in
+    /// reach, and otherwise walks over (re-planning a couple of times a second); with nobody to fight, back to the post.
+    /// </summary>
+    private void DefendersAct()
+    {
+        if (_defenders.Count == 0)
+        {
+            return;
+        }
+
+        var stats = _balance.Defender;
+        var guard = stats.GuardRadius * stats.GuardRadius;
+        var reach = stats.AttackRange * stats.AttackRange;
+        foreach (var defender in _defenders)
+        {
+            if (defender.TryRevive(Tick))
+            {
+                _tickEvents.Add(new DefenderBack(Tick, defender.Id));
+            }
+
+            if (!defender.IsUp)
+            {
+                continue;
+            }
+
+            if (defender.AttackCooldownTicksRemaining > 0)
+            {
+                defender.AttackCooldownTicksRemaining--;
+            }
+
+            Enemy? target = null;
+            var best = Fix.Zero;
+            var post = defender.Post.ToVector();
+            foreach (var enemy in _enemies)
+            {
+                if (!enemy.IsActive || enemy.IsFrightened(Tick))
+                {
+                    continue;
+                }
+
+                var at = PositionOf(enemy);
+                if (at.DistanceSquaredTo(post) > guard)
+                {
+                    continue;
+                }
+
+                var d = at.DistanceSquaredTo(defender.Position);
+                if (target == null || d < best)
+                {
+                    target = enemy;
+                    best = d;
+                }
+            }
+
+            defender.TargetId = target?.Id ?? -1;
+            if (target != null && best <= reach)
+            {
+                defender.Stop();
+                if (defender.AttackCooldownTicksRemaining == 0)
+                {
+                    defender.AttackCooldownTicksRemaining = stats.AttackCooldownTicks;
+                    var damage = ApplyResistance(target, stats.AttackDamage);
+                    _tickEvents.Add(new DefenderAttacked(Tick, defender.Id, target.Id, damage));
+                    DealDamage(target, damage);
+                }
+            }
+            else
+            {
+                var goal = target != null ? TileOf(PositionOf(target)) : defender.Post;
+                var home = target == null && !defender.IsMoving && TileOf(defender.Position) == defender.Post;
+                if (!home && (goal != defender.RoutedTo || Tick - defender.RoutedAtTick >= 10))
+                {
+                    var route = Pathfinder.FindPath(_layout.Width, _layout.Height, defender.RouteOrigin, goal, p => !_layout.IsWalkableForLeader(p) && p != goal);
+                    if (route != null)
+                    {
+                        defender.SetRoute(route);
+                    }
+
+                    defender.RoutedTo = goal;
+                    defender.RoutedAtTick = Tick;
+                }
+
+                defender.Walk(stats.TilesPerSecond / BalanceTable.TicksPerSecond);
+            }
+        }
+    }
+
+    /// <summary>The first cultist (lowest id) standing within the raider's swing, or null.</summary>
+    private Defender? DefenderInReach(Enemy enemy, EnemyStats stats)
+    {
+        if (stats.EngageRange <= Fix.Zero)
+        {
+            return null; // archers and the like don't brawl
+        }
+
+        var range = Fix.Max(stats.EngageRange, _balance.Defender.AttackRange);
+        var at = PositionOf(enemy);
+        foreach (var defender in _defenders)
+        {
+            if (defender.IsUp && at.DistanceSquaredTo(defender.Position) <= range * range)
+            {
+                return defender;
+            }
+        }
+
+        return null;
+    }
+
+    private void FightDefender(Enemy enemy, EnemyStats stats, Defender defender)
+    {
+        if (enemy.LeaderAttackCooldownTicksRemaining > 0)
+        {
+            enemy.LeaderAttackCooldownTicksRemaining--;
+            return;
+        }
+
+        enemy.LeaderAttackCooldownTicksRemaining = stats.LeaderAttackCooldownTicks;
+        var downed = defender.TakeHit(Tick, stats.LeaderDamage, _balance.Defender.DownTicks);
+        _tickEvents.Add(new DefenderHit(Tick, defender.Id, enemy.Id, stats.LeaderDamage, defender.Health));
+        if (downed)
+        {
+            _tickEvents.Add(new DefenderDowned(Tick, defender.Id));
+        }
+    }
+
+    private static GridPosition TileOf(FixVector2 at) =>
+        new((at.X + Fix.Ratio(1, 2)).FloorToInt(), (at.Y + Fix.Ratio(1, 2)).FloorToInt());
+
+    // ---------------- relics that fire themselves (owner 2026-10-15) ----------------
+
+    /// <summary>
+    /// Ready relics fire when it's worth it: the laser at the raider within reach doing the most harm (at a building,
+    /// else furthest along the road), the torch when raiders crowd him, the magnifier on the thickest knot of raiders.
+    /// </summary>
+    private void FireReadyRelics()
+    {
+        if (Leader.IsSwooning(Tick))
+        {
+            return;
+        }
+
+        var stats = _balance.Relics;
+        if (IsLaserReady)
+        {
+            var reach = (stats.LaserReach - Fix.Ratio(1, 2)) * (stats.LaserReach - Fix.Ratio(1, 2));
+            Enemy? pick = null;
+            var pickHarm = -1;
+            foreach (var enemy in _enemies)
+            {
+                if (!enemy.IsActive || enemy.IsBlinded(Tick) || enemy.IsFrightened(Tick) || PositionOf(enemy).DistanceSquaredTo(Leader.Position) > reach)
+                {
+                    continue;
+                }
+
+                var harm = enemy.SmashTargetId >= 0 || enemy.IsRaiding ? 1 : 0;
+                if (pick == null || harm > pickHarm || (harm == pickHarm && enemy.DistanceAlongPath > pick.DistanceAlongPath))
+                {
+                    pick = enemy;
+                    pickHarm = harm;
+                }
+            }
+
+            if (pick != null)
+            {
+                PointLaser(TileOf(PositionOf(pick)));
+            }
+        }
+
+        if (IsTorchReady && !Leader.IsTorchLit(Tick))
+        {
+            var radius = stats.TorchRadius * stats.TorchRadius;
+            var crowd = 0;
+            foreach (var enemy in _enemies)
+            {
+                if (enemy.IsActive && PositionOf(enemy).DistanceSquaredTo(Leader.Position) <= radius)
+                {
+                    crowd++;
+                }
+            }
+
+            if (crowd >= _balance.TorchAutoCrowd)
+            {
+                CrankTorch();
+            }
+        }
+
+        if (IsSunFireReady)
+        {
+            var reach = (stats.SunFireReach - Fix.Ratio(1, 2)) * (stats.SunFireReach - Fix.Ratio(1, 2));
+            var radius = stats.SunFireRadius * stats.SunFireRadius;
+            Enemy? centre = null;
+            var most = 0;
+            foreach (var enemy in _enemies)
+            {
+                if (!enemy.IsActive || enemy.IsBurning(Tick) || PositionOf(enemy).DistanceSquaredTo(Leader.Position) > reach)
+                {
+                    continue;
+                }
+
+                var count = 0;
+                foreach (var other in _enemies)
+                {
+                    if (other.IsActive && PositionOf(other).DistanceSquaredTo(PositionOf(enemy)) <= radius)
+                    {
+                        count++;
+                    }
+                }
+
+                if (count > most)
+                {
+                    centre = enemy;
+                    most = count;
+                }
+            }
+
+            if (centre != null && _layout.IsInBounds(TileOf(PositionOf(centre))))
+            {
+                FocusSunFire(TileOf(PositionOf(centre)));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Where Hot Stones would do the most (the client's aim for a tap on the card): the tile within his reach with the
+    /// most raiders under the splash, or null when nobody is in reach.
+    /// </summary>
+    public GridPosition? BestHotStonesTarget()
+    {
+        var stats = _balance.HotStones;
+        var reach = (stats.Reach - Fix.Ratio(1, 2)) * (stats.Reach - Fix.Ratio(1, 2));
+        var radius = stats.Radius * stats.Radius;
+        GridPosition? best = null;
+        var most = 0;
+        foreach (var enemy in _enemies)
+        {
+            if (!enemy.IsActive || PositionOf(enemy).DistanceSquaredTo(Leader.Position) > reach)
+            {
+                continue;
+            }
+
+            var tile = TileOf(PositionOf(enemy));
+            var count = 0;
+            foreach (var other in _enemies)
+            {
+                if (other.IsActive && PositionOf(other).DistanceSquaredTo(tile.ToVector()) <= radius)
+                {
+                    count++;
+                }
+            }
+
+            if (count > most && _layout.IsInBounds(tile))
+            {
+                best = tile;
+                most = count;
+            }
+        }
+
+        return best;
+    }
+
     private void FightLeader(Enemy enemy, EnemyStats stats)
     {
         enemy.IsFightingLeader = true;
@@ -1304,6 +1596,11 @@ public sealed class Battle
         foreach (var tower in _towers)
         {
             _hasher.Add(tower.CooldownTicksRemaining);
+        }
+
+        foreach (var defender in _defenders)
+        {
+            defender.AddToHash(_hasher); // none in Nights planned before: their hashes are as they were
         }
 
         foreach (var structure in _structures)
