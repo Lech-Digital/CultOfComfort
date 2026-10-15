@@ -10,9 +10,9 @@ namespace CultOfComfort.Client
     public sealed class NightMood
     {
         private static readonly Color Moonlight = Shapes.Hex("#8fa6d6");
-        private static readonly Color NightHaze = Shapes.Hex("#1f2638");
-        private const float NightSunIntensity = 0.45f;
-        private const float NightAmbient = 0.4f;
+        private static readonly Color NightHaze = Shapes.Hex("#26304a");
+        private const float NightSunIntensity = 0.75f; // bright enough to read the board on a phone (owner 2026-10-15: "does not look great")
+        private const float NightAmbient = 0.62f;
 
         private readonly Camera _camera;
         private readonly Light _sun;

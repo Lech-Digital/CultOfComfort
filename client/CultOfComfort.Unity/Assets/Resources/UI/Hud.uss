@@ -341,3 +341,35 @@
 .drawer { transition-property: height, margin-bottom, opacity; transition-duration: 0.22s, 0.22s, 0.18s; transition-timing-function: ease-out-cubic; }
 .bar .drawer.collapsed, .landscape .bar .drawer.collapsed, .portrait .bar .drawer.collapsed { height: 0; margin-bottom: 0; opacity: 0; }
 .feature-badge { position: absolute; top: 2px; right: 2px; width: 14px; height: 14px; border-radius: 7px; background-color: #c0392b; border-width: 2px; border-color: #f1e3c0; }
+
+/* ---------- the night bar, compact (owner 2026-10-15: "check the night… especially horizontal") ---------- */
+.relics { flex-direction: row; margin-bottom: 6px; flex-wrap: wrap; }
+.relic { height: 34px; flex-grow: 0; flex-shrink: 0; width: 104px; max-width: 104px; margin-right: 6px; flex-direction: row; padding: 2px 6px; justify-content: flex-start; }
+.relic .skill-icon { width: 24px; height: 24px; margin-right: 4px; }
+.relic .skill-text { font-size: 11px; -unity-text-align: middle-left; flex-shrink: 1; }
+.skill { flex-basis: 0; flex-shrink: 1; min-width: 0; height: 58px; }
+.skill .skill-text { font-size: 11px; }
+.speed { flex-basis: auto; flex-grow: 0; flex-shrink: 0; width: 52px; }
+/* landscape: one short row, relics stacked at the side; the board keeps the screen */
+.landscape .night-bar { flex-direction: row; align-items: center; flex-wrap: wrap; }
+.landscape .relics { flex-direction: column; margin: 0 8px 0 0; }
+.landscape .relic { height: 26px; width: 96px; margin: 1px 0; }
+.landscape .relic .skill-icon { width: 20px; height: 20px; }
+.landscape .skills { flex-grow: 1; flex-shrink: 1; }
+.landscape .skill { height: 50px; max-width: 120px; }
+.landscape .night-bar > .hint { width: 100%; font-size: 10px; margin-top: 2px; }
+/* landscape dusk: the drawer gives way to the buttons instead of running under them */
+.landscape .dusk-bar > .drawer { flex-grow: 1; flex-shrink: 1; min-width: 0; }
+.landscape .dusk-bar > .actions { flex-grow: 0; flex-shrink: 0; margin-left: 8px; }
+.landscape .dusk-bar > .actions > .primary { width: 190px; flex-grow: 0; }
+.relics > .relic { flex-basis: auto; flex-grow: 0; flex-shrink: 0; width: 104px; min-width: 104px; }
+.landscape .relics > .relic { width: 96px; min-width: 96px; }
+.skills > .skill { padding-bottom: 8px; justify-content: center; }
+.landscape .meter { max-width: 420px; }
+/* landscape night: the wave and both meters on one line; the bar has no hint line (the board needs the height) */
+.landscape #wave-strip { flex-direction: row; align-items: center; flex-wrap: nowrap; margin-top: 2px; }
+.landscape #wave-strip > .wave-label { margin: 0 8px 0 24px; flex-shrink: 0; }
+.landscape #wave-strip > .meter { flex-grow: 1; flex-basis: 0; max-width: 300px; margin: 0 8px; }
+.landscape .night-bar > .hint { display: none; }
+.landscape .relics { flex-direction: row; }
+.landscape .relics > .relic { height: 44px; }
