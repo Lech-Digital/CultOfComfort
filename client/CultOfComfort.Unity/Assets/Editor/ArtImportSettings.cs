@@ -10,9 +10,12 @@ namespace CultOfComfort.Editor
         private const string UiRoot = "Assets/Resources/UI/";
 
         /// <summary>The world map merges each chunk's trees and rocks into one mesh, so their vertices must be readable.</summary>
-        private static readonly string[] LandProps = { "pine", "oak", "birch", "crag", "mountain" };
+        private static readonly string[] LandProps =
+        {
+            "pine", "oak", "birch", "crag", "mountain", "cottage", "cottage_l2", "haycart", "well", "world_market", "world_abbey", "world_keep", "world_cathedral",
+        };
 
-        public override uint GetVersion() => 2;
+        public override uint GetVersion() => 3;
 
         private void OnPreprocessTexture()
         {
