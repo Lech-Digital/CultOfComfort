@@ -601,7 +601,7 @@ namespace CultOfComfort.Client
 
         private SheetModel SheetFor(string id) => id switch
         {
-            "research" => FeatureSheetPresenter.Research(_snapshot, _snapshot.AsOfUtc),
+            "research" => FeatureSheetPresenter.Research(_snapshot, _snapshot.AsOfUtc, confirmStop: IsArmed("research-stop")),
             "shop" => FeatureSheetPresenter.Market(_snapshot, BuildingTable.Default),
             _ => FeatureSheetPresenter.Cult(_snapshot),
         };
@@ -624,8 +624,16 @@ namespace CultOfComfort.Client
             _armed = what;
             _armedUntil = Time.unscaledTime + 4f;
             Announce(warning);
+            RefreshVillage(); // the button itself says "Sure?" (the toast can sit behind a sheet)
+            if (_sheet.Shown == "research")
+            {
+                _sheet.Show(_sheet.Shown, SheetFor(_sheet.Shown));
+            }
+
             return false;
         }
+
+        private bool IsArmed(string what) => _armed == what && Time.unscaledTime < _armedUntil;
 
         private async void OnSheetAction(string action)
         {
@@ -1738,7 +1746,13 @@ namespace CultOfComfort.Client
             _board.SetCosmetics(_snapshot.Daily?.Cosmetics);
             var hasCard = _cardBuilding != null && _snapshot.Buildings.Any(b => b.Id == _cardBuilding.Value);
             var terrainCard = _cardTerrain != null ? VillagePresenter.TerrainCard(_snapshot, VillageMap.Demo, BuildingTable.Default, _cardTerrain.Value) : null;
-            _hud.ShowBuildingCard(hasCard ? VillagePresenter.Card(_snapshot, BuildingTable.Default, _cardBuilding.Value) : terrainCard);
+            var card = hasCard ? VillagePresenter.Card(_snapshot, BuildingTable.Default, _cardBuilding.Value) : terrainCard;
+            if (card?.CancelLabel != null && IsArmed("cancel-build:" + _cardBuilding))
+            {
+                card.CancelLabel = "Sure? Tap again to cancel"; // the warning on the button itself: a toast hides behind the card
+            }
+
+            _hud.ShowBuildingCard(card);
             RefreshMap();
         }
 
@@ -2051,7 +2065,12 @@ namespace CultOfComfort.Client
                 return CoachStep.None;
             }
 
-            var step = TutorialCoach.Step(_snapshot.Errand, _tool?.Type, _snapshot.Buildings, BuildingTable.Default);
+            var step = TutorialCoach.Step(_snapshot.Errand, _tool?.Type, _snapshot.Buildings, BuildingTable.Default,
+                studying: _snapshot.Research?.Any(t => t.State == TechState.Studying) == true);
+            if (_tool != null && step.Target != CoachTarget.GhostConfirm)
+            {
+                return CoachStep.None; // placing something else: the ghost has the player's attention (the note steps aside too)
+            }
             if (step.Target == CoachTarget.Building && step.BuildingId != null)
             {
                 var building = _snapshot.Buildings.FirstOrDefault(b => b.Id == step.BuildingId.Value);

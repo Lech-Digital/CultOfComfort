@@ -1039,6 +1039,11 @@ namespace CultOfComfort.Client
             {
                 var note = Visible(_errand) ? _root.WorldToLocal(new Vector2(0f, _errand.worldBound.yMax)).y : 120f;
                 lineY = note + 8f;
+                if (Visible(_toast) && !_toast.ClassListContains("hidden"))
+                {
+                    lineY = Mathf.Max(lineY, _root.WorldToLocal(new Vector2(0f, _toast.worldBound.yMax)).y + 8f); // under the toast, not on it
+                }
+
                 _coachLine.EnableInClassList("coach-line-above", false);
             }
 

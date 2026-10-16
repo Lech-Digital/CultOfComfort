@@ -114,6 +114,7 @@ namespace CultOfComfort.Client.Tests
             Click(cancel);
             yield return Frames(2);
             Assert.IsTrue(Snapshot(game).Buildings.Any(b => b.Type == BuildingType.Woodcutter), "one tap is not enough to undo work");
+            StringAssert.StartsWith("Sure?", cancel.text, "the button itself asks (a toast hides behind the card)");
 
             // …the second cancels.
             Click(cancel);

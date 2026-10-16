@@ -151,6 +151,17 @@ namespace CultOfComfort.Client.Tests
             Assert.Less(Index("slurry-chute"), Index("first-night"), "the first Night is defended");
         }
 
+        [Test]
+        public void Step_StudyUnderWay_SaysHesReadingWithoutAnArrow()
+        {
+            // Act — found on the Pixel: "Open Research" while he was already reading.
+            var step = TutorialCoach.Step(Errand(Index("study")), null, Nothing, Table, studying: true);
+
+            // Assert
+            Assert.IsFalse(step.HasArrow);
+            StringAssert.Contains("reading", step.Line);
+        }
+
         private static int Index(string id)
         {
             for (var i = 0; i < ErrandBook.Default.Errands.Count; i++)

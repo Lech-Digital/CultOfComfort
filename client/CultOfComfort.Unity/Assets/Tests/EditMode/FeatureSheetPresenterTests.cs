@@ -60,6 +60,20 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
+        public void Research_StopTappedOnce_ButtonAsksToBeSure()
+        {
+            // Arrange
+            var (state, now) = Village(2);
+            state.Apply(new StartResearch(Guid.NewGuid(), "sermon-notes"), now);
+
+            // Act
+            var sheet = FeatureSheetPresenter.Research(state.Snapshot(now), now, confirmStop: true);
+
+            // Assert — on the button itself: a toast would sit behind the sheet.
+            Assert.AreEqual("Sure? Tap again", sheet.Rows.Single(r => r.Action == "research-stop").Button);
+        }
+
+        [Test]
         public void Research_Studying_SaidOnEveryTab()
         {
             // Arrange

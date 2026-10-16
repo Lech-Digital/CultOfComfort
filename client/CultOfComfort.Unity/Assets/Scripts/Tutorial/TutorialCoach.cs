@@ -67,7 +67,8 @@ namespace CultOfComfort.Client
     /// </summary>
     public static class TutorialCoach
     {
-        public static CoachStep Step(ErrandView errand, BuildingType? placing, IReadOnlyList<BuildingView> buildings, BuildingTable table)
+        /// <param name="studying">A study is under way (the study errand counts only a finished one).</param>
+        public static CoachStep Step(ErrandView errand, BuildingType? placing, IReadOnlyList<BuildingView> buildings, BuildingTable table, bool studying = false)
         {
             if (errand == null)
             {
@@ -97,6 +98,8 @@ namespace CultOfComfort.Client
                 case ErrandGoal.Patron:
                     // The Mission House lists the places in reach with their walks; the map makes you hunt for them.
                     return new CoachStep(CoachTarget.Feature, "Open the Missionaries.", feature: "missionaries");
+                case ErrandGoal.Study when studying:
+                    return new CoachStep(CoachTarget.None, "He's reading. The errand is done when he finishes the page.");
                 case ErrandGoal.Study:
                     return new CoachStep(CoachTarget.Feature, "Open Research.", feature: "research");
                 default:
