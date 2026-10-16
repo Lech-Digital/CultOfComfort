@@ -325,8 +325,7 @@ public class MarchlandsErrandTests
         state.Apply(new UpgradeHearth(Guid.NewGuid()), T0);
         var now = T0.AddHours(1);
         state.Apply(new DebugFillStores(Guid.NewGuid()), now);
-        var book = ErrandBook.Default.Errands.ToList();
-        var data = state.ToData() with { ErrandIndex = book.FindIndex(e => e.Goal == ErrandGoal.SendMissionary) };
+        var data = state.ToData() with { ErrandId = "missionary" };
         state = BaseState.Restore(BuildingTable.Default, VillageMap.Demo, data);
 
         // Act & Assert — sending one finishes the missionary errand.
@@ -334,8 +333,10 @@ public class MarchlandsErrandTests
         state.Apply(new SendMissionary(Guid.NewGuid(), 1, 8), now);
         state.Snapshot(now).Errand!.Done.Should().BeTrue();
         state.Apply(new ClaimErrand(Guid.NewGuid()), now).Status.Should().Be(CommandStatus.Accepted);
+        state.Snapshot(now).Errand!.Id.Should().Be("midden-sorter", "Scrap comes next (spec 2026-10-16 first day)");
 
         // The study errand: a finished study.
+        state = BaseState.Restore(BuildingTable.Default, VillageMap.Demo, state.ToData() with { ErrandId = "study" });
         state.Snapshot(now).Errand!.Goal.Should().Be(ErrandGoal.Study);
         state.Apply(new StartResearch(Guid.NewGuid(), "sermon-notes"), now);
         state.Snapshot(now.AddHours(2)).Errand!.Done.Should().BeTrue();

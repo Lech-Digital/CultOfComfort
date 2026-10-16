@@ -102,7 +102,7 @@ public sealed partial class BaseState
             _populationAsOf = new DateTimeOffset(data.PopulationAsOfUtcTicks, TimeSpan.Zero),
             _upkeepAsOf = new DateTimeOffset(data.UpkeepAsOfUtcTicks, TimeSpan.Zero),
             _cold = data.Cold,
-            _errandIndex = data.ErrandIndex,
+            _errandIndex = table.Errands.IndexOf(data.ErrandId, data.ErrandIndex), // by id; old saves through the old order
             _errandEventDone = data.ErrandEventDone,
         };
         foreach (var b in data.Buildings.OrderBy(b => b.Type == BuildingType.Hearth ? -1 : b.Id))
@@ -497,7 +497,8 @@ public sealed partial class BaseState
         DomainToData(),
         ResearchToData(),
         _fractions.ToList(),
-        DailyToData());
+        DailyToData(),
+        CurrentErrand?.Id);
 
     public CommandOutcome Apply(BaseCommand command, DateTimeOffset nowUtc)
     {
@@ -603,7 +604,8 @@ public sealed partial class BaseState
         }
     }
 
-    public int SluiceBonus => _buildings.Where(b => b.Level > 0 && !b.Wrecked && IsConnected(b)).Sum(b => _table.Spec(b.Type).Levels[b.Level - 1].SluiceCharges);
+    public int SluiceBonus => _buildings.Where(b => b.Level > 0 && !b.Wrecked && IsConnected(b)).Sum(b => _table.Spec(b.Type).Levels[b.Level - 1].SluiceCharges)
+        + Bonus(TechEffect.SluiceCharges);
 
     /// <summary>The locked layout for a Night: towers fight, every other building is in the way.</summary>
     public BattleLayout ToBattleLayout()
@@ -668,7 +670,7 @@ public sealed partial class BaseState
             Footprint.Tiles(spec, command.Position, command.Rotated), command.Rotated);
         if (!instant)
         {
-            building.UpgradeEndsAtUtc = now.AddSeconds(spec.Levels[0].BuildSeconds);
+            building.UpgradeEndsAtUtc = now.AddSeconds(BuildSeconds(spec.Levels[0].BuildSeconds));
         }
 
         _buildings.Add(building);
@@ -822,7 +824,7 @@ public sealed partial class BaseState
 
         _stock -= cost;
         MaterializeEconomy(now);
-        building.UpgradeEndsAtUtc = now.AddSeconds(spec.Levels[building.Level].BuildSeconds);
+        building.UpgradeEndsAtUtc = now.AddSeconds(BuildSeconds(spec.Levels[building.Level].BuildSeconds));
         if (instant)
         {
             Advance(now);
@@ -874,7 +876,7 @@ public sealed partial class BaseState
             return CommandOutcome.Reject("That Night is already in the books.");
         }
 
-        var salvage = Math.Min(_table.Salvage(night.Stars), Math.Max(0, Caps.Scrap - _stock.Scrap));
+        var salvage = Math.Min(Salvage(night.Stars), Math.Max(0, Caps.Scrap - _stock.Scrap));
         _stock += new ResourceBag(0, 0, salvage, 0);
         LastNightRecorded = night.Night;
         NoteNight(night.Stars, now);
@@ -1215,7 +1217,8 @@ public sealed partial class BaseState
         var waves = _raid != null && tension >= _table.Tension.Punitive ? 5 : 4;
         var seed = _raid?.Seed ?? (ulong)(946 + night);
         return new NightPlan(night, seed, budget, waves, SluiceBonus, _raid != null, layout.Towers, layout.Obstacles, layout.Structures, HearthLevel,
-            AutoRelics: true, Defenders: DefenderPosts(layout));
+            AutoRelics: true, Defenders: DefenderPosts(layout),
+            TowerDamagePercent: Bonus(TechEffect.TowerDamagePercent), ProphetHealthPercent: Bonus(TechEffect.ProphetHealthPercent)); // research, frozen into the plan
     }
 
     /// <summary>
@@ -1274,7 +1277,7 @@ public sealed partial class BaseState
             }
         }
 
-        var salvage = Math.Min(_table.Salvage(result.Stars), Math.Max(0, Caps.Scrap - _stock.Scrap));
+        var salvage = Math.Min(Salvage(result.Stars), Math.Max(0, Caps.Scrap - _stock.Scrap));
         _stock += new ResourceBag(0, 0, salvage, 0);
         foreach (var id in wrecked)
         {
@@ -1350,7 +1353,14 @@ public sealed partial class BaseState
     // ---------------- Tension (lazy and linear, ADR 0004) ----------------
 
     /// <summary>Tension per hour (thousandths): the Authority's passive mood plus the Marchlands' influence.</summary>
-    private long TensionRateMilli() => _table.Tension.RatePerHour(HearthLevel) * 1000L + DomainTensionPerHourMilli();
+    private long TensionRateMilli() =>
+        (_table.Tension.RatePerHour(HearthLevel) * 1000L + DomainTensionPerHourMilli()) * (100 - Math.Min(90, Bonus(TechEffect.TemperPercent))) / 100;
+
+    /// <summary>A construction's time after research (Measure Twice): never under a second, if it took any.</summary>
+    private int BuildSeconds(int seconds) => seconds <= 0 ? seconds : Math.Max(1, seconds * (100 - Math.Min(90, Bonus(TechEffect.BuildTimePercent))) / 100);
+
+    /// <summary>The Scrap a Night leaves behind, with research (Finders Keepers).</summary>
+    private int Salvage(int stars) => _table.Salvage(stars) * (100 + Bonus(TechEffect.SalvagePercent)) / 100;
 
     /// <summary>Tension in thousandths at <paramref name="at"/>: no rise during a shield, capped at the max.</summary>
     private long TensionMilliAt(DateTimeOffset at)
@@ -1448,7 +1458,13 @@ public sealed partial class BaseState
         }
 
         var produces = _table.Spec(b.Type).Produces;
-        var research = produces == ResourceType.Timber ? Bonus(TechEffect.TimberPercent) : produces == ResourceType.Peat ? Bonus(TechEffect.PeatPercent) : 0;
+        var research = Bonus(produces switch
+        {
+            ResourceType.Timber => TechEffect.TimberPercent,
+            ResourceType.Peat => TechEffect.PeatPercent,
+            ResourceType.Scrap => TechEffect.ScrapPercent,
+            _ => TechEffect.DevotionPercent,
+        });
         var rate = (int)((long)LevelRate(b) * BuildingSpec.CrewPerMille(CrewOf(b), Slots(b)) / 1000) * (100 + RoadBonus(b) + research) / 100;
         return produces == ResourceType.Devotion ? DevotionWithComfort(rate) : rate;
     }

@@ -139,6 +139,18 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("missionaries", step.Feature);
         }
 
+        [Test]
+        public void Step_PlacingTheChute_SaysBesideTheRaidersRoad()
+        {
+            // Act — the chute errand, before the first Night (spec 2026-10-16).
+            var step = TutorialCoach.Step(Errand(Index("slurry-chute")), BuildingType.SlurryChute, Nothing, Table);
+
+            // Assert
+            Assert.AreEqual(CoachTarget.GhostConfirm, step.Target);
+            StringAssert.Contains("raiders' road", step.Line);
+            Assert.Less(Index("slurry-chute"), Index("first-night"), "the first Night is defended");
+        }
+
         private static int Index(string id)
         {
             for (var i = 0; i < ErrandBook.Default.Errands.Count; i++)

@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Linq;
+using CultOfComfort.Simulation.Balance;
 using CultOfComfort.Simulation.Combat;
 using CultOfComfort.Simulation.Grid;
 
@@ -20,10 +22,31 @@ public sealed record NightPlan(
     IReadOnlyList<PlacedStructure> Structures,
     int Roster = 0,
     bool AutoRelics = false,
-    IReadOnlyList<GridPosition>? Defenders = null)
+    IReadOnlyList<GridPosition>? Defenders = null,
+    int TowerDamagePercent = 0,
+    int ProphetHealthPercent = 0)
 {
+    /// <summary>
+    /// The balance this Night is fought with: research makes towers hit harder and the Prophet sturdier. Nothing
+    /// researched (and every Night planned before research could): the default balance, so old replays stay as they were.
+    /// </summary>
+    public BalanceTable? Balance()
+    {
+        if (TowerDamagePercent == 0 && ProphetHealthPercent == 0)
+        {
+            return null;
+        }
+
+        var d = BalanceTable.Default;
+        return new BalanceTable
+        {
+            Towers = d.Towers.ToDictionary(t => t.Key, t => t.Value with { Damage = t.Value.Damage * (100 + TowerDamagePercent) / 100 }),
+            Leader = d.Leader with { MaxHealth = d.Leader.MaxHealth * (100 + ProphetHealthPercent) / 100 },
+        };
+    }
+
     public BattleSetup ToBattleSetup(VillageMap map, IReadOnlyList<PlayerInput> inputs) =>
-        new(new BattleLayout(map.Width, map.Height, map.Spawn, map.Hearth, Towers, Obstacles, null, Structures, map.Road), Seed, Budget, Waves, inputs) // the fixed road: a gate blocks it, nothing reroutes it
+        new(new BattleLayout(map.Width, map.Height, map.Spawn, map.Hearth, Towers, Obstacles, null, Structures, map.Road), Seed, Budget, Waves, inputs, Balance()) // the fixed road: a gate blocks it, nothing reroutes it
         {
             ExtraSluiceCharges = ExtraSluiceCharges,
             Roster = CultOfComfort.Simulation.Waves.RaidRoster.ForHearth(Roster),

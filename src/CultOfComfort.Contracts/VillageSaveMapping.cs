@@ -52,6 +52,7 @@ public static class VillageSaveMapping
         cold = data.Cold,
         errandIndex = data.ErrandIndex,
         errandEventDone = data.ErrandEventDone,
+        errandId = data.ErrandId ?? string.Empty,
         researched = data.Research?.Done.ToList() ?? new List<string>(),
         researching = data.Research?.Current ?? string.Empty,
         researchEndsTicks = data.Research?.EndsAtUtcTicks ?? 0,
@@ -150,7 +151,8 @@ public static class VillageSaveMapping
             dto.hasDaily && dto.daily != null
                 ? new DailyData(dto.daily.day, dto.daily.offsetMinutes, dto.daily.ids ?? new List<string>(), dto.daily.progress ?? new List<int>(),
                     dto.daily.claimed ?? new List<bool>(), dto.daily.thermos, dto.daily.streak, dto.daily.lastThermosDay, dto.daily.towels, dto.daily.cosmetics ?? new List<string>())
-                : null);
+                : null,
+            string.IsNullOrEmpty(dto.errandId) ? null : dto.errandId);
     }
 
     private static DomainData FromDto(DomainDto d) => new(
@@ -188,6 +190,8 @@ public static class VillageSaveMapping
         }).ToList(),
         autoRelics = plan.AutoRelics,
         defenders = (plan.Defenders ?? Array.Empty<GridPosition>()).Select(t => new TileDto { x = t.X, y = t.Y }).ToList(),
+        towerDamage = plan.TowerDamagePercent,
+        prophetHealth = plan.ProphetHealthPercent,
     };
 
     /// <summary>A Night plan from its wire form (the server's answer to BeginNight).</summary>
@@ -222,7 +226,8 @@ public static class VillageSaveMapping
             }).ToList(),
             d.roster,
             d.autoRelics,
-            (d.defenders ?? new List<TileDto>()).Select(t => new GridPosition(t.x, t.y)).ToList());
+            (d.defenders ?? new List<TileDto>()).Select(t => new GridPosition(t.x, t.y)).ToList(),
+            Math.Max(0, d.towerDamage), Math.Max(0, d.prophetHealth));
     }
 
     internal static ReportDto ToDto(NightReport r) => new()

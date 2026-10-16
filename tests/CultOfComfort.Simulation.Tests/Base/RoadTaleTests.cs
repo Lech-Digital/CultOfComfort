@@ -143,7 +143,7 @@ public class PleaTests
         state.Apply(new UpgradeHearth(Guid.NewGuid()), T0).Status.Should().Be(CommandStatus.Accepted);
         state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
         state.Apply(new DebugFillStores(Guid.NewGuid()), T0);
-        var now = T0.AddHours(11);
+        var now = T0.AddHours(1);
         state.Apply(new DebugRaiseTension(Guid.NewGuid(), 50 - state.Snapshot(now).Tension), now);
         return (state, now, state.Snapshot(now).Domain!.Demand!);
     }

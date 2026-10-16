@@ -9,13 +9,19 @@ public class TensionTests
 
     private static BaseState NewBase() => BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
 
-    /// <summary>A village whose Hearth reached level 2 at exactly T0 + 10 min (rich start, Finish now).</summary>
+    /// <summary>
+    /// A village whose Hearth reached level 2 at exactly T0 + 10 min. The lord's letters are moved a year away: these
+    /// tests measure the rise itself, and a missed letter (+15) would hide it.
+    /// </summary>
     private static (BaseState State, DateTimeOffset At) HearthTwo()
     {
-        var state = BaseState.CreateNew(new BuildingTable { StartingStock = new ResourceBag(900, 60, 380, 0) }, VillageMap.Demo, T0);
+        var table = new BuildingTable { StartingStock = new ResourceBag(900, 60, 380, 0) };
+        var state = BaseState.CreateNew(table, VillageMap.Demo, T0);
         state.Apply(new UpgradeHearth(Guid.NewGuid()), T0).Status.Should().Be(CommandStatus.Accepted);
         state.Snapshot(T0.AddMinutes(10)).HearthLevel.Should().Be(2);
-        return (state, T0.AddMinutes(10));
+        var data = state.ToData();
+        var quiet = data with { Domain = data.Domain! with { NextDemandUtcTicks = T0.AddYears(1).UtcTicks, Demand = null } };
+        return (BaseState.Restore(table, VillageMap.Demo, quiet), T0.AddMinutes(10));
     }
 
     [Fact]

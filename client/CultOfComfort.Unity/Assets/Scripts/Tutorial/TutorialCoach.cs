@@ -82,7 +82,9 @@ namespace CultOfComfort.Client
             switch (errand.Goal)
             {
                 case ErrandGoal.Build when errand.Type != null:
-                    return BuildStep(errand.Type.Value, placing, buildings, table, "Drag it somewhere next to a road, then tap ✓.");
+                    return BuildStep(errand.Type.Value, placing, buildings, table, table.Spec(errand.Type.Value).IsTower
+                        ? "Drag it right beside the raiders' road, then tap ✓." // away from it, a tower stands unconnected
+                        : "Drag it somewhere next to a road, then tap ✓.");
                 case ErrandGoal.BuildOnRoad when errand.Type != null:
                     return BuildStep(errand.Type.Value, placing, buildings, table, "Drag it onto the raiders' road, then tap ✓.");
                 case ErrandGoal.UpgradeTo when errand.Type != null:

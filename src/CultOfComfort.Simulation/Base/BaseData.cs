@@ -32,7 +32,8 @@ public sealed record BaseData(
     DomainData? Domain = null,
     ResearchData? Research = null,
     IReadOnlyList<long>? StockFractions = null,
-    DailyData? Daily = null);
+    DailyData? Daily = null,
+    string? ErrandId = null);
 
 /// <summary>A wild tree cut at <see cref="CutAtUtcTicks"/>; it grows back after the regrow time.</summary>
 public sealed record TreeCutData(int X, int Y, long CutAtUtcTicks);

@@ -91,11 +91,11 @@ public class ResearchTests
     [Fact]
     public void Start_WithoutItsPrerequisite_Rejected()
     {
-        // Arrange — Thicker Walls needs Sharper Axes.
+        // Arrange — Measure Twice needs Sharper Axes.
         var (state, now) = Village(2);
 
         // Act
-        var outcome = state.Apply(new StartResearch(Guid.NewGuid(), "thicker-walls"), now);
+        var outcome = state.Apply(new StartResearch(Guid.NewGuid(), "measure-twice"), now);
 
         // Assert
         outcome.Status.Should().Be(CommandStatus.Rejected);

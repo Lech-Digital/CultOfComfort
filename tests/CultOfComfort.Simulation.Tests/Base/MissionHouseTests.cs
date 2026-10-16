@@ -209,20 +209,20 @@ public class DemandTests
     }
 
     [Fact]
-    public void Demand_TenHoursAfterHearthTwo_TheLordAsks()
+    public void Demand_HalfAnHourAfterHearthTwo_TheLordAsks()
     {
-        // Arrange
+        // Arrange — the first letter comes soon, so the hall has something on the first evening (spec 2026-10-16).
         var (state, done) = Village();
 
         // Act
-        var before = state.Snapshot(done.AddHours(9.9)).Domain!.Demand;
-        var demand = state.Snapshot(done.AddHours(10.1)).Domain!.Demand;
+        var before = state.Snapshot(done.AddMinutes(Demands.FirstGapMinutes - 1)).Domain!.Demand;
+        var demand = state.Snapshot(done.AddMinutes(Demands.FirstGapMinutes + 1)).Domain!.Demand;
 
         // Assert
         before.Should().BeNull();
         demand.Should().NotBeNull();
         demand!.Id.Should().Be(1);
-        demand.DueAtUtc.Should().Be(done.AddHours(10 + Demands.WindowHours));
+        demand.DueAtUtc.Should().Be(done.AddMinutes(Demands.FirstGapMinutes).AddHours(Demands.WindowHours));
         DomainTable.TitheValue(demand.Amount).Should().BeGreaterThan(0);
     }
 
@@ -231,7 +231,7 @@ public class DemandTests
     {
         // Arrange
         var (state, done) = Village();
-        var at = done.AddHours(11);
+        var at = done.AddHours(1);
         state.Apply(new DebugRaiseTension(Guid.NewGuid(), 80), at);
         var demand = state.Snapshot(at).Domain!.Demand!;
         var before = state.Snapshot(at);
@@ -252,7 +252,7 @@ public class DemandTests
     {
         // Arrange
         var (state, done) = Village();
-        var at = done.AddHours(11);
+        var at = done.AddHours(1);
         var demand = state.Snapshot(at).Domain!.Demand!;
 
         // Act
@@ -268,7 +268,7 @@ public class DemandTests
     {
         // Arrange
         var (state, done) = Village();
-        var issued = done.AddHours(10);
+        var issued = done.AddMinutes(Demands.FirstGapMinutes);
         var due = issued.AddHours(Demands.WindowHours);
         var tensionBefore = state.Snapshot(due.AddMinutes(-1)).Tension;
 
@@ -284,17 +284,18 @@ public class DemandTests
     [Fact]
     public void Demand_LookingOftenOrRarely_SameDemandsAndTemper()
     {
-        // Arrange — lazy evaluation must not depend on how often anyone looks (no raid in 30 hours at Hearth 2).
+        // Arrange — lazy evaluation must not depend on how often anyone looks. Nine hours: the first letter comes and is
+        // missed, and no raid yet (after a raid played while away, Tension restarts from the next look, by design).
         var (often, done) = Village();
         var (rarely, _) = Village();
 
         // Act
-        for (var h = 1; h < 30; h++)
+        for (var m = 10; m < 9 * 60; m += 10)
         {
-            often.Snapshot(done.AddHours(h));
+            often.Snapshot(done.AddMinutes(m));
         }
 
-        var end = done.AddHours(30);
+        var end = done.AddHours(9);
 
         // Assert
         often.Snapshot(end).Tension.Should().Be(rarely.Snapshot(end).Tension);
@@ -302,7 +303,7 @@ public class DemandTests
     }
 
     [Fact]
-    public void Restore_SaveFromBeforeDemands_FirstOneTenHoursAfterItsLatestMoment()
+    public void Restore_SaveFromBeforeDemands_FirstOneHalfAnHourAfterItsLatestMoment()
     {
         // Arrange — a Hearth 2 save with no demand clock at all.
         var (state, done) = Village();
@@ -314,7 +315,7 @@ public class DemandTests
         var restored = BaseState.Restore(Rich(), VillageMap.Demo, old);
 
         // Assert
-        restored.Snapshot(latest.AddHours(9.9)).Domain!.Demand.Should().BeNull();
-        restored.Snapshot(latest.AddHours(10.1)).Domain!.Demand.Should().NotBeNull();
+        restored.Snapshot(latest.AddMinutes(Demands.FirstGapMinutes - 1)).Domain!.Demand.Should().BeNull();
+        restored.Snapshot(latest.AddMinutes(Demands.FirstGapMinutes + 1)).Domain!.Demand.Should().NotBeNull();
     }
 }

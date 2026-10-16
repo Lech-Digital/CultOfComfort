@@ -77,7 +77,7 @@ public sealed class BuildingTable
 
     public static BuildingTable Default { get; } = new();
 
-    public string Version { get; init; } = "village-2026.10.6";
+    public string Version { get; init; } = "village-2026.10.16";
 
     /// <summary>Health of a building whose first level is still being built.</summary>
     public int UnderConstructionHealth { get; init; } = 30;
@@ -161,7 +161,7 @@ public sealed class BuildingTable
         {
             new BuildingLevel(default, 0),
             new BuildingLevel(new ResourceBag(450, 0, 50, 0), 10 * 60), // 2026.10.4: the tutorial step (GDD ~20 min), was 600
-            new BuildingLevel(new ResourceBag(2000, 200, 300, 100), 60 * 60),
+            new BuildingLevel(new ResourceBag(1200, 150, 200, 100), 45 * 60), // 2026.10.16 first day: ~5 h, not ~30 (was 2000/200/300/100, 60 min)
         }),
         [BuildingType.Woodcutter] = new(BuildingType.Woodcutter, "Woodcutter's Lean-to", 1, new[] { 2, 3, 4 }, new[]
         {
@@ -215,10 +215,11 @@ public sealed class BuildingTable
             new BuildingLevel(new ResourceBag(60, 0, 0, 0), 60, Health: 60, Beds: 4, Comfort: 4),
             new BuildingLevel(new ResourceBag(150, 0, 20, 0), 8 * 60, Health: 90, Beds: 6, Comfort: 6),
         }, Width: 2, Depth: 2),
-        [BuildingType.MiddenSorter] = new(BuildingType.MiddenSorter, "Midden Sorter", 2, new[] { 0, 1, 2 }, new[]
+        // 2026.10.16 first day: Scrap was the wall before Hearth 3 (12/h, one sorter); now 30/50 an hour, two then three.
+        [BuildingType.MiddenSorter] = new(BuildingType.MiddenSorter, "Midden Sorter", 2, new[] { 0, 2, 3 }, new[]
         {
-            new BuildingLevel(new ResourceBag(150, 0, 0, 0), 3 * 60, PerHour: 12, Health: 70, Comfort: -10),
-            new BuildingLevel(new ResourceBag(400, 0, 40, 0), 15 * 60, PerHour: 22, Health: 100, Comfort: -15, Slots: 2),
+            new BuildingLevel(new ResourceBag(150, 0, 0, 0), 3 * 60, PerHour: 30, Health: 70, Comfort: -10),
+            new BuildingLevel(new ResourceBag(400, 0, 40, 0), 15 * 60, PerHour: 50, Health: 100, Comfort: -15, Slots: 2),
         }, Produces: ResourceType.Scrap, Width: 2, Depth: 2, Workers: 1),
         [BuildingType.Bathhouse] = new(BuildingType.Bathhouse, "Bathhouse", 3, new[] { 0, 0, 1 }, new[]
         {
