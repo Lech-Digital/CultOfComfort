@@ -35,7 +35,9 @@ public sealed record DomainView(
     WorldLink? World = null,
     IReadOnlyList<PreacherView>? Preachers = null,
     IReadOnlyList<RoadReport>? Reports = null,
-    DemandView? Demand = null);
+    DemandView? Demand = null,
+    IReadOnlyList<TaleView>? Tales = null,
+    DateTimeOffset? NextDemandAtUtc = null);
 
 /// <summary>The Domain (spec 2026-10-14 world map): missionaries, influence, offerings, tithes.</summary>
 public sealed partial class BaseState
@@ -52,6 +54,7 @@ public sealed partial class BaseState
     private DemandData? _demand;
     private DateTimeOffset? _nextDemandAt;
     private int _nextDemandId = 1;
+    private readonly List<TaleData> _tales = new();
     private const int ReportsKept = 6;
 
     private DomainTable Domain => _table.Domain;
@@ -234,23 +237,69 @@ public sealed partial class BaseState
     private int SermonBonusPercent(MissionaryData m) =>
         Bonus(TechEffect.MissionaryPercent) + (m.PreacherId > 0 ? Preachers.BonusPercent(m.PreacherId, PreacherXp(m.PreacherId)) : 0);
 
-    /// <summary>A preacher gets home: experience for the sermon, whatever the road gave (if the stores have room), a report.</summary>
+    /// <summary>A preacher gets home: experience for the sermon, and a road tale for you to end (spec 2026-10-16).</summary>
     private void ComeHome(MissionaryData m, DateTimeOffset at)
     {
         var preacher = m.PreacherId > 0 ? m.PreacherId : PreacherOf()[m.Id]; // one from before the Mission House: their seat's preacher
-        var (find, gift, xp) = Preachers.Find(m.Id, preacher, m.Hours);
-        _preacherXp[preacher] = PreacherXp(preacher) + Preachers.XpFor(preacher, m.Hours) + xp;
+        _preacherXp[preacher] = PreacherXp(preacher) + Preachers.XpFor(preacher, m.Hours);
+        if (_tales.Count >= Tales.Kept)
+        {
+            var oldest = _tales[0];
+            EndTale(oldest, Tales.FreeChoice(Tales.Options(oldest.Tale, oldest.PreacherId, oldest.Hours))); // nobody listened: it ends the free way
+        }
+
+        _tales.Add(new TaleData(m.Id, preacher, m.NodeId, m.Distance != null, m.Hours, Tales.Pick(m.Id, preacher), at.UtcTicks));
+    }
+
+    private CommandOutcome Choose(ChooseTale choose, DateTimeOffset now)
+    {
+        var tale = _tales.FirstOrDefault(t => t.Id == choose.TaleId);
+        if (tale == null)
+        {
+            return CommandOutcome.Reject("That story's been told.");
+        }
+
+        var options = Tales.Options(tale.Tale, tale.PreacherId, tale.Hours);
+        if (choose.Choice < 0 || choose.Choice >= options.Count)
+        {
+            return CommandOutcome.Reject("The story doesn't end that way.");
+        }
+
+        if (!_stock.Covers(options[choose.Choice].Cost))
+        {
+            return CommandOutcome.Reject("You don't have that much to give.");
+        }
+
+        MaterializeTension(now);
+        var gift = EndTale(tale, choose.Choice);
+        NoteDaily(DailyGoal.RoadFind, gift.IsZero ? 0 : 1, now);
+        Advance(now);
+        return CommandOutcome.Accept(gift);
+    }
+
+    /// <summary>Ends a tale the chosen way: pays its cost, grants what it gives (if the stores have room), writes the report.</summary>
+    private ResourceBag EndTale(TaleData tale, int choice)
+    {
+        var option = Tales.Options(tale.Tale, tale.PreacherId, tale.Hours)[choice];
+        var won = Tales.Lucky(tale.Id, option.ChancePercent);
+        var gift = won ? option.Gift : default;
+        _stock -= option.Cost;
+        _preacherXp[tale.PreacherId] = PreacherXp(tale.PreacherId) + (won ? option.Xp : 1);
+        _tensionMilli = Math.Min(_table.Tension.Max * 1000L, _tensionMilli + option.Tension * 1000L);
         var caps = Caps;
         var taken = new ResourceBag(
             Math.Min(gift.Timber, Math.Max(0, caps.Timber - _stock.Timber)), Math.Min(gift.Peat, Math.Max(0, caps.Peat - _stock.Peat)),
             Math.Min(gift.Scrap, Math.Max(0, caps.Scrap - _stock.Scrap)), Math.Min(gift.Devotion, Math.Max(0, caps.Devotion - _stock.Devotion)));
         _stock += taken;
-        _reports.Add(new RoadReport(preacher, m.NodeId, m.Distance != null, m.Hours, find, taken, at.UtcTicks));
-        NoteDaily(DailyGoal.RoadFind, find == RoadFind.Nothing ? 0 : 1, at);
+        _tales.Remove(tale);
+        _reports.Add(new RoadReport(tale.PreacherId, tale.NodeId, tale.InWorld, tale.Hours, RoadFind.Nothing, taken, tale.HomeAtUtcTicks, tale.Tale,
+            won ? choice : -1 - choice));
         if (_reports.Count > ReportsKept)
         {
             _reports.RemoveAt(0);
         }
+
+        return taken;
     }
 
     // ---------------- the lord's demands (spec 2026-10-15) ----------------
@@ -278,6 +327,52 @@ public sealed partial class BaseState
 
         _demand = null;
         _nextDemandAt = now + Demands.Gap(_nextDemandId);
+        Advance(now);
+        return CommandOutcome.Accept();
+    }
+
+    private CommandOutcome Plead(PleadWithLord plea, DateTimeOffset now)
+    {
+        if (_demand == null || _demand.Id != plea.DemandId)
+        {
+            return CommandOutcome.Reject("He isn't asking for that any more.");
+        }
+
+        MaterializeTension(now);
+        var max = _table.Tension.Max * 1000L;
+        switch (plea.Plea)
+        {
+            case Plea.Stall when _demand.Stalled:
+                return CommandOutcome.Reject("He won't wait twice.");
+            case Plea.Stall:
+                _demand = _demand with { Stalled = true, DueAtUtcTicks = _demand.DueAtUtcTicks + TimeSpan.FromHours(Demands.StallHours).Ticks };
+                _tensionMilli = Math.Min(max, _tensionMilli + Demands.StallPenalty * 1000L);
+                break;
+            case Plea.Flatter when _demand.Haggle != DemandHaggle.None || _demand.Flattered:
+                return CommandOutcome.Reject(_demand.Flattered ? "He's been flattered enough. Any more and he'll suspect something." : "Too late for compliments.");
+            case Plea.Flatter:
+                var cost = Demands.FlatterCost(HearthLevel);
+                if (!_stock.Covers(cost))
+                {
+                    return CommandOutcome.Reject("You don't have that much to give.");
+                }
+
+                _stock -= cost;
+                _demand = _demand with { Flattered = true };
+                break;
+            case Plea.Haggle when _demand.Haggle != DemandHaggle.None:
+                return CommandOutcome.Reject("You've haggled once. He remembers.");
+            case Plea.Haggle when Demands.HaggleWorks(_demand.Id, _demand.Flattered):
+                _demand = _demand with { Haggle = DemandHaggle.Won, Amount = Demands.Haggled(_demand.Amount) };
+                break;
+            case Plea.Haggle:
+                _demand = _demand with { Haggle = DemandHaggle.Refused };
+                _tensionMilli = Math.Min(max, _tensionMilli + Demands.RefusePenalty * 1000L);
+                break;
+            default:
+                return CommandOutcome.Reject("He doesn't follow.");
+        }
+
         Advance(now);
         return CommandOutcome.Accept();
     }
@@ -499,14 +594,18 @@ public sealed partial class BaseState
                 preacherOf.Where(p => p.Value == id).Select(p => (int?)p.Key).FirstOrDefault());
         }).ToList();
         var demand = _demand == null ? null : new DemandView(_demand.Id, _demand.Amount, new DateTimeOffset(_demand.DueAtUtcTicks, TimeSpan.Zero),
-            Demands.TemperDrop(_demand.Amount, Domain) * (100 + Bonus(TechEffect.TithePercent)) / 100, Demands.MissPenalty, Demands.Reason(_demand.Id));
+            Demands.TemperDrop(_demand.Amount, Domain) * (100 + Bonus(TechEffect.TithePercent)) / 100, Demands.MissPenalty, Demands.Reason(_demand.Id),
+            _demand.Stalled, _demand.Haggle, _demand.Flattered, Demands.Haggled(_demand.Amount), Demands.FlatterCost(HearthLevel),
+            _demand.Flattered ? 100 : Demands.HaggleChancePercent);
+        var tales = _tales.Select(t => new TaleView(t.Id, t.PreacherId, t.NodeId, t.InWorld, t.Hours, t.Tale, Tales.Options(t.Tale, t.PreacherId, t.Hours))).ToList();
         var purse = OfferingsMilliAt(now);
         var perHour = OfferingsPerHour();
         var halfUntil = _lastTitheAt?.AddHours(Domain.TitheRepeatHours);
         return new DomainView(HearthLevel >= Domain.UnlockHearth, nodes, missionaries, Domain.Missionaries(HearthLevel),
             new ResourceBag((int)(purse[0] / 1000), (int)(purse[1] / 1000), (int)(purse[2] / 1000), (int)(purse[3] / 1000)),
             Times(perHour, Domain.OfferingsBufferHours), perHour, (int)(TensionRateMilli()), halfUntil > now ? halfUntil : null,
-            Bonus(TechEffect.MissionaryPercent), Bonus(TechEffect.TithePercent), _world, preachers, _reports.ToList(), demand);
+            Bonus(TechEffect.MissionaryPercent), Bonus(TechEffect.TithePercent), _world, preachers, _reports.ToList(), demand, tales,
+            _demand == null && HearthLevel >= Domain.UnlockHearth ? _nextDemandAt : null);
     }
 
     private DomainData DomainToData() => new(
@@ -522,7 +621,8 @@ public sealed partial class BaseState
         _reports.ToList(),
         _demand,
         _nextDemandAt?.UtcTicks,
-        _nextDemandId);
+        _nextDemandId,
+        _tales.ToList());
 
     private void RestoreDomain(DomainData? data, DateTimeOffset fallback)
     {
@@ -602,5 +702,14 @@ public sealed partial class BaseState
         }
 
         _nextDemandId = Math.Max(_nextDemandId, data.NextDemandId);
+        foreach (var t in data.Tales ?? Array.Empty<TaleData>())
+        {
+            if (t.PreacherId < 1 || _table.Domain.EfficiencyPercent(t.Hours) == null || !Enum.IsDefined(typeof(RoadTale), t.Tale))
+            {
+                throw new InvalidBaseDataException($"impossible road tale {t.Id}");
+            }
+
+            _tales.Add(t);
+        }
     }
 }

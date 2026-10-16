@@ -117,5 +117,149 @@ namespace CultOfComfort.Client.Tests
             Assert.IsTrue(card.Preachers.Single(p => p.Id == 2).Selected);
             StringAssert.Contains("Sister Drizzle", card.Note);
         }
+
+        [Test]
+        public void Build_APreacherHome_TheirTaleWaitsWithTwoPricedEndings()
+        {
+            // Arrange — Brother Damp preaches 2 hours at Muddlecombe (1 hex: 20 min each way).
+            var state = Village(2);
+            state.Apply(new SendMissionary(Guid.NewGuid(), 1, 2), T0);
+            var at = T0.AddHours(3);
+
+            // Act
+            var model = MissionHousePresenter.Build(state.Snapshot(at), Rich(), Name, at, null, WorldMapPresenter.Places(state.Snapshot(at), Rich()));
+
+            // Assert
+            var tale = model.Tales.Single();
+            Assert.AreEqual("Brother Damp", tale.Teller);
+            Assert.AreEqual(2, tale.Choices.Count);
+            Assert.IsTrue(tale.Choices.All(c => c.Label.Contains(" · ")), "each ending says what it gives");
+        }
+
+        [Test]
+        public void Places_HearthTwo_TheNearestFirstAndTheFarOnesLast()
+        {
+            // Act
+            var places = WorldMapPresenter.Places(Village(2).Snapshot(T0), Rich());
+
+            // Assert
+            Assert.IsNotEmpty(places);
+            Assert.IsTrue(places.First().Reachable);
+            Assert.AreEqual(places.Where(p => p.Reachable).OrderBy(p => p.Distance).Select(p => p.Id), places.Where(p => p.Reachable).Select(p => p.Id));
+            Assert.IsTrue(places.SkipWhile(p => p.Reachable).All(p => !p.Reachable), "the far places come after every reachable one");
+        }
+
+        [Test]
+        public void Outcome_AGambleWithACost_SaysTheOddsAndBothSides()
+        {
+            // Act
+            var line = MissionHousePresenter.Outcome(new TaleOption(new ResourceBag(0, 0, 14, 0), new ResourceBag(8, 0, 0, 0), 2, 0, 60));
+
+            // Assert
+            Assert.AreEqual("60%: −8 Timber, +14 Scrap, +2 XP", line);
+        }
+
+        [Test]
+        public void Report_ATaleThatEnded_SaysHowItEnded()
+        {
+            // Act
+            var line = MissionHousePresenter.Report(new RoadReport(1, 1, false, 2, RoadFind.Nothing, new ResourceBag(16, 0, 0, 0), 0, RoadTale.Goat, 0), "Muddlecombe");
+
+            // Assert
+            Assert.AreEqual("Brother Damp, back from Muddlecombe: sold a lost goat (+16 Timber).", line);
+        }
+
+        [Test]
+        public void Ruler_ABishop_NamesHimShortAndFull()
+        {
+            try
+            {
+                // Act
+                Ruler.Set("the Bishop of Sumpwell");
+
+                // Assert
+                Assert.AreEqual("the Bishop of Sumpwell", Ruler.Full);
+                Assert.AreEqual("The Bishop", Ruler.Cap(Ruler.Short));
+                var raided = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+                raided.Apply(new DebugRaiseTension(Guid.NewGuid(), 75), T0);
+                StringAssert.StartsWith("The Bishop's men are coming", VillagePresenter.TensionNote(raided.Snapshot(T0.AddMinutes(48))));
+            }
+            finally
+            {
+                Ruler.Set("Lord Wulfric");
+            }
+        }
+
+        [Test]
+        public void Ruler_ALordWithASuffix_KeepsItInTheShortName()
+        {
+            try
+            {
+                // Act
+                Ruler.Set("Lord Thorkel the Younger");
+
+                // Assert
+                Assert.AreEqual("Thorkel the Younger", Ruler.Short);
+            }
+            finally
+            {
+                Ruler.Set("Lord Wulfric");
+            }
+        }
+
+        [Test]
+        public void Ruler_Empty_KeepsWhoItHad()
+        {
+            // Act
+            Ruler.Set(string.Empty);
+
+            // Assert
+            Assert.AreEqual("Lord Wulfric", Ruler.Full);
+        }
+
+        [Test]
+        public void Hall_AnOpenDemand_ALetterDeliverAndThreePleas()
+        {
+            // Arrange
+            var state = Village(2);
+            var at = T0.AddHours(11);
+
+            // Act
+            var model = LordHallPresenter.Build(state.Snapshot(at), Rich(), "Lord Wulfric", "Wulfric's Keep", at);
+
+            // Assert
+            StringAssert.StartsWith("By order of Lord Wulfric:", model.Letter);
+            Assert.IsTrue(model.Deliver.Enabled, "the stores are full");
+            Assert.AreEqual(new[] { "haggle", "flatter", "stall" }, model.Pleas.Select(p => p.Id).ToArray());
+            Assert.IsTrue(model.Pleas.All(p => p.Enabled));
+        }
+
+        [Test]
+        public void Hall_NoDemandYet_SaysWhenTheNextLetterComes()
+        {
+            // Act
+            var model = LordHallPresenter.Build(Village(2).Snapshot(T0), Rich(), "Lord Wulfric", "Wulfric's Keep", T0);
+
+            // Assert
+            Assert.IsNull(model.Letter);
+            StringAssert.Contains("next letter comes in about 10h", model.NoDemand);
+        }
+
+        [Test]
+        public void Hall_AfterAStall_StallIsSpent()
+        {
+            // Arrange
+            var state = Village(2);
+            var at = T0.AddHours(11);
+            state.Apply(new PleadWithLord(Guid.NewGuid(), state.Snapshot(at).Domain.Demand.Id, Plea.Stall), at);
+
+            // Act
+            var model = LordHallPresenter.Build(state.Snapshot(at), Rich(), "Lord Wulfric", "Wulfric's Keep", at);
+
+            // Assert
+            var stall = model.Pleas.Single(p => p.Id == "stall");
+            Assert.IsFalse(stall.Enabled);
+            StringAssert.Contains("won't wait again", stall.Label);
+        }
     }
 }

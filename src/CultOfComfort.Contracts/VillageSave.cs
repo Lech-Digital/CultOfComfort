@@ -100,6 +100,26 @@ public sealed class DomainDto
     public long demandDueTicks;
     public long nextDemandTicks = -1;
     public int nextDemandId = 1;
+
+    /// <summary>What you've tried on him over the open demand (spec 2026-10-16 the lord's hall).</summary>
+    public bool demandStalled;
+    public string demandHaggle;
+    public bool demandFlattered;
+
+    /// <summary>Road tales waiting for you to choose (spec 2026-10-16 mission board).</summary>
+    public List<TaleDto> tales;
+}
+
+[Serializable]
+public sealed class TaleDto
+{
+    public int id;
+    public int preacher;
+    public int node;
+    public bool inWorld;
+    public int hours;
+    public string tale;
+    public long homeTicks;
 }
 
 [Serializable]
@@ -117,6 +137,8 @@ public sealed class RoadReportDto
     public bool inWorld;
     public int hours;
     public string find;
+    public string tale; // empty for a report from before the tales
+    public int choice;
     public int timber;
     public int peat;
     public int scrap;

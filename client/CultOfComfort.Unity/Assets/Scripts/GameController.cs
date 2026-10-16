@@ -87,6 +87,7 @@ namespace CultOfComfort.Client
         private WorldMapModel _mapModel;
         private bool _pendingTithe;
         private MissionHouseView _house;
+        private LordHallView _hall;
         private int _sendPreacher;            // who the next sermon is for (picked in the Mission House or on the card); 0: the first free
         private int _cardPreacher;
         private int _cardNode;
@@ -237,6 +238,8 @@ namespace CultOfComfort.Client
                 if (outcome.Status == CommandStatus.Accepted)
                 {
                     _map.CloseCard();
+                    _stage.Select(null);
+                    _stage.GoHome(); // watch them set off (the card had pushed the view aside)
                     _sendPreacher = 0;
                     _map.SetStatus(null);
                     var name = world != null ? SharedWorldPresenter.MapFor(world).Node(node)?.Name : DomainMap.Marchlands.Node(node)?.Name;
@@ -244,10 +247,39 @@ namespace CultOfComfort.Client
                 }
             };
             _house = new MissionHouseView(root);
-            _house.SendClicked += id =>
+            _house.CardFor = (node, preacher) => _snapshot == null ? null
+                : _world != null ? SharedWorldPresenter.Card(_snapshot, BuildingTable.Default, _world, node, preacher)
+                : WorldMapPresenter.Card(_snapshot, BuildingTable.Default, node, preacher);
+            _house.PreachClicked += async (node, hours, preacher) =>
             {
-                // Pick a place for them: the map opens, and the card offers them first.
-                _sendPreacher = id;
+                var world = _world;
+                var outcome = await SendVillage(world != null
+                    ? new SendWorldMissionary(Guid.NewGuid(), node, hours, SharedWorldPresenter.DistanceTo(world, node), preacher)
+                    : (BaseCommand)new SendMissionary(Guid.NewGuid(), node, hours, preacher));
+                if (outcome.Status == CommandStatus.Accepted)
+                {
+                    Announce($"{(preacher > 0 ? Preachers.Name(preacher) : "A missionary")} sets off for {PlaceName(node, world != null)}, with sandwiches.");
+                    RenderMissionHouse();
+                }
+                else
+                {
+                    Announce(outcome.Reason ?? "They won't go.");
+                }
+            };
+            _house.TaleChosen += async (tale, choice) =>
+            {
+                var outcome = await SendVillage(new ChooseTale(Guid.NewGuid(), tale, choice));
+                if (outcome.Status != CommandStatus.Accepted)
+                {
+                    Announce(outcome.Reason ?? "The story trails off.");
+                    return;
+                }
+
+                Announce(outcome.Collected.IsZero ? "A good story, if nothing else." : $"Into the stores: {VillagePresenter.ShortCost(outcome.Collected)}.");
+                RenderMissionHouse();
+            };
+            _house.MapClicked += () =>
+            {
                 _house.Show(false);
                 OpenFeature("map");
             };
@@ -283,25 +315,17 @@ namespace CultOfComfort.Client
             };
             _map.Zoomed += step => _stage.Rig.Zoom(step > 0 ? 0.7f : 1.43f, new Vector2(Screen.width / 2f, Screen.height / 2f));
             _map.Recentred += () => _stage.GoHome();
-            _map.HomeClicked += () => _stage.GoHome();
+            _map.HomeClicked += CloseMap; // back to the village (the house at the top re-centres the map)
             _map.MinimapPicked += at => _stage.Rig.FlyTo(at);
-            _map.TitheClicked += async amount =>
+            _map.TitheClicked += PayTithe;
+            _hall = new LordHallView(root);
+            _hall.DeliverClicked += DeliverDemand;
+            _hall.TitheClicked += PayTithe;
+            _hall.PleaClicked += Plead;
+            _hall.ShowSeatClicked += () =>
             {
-                var hadRaid = _snapshot?.RaidWarningEndsAtUtc != null;
-                var outcome = await SendVillage(new PayTithe(Guid.NewGuid(), amount));
-                if (outcome.Status == CommandStatus.Accepted)
-                {
-                    _map.CloseCard();
-                    if (_mapModel != null && _mapModel.SeatId >= 0)
-                    {
-                        _stage.SendTithe(_mapModel.SeatId); // a cart trundles off to his seat
-                    }
-
-                    var lord = LordName();
-                    Announce(hadRaid && _snapshot?.RaidWarningEndsAtUtc == null
-                        ? $"{lord} counts the money twice and calls the raid off. For now."
-                        : $"{lord} pockets the tithe. His temper cools a little.");
-                }
+                _hall.Show(false);
+                OpenFeature("seat");
             };
             _sheet = new FeatureSheetView(root);
             _sheet.ActionClicked += OnSheetAction;
@@ -320,6 +344,7 @@ namespace CultOfComfort.Client
                 {
                     CloseMap();
                     _house.Show(false);
+                    _hall.Show(false);
                     _sheet.Show(id, SheetFor(id));
                     return;
                 }
@@ -330,8 +355,15 @@ namespace CultOfComfort.Client
                     return;
                 }
 
+                if (id == "tithes")
+                {
+                    OpenHall();
+                    return;
+                }
+
                 _sheet.Close();
                 _house.Show(false);
+                _hall.Show(false);
                 _map.Show(true);
                 RenderMap();
                 if (_village is RemoteBaseGateway)
@@ -339,7 +371,7 @@ namespace CultOfComfort.Client
                     _ = FetchWorldAsync(_world?.viewQ, _world?.viewR);
                 }
 
-                if (id == "tithes")
+                if (id == "seat")
                 {
                     _pendingTithe = true;
                     OpenSeat();
@@ -361,13 +393,126 @@ namespace CultOfComfort.Client
 
             CloseMap();
             _sheet.Close();
+            _hall.Show(false);
             if (_world == null && _village is RemoteBaseGateway)
             {
                 _ = FetchWorldAsync(null, null); // place names on the shared world come with it; the house redraws when it lands
             }
 
-            _house.Render(MissionHousePresenter.Build(_snapshot, BuildingTable.Default, PlaceName, _snapshot.AsOfUtc, WalkSeconds));
+            RenderMissionHouse();
             _house.Show(true);
+        }
+
+        /// <summary>The lord's hall (spec 2026-10-16): his temper, his demand, what you can try on him, the tithe.</summary>
+        private void OpenHall()
+        {
+            if (_snapshot == null)
+            {
+                return;
+            }
+
+            CloseMap();
+            _sheet.Close();
+            _house.Show(false);
+            if (_world == null && _village is RemoteBaseGateway)
+            {
+                _ = FetchWorldAsync(null, null); // his name comes with the world; the hall redraws when it lands
+            }
+
+            RenderHall();
+            _hall.Show(true);
+        }
+
+        private void RenderHall()
+        {
+            if (_snapshot == null)
+            {
+                return;
+            }
+
+            string lord;
+            string seat;
+            if (_world != null)
+            {
+                var map = SharedWorldPresenter.MapFor(_world);
+                lord = SharedWorldPresenter.Authority(map, _world).Lord;
+                seat = SharedWorldPresenter.Seat(map, _world)?.Name;
+            }
+            else if (_snapshot.Domain?.World == null)
+            {
+                lord = Ruler.Full;
+                seat = DomainMap.Marchlands.Nodes.FirstOrDefault(n => n.Type == NodeType.Keep)?.Name;
+            }
+            else
+            {
+                lord = "the lord";
+                seat = null;
+            }
+
+            _hall.Render(LordHallPresenter.Build(_snapshot, BuildingTable.Default, lord, seat, _snapshot.AsOfUtc));
+        }
+
+        private async void PayTithe(ResourceBag amount)
+        {
+            var hadRaid = _snapshot?.RaidWarningEndsAtUtc != null;
+            var outcome = await SendVillage(new PayTithe(Guid.NewGuid(), amount));
+            if (outcome.Status != CommandStatus.Accepted)
+            {
+                Announce(outcome.Reason ?? "He won't take it.");
+                return;
+            }
+
+            _map.CloseCard();
+            if (_mapModel != null && _mapModel.SeatId >= 0 && _stage.IsOpen)
+            {
+                _stage.SendTithe(_mapModel.SeatId); // a cart trundles off to his seat
+            }
+
+            var lord = LordName();
+            Announce(hadRaid && _snapshot?.RaidWarningEndsAtUtc == null
+                ? $"{lord} counts the money twice and calls the raid off. For now."
+                : $"{lord} pockets the tithe. His temper cools a little.");
+            if (_hall.IsOpen)
+            {
+                RenderHall();
+            }
+        }
+
+        private async void Plead(int demandId, Plea plea)
+        {
+            var outcome = await SendVillage(new PleadWithLord(Guid.NewGuid(), demandId, plea));
+            if (outcome.Status != CommandStatus.Accepted)
+            {
+                Announce(outcome.Reason ?? "He isn't listening.");
+                return;
+            }
+
+            var demand = _snapshot?.Domain?.Demand;
+            var lord = LordName();
+            Announce(plea switch
+            {
+                Plea.Stall => $"{lord} drums his fingers. Fine: {Demands.StallHours} more hours.",
+                Plea.Flatter => $"{lord} reads the poem twice. He's blushing.",
+                _ when demand?.Haggle == DemandHaggle.Won => $"{lord} grumbles, and settles for {VillagePresenter.ShortCost(demand.Amount)}.",
+                _ => $"{lord} is insulted. His temper flares (+{Demands.RefusePenalty}).",
+            });
+            if (_hall.IsOpen)
+            {
+                RenderHall();
+            }
+        }
+
+        private void RenderMissionHouse()
+        {
+            if (_snapshot == null)
+            {
+                return;
+            }
+
+            var places = _world != null ? SharedWorldPresenter.Places(_snapshot, BuildingTable.Default, _world)
+                : _snapshot.Domain?.World == null ? WorldMapPresenter.Places(_snapshot, BuildingTable.Default)
+                : null; // on a shared world, waiting for the server
+            _house.Render(MissionHousePresenter.Build(_snapshot, BuildingTable.Default, PlaceName, _snapshot.AsOfUtc, WalkSeconds, places));
         }
 
         /// <summary>The walk to a place, one way, in seconds.</summary>
@@ -412,7 +557,7 @@ namespace CultOfComfort.Client
 
             _metDemand = demandId;
             _map.CloseCard();
-            if (_mapModel != null && _mapModel.SeatId >= 0)
+            if (_mapModel != null && _mapModel.SeatId >= 0 && _stage.IsOpen)
             {
                 _stage.SendTithe(_mapModel.SeatId); // the cart goes off with exactly what he asked for
             }
@@ -421,12 +566,15 @@ namespace CultOfComfort.Client
             Announce(hadRaid && _snapshot?.RaidWarningEndsAtUtc == null
                 ? $"{lord} gets exactly what he asked for, and calls the raid off. He almost smiles."
                 : $"{lord} gets exactly what he asked for. His temper cools a lot.");
+            if (_hall.IsOpen)
+            {
+                RenderHall();
+            }
         }
 
         private string LordName()
         {
-            var lord = _world != null ? SharedWorldPresenter.Authority(SharedWorldPresenter.MapFor(_world), _world).Lord : "Wulfric";
-            return char.ToUpperInvariant(lord[0]) + lord.Substring(1);
+            return Ruler.Cap(Ruler.Full);
         }
 
         /// <summary>The lord's demands as they come and go: a toast when one arrives, another if it ran out unpaid; a dot on Tithes while one is open.</summary>
@@ -500,9 +648,22 @@ namespace CultOfComfort.Client
 
             _hud.SetFeatureOpen("research", _snapshot != null && _snapshot.HearthLevel >= 2);
             WatchDemand();
+            _hud.SetFeatureBadge("missionaries", _snapshot?.Domain?.Tales?.Count > 0);
             if (_house != null && _house.IsOpen && _snapshot != null)
             {
-                _house.Render(MissionHousePresenter.Build(_snapshot, BuildingTable.Default, PlaceName, _snapshot.AsOfUtc, WalkSeconds));
+                RenderMissionHouse();
+            }
+
+            if (_hall != null && _hall.IsOpen && _snapshot != null)
+            {
+                if (_phase != GamePhase.Dusk)
+                {
+                    _hall.Show(false);
+                }
+                else
+                {
+                    RenderHall();
+                }
             }
 
             _hud.SetFeatureOpen("shop", true);
@@ -721,6 +882,7 @@ namespace CultOfComfort.Client
                 if (world != null)
                 {
                     _world = world;
+                    Ruler.Set(SharedWorldPresenter.Authority(SharedWorldPresenter.MapFor(world), world).Lord);
                     if (_map.IsOpen && _snapshot != null)
                     {
                         RefreshSnapshot();
@@ -729,7 +891,12 @@ namespace CultOfComfort.Client
 
                     if (_house.IsOpen && _snapshot != null)
                     {
-                        _house.Render(MissionHousePresenter.Build(_snapshot, BuildingTable.Default, PlaceName, _snapshot.AsOfUtc, WalkSeconds));
+                        RenderMissionHouse();
+                    }
+
+                    if (_hall.IsOpen && _snapshot != null)
+                    {
+                        RenderHall();
                     }
                 }
             }
@@ -1003,14 +1170,6 @@ namespace CultOfComfort.Client
                 return;
             }
 
-            if (_hud.ErrandFolded)
-            {
-                _hud.SetErrandFolded(false); // a folded note opens first; the next tap does the errand
-                SetPref(ErrandFoldedKey, false);
-                RefreshVillage();
-                return;
-            }
-
             try
             {
                 switch (note.Hint)
@@ -1263,6 +1422,11 @@ namespace CultOfComfort.Client
                 }
 
                 _night = _snapshot.LastNightRecorded + 1; // carry on where the save left off
+                if (_snapshot.Domain?.World != null)
+                {
+                    _ = FetchWorldAsync(null, null); // who rules here comes with the world: the tape and the Night name him
+                }
+
                 if (_snapshot.Errand?.Index == 0 && _snapshot.Buildings.Count == 1)
                 {
                     // A brand-new village: the Prophet says one line, then the errand note takes over.
@@ -1694,7 +1858,7 @@ namespace CultOfComfort.Client
             }
 
             var aiming = aimed != null && _aim == aimed;
-            var text = swooning ? "Fainted" : aiming ? "Pick" : ready ? (_battle.AutoRelics ? $"{name} · auto" : name) : $"{Seconds(readyAtTick)}s";
+            var text = swooning ? "Fainted" : aiming ? "Pick" : ready ? (_battle.AutoRelics ? $"{name} · auto" : name) : $"{name} {Seconds(readyAtTick)}s";
             return new RelicButtonState(true, text, ready, aiming);
         }
 
@@ -1789,7 +1953,7 @@ namespace CultOfComfort.Client
             _phase = GamePhase.Dusk;
             _hud.ShowPhase(_phase);
             Announce(report != null && report.Salvage > 0
-                ? $"Dawn. {report.Salvage} Scrap salvaged from Wulfric's dropped horseshoes."
+                ? $"Dawn. {report.Salvage} Scrap salvaged from {Ruler.Short}'s dropped horseshoes."
                 : "Dawn. Rebuild, rearrange, prepare for tomorrow's disappointment.");
             try
             {
@@ -1815,7 +1979,9 @@ namespace CultOfComfort.Client
         /// <summary>The tutorial's step this frame (Dusk only, no card or report in the way) and, for a building, where it is on screen.</summary>
         private const string DrawerCollapsedKey = "hud.drawer.collapsed";
         private const string MapHelpSeenKey = "map.help.seen";
-        private const string ErrandFoldedKey = "hud.errand.folded";
+        private const string HowToSeenKey = "howto.seen";
+        /// <summary>The errand note is open (2026-10-16: it starts as one line; "the errands take lots of space").</summary>
+        private const string ErrandOpenKey = "hud.errand.open";
         private const string CoachOffKey = "hud.coach.off";
 
         private static bool Pref(string key) => PlayerPrefs.GetInt(key, 0) == 1;
@@ -2118,13 +2284,13 @@ namespace CultOfComfort.Client
             {
                 _tips.Reset();
                 SetPref(CoachOffKey, false);
-                SetPref(ErrandFoldedKey, false);
+                SetPref(ErrandOpenKey, true);
                 _hud.SetErrandFolded(false);
                 Announce("Tips are back. The Prophet clears his throat.");
             };
             // Folding things away (owner 2026-10-14), remembered on the device.
             _hud.SetDrawerCollapsed(Pref(DrawerCollapsedKey));
-            _hud.SetErrandFolded(Pref(ErrandFoldedKey));
+            _hud.SetErrandFolded(!Pref(ErrandOpenKey));
             _hud.DrawerToggleClicked += () =>
             {
                 var collapsed = !_hud.DrawerCollapsed;
@@ -2134,8 +2300,9 @@ namespace CultOfComfort.Client
             };
             _hud.ErrandFoldClicked += () =>
             {
-                _hud.SetErrandFolded(true);
-                SetPref(ErrandFoldedKey, true);
+                var folded = !_hud.ErrandFolded;
+                _hud.SetErrandFolded(folded);
+                SetPref(ErrandOpenKey, !folded);
                 RefreshVillage();
             };
             _hud.CoachDismissClicked += () =>
@@ -2155,6 +2322,12 @@ namespace CultOfComfort.Client
                     : remote.PendingCount == 0 ? "Cloud save: offline" : $"Cloud save: offline · {remote.PendingCount} waiting");
             }
 
+            if (_phase == GamePhase.Dusk && _snapshot != null && _intro == null && !_showingReport && !Pref(HowToSeenKey))
+            {
+                SetPref(HowToSeenKey, true);
+                _hud.ShowHowTo(true); // once, the first time the village is up: what the game is and how it's played
+            }
+
             var coach = CoachNow(out var coachPoint);
             _hud.ShowCoach(coach, coachPoint);
             _hud.Tick(Time.time);
@@ -2171,13 +2344,13 @@ namespace CultOfComfort.Client
             }
             else if (_phase == GamePhase.Night)
             {
-                var sluice = _battle.IsSluiceReady ? $"Open Sluice · {_battle.SluiceChargesLeft}"
+                var sluice = _battle.IsSluiceReady ? $"Sluice ×{_battle.SluiceChargesLeft}"
                     : _battle.SluiceChargesLeft == 0 ? "Cistern empty" : $"Sluice {Seconds(_battle.SluiceReadyAtTick)}s";
                 var leader = _battle.Leader;
                 var swooning = leader.IsSwooning(_battle.Tick);
-                var voice = swooning ? "Fainted" : _battle.IsVoiceReady ? "Phantom Voice" : $"Hoarse {Seconds(leader.VoiceReadyAtTick)}s";
+                var voice = swooning ? "Fainted" : _battle.IsVoiceReady ? "Voice" : $"Voice {Seconds(leader.VoiceReadyAtTick)}s";
                 var aimingStones = _aim == PlayerActionType.HotStones;
-                var stones = swooning ? "Fainted" : aimingStones ? "Pick a tile" : _battle.IsHotStonesReady ? "Hot Stones" : $"Heating {Seconds(leader.HotStonesReadyAtTick)}s";
+                var stones = swooning ? "Fainted" : aimingStones ? "Pick a tile" : _battle.IsHotStonesReady ? "Hot Stones" : $"Stones {Seconds(leader.HotStonesReadyAtTick)}s";
                 var alive = _battle.Enemies.Count(e => e.IsActive);
                 var hint = swooning ? $"The Prophet is face down in the mud. Up in {Seconds(leader.SwoonedUntilTick)}s: tap where he should run."
                     : aimingStones ? "Tap a tile inside the pebble ring, or Hot Stones again to cancel."

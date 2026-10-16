@@ -30,6 +30,11 @@ namespace CultOfComfort.Client
         {
             SoundOn = PlayerPrefs.GetInt(SoundKey, 1) == 1;
             MusicOn = PlayerPrefs.GetInt(MusicKey, 1) == 1;
+            if (Application.isBatchMode)
+            {
+                AudioListener.volume = 0f; // tests and captures from the command line run silent (owner 2026-10-16: "stop playing the music!")
+            }
+
             foreach (var name in SoundBook.All)
             {
                 var clip = Resources.Load<AudioClip>("Audio/" + name);

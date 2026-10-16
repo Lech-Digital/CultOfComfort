@@ -50,7 +50,8 @@ public sealed record DomainData(
     IReadOnlyList<RoadReport>? Reports = null,
     DemandData? Demand = null,
     long? NextDemandUtcTicks = null,
-    int NextDemandId = 1);
+    int NextDemandId = 1,
+    IReadOnlyList<TaleData>? Tales = null);
 
 /// <summary>
 /// Lord Wulfric's Marchlands: one fixed domain of 16 places around the village, the Keep five hexes out. The same

@@ -98,6 +98,12 @@ public sealed record SetDayClock(Guid CommandId, int OffsetMinutes) : BaseComman
 /// <summary>Delivers what the lord demanded (spec 2026-10-15): his temper drops twice a tithe's worth.</summary>
 public sealed record MeetDemand(Guid CommandId, int DemandId) : BaseCommand(CommandId);
 
+/// <summary>Ends a road tale a preacher brought home (spec 2026-10-16 mission board): <paramref name="Choice"/> 0 or 1.</summary>
+public sealed record ChooseTale(Guid CommandId, int TaleId, int Choice) : BaseCommand(CommandId);
+
+/// <summary>Tries something on the lord over his open demand instead of paying (spec 2026-10-16 the lord's hall).</summary>
+public sealed record PleadWithLord(Guid CommandId, int DemandId, Plea Plea) : BaseCommand(CommandId);
+
 /// <summary>Starts a study at the Hearth (one at a time; spec 2026-10-14, research).</summary>
 public sealed record StartResearch(Guid CommandId, string TechId) : BaseCommand(CommandId);
 

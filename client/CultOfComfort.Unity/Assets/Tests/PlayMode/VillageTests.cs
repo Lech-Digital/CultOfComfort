@@ -77,7 +77,7 @@ namespace CultOfComfort.Client.Tests
             Click(root.Q<Button>("ghost-confirm"));
             _clock.UtcNow = _clock.UtcNow.AddMinutes(1); // the Lean-to takes 30 s
             yield return new WaitForSecondsRealtime(1.2f); // the village is re-read twice a second
-            Assert.AreEqual(DisplayStyle.Flex, note.Q<Label>(className: "errand-claim").resolvedStyle.display, "done: the note asks to claim");
+            StringAssert.Contains("claim", note.Q<Label>(className: "errand-text").text, "done: the note (one line, folded) asks to claim");
             var timber = Snapshot(game).Stock.Timber;
 
             // Act

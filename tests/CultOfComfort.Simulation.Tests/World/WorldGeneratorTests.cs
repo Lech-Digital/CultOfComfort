@@ -61,6 +61,19 @@ public class WorldGeneratorTests
     }
 
     [Fact]
+    public void Generate_TwoLordsOfOneName_TheSecondIsTellApartAndHisSeatEndsInKeep()
+    {
+        // Arrange
+        var keeps = Server1.Nodes.Where(n => n.Type == NodeType.Keep).ToList();
+
+        // Assert
+        keeps.Should().OnlyContain(n => n.Name.StartsWith("Lord ") && n.Name.EndsWith("'s Keep"));
+        keeps.Select(n => n.Name).Should().Contain(name => name.Contains(" the "), "60 domains, 16 names: some lords share one");
+        Server1.Domains.Where(d => d.Authority == AuthorityKind.Warlord)
+            .Should().OnlyContain(d => d.Name == "The lands of " + Server1.Node(d.SeatNodeId)!.Name.Replace("'s Keep", string.Empty));
+    }
+
+    [Fact]
     public void PlaceVillage_FillingTheWorld_SpacedFairAndNoneOnAPlace()
     {
         // Act — 500 villages, one after another, each with its own player seed.

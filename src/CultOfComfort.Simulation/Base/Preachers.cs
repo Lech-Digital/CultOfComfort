@@ -25,8 +25,34 @@ public enum RoadFind
 /// <summary>One preacher of the Mission House: who they are (from their id), how far they've come, where they are.</summary>
 public sealed record PreacherView(int Id, string Name, PreacherQuirk Quirk, int Level, int Xp, int XpForNext, int BonusPercent, int? MissionaryId);
 
-/// <summary>A preacher's report on getting home: where they went and what the road gave.</summary>
-public sealed record RoadReport(int PreacherId, int NodeId, bool InWorld, int Hours, RoadFind Find, ResourceBag Gift, long HomeAtUtcTicks);
+/// <summary>
+/// A preacher's report on getting home: where they went and what the road gave. <paramref name="Tale"/> and
+/// <paramref name="Choice"/> say which road tale it was and what you chose (null for a report from before the tales).
+/// </summary>
+public sealed record RoadReport(int PreacherId, int NodeId, bool InWorld, int Hours, RoadFind Find, ResourceBag Gift, long HomeAtUtcTicks,
+    RoadTale? Tale = null, int Choice = 0);
+
+/// <summary>What happened on the road (spec 2026-10-16 mission board): each comes home with a choice of two.</summary>
+public enum RoadTale
+{
+    Goat,
+    Widow,
+    Ditch,
+    Toll,
+    Turnips,
+    Pedlar,
+    Bog,
+    Shrine,
+}
+
+/// <summary>A road tale waiting for you to choose: told by a preacher who just got home.</summary>
+public sealed record TaleData(int Id, int PreacherId, int NodeId, bool InWorld, int Hours, RoadTale Tale, long HomeAtUtcTicks);
+
+/// <summary>One way a road tale can end: what it gives, what it costs, and the odds (100: certain).</summary>
+public sealed record TaleOption(ResourceBag Gift, ResourceBag Cost, int Xp, int Tension, int ChancePercent);
+
+/// <summary>A road tale as the village sees it: who's telling it, and its two endings.</summary>
+public sealed record TaleView(int Id, int PreacherId, int NodeId, bool InWorld, int Hours, RoadTale Tale, IReadOnlyList<TaleOption> Options);
 
 /// <summary>
 /// The Mission House's preachers (spec 2026-10-15): one per missionary slot, named and quirked by their id so the phone
@@ -86,38 +112,110 @@ public static class Preachers
         ? full
         : new ResourceBag(Cut(full.Timber), Cut(full.Peat), Cut(full.Scrap), Cut(full.Devotion));
 
-    /// <summary>What the road gives on the way home: fixed by the missionary's id, scaled by the hours preached.</summary>
-    public static (RoadFind Find, ResourceBag Gift, int Xp) Find(int missionaryId, int preacherId, int hours)
-    {
-        unchecked
-        {
-            var h = (uint)missionaryId * 0x9e3779b1u ^ (uint)preacherId * 0x85ebca77u;
-            h ^= h >> 15;
-            h *= 0x2c1b3c6du;
-            h ^= h >> 12;
-            var roll = (int)(h % 100);
-            var lucky = Quirk(preacherId) == PreacherQuirk.Lucky ? 2 : 1;
-            return roll switch
-            {
-                < 40 => (RoadFind.Nothing, default, 0),
-                < 65 => (RoadFind.Goat, new ResourceBag(8 * hours * lucky, 0, 0, 0), 0),
-                < 80 => (RoadFind.Widow, new ResourceBag(0, 0, 0, 2 * hours * lucky), 0),
-                < 90 => (RoadFind.Ditch, new ResourceBag(0, 0, 3 * hours * lucky, 0), 0),
-                _ => (RoadFind.Turnips, default, 2),
-            };
-        }
-    }
-
     private static int Cut(int amount) => amount - amount * ThriftyDiscountPercent / 100;
 
     private static string Ordinal(int n) => n switch { 2 => "Second", 3 => "Third", 4 => "Fourth", _ => $"{n}th" };
 }
 
+/// <summary>
+/// Road tales (spec 2026-10-16 mission board): which one a preacher brings home (fixed by the missionary's id) and
+/// what each choice gives. Amounts scale with the hours preached; the Lucky find twice as much. Pure.
+/// </summary>
+public static class Tales
+{
+    /// <summary>Tales waiting at once: one more and the oldest ends the free way on its own.</summary>
+    public const int Kept = 4;
+
+    public static RoadTale Pick(int missionaryId, int preacherId)
+    {
+        var tales = (RoadTale[])Enum.GetValues(typeof(RoadTale));
+        return tales[(int)(Mix((uint)missionaryId, (uint)preacherId) % (uint)tales.Length)];
+    }
+
+    /// <summary>The tale's two endings for a sermon of <paramref name="hours"/> by <paramref name="preacherId"/>.</summary>
+    public static IReadOnlyList<TaleOption> Options(RoadTale tale, int preacherId, int hours)
+    {
+        var k = Preachers.Quirk(preacherId) == PreacherQuirk.Lucky ? 2 : 1;
+        ResourceBag T(int n) => new(n * hours * k, 0, 0, 0);
+        ResourceBag P(int n) => new(0, n * hours * k, 0, 0);
+        ResourceBag S(int n) => new(0, 0, n * hours * k, 0);
+        ResourceBag D(int n) => new(0, 0, 0, n * hours * k);
+        TaleOption Give(ResourceBag gift, int xp = 0) => new(gift, default, xp, 0, 100);
+        return tale switch
+        {
+            RoadTale.Goat => new[] { Give(T(8)), Give(D(3)) },
+            RoadTale.Widow => new[] { Give(D(2), 2), Give(T(6)) },
+            RoadTale.Ditch => new[] { Give(S(3)), new TaleOption(S(7), default, 0, 0, 60) },
+            RoadTale.Toll => new[] { new TaleOption(D(3), new ResourceBag(4 * hours, 0, 0, 0), 2, 0, 100), Give(P(4)) },
+            RoadTale.Turnips => new[] { Give(default, 3), Give(P(5)) },
+            RoadTale.Pedlar => new[] { Give(S(3)), Give(D(2), 1) },
+            RoadTale.Bog => new[] { Give(default, 2), Give(P(6)) },
+            _ => new[] { Give(default, 3), new TaleOption(D(3), default, 0, 2, 100) },
+        };
+    }
+
+    /// <summary>Whether a gamble (<see cref="TaleOption.ChancePercent"/> under 100) pays off for tale <paramref name="taleId"/>.</summary>
+    public static bool Lucky(int taleId, int chancePercent) => chancePercent >= 100 || Mix((uint)taleId, 0x7a1eu) % 100 < (uint)chancePercent;
+
+    /// <summary>The ending a tale gets if you never choose: the first that costs nothing.</summary>
+    public static int FreeChoice(IReadOnlyList<TaleOption> options)
+    {
+        for (var i = 0; i < options.Count; i++)
+        {
+            if (options[i].Cost.IsZero && options[i].Tension == 0)
+            {
+                return i;
+            }
+        }
+
+        return 0;
+    }
+
+    private static uint Mix(uint a, uint b)
+    {
+        unchecked
+        {
+            var h = a * 0x9e3779b1u ^ b * 0x85ebca77u;
+            h ^= h >> 15;
+            h *= 0x2c1b3c6du;
+            h ^= h >> 12;
+            return h;
+        }
+    }
+}
+
 /// <summary>What the lord wants (spec 2026-10-15 Lord's demands), as the village sees it.</summary>
-public sealed record DemandView(int Id, ResourceBag Amount, DateTimeOffset DueAtUtc, int TemperDrop, int Penalty, int Reason);
+/// <param name="Haggle">Whether you've haggled, and how it went.</param>
+/// <param name="Flattered">You've flattered him: the next haggle can't fail.</param>
+/// <param name="HaggledAmount">What he'd take if a haggle works.</param>
+/// <param name="FlatterCost">What flattering him costs (Devotion: candles, a poem, a portrait).</param>
+public sealed record DemandView(int Id, ResourceBag Amount, DateTimeOffset DueAtUtc, int TemperDrop, int Penalty, int Reason,
+    bool Stalled = false, DemandHaggle Haggle = DemandHaggle.None, bool Flattered = false, ResourceBag HaggledAmount = default,
+    ResourceBag FlatterCost = default, int HaggleChancePercent = 0);
+
+/// <summary>How haggling over a demand went.</summary>
+public enum DemandHaggle
+{
+    None,
+    Won,
+    Refused,
+}
+
+/// <summary>What you try on the lord in his hall instead of simply paying (spec 2026-10-16 the lord's hall).</summary>
+public enum Plea
+{
+    /// <summary>Ask him to take less. Half the time he does; otherwise he's insulted.</summary>
+    Haggle,
+
+    /// <summary>Candles and a poem about his chin: the next haggle can't fail.</summary>
+    Flatter,
+
+    /// <summary>"The cart has a wobbly wheel": more time, but he doesn't like waiting.</summary>
+    Stall,
+}
 
 /// <summary>A demand as stored.</summary>
-public sealed record DemandData(int Id, ResourceBag Amount, long DueAtUtcTicks);
+public sealed record DemandData(int Id, ResourceBag Amount, long DueAtUtcTicks, bool Stalled = false, DemandHaggle Haggle = DemandHaggle.None, bool Flattered = false);
 
 /// <summary>The lord's demands: when they come, what he asks for, what meeting or missing one does. Pure.</summary>
 public static class Demands
@@ -127,6 +225,29 @@ public static class Demands
     public const int GapJitterHours = 4;
     public const int WindowHours = 6;
     public const int MissPenalty = 15;
+
+    /// <summary>Stalling: hours more, and the temper it costs.</summary>
+    public const int StallHours = 3;
+    public const int StallPenalty = 5;
+
+    /// <summary>Haggling: what's left of the demand when he agrees (percent), the odds, and the temper when he refuses.</summary>
+    public const int HaggledPercent = 60;
+    public const int HaggleChancePercent = 50;
+    public const int RefusePenalty = 8;
+
+    /// <summary>Flattery's price in Devotion, per Hearth level.</summary>
+    public const int FlatterDevotionPerHearth = 15;
+
+    public static ResourceBag Haggled(ResourceBag amount)
+    {
+        int Cut(int n) => n * HaggledPercent / 100 / 10 * 10;
+        return new ResourceBag(Cut(amount.Timber), Cut(amount.Peat), Cut(amount.Scrap), Cut(amount.Devotion));
+    }
+
+    public static ResourceBag FlatterCost(int hearthLevel) => new(0, 0, 0, FlatterDevotionPerHearth * Math.Max(1, hearthLevel));
+
+    /// <summary>Whether a haggle over demand <paramref name="id"/> works (always, once he's been flattered).</summary>
+    public static bool HaggleWorks(int id, bool flattered) => flattered || Mix(id, 19) % 100 < HaggleChancePercent;
 
     /// <summary>A demand counts double a tithe of the same worth.</summary>
     public const int DropMultiplier = 2;

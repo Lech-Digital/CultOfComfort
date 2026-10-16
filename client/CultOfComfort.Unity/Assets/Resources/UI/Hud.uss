@@ -137,7 +137,7 @@
 
 .centre { flex-grow: 1; flex-shrink: 1; align-items: center; padding: 0 8px; }
 .toast {
-    max-width: 92%; margin-top: 4px; padding: 8px 18px; white-space: normal; -unity-text-align: middle-center;
+    width: 86%; /* fixed, not max-width: wrapped text is measured too short and spills over the edge (2026-10-16) */ margin-top: 4px; padding: 8px 18px; white-space: normal; -unity-text-align: middle-center;
     background-image: resource("UI/Kit/parchment");
     -unity-slice-left: 32; -unity-slice-right: 32; -unity-slice-top: 32; -unity-slice-bottom: 32; -unity-slice-scale: 0.5px;
 }
@@ -397,3 +397,40 @@
 .daily-line .errand-reward { font-size: 9px; margin: 0; }
 .daily-button { flex-shrink: 0; height: 22px; font-size: 10px; padding: 1px 6px; }
 .daily-footer { font-size: 9px; margin-top: 2px; }
+
+/* ---------- a calmer frame (2026-10-16: "the main screen is not really readable, a lot going on") ---------- */
+.identity { align-items: flex-start; }
+.identity > .pills { flex-grow: 1; flex-shrink: 1; margin: 4px 0 0 8px; }
+.identity > .round { flex-shrink: 0; }
+.pill, .pill-note { height: 24px; padding: 0 7px 0 3px; margin: 0 4px 4px 0; }
+.pill .icon, .pill-note .icon { width: 18px; height: 18px; }
+.pill-value { font-size: 12px; }
+.pill.full { border-color: #e3b34a; border-width: 1px; }
+.pill.full .pill-value { color: #ffd98a; }
+.avatar { width: 52px; height: 52px; border-radius: 26px; }
+.avatar-clip { border-radius: 23px; }
+.strip { margin-top: 4px; }
+.hazard-track { height: 12px; }
+.marker-note { font-size: 12px; }
+.middle { margin-top: 6px; }
+.shortcut { margin-bottom: 6px; }
+.side .round { width: 42px; height: 42px; border-radius: 21px; padding: 5px; }
+.side .round > .icon { width: 30px; height: 30px; }
+/* The errand: one line until you open it. */
+.errand-note.folded { width: 74%; max-width: 380px; padding: 5px 30px 6px 10px; }
+.errand-note.folded .errand-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; margin: 0; }
+.errand-note.folded.done { background-image: resource("UI/Kit/note_green"); }
+.errand-fold { top: 1px; }
+.landscape .identity { flex-grow: 1; }
+/* "How to play" (2026-10-16) */
+.howto-button { width: 34px; height: 34px; border-radius: 17px; padding: 0; margin: 4px 6px 0 0; font-size: 20px; -unity-font-style: bold; color: #3a2a18; }
+.howto { width: 88%; max-width: 420px; top: 10%; }
+.howto-step { flex-direction: row; align-items: flex-start; margin-top: 8px; }
+.howto-number {
+    width: 28px; height: 28px; border-radius: 14px; margin: 2px 8px 0 0; padding: 0; flex-shrink: 0; -unity-text-align: middle-center;
+    background-color: #7a1f1a; color: #ffd98a; font-size: 15px; -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC");
+}
+.howto-words { flex-grow: 1; flex-shrink: 1; }
+.howto-title { font-size: 16px; color: #7a1f1a; -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC"); padding: 0; margin: 0; }
+.howto-text { font-size: 13px; margin: 1px 0 0 0; }
+.howto-tip { margin-top: 10px; font-size: 13px; color: #2b2215; -unity-font-definition: resource("UI/Fonts/PermanentMarker"); }

@@ -116,6 +116,7 @@ namespace CultOfComfort.Client
         private readonly VisualElement _sideRight;
         private readonly Label _lockedNote;
         private readonly VisualElement _settings;
+        private readonly VisualElement _howTo;
         private readonly Label _probe;
         private readonly Label _toast;
         private readonly VisualElement _daily;
@@ -215,7 +216,7 @@ namespace CultOfComfort.Client
             var frame = Container("frame");
             frame.name = "frame";
             var pills = Container("pills");
-            foreach (var (key, icon) in new[] { ("timber", "timber"), ("scrap", "scrap"), ("peat", "peat"), ("devotion", "devotion"), ("pennies", "penny"), ("people", "cult") })
+            foreach (var (key, icon) in new[] { ("timber", "timber"), ("scrap", "scrap"), ("peat", "peat"), ("devotion", "devotion"), ("pennies", "penny"), ("people", "cult"), ("comfort", "comfort") })
             {
                 var pill = Surface(key == "pennies" || key == "people" ? "pill-note" : "pill");
                 pill.name = $"pill-{key}";
@@ -229,7 +230,7 @@ namespace CultOfComfort.Client
                 pills.Add(pill);
             }
 
-            frame.Add(pills);
+            // One row (2026-10-16, "a lot going on"): the Prophet's face, the stores beside it, the settings at the end.
             var identity = Container("identity");
             var portrait = Surface("avatar"); // not "portrait": that class is the root's orientation flag
             portrait.name = "portrait";
@@ -247,8 +248,12 @@ namespace CultOfComfort.Client
             _comfort.name = "comfort";
             label.Add(_hearthLine);
             label.Add(_comfort);
+            label.AddToClassList("hidden"); // Hearth level is on the badge, Comfort has its own pill
             identity.Add(label);
-            identity.Add(Container("spacer"));
+            identity.Add(pills);
+            var howTo = ButtonWith("?", () => ShowHowTo(!Visible(_howTo)), "round", "howto-button");
+            howTo.name = "howto-button";
+            identity.Add(howTo);
             var settingsButton = IconButton("settings", () => ToggleSettings(), "round");
             settingsButton.name = "settings-button";
             identity.Add(settingsButton);
@@ -456,6 +461,8 @@ namespace CultOfComfort.Client
             _root.Add(_bar);
             _root.Add(_card);      // overlays, added last so they draw over the bar
             _root.Add(_settings);
+            _howTo = BuildHowTo();
+            _root.Add(_howTo);
             _root.Add(_buildingCard);
             Show(_buildingCard, false);
             // The tutorial coach (GDD 05): a hi-vis arrow at the next tap and the Prophet's line beside it.
@@ -594,6 +601,8 @@ namespace CultOfComfort.Client
             // Placeholders stay out of sight until they are real (Comfort, pennies).
             _comfort.text = $"Comfort {frame.Comfort.Value}";
             Show(_comfort, !frame.Comfort.IsDemo);
+            _pills["comfort"].Value.text = frame.Comfort.Value.ToString();
+            Show(_pills["comfort"].Pill, !frame.Comfort.IsDemo);
             Show(_pills["pennies"].Pill, !frame.Pennies.IsDemo);
             _tensionCover.style.width = Length.Percent((1f - Mathf.Clamp01(frame.Tension)) * 100f);
             _tensionNote.text = frame.TensionIsDemo ? $"TENSION — {frame.TensionNote} (demo)" : $"TENSION — {frame.TensionNote}";
@@ -856,14 +865,13 @@ namespace CultOfComfort.Client
             }
 
             _errandHeading.text = note.Progress == null ? note.Heading : $"{note.Heading} · {note.Progress}";
-            _errandText.text = note.Text;
+            // Folded, the note is one line: what to do (tap it to do it), or that it's done.
+            _errandText.text = !_errandFolded ? note.Text
+                : note.Done ? "Done! Tap to claim your reward."
+                : note.Progress == null ? note.Text : $"{note.Text} ({note.Progress})";
             _errandReward.text = note.Reward;
             Show(_errandReward, !_errandFolded && !string.IsNullOrEmpty(note.Reward));
-            if (_errandFolded)
-            {
-                _errandHeading.text += note.Done ? " · done ✓ ▸" : " ▸";
-            }
-            Show(_errandClaim, note.Done);
+            Show(_errandClaim, note.Done && !_errandFolded);
             _errand.EnableInClassList("done", note.Done);
         }
 
@@ -952,7 +960,7 @@ namespace CultOfComfort.Client
         private void TickCoach(float now)
         {
             // A sheet (settings, a building card, the Dawn card) has the player's attention: the coach waits behind it.
-            var sheetOpen = Visible(_settings) || Visible(_buildingCard) || Visible(_card);
+            var sheetOpen = Visible(_settings) || Visible(_buildingCard) || Visible(_card) || Visible(_howTo);
             var target = _coach.HasArrow && !sheetOpen ? CoachTargetBounds() : null;
             var hasLine = !sheetOpen && !string.IsNullOrEmpty(_coach.Line) && (target != null || !_coach.HasArrow);
             Show(_coachArrow, target != null);
@@ -1123,11 +1131,12 @@ namespace CultOfComfort.Client
         {
             _errandFolded = folded;
             _errand.EnableInClassList("folded", folded);
-            Show(_errandText, !folded);
-            Show(_errandFold, !folded);
+            Show(_errandHeading, !folded);
+            _errandFold.text = folded ? "+" : "–";
             if (folded)
             {
                 Show(_errandReward, false);
+                Show(_errandClaim, false);
             }
         }
 
@@ -1165,7 +1174,7 @@ namespace CultOfComfort.Client
             _cardSummary.text = $"Stars {report.Stars}/3 · Hearth {report.HearthHealth}/{report.HearthMaxHealth} · {report.Wrecked.Count} wrecked · +{report.Salvage} Scrap";
             _cardFlavour.text = won
                 ? "The towers did the work. The cult slept through it and calls that faith."
-                : "Wulfric's men came, saw nobody in charge, and helped themselves.";
+                : $"{Ruler.Cap(Ruler.Short)}'s men came, saw nobody in charge, and helped themselves.";
             _cardStats.text = $"Played out by the village · hash {report.StateHashHex}";
             _stamp.EnableInClassList("verified", true);
             _stamp.EnableInClassList("mismatch", false);
@@ -1181,7 +1190,7 @@ namespace CultOfComfort.Client
             _cardSummary.text = $"Stars {result.Stars}/3 · Hearth {result.HearthHealth}/{result.HearthMaxHealth}";
             _cardFlavour.text = won
                 ? "The attackers left damp, confused and noticeably cleaner."
-                : "Wulfric's men warmed their hands on the embers and left. Tomorrow: repairs, and a strongly worded diary entry.";
+                : $"{Ruler.Cap(Ruler.Short)}'s men warmed their hands on the embers and left. Tomorrow: repairs, and a strongly worded diary entry.";
             _cardStats.text = $"{result.EnemiesDefeated} defeated · {result.EnemiesLeaked} reached the Hearth · {commands} commands logged\n" +
                               $"Client hash {result.StateHashHex} · server replay {serverReplay.StateHashHex}";
             _stamp.EnableInClassList("verified", match);
@@ -1252,6 +1261,11 @@ namespace CultOfComfort.Client
                 {
                     // Bubbles stay below the frame and the health bars: speech never covers the numbers.
                     var floor = (_top.layout.yMax > 0f ? _top.layout.yMax : 0f) + 4f;
+                    if (!_toast.ClassListContains("hidden") && _toast.worldBound.height > 0f)
+                    {
+                        floor = Mathf.Max(floor, _toast.worldBound.yMax + 4f); // nor the announcement
+                    }
+
                     var bubbleWidth = _bubbles[i].layout.width > 1f ? _bubbles[i].layout.width : 180f;
                     _bubbles[i].style.left = Mathf.Clamp(at.Value.x - bubbleWidth / 2f, 4f, Mathf.Max(4f, _root.layout.width - bubbleWidth - 4f));
                     _bubbles[i].style.top = Mathf.Max(floor, at.Value.y - 64f);
@@ -1294,6 +1308,51 @@ namespace CultOfComfort.Client
             return Rect.MinMaxRect(left + gap, 1f - bottom + gap, 1f - right - gap, 1f - top - gap);
         }
 
+        /// <summary>"How to play" (2026-10-16: a first-time player "would have no idea how to play"): four steps on a card.</summary>
+        public void ShowHowTo(bool open)
+        {
+            Show(_howTo, open);
+            if (open)
+            {
+                Show(_settings, false);
+            }
+        }
+
+        public bool HowToShown => Visible(_howTo);
+
+        private VisualElement BuildHowTo()
+        {
+            var sheet = Panel("sheet");
+            sheet.AddToClassList("howto");
+            sheet.name = "howto";
+            sheet.Add(Text("How to play", "sheet-title"));
+            sheet.Add(Text("You're a time traveller stuck in the year 950. Build the comfiest village in history, and keep the local lord from flattening it.", "sheet-line", "small", "wrap"));
+            var steps = new (string Title, string Text)[]
+            {
+                ("Build", "Tap Build at the bottom, pick a building and tap the ground. Woodcutters make Timber; peat cuts make Peat, which keeps your villagers warm."),
+                ("Grow", "Tap a building to collect what it made or to upgrade it. Upgrade the Hearth, the fire in the middle, to unlock more."),
+                ("Spread the faith", "Send preachers from the Mission House. Places you win send you offerings, but the lord gets cross: that's the yellow-and-black tape at the top."),
+                ("Survive the night", "When the tape fills, his men come. Build towers beside the road, and tap the ground to walk the Prophet: raiders chase him into your towers."),
+            };
+            for (var i = 0; i < steps.Length; i++)
+            {
+                var row = Container("howto-step");
+                row.Add(Text((i + 1).ToString(), "howto-number"));
+                var words = Container("howto-words");
+                words.Add(Text(steps[i].Title, "howto-title"));
+                words.Add(Text(steps[i].Text, "sheet-line", "wrap", "howto-text"));
+                row.Add(words);
+                sheet.Add(row);
+            }
+
+            sheet.Add(Text("Stuck? The yellow note under the top bar always says what to do next. Tap it and it shows you where.", "sheet-line", "wrap", "howto-tip"));
+            var close = ButtonWith("Got it", () => Show(_howTo, false), "plain");
+            close.name = "howto-close";
+            sheet.Add(close);
+            Show(sheet, false);
+            return sheet;
+        }
+
         private void ToggleSettings()
         {
             Show(_settings, _settings.style.display == DisplayStyle.None);
@@ -1308,6 +1367,9 @@ namespace CultOfComfort.Client
             var recenter = ButtonWith("Recenter camera", () => RecenterClicked?.Invoke(), "plain");
             recenter.name = "recenter";
             sheet.Add(recenter);
+            var howTo = ButtonWith("How to play", () => ShowHowTo(true), "plain");
+            howTo.name = "settings-howto";
+            sheet.Add(howTo);
             _cloud = Text("Cloud save: on this device only", "sheet-line", "small");
             _cloud.name = "cloud-status";
             sheet.Add(_cloud);
@@ -1522,9 +1584,10 @@ namespace CultOfComfort.Client
             var (pill, value) = _pills[key];
             value.text = reading.Cap > 0 ? $"{reading.Value}/{Short(reading.Cap)}" : reading.Value.ToString();
             pill.EnableInClassList("demo", reading.IsDemo);
+            pill.EnableInClassList("full", reading.Cap > 0 && reading.Value >= reading.Cap);
         }
 
-        private static string Short(int cap) => cap >= 1000 && cap % 1000 == 0 ? $"{cap / 1000}k" : cap.ToString();
+        private static string Short(int cap) => cap < 1000 ? cap.ToString() : cap % 1000 == 0 ? $"{cap / 1000}k" : $"{cap / 1000f:0.#}k";
 
         private static void SetMeter(Label value, VisualElement fill, int current, int max)
         {

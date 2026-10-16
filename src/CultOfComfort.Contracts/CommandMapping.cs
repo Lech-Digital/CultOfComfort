@@ -57,6 +57,12 @@ public static class CommandMapping
             case MeetDemand c:
                 dto.amount = c.DemandId;
                 break;
+            case PleadWithLord c:
+                (dto.amount, dto.give) = (c.DemandId, c.Plea.ToString());
+                break;
+            case ChooseTale c:
+                (dto.buildingId, dto.amount) = (c.TaleId, c.Choice);
+                break;
             case ClaimDaily c:
                 dto.amount = c.Slot;
                 break;
@@ -118,6 +124,8 @@ public static class CommandMapping
             nameof(DebugEndShield) => new DebugEndShield(id),
             nameof(SendMissionary) => new SendMissionary(id, dto.buildingId, dto.amount, dto.y),
             nameof(MeetDemand) => new MeetDemand(id, dto.amount),
+            nameof(PleadWithLord) => new PleadWithLord(id, dto.amount, Enum.TryParse<Plea>(dto.give, out var plea) ? plea : throw new ArgumentException("He doesn't follow.")),
+            nameof(ChooseTale) => new ChooseTale(id, dto.buildingId, dto.amount),
             nameof(ClaimDaily) => new ClaimDaily(id, dto.amount),
             nameof(ClaimThermos) => new ClaimThermos(id),
             nameof(SpendTowels) => new SpendTowels(id, Enum.TryParse<TowelUse>(dto.give, out var use) ? use : throw new ArgumentException("Towels don't do that."), dto.amount),

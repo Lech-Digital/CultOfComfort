@@ -91,7 +91,7 @@ public class MissionHouseTests
     }
 
     [Fact]
-    public void ComeHome_AfterASermon_EarnsExperienceAndWritesAReport()
+    public void ComeHome_AfterASermon_EarnsExperienceAndBringsATale()
     {
         // Arrange — Brother Damp (Tireless) preaches 8 hours, 1 hex away.
         var (state, now) = Village(2);
@@ -102,10 +102,11 @@ public class MissionHouseTests
 
         // Assert
         var damp = later.Preachers!.Single();
-        damp.Xp.Should().BeGreaterThanOrEqualTo(24, "3 an hour for the Tireless, plus any turnips");
+        damp.Xp.Should().Be(24, "3 an hour for the Tireless");
         damp.Level.Should().Be(2);
         damp.MissionaryId.Should().BeNull("he's home");
-        later.Reports.Should().ContainSingle().Which.Should().Match<RoadReport>(r => r.PreacherId == 1 && r.NodeId == Muddlecombe.Id && r.Hours == 8);
+        later.Tales.Should().ContainSingle().Which.Should().Match<TaleView>(t => t.PreacherId == 1 && t.NodeId == Muddlecombe.Id && t.Hours == 8 && t.Options.Count == 2);
+        later.Reports.Should().BeEmpty("the report is written once you choose how the tale ends");
     }
 
     [Fact]
@@ -138,6 +139,7 @@ public class MissionHouseTests
         // Assert
         restored.Preachers.Should().BeEquivalentTo(before.Preachers);
         restored.Reports.Should().BeEquivalentTo(before.Reports);
+        restored.Tales.Should().BeEquivalentTo(before.Tales);
     }
 
     [Fact]
@@ -158,7 +160,7 @@ public class MissionHouseTests
         domain.Preachers!.Single().MissionaryId.Should().Be(domain.Missionaries.Single().Id, "Brother Damp's seat is on the road");
         domain.Missionaries.Single().PreacherId.Should().Be(1);
         again.Status.Should().Be(CommandStatus.Rejected);
-        restored.Snapshot(now.AddHours(9)).Domain!.Reports.Should().ContainSingle().Which.PreacherId.Should().Be(1, "he writes the report");
+        restored.Snapshot(now.AddHours(9)).Domain!.Tales.Should().ContainSingle().Which.PreacherId.Should().Be(1, "he tells the tale");
     }
 
     [Theory]
@@ -174,11 +176,11 @@ public class MissionHouseTests
     }
 
     [Fact]
-    public void Find_SameMissionary_SameFind()
+    public void Pick_SameMissionary_SameTale()
     {
         // Act
-        var a = Preachers.Find(17, 3, 4);
-        var b = Preachers.Find(17, 3, 4);
+        var a = Tales.Pick(17, 3);
+        var b = Tales.Pick(17, 3);
 
         // Assert
         a.Should().Be(b);

@@ -33,7 +33,7 @@ namespace CultOfComfort.Client
         {
             [BarkKind.RaiderArrives] = new[]
             {
-                "For Lord Wulfric! …probably.", "Is this the spa?", "I was told there'd be towels.", "Smash the hot tubs!",
+                "For {lord}! …probably.", "Is this the spa?", "I was told there'd be towels.", "Smash the hot tubs!",
                 "Mum said I'd be home by supper.", "Which way to the heretics?",
             },
             [BarkKind.RaiderBashesGate] = new[]
@@ -49,7 +49,7 @@ namespace CultOfComfort.Client
             [BarkKind.ProphetStones] = new[] { "Hot stones! Mind your toes!", "Sauna special!", "Catch!" },
             [BarkKind.ProphetSwoons] = new[] { "I'll just… lie here a moment.", "Tell my followers… I was fluffy.", "Ow." },
             [BarkKind.CultistBuilt] = new[] { "Another fine hut for the Prophet!", "Built it with my own hands. Mostly.", "Smells of fresh timber!" },
-            [BarkKind.CultistRaidComing] = new[] { "Lamps! Somebody fetch the lamps!", "Wulfric's lot are coming!", "Hide the good soap!" },
+            [BarkKind.CultistRaidComing] = new[] { "Lamps! Somebody fetch the lamps!", "{short}'s lot are coming!", "Hide the good soap!" },
             [BarkKind.CultistCold] = new[] { "Brr. Who let the fire go out?", "No Peat, no work. Union rules.", "My toes are on strike." },
             [BarkKind.CultistNewcomer] = new[] { "A new face! Hand them a towel.", "Welcome, friend. Shoes off.", "Another seeker of comfort!" },
             [BarkKind.CultistErrandDone] = new[] { "The Prophet is pleased! Mildly.", "Errand done. Nap earned.", "Another step towards true comfort!", "He said 'good'. GOOD!" },
@@ -64,7 +64,7 @@ namespace CultOfComfort.Client
             [EnemyType.Boar] = new[] { "SNORT!", "Oink. Menacingly.", "*charges at nothing in particular*" },
             [EnemyType.Peasant] = new[] { "Just having a look, dear.", "Ooh, what's this lever do?", "Our Margaret says you lot bathe twice a week!" },
             [EnemyType.Priest] = new[] { "Bless you all. Now hit harder.", "The Bishop sends his regards. And soldiers.", "Holy water only! None of your hot nonsense!" },
-            [EnemyType.Lord] = new[] { "I am Lord Wulfric, and I am NOT amused.", "Who taxed my peasants' patience? You did!", "Bring me the Prophet. And a towel." },
+            [EnemyType.Lord] = new[] { "I am {lord}, and I am NOT amused.", "Who taxed my peasants' patience? You did!", "Bring me the Prophet. And a towel." },
         };
 
         public static string Line(BarkKind kind, int roll) => Pick(Lines[kind], roll);
@@ -73,7 +73,9 @@ namespace CultOfComfort.Client
         public static string Arrival(EnemyType type, int roll) =>
             Pick(Arrivals.TryGetValue(type, out var lines) ? lines : Lines[BarkKind.RaiderArrives], roll);
 
-        private static string Pick(string[] lines, int roll) => lines[(roll % lines.Length + lines.Length) % lines.Length];
+        /// <summary>{lord} and {short} stand for whoever rules here (<see cref="Ruler"/>).</summary>
+        private static string Pick(string[] lines, int roll) =>
+            lines[(roll % lines.Length + lines.Length) % lines.Length].Replace("{lord}", Ruler.Full).Replace("{short}", Ruler.Cap(Ruler.Short));
     }
 
     /// <summary>Keeps the chatter readable: at most three bubbles at once, each ~2.5 s, and nobody repeats within 8 s.</summary>
