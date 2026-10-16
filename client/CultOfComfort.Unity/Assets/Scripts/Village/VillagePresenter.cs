@@ -72,6 +72,7 @@ namespace CultOfComfort.Client
             _ => Work,
         };
 
+        /// <summary>The build drawer's cards; what can be built now comes first, locked ones wait at the end of their tab.</summary>
         public static IReadOnlyList<BuildCardModel> BuildCards(BaseSnapshot snapshot, BuildingTable table) =>
             table.Specs.Values.Where(s => s.Type != BuildingType.Hearth).Select(spec =>
             {
@@ -88,7 +89,7 @@ namespace CultOfComfort.Client
                     Size = spec.Width == 1 && spec.Depth == 1 ? string.Empty : $"{spec.Width}×{spec.Depth}",
                     Category = Category(spec.Type),
                 };
-            }).ToList();
+            }).OrderBy(c => c.Locked).ToList();
 
         public static BuildingCardModel Card(BaseSnapshot snapshot, BuildingTable table, int buildingId)
         {

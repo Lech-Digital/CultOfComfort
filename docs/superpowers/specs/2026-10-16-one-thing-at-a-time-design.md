@@ -17,6 +17,11 @@ During a Night, the stores (useless in a fight), the wave strip and the skill ba
 4. **The Night is for the fight.** The stores fold away during a Night; the wave strip and meters stay.
 5. **No developer talk for players.** The Dawn card keeps the stars, the line and the VERIFIED stamp; the hashes and command count move to the settings' debug section.
 
+6. **The coach follows every errand.** Not just the first three: a build card (its tab opens, the drawer scrolls to it), ✓, the building to upgrade, Light the Lamps, the Map or Research shortcut. At the note it is the arrow alone (the note already says "Done! Tap to claim"). Quiet while an upgrade runs, since that can take hours.
+7. **Tapping the coach's note hides it until the next step**, never for good. On the Pixel, a tap meant for the errand note beside it switched the coach off, and the player had nothing left to follow.
+8. **What you can build comes first.** In each drawer tab, locked cards ("Hearth 2", "Max built") go to the end.
+9. **Everything turns.** Square buildings too (a Slurry Chute, a Storage Hut); only fence and wall pieces don't, as they join their neighbours by themselves (the gate still turns). The rule still has two facings (`Rotated`); four facings would need a save field on the server.
+
 ## Later (not in this pass)
 
 - The Night camera nearer and brighter units (the "cheap models" complaint is mostly scale and darkness).

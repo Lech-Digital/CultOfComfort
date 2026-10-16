@@ -284,6 +284,17 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
+        public void BuildCards_FreshVillage_LockedCardsComeLast()
+        {
+            // Act
+            var homes = VillagePresenter.BuildCards(Fresh(), BuildingTable.Default).Where(c => c.Category == VillagePresenter.Homes).ToList();
+
+            // Assert — the Cottage (the third errand) isn't hidden behind a Cistern nobody can build yet.
+            Assert.IsTrue(homes.SkipWhile(c => !c.Locked).All(c => c.Locked), string.Join(", ", homes.Select(c => $"{c.Name}:{c.Locked}")));
+            Assert.Less(homes.FindIndex(c => c.Type == BuildingType.Cottage), homes.FindIndex(c => c.Type == BuildingType.Cistern));
+        }
+
+        [Test]
         public void BuildCards_Shapes_ShowTheirSize()
         {
             // Act

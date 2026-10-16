@@ -2002,7 +2002,6 @@ namespace CultOfComfort.Client
         private const string MapHelpSeenKey = "map.help.seen";
         /// <summary>The errand note is open (2026-10-16: it starts as one line; "the errands take lots of space").</summary>
         private const string ErrandOpenKey = "hud.errand.open";
-        private const string CoachOffKey = "hud.coach.off";
 
         private static bool Pref(string key) => PlayerPrefs.GetInt(key, 0) == 1;
 
@@ -2015,7 +2014,7 @@ namespace CultOfComfort.Client
         private CoachStep CoachNow(out Vector2? point)
         {
             point = null;
-            if (_phase != GamePhase.Dusk || _snapshot == null || _showingReport || Pref(CoachOffKey))
+            if (_phase != GamePhase.Dusk || _snapshot == null || _showingReport)
             {
                 return CoachStep.None;
             }
@@ -2303,7 +2302,6 @@ namespace CultOfComfort.Client
             _hud.ResetTipsClicked += () =>
             {
                 _tips.Reset();
-                SetPref(CoachOffKey, false);
                 SetPref(ErrandOpenKey, true);
                 _hud.SetErrandFolded(false);
                 Announce("Tips are back. The Prophet clears his throat.");
@@ -2324,11 +2322,6 @@ namespace CultOfComfort.Client
                 _hud.SetErrandFolded(folded);
                 SetPref(ErrandOpenKey, !folded);
                 RefreshVillage();
-            };
-            _hud.CoachDismissClicked += () =>
-            {
-                SetPref(CoachOffKey, true);
-                Announce("The coach steps aside. Settings → Tips again brings him back.");
             };
             _hud.ShowPhase(_phase);
         }
@@ -2411,8 +2404,12 @@ namespace CultOfComfort.Client
             }
         }
 
-        /// <summary>Square things look the same turned, except a gate (fences and walls join up by themselves).</summary>
-        private static bool CanTurn(BuildingSpec spec) => spec.Width != spec.Depth || spec.Type == BuildingType.Gate;
+        /// <summary>
+        /// Everything turns, square or not, so a Slurry Chute can face the gate (owner 2026-10-16: "we should be able to
+        /// always rotate them"); only fence and wall pieces don't, as they join up with their neighbours by themselves.
+        /// </summary>
+        private static bool CanTurn(BuildingSpec spec) =>
+            spec.Type == BuildingType.Gate || (spec.Type != BuildingType.WattleFence && spec.Type != BuildingType.WoodenWall);
 
         private float Seconds(int readyAtTick) => Mathf.Ceil((readyAtTick - _battle.Tick) / (float)BalanceTable.TicksPerSecond);
 

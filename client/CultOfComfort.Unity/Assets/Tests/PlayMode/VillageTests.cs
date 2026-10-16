@@ -98,6 +98,30 @@ namespace CultOfComfort.Client.Tests
             Mathf.Abs(arrow.center.x - target.worldBound.center.x) < 30f && Mathf.Abs(arrow.center.y - target.worldBound.center.y) < 120f;
 
         [UnityTest]
+        public IEnumerator Coach_TapTheNote_StepsAsideUntilTheNextStep()
+        {
+            // Arrange — a fresh village; the coach points at the Lean-to card.
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(4);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            var line = root.Q<Label>("coach-line");
+
+            // Act: tap the coach's note away.
+            using (var e = ClickEvent.GetPooled()) { e.target = line; line.SendEvent(e); }
+            yield return Frames(2);
+
+            // Assert — quiet now, and the errand note is back…
+            Assert.IsFalse(Hud(game).CoachShown.Line);
+            Assert.IsFalse(root.Q<Button>("errand-note").ClassListContains("hushed"));
+
+            // …but not gone for good: the next step brings him back.
+            Click(root.Q<Button>("card-Woodcutter"));
+            yield return Frames(3);
+            Assert.IsTrue(Hud(game).CoachShown.Line, "picking the card: the coach says where to put it");
+        }
+
+        [UnityTest]
         public IEnumerator Coach_FirstErrand_PointsAtCardThenConfirmThenNote()
         {
             // Arrange — a fresh village.
@@ -133,6 +157,14 @@ namespace CultOfComfort.Client.Tests
             yield return new WaitForSecondsRealtime(1.2f);
             shown = Hud(game).CoachShown;
             Assert.IsTrue(Near(shown.ArrowBounds, root.Q<Button>("errand-note")), "arrow at the note: claim it");
+            Assert.IsFalse(shown.Line, "the note says it already: the arrow alone");
+
+            // Act: claim it — the next card is on the Homes tab, which opens for it.
+            Click(root.Q<Button>("errand-note"));
+            yield return Frames(4);
+            shown = Hud(game).CoachShown;
+            StringAssert.Contains("Storage Hut", shown.Text);
+            Assert.IsTrue(Near(shown.ArrowBounds, root.Q<Button>("card-StorageHut")), $"arrow {shown.ArrowBounds} over the hut {root.Q<Button>("card-StorageHut").worldBound}");
         }
 
         [UnityTest]
@@ -525,6 +557,25 @@ namespace CultOfComfort.Client.Tests
             var lean = Snapshot(game).BuildingAt(new GridPosition(13, 6));
             Assert.IsNotNull(lean, "a turned lean-to runs north–south");
             Assert.IsTrue(lean.Rotated);
+        }
+
+        [UnityTest]
+        public IEnumerator Drawer_SquareBuilding_CanTurnToo()
+        {
+            // Arrange
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            Hud(game).ShowBuildTab("Homes");
+            yield return null;
+
+            // Act
+            Click(root.Q<Button>("card-StorageHut"));
+            yield return Frames(2);
+
+            // Assert
+            Assert.AreEqual(DisplayStyle.Flex, root.Q<Button>("ghost-rotate").resolvedStyle.display, "a 2×2 hut can face another way");
         }
 
         [UnityTest]

@@ -201,6 +201,8 @@ namespace CultOfComfort.Client
         private readonly Label _coachLine;
         private CoachStep _coach = CoachStep.None;
         private Vector2? _coachPoint;
+        private bool _coachSnoozed; // the player tapped the line away: quiet until the step changes
+        private bool _coachScroll; // the coach's card should scroll into view once it has a layout
         private float _hintUntil;
         private float _toastUntil;
         private float _noteUntil;
@@ -473,7 +475,9 @@ namespace CultOfComfort.Client
             _coachArrow.generateVisualContent += DrawCoachArrow;
             _coachLine = Text(string.Empty, "coach-line", "note-yellow");
             _coachLine.name = "coach-line";
-            _coachLine.RegisterCallback<ClickEvent>(_ => CoachDismissClicked?.Invoke()); // tap the note to hide the coach
+            // Tap the note: it steps aside until the next step. Never for good: a new player taps notes (the errand
+            // note beside it is one), and switching the coach off by accident left the playtest with nothing to follow.
+            _coachLine.RegisterCallback<ClickEvent>(_ => _coachSnoozed = true);
             _root.Add(_coachArrow);
             _root.Add(_coachLine);
             Show(_coachArrow, false);
@@ -538,7 +542,6 @@ namespace CultOfComfort.Client
         public event Action ReplayIntroClicked;
         public event Action DrawerToggleClicked;
         public event Action ErrandFoldClicked;
-        public event Action CoachDismissClicked;
         public event Action<string> FeatureClicked;
         public event Action DevFillStoresClicked;
         public event Action DevEndShieldClicked;
@@ -676,6 +679,7 @@ namespace CultOfComfort.Client
             }
 
             _drawer.scrollOffset = Vector2.zero;
+            _coachScroll = _coach.Target == CoachTarget.BuildCard; // back to the start, then to the coach's card if it's here
         }
 
         /// <summary>Done shows while a paint tool (roads, fences, walls) is on.</summary>
@@ -914,10 +918,16 @@ namespace CultOfComfort.Client
             _coachPoint = buildingPoint;
             if (changed)
             {
-                _coachLine.text = string.IsNullOrEmpty(step.Line) ? string.Empty : step.Line + "  ✕";
+                _coachSnoozed = false;
+                _coachLine.text = step.Line ?? string.Empty; // no ✕: the fonts lack it (a box on the phone); tapping the note still hides it
                 if (step.Target == CoachTarget.BuildCard && step.Type != null && _cards.TryGetValue(step.Type.Value, out var card))
                 {
-                    _drawer.ScrollTo(card);
+                    if (_cardCategory.TryGetValue(step.Type.Value, out var category) && category != _buildTab)
+                    {
+                        ShowBuildTab(category); // the next card is on another tab: open it, or the coach has nothing to point at
+                    }
+
+                    _coachScroll = true;
                 }
             }
         }
@@ -932,12 +942,18 @@ namespace CultOfComfort.Client
             {
                 case CoachTarget.BuildCard when _drawerCollapsed:
                     return Visible(_drawerToggle) ? _drawerToggle.worldBound : (Rect?)null; // open the drawer first
+                case CoachTarget.BuildCard when _coach.Type != null && _cardCategory.TryGetValue(_coach.Type.Value, out var category)
+                                                && category != _buildTab && _buildTabs.Q<Button>($"tab-{category}") is { } tab && Visible(tab):
+                    return tab.worldBound; // the player went to another tab: point back at the card's
                 case CoachTarget.BuildCard when _coach.Type != null && _cards.TryGetValue(_coach.Type.Value, out var card) && Visible(card):
-                    var drawer = _drawer.worldBound;
                     var bounds = card.worldBound;
-                    return bounds.xMax < drawer.xMin || bounds.xMin > drawer.xMax ? (Rect?)null : bounds;
+                    return OffTheDrawer(card) ? (Rect?)null : bounds;
                 case CoachTarget.GhostConfirm when Visible(_ghostConfirm):
                     return _ghostConfirm.worldBound;
+                case CoachTarget.StartNight when _root.Q<Button>("start-night") is { } start && Visible(start) && start.enabledSelf:
+                    return start.worldBound;
+                case CoachTarget.Feature when _coach.Feature != null && _featureButtons.TryGetValue(_coach.Feature, out var feature) && Visible(feature):
+                    return feature.worldBound;
                 case CoachTarget.ErrandNote when Visible(_errand):
                     return _errand.worldBound;
                 case CoachTarget.Building when _coachPoint != null:
@@ -945,6 +961,14 @@ namespace CultOfComfort.Client
                 default:
                     return null;
             }
+        }
+
+        /// <summary>True when a card's middle is scrolled past the drawer's edge (a drawer not laid out yet clips nothing).</summary>
+        private bool OffTheDrawer(VisualElement card)
+        {
+            var edge = _drawer.contentViewport.worldBound;
+            var x = card.worldBound.center.x;
+            return edge.width > 0f && (x < edge.xMin || x > edge.xMax);
         }
 
         private static bool Visible(VisualElement element)
@@ -963,7 +987,16 @@ namespace CultOfComfort.Client
         private void TickCoach(float now)
         {
             // A sheet (settings, a building card, the Dawn card) has the player's attention: the coach waits behind it.
-            var sheetOpen = Visible(_settings) || Visible(_buildingCard) || Visible(_card) || Visible(_howTo);
+            var sheetOpen = Visible(_settings) || Visible(_buildingCard) || Visible(_card) || Visible(_howTo) || _coachSnoozed;
+            if (_coachScroll && _coach.Type != null && _cards.TryGetValue(_coach.Type.Value, out var coachCard) && Visible(coachCard))
+            {
+                _coachScroll = false;
+                if (OffTheDrawer(coachCard))
+                {
+                    _drawer.ScrollTo(coachCard); // off the drawer's edge, the arrow would point at nothing
+                }
+            }
+
             var target = _coach.HasArrow && !sheetOpen ? CoachTargetBounds() : null;
             var hasLine = !sheetOpen && !string.IsNullOrEmpty(_coach.Line) && (target != null || !_coach.HasArrow);
             Show(_coachArrow, target != null);
@@ -972,7 +1005,7 @@ namespace CultOfComfort.Client
             var hush = hasLine && _coach.Target != CoachTarget.ErrandNote;
             _errand.EnableInClassList("hushed", hush);
             _daily.EnableInClassList("hushed", hush);
-            if (!hasLine)
+            if (!hasLine && target == null)
             {
                 return;
             }
@@ -987,7 +1020,9 @@ namespace CultOfComfort.Client
                 var r = target.Value;
                 var below = r.center.y < _root.worldBound.height * 0.4f; // near the top: point up from underneath
                 var tipX = r.center.x;
-                var tipY = below ? r.yMax + 4f + bounce : r.yMin - 4f - bounce;
+                // A card: point into it, past the tab row above, so the arrow can't read as "tap the Work tab".
+                var inset = _coach.Target == CoachTarget.BuildCard ? r.height * 0.3f : -4f;
+                var tipY = below ? r.yMax - inset + bounce : r.yMin + inset - bounce;
                 var local = _root.WorldToLocal(new Vector2(tipX, tipY));
                 _coachArrow.style.left = local.x - arrowW / 2f;
                 _coachArrow.style.top = below ? local.y : local.y - arrowH;
@@ -1001,6 +1036,11 @@ namespace CultOfComfort.Client
                 var note = Visible(_errand) ? _root.WorldToLocal(new Vector2(0f, _errand.worldBound.yMax)).y : 120f;
                 lineY = note + 8f;
                 _coachLine.EnableInClassList("coach-line-above", false);
+            }
+
+            if (!hasLine)
+            {
+                return; // an arrow alone (at the note, which says it already)
             }
 
             var lineW = Mathf.Max(_coachLine.resolvedStyle.width, 60f);
