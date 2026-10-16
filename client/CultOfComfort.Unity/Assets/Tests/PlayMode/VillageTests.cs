@@ -125,6 +125,52 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual(timber, Snapshot(game).Stock.Timber);
         }
 
+        [UnityTest]
+        public IEnumerator Ghost_AwayFromAnyRoad_WarnsButStillAllowsIt()
+        {
+            // Arrange — found on the Pixel: a green ✓, then "Not connected" only after placing.
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            Click(root.Q<Button>("card-Woodcutter"));
+            yield return Frames(2);
+
+            // Act
+            GhostTo(game, new GridPosition(20, 14));
+            yield return Frames(2);
+
+            // Assert
+            var line = root.Q<Label>(className: "ghost-problem");
+            StringAssert.Contains("No road here yet", line.text);
+            Assert.AreEqual(DisplayStyle.Flex, line.resolvedStyle.display);
+            Assert.IsTrue(root.Q<Button>("ghost-confirm").enabledSelf, "allowed: roads can come after");
+        }
+
+        [UnityTest]
+        public IEnumerator GhostActions_AnywhereOnScreen_NeverCoverTheGhost()
+        {
+            // Arrange — owner 2026-10-16: ✓ ✗ Turn sat on a small ghost, so a drag on it missed.
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            var width = root.worldBound.width;
+
+            foreach (var ghost in new[] { new Rect(width - 60f, 300f, 40f, 40f), new Rect(20f, 200f, 40f, 40f), new Rect(width / 2f, 520f, 60f, 60f) })
+            {
+                // Act
+                Hud(game).ShowGhostActions(ghost, null, true);
+                yield return Frames(2);
+
+                // Assert
+                var actions = root.Q("ghost-actions").worldBound;
+                Assert.IsFalse(actions.Overlaps(ghost), $"buttons {actions} over the ghost {ghost}");
+                Assert.GreaterOrEqual(actions.xMin, 0f);
+                Assert.LessOrEqual(actions.xMax, width);
+            }
+        }
+
         private static HudView Hud(GameController game) =>
             (HudView)typeof(GameController).GetField("_hud", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(game);
 
@@ -358,6 +404,11 @@ namespace CultOfComfort.Client.Tests
             var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
             Click(root.Q<Button>("card-Woodcutter"));
             yield return Frames(2);
+            if (Tool(game).Rotated)
+            {
+                Tool(game).Rotate(); // the ghost may start turned to reach a road; this spot wants it lying east–west
+            }
+
             GhostTo(game, new GridPosition(3, 9));
             Click(root.Q<Button>("ghost-confirm"));
             yield return Frames(2);
@@ -598,6 +649,11 @@ namespace CultOfComfort.Client.Tests
             Click(root.Q<Button>("card-Woodcutter"));
             yield return Frames(2);
             Assert.AreEqual(DisplayStyle.Flex, root.Q<Button>("ghost-rotate").resolvedStyle.display, "↻ shows for things that turn");
+
+            if (Tool(game).Rotated)
+            {
+                Tool(game).Rotate(); // start lying east–west, so Turn makes it north–south
+            }
 
             // Act
             Click(root.Q<Button>("ghost-rotate"));

@@ -26,6 +26,39 @@ namespace CultOfComfort.Client.Tests
             Assert.LessOrEqual(Math.Max(Math.Abs(tool.Anchor.X - 17), Math.Abs(tool.Anchor.Y - 5)), 4);
         }
 
+        [TestCase(BuildingType.PeatCut)]
+        [TestCase(BuildingType.Cottage)]
+        [TestCase(BuildingType.Woodcutter)]
+        public void StartNew_FromTheHearth_StartsWhereItFitsAndWorks(BuildingType type)
+        {
+            // Arrange — found on the Pixel: a Peat Cut took five drags to find a spot, and a Cottage stood unconnected.
+            var snapshot = Fresh();
+            var map = VillageMap.Demo;
+
+            // Act
+            var tool = PlacementTool.StartNew(type, map.HearthTiles[0], snapshot, map, BuildingTable.Default);
+
+            // Assert
+            Assert.IsNull(tool.Problem(snapshot, map, BuildingTable.Default));
+            Assert.IsTrue(map.WouldConnect(snapshot, tool.Tiles(BuildingTable.Default)), "on the road network");
+        }
+
+        [Test]
+        public void StartNew_ATower_StartsBesideTheRaidersRoad()
+        {
+            // Arrange
+            var snapshot = Fresh();
+            var map = VillageMap.Demo;
+
+            // Act
+            var tool = PlacementTool.StartNew(BuildingType.SlurryChute, map.HearthTiles[0], snapshot, map, BuildingTable.Default);
+
+            // Assert
+            var t = tool.Anchor;
+            Assert.IsNull(tool.Problem(snapshot, map, BuildingTable.Default));
+            Assert.IsTrue(new[] { new GridPosition(t.X + 1, t.Y), new GridPosition(t.X - 1, t.Y), new GridPosition(t.X, t.Y + 1), new GridPosition(t.X, t.Y - 1) }.Any(map.Road.Contains));
+        }
+
         [Test]
         public void Drag_GrabbedByAnyTile_KeepsTheFingerOnThatTile()
         {
@@ -64,6 +97,7 @@ namespace CultOfComfort.Client.Tests
             // Arrange
             var snapshot = Fresh();
             var build = PlacementTool.StartNew(BuildingType.Woodcutter, new GridPosition(20, 11), snapshot, VillageMap.Demo, BuildingTable.Default);
+            var startedTurned = build.Rotated; // it may start turned, to reach a road
             build.Rotate();
             var move = PlacementTool.StartMove(new BuildingView(7, BuildingType.Woodcutter, 1, new GridPosition(15, 5), 0, 0, 0, null, Rotated: true));
 
@@ -73,7 +107,7 @@ namespace CultOfComfort.Client.Tests
 
             // Assert
             Assert.IsInstanceOf<PlaceBuilding>(place);
-            Assert.IsTrue(((PlaceBuilding)place).Rotated);
+            Assert.AreEqual(!startedTurned, ((PlaceBuilding)place).Rotated);
             Assert.IsInstanceOf<MoveBuilding>(relocate);
             Assert.AreEqual(7, ((MoveBuilding)relocate).BuildingId);
             Assert.IsTrue(((MoveBuilding)relocate).Rotated, "a move starts as it stands");

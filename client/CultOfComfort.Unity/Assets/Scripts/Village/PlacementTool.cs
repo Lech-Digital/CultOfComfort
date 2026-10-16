@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using CultOfComfort.Simulation.Base;
 using CultOfComfort.Simulation.Grid;
@@ -30,26 +31,56 @@ namespace CultOfComfort.Client
 
         public bool Dragging { get; private set; }
 
-        /// <summary>A new building's ghost, on the nearest spot to <paramref name="near"/> where it fits (or there, if none).</summary>
+        /// <summary>
+        /// A new building's ghost, on the nearest good spot to <paramref name="near"/>: one where it fits and works
+        /// (on the road network; a tower beside the raiders' road), either way round. Else the nearest spot where it
+        /// fits, else <paramref name="near"/>. A newcomer used to hunt for a spot five times (found on the Pixel).
+        /// </summary>
         public static PlacementTool StartNew(BuildingType type, GridPosition near, BaseSnapshot snapshot, VillageMap map, BuildingTable table)
         {
             var spec = table.Spec(type);
-            for (var radius = 0; radius <= 6; radius++)
+            var road = new HashSet<GridPosition>(map.Road);
+            var needsRoad = !BuildingTable.IsRoad(type) && !BuildingTable.IsBarrier(type) && type is not (BuildingType.Tree or BuildingType.Stone);
+            bool Good(GridPosition anchor, bool rotated)
+            {
+                var tiles = Footprint.Tiles(spec, anchor, rotated);
+                return spec.IsTower
+                    ? tiles.Any(t => road.Contains(new GridPosition(t.X + 1, t.Y)) || road.Contains(new GridPosition(t.X - 1, t.Y)) || road.Contains(new GridPosition(t.X, t.Y + 1)) || road.Contains(new GridPosition(t.X, t.Y - 1)))
+                    : !needsRoad || map.WouldConnect(snapshot, tiles);
+            }
+
+            (GridPosition, bool)? fits = null;
+            for (var radius = 0; radius <= 8; radius++)
             {
                 for (var dy = -radius; dy <= radius; dy++)
                 {
                     for (var dx = -radius; dx <= radius; dx++)
                     {
-                        var anchor = new GridPosition(near.X + dx, near.Y + dy);
-                        if (Math.Max(Math.Abs(dx), Math.Abs(dy)) == radius && map.PlacementProblem(snapshot, spec, anchor, false, null, table) == null)
+                        if (Math.Max(Math.Abs(dx), Math.Abs(dy)) != radius)
                         {
-                            return new PlacementTool(type, anchor, false, null);
+                            continue;
+                        }
+
+                        var anchor = new GridPosition(near.X + dx, near.Y + dy);
+                        foreach (var rotated in spec.Width == spec.Depth ? new[] { false } : new[] { false, true })
+                        {
+                            if (map.PlacementProblem(snapshot, spec, anchor, rotated, null, table) != null)
+                            {
+                                continue;
+                            }
+
+                            if (Good(anchor, rotated))
+                            {
+                                return new PlacementTool(type, anchor, rotated, null);
+                            }
+
+                            fits ??= (anchor, rotated);
                         }
                     }
                 }
             }
 
-            return new PlacementTool(type, near, false, null);
+            return fits is var (a, r) ? new PlacementTool(type, a, r, null) : new PlacementTool(type, near, false, null);
         }
 
         /// <summary>A standing building lifted for moving: it starts where and as it stands.</summary>

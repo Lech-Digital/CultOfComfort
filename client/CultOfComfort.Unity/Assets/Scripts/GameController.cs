@@ -1201,10 +1201,40 @@ namespace CultOfComfort.Client
             var level = _tool.MovingId != null ? _snapshot.Building(_tool.MovingId.Value).Level : 1;
             _board.ShowGhost(_tool.Type, level, tiles, _tool.Rotated, problem == null);
             var (centre, size) = BoardView.FootprintBox(tiles);
-            _hud.ShowGhostActions(PanelPoint(centre + new Vector3(size.x / 2f + 0.2f, 0.6f, 0f)), problem, CanTurn(table.Spec(_tool.Type)));
+            var spec = table.Spec(_tool.Type);
+            var needsRoad = problem == null && !spec.IsTower && !BuildingTable.IsRoad(spec.Type) && !BuildingTable.IsBarrier(spec.Type)
+                && spec.Type is not (BuildingType.Tree or BuildingType.Stone) && !VillageMap.Demo.WouldConnect(_snapshot, tiles);
+            _hud.ShowGhostActions(GhostBox(centre, size), problem, CanTurn(spec),
+                needsRoad ? "No road here yet: it won't work until you paint one to it." : null);
         }
 
         /// <summary>A world point in UI panel coordinates, or null when it's behind the camera or there's no panel yet.</summary>
+        /// <summary>
+        /// The ghost's box on screen (panel coordinates): its footprint corners at the ground and a model's height up,
+        /// so ✓ ✗ Turn can sit clear of it (they used to cover a small ghost, and a drag on them missed it).
+        /// </summary>
+        private Rect? GhostBox(Vector3 centre, Vector2 size)
+        {
+            float xMin = float.MaxValue, yMin = float.MaxValue, xMax = float.MinValue, yMax = float.MinValue;
+            foreach (var dx in new[] { -0.5f, 0.5f })
+            foreach (var dz in new[] { -0.5f, 0.5f })
+            foreach (var up in new[] { 0f, 1.2f })
+            {
+                var p = PanelPoint(centre + new Vector3(dx * size.x, up, dz * size.y));
+                if (p == null)
+                {
+                    return null;
+                }
+
+                xMin = Mathf.Min(xMin, p.Value.x);
+                xMax = Mathf.Max(xMax, p.Value.x);
+                yMin = Mathf.Min(yMin, p.Value.y);
+                yMax = Mathf.Max(yMax, p.Value.y);
+            }
+
+            return Rect.MinMaxRect(xMin, yMin, xMax, yMax);
+        }
+
         private Vector2? PanelPoint(Vector3 world)
         {
             var panel = _document != null ? _document.rootVisualElement.panel : null;

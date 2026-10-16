@@ -165,6 +165,37 @@ public sealed record VillageMap(
                               || neighbours.Contains(new GridPosition(t.X, t.Y + 1)) || neighbours.Contains(new GridPosition(t.X, t.Y - 1)));
     }
 
+    /// <summary>
+    /// Whether a building on <paramref name="tiles"/> would be on the road network (the village's rule, from a
+    /// snapshot): a tile beside it carries a road from the Hearth, or it stands by the Hearth. The ghost warns before ✓.
+    /// </summary>
+    public bool WouldConnect(BaseSnapshot snapshot, IReadOnlyList<GridPosition> tiles)
+    {
+        var carriers = new HashSet<GridPosition>(Road);
+        foreach (var b in snapshot.Buildings.Where(b => BuildingTable.IsRoad(b.Type) || b.Type == BuildingType.Gate))
+        {
+            carriers.UnionWith(b.Tiles);
+        }
+
+        var network = new HashSet<GridPosition>(HearthTiles);
+        var frontier = new Queue<GridPosition>(HearthTiles);
+        while (frontier.Count > 0)
+        {
+            var t = frontier.Dequeue();
+            foreach (var next in new[] { new GridPosition(t.X + 1, t.Y), new GridPosition(t.X - 1, t.Y), new GridPosition(t.X, t.Y + 1), new GridPosition(t.X, t.Y - 1) })
+            {
+                if (carriers.Contains(next) && network.Add(next))
+                {
+                    frontier.Enqueue(next);
+                }
+            }
+        }
+
+        var own = new HashSet<GridPosition>(tiles);
+        return tiles.Any(t => new[] { new GridPosition(t.X + 1, t.Y), new GridPosition(t.X - 1, t.Y), new GridPosition(t.X, t.Y + 1), new GridPosition(t.X, t.Y - 1) }
+            .Any(n => network.Contains(n) && !own.Contains(n)));
+    }
+
     public string? PlacementProblem(BaseSnapshot snapshot, BuildingSpec spec, GridPosition anchor, bool rotated, int? moving = null, BuildingTable? table = null)
     {
         var tiles = Footprint.Tiles(spec, anchor, rotated);

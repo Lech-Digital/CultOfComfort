@@ -117,3 +117,29 @@ public class CancelTests
         state.Apply(new CancelResearch(Guid.NewGuid()), now).Status.Should().Be(CommandStatus.Rejected);
     }
 }
+
+/// <summary>The ghost's road check is the village's own rule (found on the Pixel: a green ✓, then "Not connected").</summary>
+public class WouldConnectTests
+{
+    private static readonly DateTimeOffset T0 = new(2026, 10, 16, 9, 0, 0, TimeSpan.Zero);
+
+    [Theory]
+    [InlineData(15, 5)]
+    [InlineData(20, 14)]
+    [InlineData(3, 9)]
+    public void WouldConnect_AnySpot_MatchesTheVillageAfterPlacing(int x, int y)
+    {
+        // Arrange
+        var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+        var spec = BuildingTable.Default.Spec(BuildingType.Woodcutter);
+        var tiles = Footprint.Tiles(spec, new GridPosition(x, y), false);
+        var predicted = VillageMap.Demo.WouldConnect(state.Snapshot(T0), tiles);
+
+        // Act
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(x, y)), T0).Status.Should().Be(CommandStatus.Accepted);
+        state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+
+        // Assert
+        state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Woodcutter).Connected.Should().Be(predicted);
+    }
+}

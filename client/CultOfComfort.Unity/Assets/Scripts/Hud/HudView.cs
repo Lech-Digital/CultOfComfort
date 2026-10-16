@@ -695,24 +695,30 @@ namespace CultOfComfort.Client
         }
 
         /// <summary>✓ ✗ ↻ beside the ghost (panel coordinates of its right edge), or hidden (null).</summary>
-        public void ShowGhostActions(Vector2? at, string problem, bool canRotate)
+        /// <param name="ghost">The ghost's box on screen (panel coordinates), or null to hide the buttons.</param>
+        /// <param name="warning">Allowed, but worth knowing (it would stand unconnected): said without blocking ✓.</param>
+        public void ShowGhostActions(Rect? ghost, string problem, bool canRotate, string warning = null)
         {
-            Show(_ghostActions, at != null);
-            if (at == null)
+            Show(_ghostActions, ghost != null);
+            if (ghost == null)
             {
                 return;
             }
 
-            // Beside the ghost; flipped to its left when the row would run off the right edge.
+            // Under the ghost, centred, never on it: a finger dragging the ghost must find the ghost (owner 2026-10-16).
+            // Over it instead when there's no room below (the drawer), and kept inside the screen's sides.
+            var box = ghost.Value;
             var width = _ghostActions.resolvedStyle.width > 0f ? _ghostActions.resolvedStyle.width : 180f;
-            var panelWidth = _root.resolvedStyle.width > 0f ? _root.resolvedStyle.width : float.MaxValue;
-            var left = at.Value.x + 8f + width > panelWidth - CornerMargin ? at.Value.x - 8f - width : at.Value.x + 8f;
-            _ghostActions.style.left = Mathf.Max(CornerMargin, left);
-            _ghostActions.style.top = at.Value.y - 30f;
+            var height = _ghostActions.resolvedStyle.height > 0f ? _ghostActions.resolvedStyle.height : 60f;
+            var panelWidth = _root.resolvedStyle.width > 0f ? _root.resolvedStyle.width : 400f;
+            var floor = Visible(_drawer) ? _drawer.worldBound.yMin - 50f : (_root.resolvedStyle.height > 0f ? _root.resolvedStyle.height : 800f) - 120f;
+            var top = box.yMax + 10f + height <= floor ? box.yMax + 10f : box.yMin - 10f - height;
+            _ghostActions.style.left = Mathf.Clamp(box.center.x - width / 2f, CornerMargin, Mathf.Max(CornerMargin, panelWidth - width - CornerMargin));
+            _ghostActions.style.top = Mathf.Max(CornerMargin, top);
             _ghostConfirm.SetEnabled(problem == null);
             Show(_ghostRotate, canRotate);
-            _ghostProblem.text = problem ?? string.Empty;
-            Show(_ghostProblem, problem != null);
+            _ghostProblem.text = problem ?? warning ?? string.Empty;
+            Show(_ghostProblem, problem != null || warning != null);
         }
 
         /// <summary>A speech bubble that follows its speaker (panel coordinates from <paramref name="anchor"/>, null once gone).</summary>
