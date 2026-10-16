@@ -19,13 +19,13 @@ The errand chain now reads:
 4. Peat Cut
 5. Cultist Hut
 6. **Slurry Chute beside the raiders' road**
-7. **Gate across the road**
-8. First Night
-9. Hearth 2
-10. Missionary (in the Mission House)
-11. **Midden Sorter**
-12. Study
-13. **Sapling Flinger**
+7. First Night (**smaller**: see below)
+8. Hearth 2
+9. Missionary (in the Mission House)
+10. **Midden Sorter**
+11. Study
+12. **Sapling Flinger**
+13. **Gate across the road**
 14. Lean-to level 2
 15. **Cultist Hut level 2**
 16. **Peat Cut level 2**
@@ -35,7 +35,16 @@ The errand chain now reads:
 20. Patron
 21. Win a raid
 
-The defence errands repay what they cost, so the tutorial clock doesn't slow down. The coach tells a tower to go *right beside the raiders' road* (a tower away from it stands unconnected). It tells the gate to go *onto* the road.
+**The first Night is smaller:** budget 12 and 3 waves (was 20 and 4), for the first Night only and only when you light the Lamps yourself, not for an announced raid. Found on the Pixel: with the Chute and a Gate, the first Night was still lost at 1★, Hearth 13/100. Replayed on the Mac with that layout:
+
+| First Night | Nobody playing | Prophet using his skills |
+|---|---|---|
+| Old size (20, four waves) | 1★ (Hearth 13) | 2★ (Hearth 56) |
+| New size (12, three waves) | 2★ (Hearth 67) | **3★ (Hearth 100)** |
+
+**The Gate moved after the Flinger.** At Hearth 1 it made the Night worse (Hearth 13 rather than 23 without it): goats break gates, and the raiders it holds up wreck what stands near it. With a Flinger it holds them under fire.
+
+The defence errands repay what they cost. The coach tells a tower to go *right beside the raiders' road* (a tower away from it stands unconnected). It tells the gate to go *onto* the road.
 
 Errands used to be saved by position, so this order would have moved existing players to a different errand. The save now also carries the errand's **id**. A save without one is read through the old order (`ErrandBook.LegacyOrder`): the player stays on the same errand. Errands that moved in front of them are skipped.
 

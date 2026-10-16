@@ -224,9 +224,11 @@ public class ErrandTests
         hearthThree.Should().BeLessThan(errands.ToList().FindIndex(e => e.Goal == ErrandGoal.Patron), "a Patron takes days of preaching: it must not hold up the Hearth");
         errands.Skip(hearthThree + 1).Should().NotBeEmpty("there is still something to do at Hearth 3");
         errands[^1].Goal.Should().Be(ErrandGoal.WinRaid, "the 12-hour shield after a Night makes a won raid a next-session goal");
-        hearthOne.Sum(e => e.Reward.Timber).Should().Be(430, "the Hearth 1 errands bridge the 450 Timber Hearth 2 after a starter village (and pay the hut and the Gate back)");
+        hearthOne.Sum(e => e.Reward.Timber).Should().Be(370, "the Hearth 1 errands bridge the 450 Timber Hearth 2 after a starter village (and pay the hut back)");
         var night = errands.ToList().FindIndex(e => e.Goal == ErrandGoal.SurviveNight);
-        errands.Take(night).Select(e => e.Type).Should().Contain(new BuildingType?[] { BuildingType.SlurryChute, BuildingType.Gate }, "the first Night is defended");
+        errands.Take(night).Select(e => e.Type).Should().Contain(BuildingType.SlurryChute, "the first Night is defended");
+        errands.ToList().FindIndex(e => e.Type == BuildingType.Gate).Should().BeGreaterThan(errands.ToList().FindIndex(e => e.Type == BuildingType.SaplingFlinger),
+            "a gate holds raiders under fire: at Hearth 1, with no Flinger, goats break it and the crowd wrecks what's near (2026-10-16)");
         errands.Select(e => e.Id).Should().OnlyHaveUniqueItems();
     }
 

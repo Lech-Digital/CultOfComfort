@@ -1246,6 +1246,9 @@ public sealed partial class BaseState
     }
 
     /// <summary>The coming raid, or an early Night sized by the current Tension; the layout is frozen into the plan.</summary>
+    public const int FirstNightBudget = 12;
+    public const int FirstNightWaves = 3;
+
     private NightPlan PlanNight(DateTimeOffset now)
     {
         MaterializeTension(now);
@@ -1255,6 +1258,14 @@ public sealed partial class BaseState
         var layout = ToBattleLayout();
         var budget = _raid != null ? power * (100 + tension - _table.Tension.Hostile) / 100 : Math.Max(power * tension / _table.Tension.Hostile, power / 2);
         var waves = _raid != null && tension >= _table.Tension.Punitive ? 5 : 4;
+        if (night == 1 && _raid == null)
+        {
+            // The first Night teaches (spec 2026-10-16 first day): won by a Chute alone, three stars for a Prophet who
+            // fights. At the old size (20, four waves) nothing a new village has could win it, skills included.
+            budget = Math.Min(budget, FirstNightBudget);
+            waves = FirstNightWaves;
+        }
+
         var seed = _raid?.Seed ?? (ulong)(946 + night);
         return new NightPlan(night, seed, budget, waves, SluiceBonus, _raid != null, layout.Towers, layout.Obstacles, layout.Structures, HearthLevel,
             AutoRelics: true, Defenders: DefenderPosts(layout),

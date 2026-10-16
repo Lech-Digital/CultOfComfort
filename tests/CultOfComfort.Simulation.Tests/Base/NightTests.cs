@@ -26,8 +26,8 @@ public class NightTests
         // Assert
         plan.Night.Should().Be(1);
         plan.Scheduled.Should().BeFalse();
-        plan.Budget.Should().Be(20, "max(40 × 0/70, 40/2)");
-        plan.Waves.Should().Be(4);
+        plan.Budget.Should().Be(BaseState.FirstNightBudget, "the first Night teaches (2026-10-16); after it, max(40 × 0/70, 40/2) = 20");
+        plan.Waves.Should().Be(BaseState.FirstNightWaves);
     }
 
     [Fact]

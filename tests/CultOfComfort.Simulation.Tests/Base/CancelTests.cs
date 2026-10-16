@@ -143,3 +143,55 @@ public class WouldConnectTests
         state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Woodcutter).Connected.Should().Be(predicted);
     }
 }
+
+/// <summary>The first Night teaches (found on the Pixel 2026-10-16: lost at 1★ even with the Chute and a Gate).</summary>
+public class FirstNightTests
+{
+    private static readonly DateTimeOffset T0 = new(2026, 10, 16, 9, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public void BeginNight_TheFirst_IsSmall()
+    {
+        // Arrange
+        var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+
+        // Act
+        var plan = state.Apply(new BeginNight(Guid.NewGuid()), T0).Plan!;
+
+        // Assert
+        plan.Budget.Should().Be(BaseState.FirstNightBudget);
+        plan.Waves.Should().Be(BaseState.FirstNightWaves);
+    }
+
+    [Fact]
+    public void BeginNight_TheSecond_IsTheUsualSize()
+    {
+        // Arrange
+        var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+        state.Apply(new RecordNightResult(Guid.NewGuid(), 1, 3), T0);
+        state.Apply(new DebugEndShield(Guid.NewGuid()), T0);
+
+        // Act
+        var plan = state.Apply(new BeginNight(Guid.NewGuid()), T0).Plan!;
+
+        // Assert
+        plan.Night.Should().Be(2);
+        plan.Waves.Should().Be(4);
+        plan.Budget.Should().Be(TensionTable.Default.BasePower(1) / 2);
+    }
+
+    [Fact]
+    public void FirstNight_AChuteBesideTheRoad_WinsWithNobodyPlaying()
+    {
+        // Arrange — the errand's Chute beside the raiders' road, nothing else, nobody touching the screen.
+        var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(10, 9)), T0).Status.Should().Be(CommandStatus.Accepted);
+        var plan = state.Apply(new BeginNight(Guid.NewGuid()), T0).Plan!;
+
+        // Act
+        var result = new CultOfComfort.Simulation.Combat.Battle(plan.ToBattleSetup(VillageMap.Demo, Array.Empty<CultOfComfort.Simulation.Combat.PlayerInput>())).RunToCompletion();
+
+        // Assert
+        result.Stars.Should().BeGreaterThanOrEqualTo(2);
+    }
+}
