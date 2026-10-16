@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using CultOfComfort.Simulation.Base;
 using NUnit.Framework;
@@ -105,6 +106,28 @@ namespace CultOfComfort.Client.Tests
             Assert.Greater(tallest, 1.05f, "overshoots");
             Assert.AreEqual(1f, end.x, 1e-4f);
             Assert.AreEqual(1f, end.y, 1e-4f);
+        }
+
+        [Test]
+        public void EveryBuildingType_HasACardIconAndAModel()
+        {
+            // Arrange — spec 2026-10-16 hearth four added types; none may ship as a blank card or a grey box.
+            foreach (BuildingType type in Enum.GetValues(typeof(BuildingType)))
+            {
+                // Act
+                var icon = Resources.Load<Texture2D>("UI/Icons/" + VillagePresenter.IconFor(type));
+                var model = BuildingArt.BaseModel(type);
+
+                // Assert
+                Assert.IsNotNull(icon, $"{type}: icon {VillagePresenter.IconFor(type)}");
+                if (type != BuildingType.Hearth)
+                {
+                    Assert.IsNotNull(model, $"{type}: no model named");
+                    Assert.IsNotNull(Resources.Load<GameObject>("Art/Models/" + model), $"{type}: model {model} missing");
+                }
+            }
+
+            Assert.IsNotNull(Resources.Load<GameObject>("Art/Models/hearth_l4"), "Hearth 4");
         }
     }
 }

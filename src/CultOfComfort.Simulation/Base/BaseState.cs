@@ -356,7 +356,7 @@ public sealed partial class BaseState
     /// <summary>A building works only when a tile beside it is on the road network (or it stands by the Hearth).</summary>
     private bool IsConnected(Building b)
     {
-        if (b.Type == BuildingType.Hearth || BuildingTable.IsRoad(b.Type))
+        if (b.Type == BuildingType.Hearth || BuildingTable.IsRoad(b.Type) || !BuildingTable.NeedsRoad(b.Type))
         {
             return true;
         }
@@ -1564,7 +1564,7 @@ public sealed partial class BaseState
         return parts;
     }
 
-    private static bool IsHome(BuildingType type) => type is BuildingType.Cottage or BuildingType.CultistHut or BuildingType.Bathhouse;
+    private static bool IsHome(BuildingType type) => type is BuildingType.Cottage or BuildingType.CultistHut or BuildingType.Bathhouse or BuildingType.Sauna;
 
     /// <summary>Tiles between two footprints (0: touching or overlapping; diagonals count as one).</summary>
     private static int Gap(Building a, Building b)

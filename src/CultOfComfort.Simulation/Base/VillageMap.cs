@@ -267,8 +267,8 @@ public sealed record VillageMap(
     internal const string NoRoadReaches = "No road can reach this spot, so nobody could work here.";
 
     /// <summary>Buildings that only work when connected: producers, homes, storage, the Cistern.</summary>
-    internal static bool NeedsRoad(BuildingSpec spec) =>
-        spec.Produces != null || spec.Workers > 0 || spec.Levels.Any(l => l.Beds > 0 || l.StorageBonus > 0 || l.SluiceCharges > 0);
+    internal static bool NeedsRoad(BuildingSpec spec) => BuildingTable.NeedsRoad(spec.Type) &&
+        (spec.Produces != null || spec.Workers > 0 || spec.Levels.Any(l => l.Beds > 0 || l.StorageBonus > 0 || l.SluiceCharges > 0));
 
     /// <summary>
     /// Could a road ever join these tiles to the Hearth's network? Searches the tiles a track could be painted on now or

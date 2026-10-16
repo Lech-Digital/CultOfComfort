@@ -22,7 +22,7 @@ public class BaseStateHardeningTests
     {
         var good = WithWoodcutter();
         yield return new object[] { "hearth level 0", Edit(good, b => b with { Level = 0 }, BuildingType.Hearth) };
-        yield return new object[] { "max level with a timer", Edit(good, b => b with { Level = 3, UpgradeEndsAtUtcTicks = T0.UtcTicks }, BuildingType.Hearth) };
+        yield return new object[] { "max level with a timer", Edit(good, b => b with { Level = BuildingTable.Default.Spec(BuildingType.Hearth).MaxLevel, UpgradeEndsAtUtcTicks = T0.UtcTicks }, BuildingType.Hearth) };
         yield return new object[] { "level 0 without a timer", Edit(good, b => b with { Level = 0, UpgradeEndsAtUtcTicks = null }, BuildingType.Woodcutter) };
         yield return new object[] { "on the spawn tile", Edit(good, b => b with { X = 0, Y = 1 }, BuildingType.Woodcutter) };
         yield return new object[] { "on a rock", Edit(good, b => b with { X = 5, Y = 3 }, BuildingType.Woodcutter) };

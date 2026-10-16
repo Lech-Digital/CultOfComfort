@@ -36,6 +36,10 @@ namespace CultOfComfort.Client
             BuildingType.Bathhouse => "bathhouse",
             BuildingType.Stone => "rock_b",
             BuildingType.Tree => "oak",
+            BuildingType.Beehive => "beehive",
+            BuildingType.Sauna => "sauna",
+            BuildingType.Blacksmith => "blacksmith",
+            BuildingType.PressureSluice => "pressure_sluice",
             _ => null,
         };
 

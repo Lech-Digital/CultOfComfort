@@ -1203,7 +1203,7 @@ namespace CultOfComfort.Client
             var (centre, size) = BoardView.FootprintBox(tiles);
             var spec = table.Spec(_tool.Type);
             var needsRoad = problem == null && !spec.IsTower && !BuildingTable.IsRoad(spec.Type) && !BuildingTable.IsBarrier(spec.Type)
-                && spec.Type is not (BuildingType.Tree or BuildingType.Stone) && !VillageMap.Demo.WouldConnect(_snapshot, tiles);
+                && spec.Type is not (BuildingType.Tree or BuildingType.Stone) && BuildingTable.NeedsRoad(spec.Type) && !VillageMap.Demo.WouldConnect(_snapshot, tiles);
             _hud.ShowGhostActions(GhostBox(centre, size), problem, CanTurn(spec),
                 needsRoad ? "No road here yet: it won't work until you paint one to it." : null);
         }

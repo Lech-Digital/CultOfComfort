@@ -77,6 +77,12 @@ public sealed record ErrandBook(string Version, IReadOnlyList<Errand> Errands)
         new("study-2", "Finish a second study. Another room of the manual, perhaps.", ErrandGoal.Study, null, 2, new ResourceBag(100, 0, 40, 0)),
         new("patron", "Become Patron of a place in the Marchlands (40% faith). Mind Wulfric's temper.", ErrandGoal.Patron, null, 1, new ResourceBag(0, 0, 0, 60)),
         new("win-raid", "Win a Night with 2 stars or more. (After a Night the Authority sulks for 12 hours.)", ErrandGoal.WinRaid, null, 2, new ResourceBag(0, 0, 100, 0)),
+        // Spec 2026-10-16 hearth four: the Comfort Era.
+        new("beehive", "Build a Beehive. Bees: Devotion that nobody has to make.", ErrandGoal.Build, BuildingType.Beehive, 1, new ResourceBag(60, 0, 0, 0)),
+        new("hearth-4", "Raise the Hearth to level 4. The Comfort Era, at last.", ErrandGoal.HearthLevel, BuildingType.Hearth, 4, new ResourceBag(0, 0, 0, 100)),
+        new("sauna", "Build a Sauna. Hot stones, a bucket, and twigs. Trust him.", ErrandGoal.Build, BuildingType.Sauna, 1, new ResourceBag(300, 100, 0, 0)),
+        new("pressure-sluice", "Put a Pressure Sluice right beside the raiders' road. Water, but rude.", ErrandGoal.Build, BuildingType.PressureSluice, 1, new ResourceBag(100, 0, 100, 0)),
+        new("blacksmith", "Build a Blacksmith. Scrap, by the hammerful.", ErrandGoal.Build, BuildingType.Blacksmith, 1, new ResourceBag(300, 0, 100, 0)),
     });
 
     /// <summary>

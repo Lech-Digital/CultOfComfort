@@ -28,9 +28,9 @@ public class TensionTests
     public void Default_TensionTable_MatchesTheSpec()
     {
         var t = TensionTable.Default;
-        t.RatePerHourByHearth.Should().Equal(0, 6, 9); // 2026-10-14: the Marchlands add influence-driven Tension on top
+        t.RatePerHourByHearth.Should().Equal(0, 6, 9, 12); // 2026-10-14: the Marchlands add influence-driven Tension on top
         (t.Hostile, t.Punitive, t.Max, t.WarningHours, t.ShieldHours).Should().Be((70, 100, 150, 8, 12));
-        t.BasePowerByHearth.Should().Equal(40, 54, 72);
+        t.BasePowerByHearth.Should().Equal(40, 54, 72, 90);
     }
 
     [Fact]

@@ -97,6 +97,7 @@ public sealed class ResearchBook
         new Tech("measure-twice", "Measure Twice", "Measure twice, cut once. He measured once, then three more times.", Workshop, 2, new ResourceBag(400, 0, 60, 30), 120, TechEffect.BuildTimePercent, 20, "sharper-axes"),
         new Tech("two-axes", "Two Axes", "One for each hand. Balance, says the Prophet.", Workshop, 3, new ResourceBag(900, 0, 120, 60), 180, TechEffect.TimberPercent, 20, "sharper-axes"),
         new Tech("turf-ricks", "Turf Ricks", "Rick it, roof it, stop it turning into soup.", Workshop, 3, new ResourceBag(700, 150, 80, 60), 180, TechEffect.PeatPercent, 20, "peat-stacking"),
+        new Tech("bellows", "Bellows", "Blow on the fire. Harder. With a bag.", Workshop, 4, new ResourceBag(2000, 0, 300, 100), 300, TechEffect.ScrapPercent, 20, "midden-sieve"),
         new Tech("bigger-stores", "Bigger Storehouses", "Shelves. Actual shelves.", Workshop, 3, new ResourceBag(1200, 100, 250, 50), 300, TechEffect.StoragePercent, 20, "midden-sieve"),
 
         // The Night.
@@ -106,6 +107,7 @@ public sealed class ResearchBook
         new Tech("finders-keepers", "Finders Keepers", "Raiders drop things when they run. The faithful pick them up.", Night, 2, new ResourceBag(200, 0, 0, 40), 60, TechEffect.SalvagePercent, 50),
         new Tech("padded-cardigan", "A Padded Cardigan", "Quilted with sheep's wool and optimism.", Night, 3, new ResourceBag(800, 0, 150, 80), 180, TechEffect.ProphetHealthPercent, 25),
         new Tech("stickier-mud", "Stickier Mud", "Add straw. Add more straw.", Night, 3, new ResourceBag(1000, 100, 200, 60), 240, TechEffect.TowerDamagePercent, 20, "springier-saplings"),
+        new Tech("brass-nozzle", "A Brass Nozzle", "Narrow the hose; widen the eyes of whoever's in front of it.", Night, 4, new ResourceBag(2000, 0, 400, 100), 360, TechEffect.TowerDamagePercent, 20, "stickier-mud"),
         new Tech("wattle-and-daub", "Wattle and Daub", "Twice the mud again. The draught has given up.", Night, 3, new ResourceBag(1000, 0, 200, 40), 240, TechEffect.HealthPercent, 20, "thicker-walls"),
 
         // The pulpit.
@@ -116,12 +118,14 @@ public sealed class ResearchBook
         new Tech("long-sermons", "Long Sermons", "Nobody remembers what he said, so nobody forgets.", Pulpit, 3, new ResourceBag(500, 100, 0, 150), 240, TechEffect.SlowerDecay, 1, "sermon-notes"),
         new Tech("whispered-hymns", "Whispered Hymns", "Hymns, but quietly. The lord hears less to be cross about.", Pulpit, 3, new ResourceBag(700, 0, 100, 150), 240, TechEffect.TemperPercent, 20, "grovelling"),
         new Tech("pamphlets", "Pamphlets", "\"Have You Considered Not Being Cold?\" Illustrated.", Pulpit, 3, new ResourceBag(900, 0, 150, 120), 240, TechEffect.MissionaryPercent, 25, "sermon-notes"),
+        new Tech("hymn-books", "Hymn Books", "Everyone sings the same words. Mostly the same words.", Pulpit, 4, new ResourceBag(1800, 0, 200, 300), 360, TechEffect.MissionaryPercent, 25, "pamphlets"),
 
         // The bath.
         new Tech("woolly-socks", "Woolly Socks", "Socks, with the Duck on them.", Bath, 2, new ResourceBag(250, 40, 0, 30), 60, TechEffect.Comfort, 5),
         new Tech("warm-stones", "Warm Stones", "Hot stones in the beds. Mind the toes.", Bath, 2, new ResourceBag(400, 80, 30, 40), 120, TechEffect.Comfort, 5, "woolly-socks"),
         new Tech("plumbing", "Plumbing, Probably", "Water goes down. Usually.", Bath, 3, new ResourceBag(900, 200, 200, 100), 240, TechEffect.BathComfort, 20, "woolly-socks"),
         new Tech("hot-water", "Hot Water for All", "The faith's central promise, finally kept.", Bath, 3, new ResourceBag(1500, 300, 300, 200), 480, TechEffect.Comfort, 15, "plumbing"),
+        new Tech("birch-whisks", "Birch Whisks", "Hit yourself with a twig. It's relaxing, says the Prophet, wincing.", Bath, 4, new ResourceBag(2000, 300, 100, 200), 360, TechEffect.Comfort, 10, "hot-water"),
         new Tech("duck-ascendant", "The Duck Ascendant", "A bigger wooden duck. Faith follows size.", Bath, 3, new ResourceBag(1200, 200, 100, 100), 300, TechEffect.DevotionPercent, 15, "warm-stones"),
     });
 

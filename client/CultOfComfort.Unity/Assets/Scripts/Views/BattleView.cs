@@ -498,6 +498,10 @@ namespace CultOfComfort.Client
                     {
                         SpawnMudSplat(from, to);
                     }
+                    else if (tower.Type == TowerType.PressureSluice)
+                    {
+                        SpawnWaterJet(from, to);
+                    }
                     else
                     {
                         SpawnRock(from, to, fired.Critical);
@@ -780,6 +784,27 @@ namespace CultOfComfort.Client
                 var flash = Shapes.Create(PrimitiveType.Sphere, Palette.Highlight, to + Vector3.up * 0.5f, Vector3.zero, _root, "THWACK");
                 AddEffect(flash, 0.35f, (go, t) => go.transform.localScale = Vector3.one * Mathf.Sin(t * Mathf.PI) * 0.6f);
             }
+        }
+
+        /// <summary>The Pressure Sluice: a straight, fast jet (no arc, unlike the Chute's lob) and a wet splash.</summary>
+        private void SpawnWaterJet(Vector3 from, Vector3 to)
+        {
+            var start = from + Vector3.up * 0.4f;
+            var jet = Shapes.Create(PrimitiveType.Cylinder, Palette.Water, start, new Vector3(0.08f, 0.01f, 0.08f), _root, "Jet");
+            AddEffect(jet, 0.3f, (go, t) =>
+            {
+                var tip = Vector3.Lerp(start, to + Vector3.up * 0.3f, Mathf.Min(1f, t * 2f));
+                var tail = Vector3.Lerp(start, tip, Mathf.Max(0f, t * 2f - 1f));
+                go.transform.localPosition = (tip + tail) / 2f;
+                go.transform.up = (tip - tail).sqrMagnitude > 0.0001f ? (tip - tail).normalized : Vector3.up;
+                go.transform.localScale = new Vector3(0.08f, Mathf.Max(0.01f, (tip - tail).magnitude / 2f), 0.08f);
+            });
+            var splash = Shapes.Create(PrimitiveType.Sphere, Palette.Water, to + Vector3.up * 0.3f, Vector3.zero, _root, "Splash");
+            AddEffect(splash, 0.5f, (go, t) =>
+            {
+                go.SetActive(t > 0.5f);
+                go.transform.localScale = Vector3.one * (t - 0.5f) * 1.4f;
+            });
         }
 
         private void SpawnMudSplat(Vector3 from, Vector3 to)

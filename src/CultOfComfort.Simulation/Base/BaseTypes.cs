@@ -27,6 +27,18 @@ public enum BuildingType
 
     /// <summary>Hearth 3: hot water and a bench. Revolutionary. Comfort and Devotion; burns Peat.</summary>
     Bathhouse,
+
+    /// <summary>Hearth 2: bees. They were here first. A little Devotion and Comfort; nobody works it.</summary>
+    Beehive,
+
+    /// <summary>Hearth 4: hot stones, a bucket, birch twigs. Lots of Comfort and Devotion; burns Peat.</summary>
+    Sauna,
+
+    /// <summary>Hearth 4: a forge and a man who likes hitting things. Scrap; noisy (Comfort down).</summary>
+    Blacksmith,
+
+    /// <summary>Hearth 4 tower: knocks one raider back up the road.</summary>
+    PressureSluice,
 }
 
 public enum ResourceType

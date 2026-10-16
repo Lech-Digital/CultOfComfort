@@ -699,8 +699,10 @@ namespace CultOfComfort.Client
         /// <param name="warning">Allowed, but worth knowing (it would stand unconnected): said without blocking ✓.</param>
         public void ShowGhostActions(Rect? ghost, string problem, bool canRotate, string warning = null)
         {
-            Show(_ghostActions, ghost != null);
-            if (ghost == null)
+            // A sheet on screen (settings, how to play) has the finger: the ghost's buttons wait behind it.
+            var sheetOpen = Visible(_settings) || Visible(_howTo);
+            Show(_ghostActions, ghost != null && !sheetOpen);
+            if (ghost == null || sheetOpen)
             {
                 return;
             }

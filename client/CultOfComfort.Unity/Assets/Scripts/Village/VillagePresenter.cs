@@ -53,6 +53,10 @@ namespace CultOfComfort.Client
             BuildingType.Bathhouse => "b_bathhouse",
             BuildingType.Stone => "b_stone",
             BuildingType.Tree => "b_tree",
+            BuildingType.Beehive => "b_beehive",
+            BuildingType.Sauna => "b_sauna",
+            BuildingType.Blacksmith => "b_blacksmith",
+            BuildingType.PressureSluice => "b_pressure_sluice",
             _ => "b_sapling_flinger",
         };
 
@@ -68,8 +72,8 @@ namespace CultOfComfort.Client
         /// <summary>Which tab a building sits under: what it's for, in a word.</summary>
         public static string Category(BuildingType type) => type switch
         {
-            BuildingType.Cottage or BuildingType.CultistHut or BuildingType.Bathhouse or BuildingType.StorageHut or BuildingType.Cistern => Homes,
-            BuildingType.SlurryChute or BuildingType.SaplingFlinger or BuildingType.WattleFence or BuildingType.WoodenWall or BuildingType.Gate => Defence,
+            BuildingType.Cottage or BuildingType.CultistHut or BuildingType.Bathhouse or BuildingType.Sauna or BuildingType.StorageHut or BuildingType.Cistern => Homes,
+            BuildingType.SlurryChute or BuildingType.SaplingFlinger or BuildingType.PressureSluice or BuildingType.WattleFence or BuildingType.WoodenWall or BuildingType.Gate => Defence,
             BuildingType.DirtTrack or BuildingType.PlankWalk or BuildingType.CobbledRoad => Roads,
             BuildingType.Stone or BuildingType.Tree => Land,
             _ => Work,

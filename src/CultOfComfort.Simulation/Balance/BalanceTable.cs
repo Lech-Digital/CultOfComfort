@@ -37,6 +37,9 @@ public enum TowerType
 {
     SlurryChute,
     SaplingFlinger,
+
+    /// <summary>Hearth 4 (GDD 03 Comfort era): a raised barrel, a leather hose, a brass nozzle. Knocks one raider back.</summary>
+    PressureSluice,
 }
 
 /// <param name="EngageRange">Reach: attacks the Prophet from this close (tiles). Zero means never.</param>
@@ -69,7 +72,8 @@ public sealed record TowerStats(
     Fix SlowMultiplier,
     int SlowTicks,
     int MuddiedTicks,
-    Fix MuddiedCritMultiplier);
+    Fix MuddiedCritMultiplier,
+    Fix PushbackTiles = default); // single target: knocked this far back up the road (and off the Prophet)
 
 public sealed record SluiceGateStats(int Charges, int CooldownTicks, Fix PushbackTiles, int MuddiedTicks);
 
@@ -228,6 +232,16 @@ public sealed class BalanceTable
             SlowTicks: 0,
             MuddiedTicks: 0,
             MuddiedCritMultiplier: Fix.Ratio(7, 4)),
+        [TowerType.PressureSluice] = new(
+            Range: Fix.FromInt(3),
+            CooldownTicks: 3 * TicksPerSecond,
+            Damage: Fix.FromInt(14),
+            SplashRadius: Fix.Zero,
+            SlowMultiplier: Fix.One,
+            SlowTicks: 0,
+            MuddiedTicks: 0,
+            MuddiedCritMultiplier: Fix.One,
+            PushbackTiles: Fix.Ratio(3, 2)),
     };
 
     public SluiceGateStats SluiceGate { get; init; } = new(

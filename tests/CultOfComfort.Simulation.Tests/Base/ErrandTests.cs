@@ -216,14 +216,15 @@ public class ErrandTests
         var hearthOne = errands.TakeWhile(e => !(e.Goal == ErrandGoal.HearthLevel && e.Target == 2)).Append(errands.First(e => e.Goal == ErrandGoal.HearthLevel));
 
         // Assert
-        errands.Should().HaveCount(21); // 2026-10-16: defences before the first Night, and a fuller middle
+        errands.Should().HaveCount(26); // 2026-10-16: defences before the first Night, a fuller middle, then Hearth 4
         var hearthTwo = errands.ToList().FindIndex(e => e.Goal == ErrandGoal.HearthLevel && e.Target == 2);
         errands.Skip(hearthTwo + 1).Select(e => e.Goal).Should().Contain(new[] { ErrandGoal.SendMissionary, ErrandGoal.Study, ErrandGoal.Patron }, "the Marchlands and the manual come after Hearth 2");
         errands[0].Type.Should().Be(BuildingType.Woodcutter);
         var hearthThree = errands.ToList().FindIndex(e => e.Goal == ErrandGoal.HearthLevel && e.Target == 3);
         hearthThree.Should().BeLessThan(errands.ToList().FindIndex(e => e.Goal == ErrandGoal.Patron), "a Patron takes days of preaching: it must not hold up the Hearth");
         errands.Skip(hearthThree + 1).Should().NotBeEmpty("there is still something to do at Hearth 3");
-        errands[^1].Goal.Should().Be(ErrandGoal.WinRaid, "the 12-hour shield after a Night makes a won raid a next-session goal");
+        errands.Should().Contain(e => e.Goal == ErrandGoal.WinRaid, "the 12-hour shield after a Night makes a won raid a next-session goal");
+        errands.Should().Contain(e => e.Goal == ErrandGoal.HearthLevel && e.Target == 4, "Hearth 4 is the next goal after Hearth 3 (2026-10-16)");
         hearthOne.Sum(e => e.Reward.Timber).Should().Be(370, "the Hearth 1 errands bridge the 450 Timber Hearth 2 after a starter village (and pay the hut back)");
         var night = errands.ToList().FindIndex(e => e.Goal == ErrandGoal.SurviveNight);
         errands.Take(night).Select(e => e.Type).Should().Contain(BuildingType.SlurryChute, "the first Night is defended");

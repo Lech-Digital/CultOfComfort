@@ -1058,7 +1058,7 @@ namespace CultOfComfort.Client
             switch (place.Type)
             {
                 case null:
-                    var level = Mathf.Clamp(_homeLevel, 1, 3);
+                    var level = Mathf.Clamp(_homeLevel, 1, 4);
                     Put($"hearth_l{level}", 0f, 0f, 0.3f, -yaw);
                     Put("cultist_hut", 0.95f, 0.35f, s, 200f);
                     Put("cottage", -0.9f, 0.4f, s, 160f);
