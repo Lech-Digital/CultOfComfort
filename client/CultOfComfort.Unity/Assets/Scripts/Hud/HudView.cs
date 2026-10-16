@@ -99,6 +99,7 @@ namespace CultOfComfort.Client
 
         private readonly VisualElement _root;
         private readonly VisualElement _top;
+        private readonly VisualElement _pillRow;
         private readonly Dictionary<string, (VisualElement Pill, Label Value)> _pills = new Dictionary<string, (VisualElement, Label)>();
         private readonly Label _hearthBadge;
         private readonly Label _hearthLine;
@@ -216,6 +217,7 @@ namespace CultOfComfort.Client
             var frame = Container("frame");
             frame.name = "frame";
             var pills = Container("pills");
+            _pillRow = pills;
             foreach (var (key, icon) in new[] { ("timber", "timber"), ("scrap", "scrap"), ("peat", "peat"), ("devotion", "devotion"), ("pennies", "penny"), ("people", "cult"), ("comfort", "comfort") })
             {
                 var pill = Surface(key == "pennies" || key == "people" ? "pill-note" : "pill");
@@ -571,6 +573,7 @@ namespace CultOfComfort.Client
                 Show(_codeEntry, false);
             }
             Show(_waveStrip, phase == GamePhase.Night);
+            Show(_pillRow, phase != GamePhase.Night); // the stores don't matter mid-fight; the board gets the room (spec 2026-10-16 one thing at a time)
             Show(_sideLeft, phase == GamePhase.Dusk);
             Show(_sideRight, phase == GamePhase.Dusk);
             Show(_duskBar, phase == GamePhase.Dusk);
@@ -965,6 +968,10 @@ namespace CultOfComfort.Client
             var hasLine = !sheetOpen && !string.IsNullOrEmpty(_coach.Line) && (target != null || !_coach.HasArrow);
             Show(_coachArrow, target != null);
             Show(_coachLine, hasLine);
+            // One voice: while the coach points somewhere else, the errand note (saying the same thing) waits.
+            var hush = hasLine && _coach.Target != CoachTarget.ErrandNote;
+            _errand.EnableInClassList("hushed", hush);
+            _daily.EnableInClassList("hushed", hush);
             if (!hasLine)
             {
                 return;
@@ -1043,13 +1050,15 @@ namespace CultOfComfort.Client
             }
         }
 
-        /// <summary>Opens (or locks) a frame shortcut: open ones raise <see cref="FeatureClicked"/>, locked ones show their note.</summary>
-        public void SetFeatureOpen(string id, bool open)
+        /// <summary>Opens (or locks and hides) a frame shortcut. True when that changed it.</summary>
+        public bool SetFeatureOpen(string id, bool open)
         {
             if ((_openFeatures.Contains(id)) == open || !_featureButtons.TryGetValue(id, out var button))
             {
-                return;
+                return false;
             }
+
+            Show(button.parent, open);
 
             if (open)
             {
@@ -1066,6 +1075,8 @@ namespace CultOfComfort.Client
             {
                 padlock.style.display = open ? DisplayStyle.None : DisplayStyle.Flex;
             }
+
+            return true;
         }
 
         /// <summary>A red dot on a frame button: something wants you there (the lord's demand on Tithes).</summary>
@@ -1191,8 +1202,9 @@ namespace CultOfComfort.Client
             _cardFlavour.text = won
                 ? "The attackers left damp, confused and noticeably cleaner."
                 : $"{Ruler.Cap(Ruler.Short)}'s men warmed their hands on the embers and left. Tomorrow: repairs, and a strongly worded diary entry.";
-            _cardStats.text = $"{result.EnemiesDefeated} defeated · {result.EnemiesLeaked} reached the Hearth · {commands} commands logged\n" +
-                              $"Client hash {result.StateHashHex} · server replay {serverReplay.StateHashHex}";
+            // The hashes are for us, not the player: the stamp says it all (spec 2026-10-16 one thing at a time).
+            _cardStats.text = $"{result.EnemiesDefeated} defeated · {result.EnemiesLeaked} reached the Hearth";
+            Debug.Log($"[CoC] Dawn: {commands} commands · client hash {result.StateHashHex} · server replay {serverReplay.StateHashHex}");
             _stamp.EnableInClassList("verified", match);
             _stamp.EnableInClassList("mismatch", !match);
         }
@@ -1545,6 +1557,7 @@ namespace CultOfComfort.Client
             _featureButtons[id] = button;
             holder.Add(button);
             holder.Add(Text(feature.Label, "shortcut-label"));
+            Show(holder, false); // nothing locked on show: a shortcut appears when it opens (spec 2026-10-16 one thing at a time)
             return holder;
         }
 

@@ -132,8 +132,7 @@ namespace CultOfComfort.Client
             // Dev tools: on a device that runs the rules itself (editor, tests), or one holding the owner's dev key.
             _devTools = _village is RemoteBaseGateway remoteVillage ? remoteVillage.Developer : Debug.isDebugBuild;
             _hud.SetDevTools(_devTools);
-            LoadVillage();
-            Announce("Build from the drawer below; tap a building to upgrade it. What they make stacks itself.");
+            LoadVillage(); // no opening toast: the coach and the errand note say what to do (spec 2026-10-16 one thing at a time)
             PlayIntroOnFirstLaunch();
         }
 
@@ -637,16 +636,38 @@ namespace CultOfComfort.Client
             }
         }
 
+        /// <summary>
+        /// Shortcuts appear only when they open (spec 2026-10-16 one thing at a time): the first time one does while
+        /// you play (not on load), a toast says what it is.
+        /// </summary>
+        private void OpenFeature(string id, bool open)
+        {
+            if (_hud.SetFeatureOpen(id, open) && open && _featuresSeeded)
+            {
+                Announce(id switch
+                {
+                    "map" => "New: the Map. See the lands around you and who rules them.",
+                    "missionaries" => "New: Missionaries. Send a preacher to win a village over.",
+                    "tithes" => "New: Tithes. Keep the lord sweet before he sends men.",
+                    "research" => "New: Research. Study better ways of doing things.",
+                    _ => $"New: {LockedFeatures.Get(id).Label}.",
+                });
+            }
+        }
+
+        private bool _featuresSeeded;
+
         /// <summary>Keeps the map and sheets current while open; opens the shortcuts as the village earns them.</summary>
         private void RefreshMap()
         {
             var open = _snapshot?.Domain?.Unlocked == true;
             foreach (var id in new[] { "map", "missionaries", "tithes" })
             {
-                _hud.SetFeatureOpen(id, open);
+                OpenFeature(id, open);
             }
 
-            _hud.SetFeatureOpen("research", _snapshot != null && _snapshot.HearthLevel >= 2);
+            OpenFeature("research", _snapshot != null && _snapshot.HearthLevel >= 2);
+            _featuresSeeded |= _snapshot != null;
             WatchDemand();
             _hud.SetFeatureBadge("missionaries", _snapshot?.Domain?.Tales?.Count > 0);
             if (_house != null && _house.IsOpen && _snapshot != null)
@@ -1430,7 +1451,7 @@ namespace CultOfComfort.Client
                 if (_snapshot.Errand?.Index == 0 && _snapshot.Buildings.Count == 1)
                 {
                     // A brand-new village: the Prophet says one line, then the errand note takes over.
-                    _hud.Announce("A cosy spot. Let's make it cosier. Build us a woodcutter, would you? (See the note.)", Time.time, 6f, prophet: true);
+                    _hud.Announce("A cosy spot. Let's make it cosier. Build us a woodcutter, would you?", Time.time, 6f, prophet: true);
                 }
 
                 RefreshVillage();
@@ -1979,7 +2000,6 @@ namespace CultOfComfort.Client
         /// <summary>The tutorial's step this frame (Dusk only, no card or report in the way) and, for a building, where it is on screen.</summary>
         private const string DrawerCollapsedKey = "hud.drawer.collapsed";
         private const string MapHelpSeenKey = "map.help.seen";
-        private const string HowToSeenKey = "howto.seen";
         /// <summary>The errand note is open (2026-10-16: it starts as one line; "the errands take lots of space").</summary>
         private const string ErrandOpenKey = "hud.errand.open";
         private const string CoachOffKey = "hud.coach.off";
@@ -2320,12 +2340,6 @@ namespace CultOfComfort.Client
                 _hud.SetCloudStatus(remote.Online
                     ? remote.PendingCount == 0 ? "Cloud save: synced ✓" : $"Cloud save: sending {remote.PendingCount}…"
                     : remote.PendingCount == 0 ? "Cloud save: offline" : $"Cloud save: offline · {remote.PendingCount} waiting");
-            }
-
-            if (_phase == GamePhase.Dusk && _snapshot != null && _intro == null && !_showingReport && !Pref(HowToSeenKey))
-            {
-                SetPref(HowToSeenKey, true);
-                _hud.ShowHowTo(true); // once, the first time the village is up: what the game is and how it's played
             }
 
             var coach = CoachNow(out var coachPoint);

@@ -434,3 +434,6 @@
 .howto-title { font-size: 16px; color: #7a1f1a; -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC"); padding: 0; margin: 0; }
 .howto-text { font-size: 13px; margin: 1px 0 0 0; }
 .howto-tip { margin-top: 10px; font-size: 13px; color: #2b2215; -unity-font-definition: resource("UI/Fonts/PermanentMarker"); }
+
+/* ---------- one thing at a time (spec 2026-10-16): the coach speaks, the errand note waits ---------- */
+.errand-note.hushed { visibility: hidden; }

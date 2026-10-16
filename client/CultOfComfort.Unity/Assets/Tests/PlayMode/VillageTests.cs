@@ -70,6 +70,7 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual(DisplayStyle.Flex, note.resolvedStyle.display);
             StringAssert.Contains("Woodcutter", note.Q<Label>(className: "errand-text").text);
             Assert.AreEqual(DisplayStyle.None, note.Q<Label>(className: "errand-claim").resolvedStyle.display);
+            Assert.IsTrue(note.ClassListContains("hushed"), "one voice: the coach points at the card, the note waits");
             Assert.IsTrue(root.Q<Button>("start-night").ClassListContains("waiting"), "the lamps wait for the first-Night errand");
             Click(root.Q<Button>("card-Woodcutter"));
             yield return Frames(2);
