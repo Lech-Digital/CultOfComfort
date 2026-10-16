@@ -6,6 +6,35 @@ using UnityEngine;
 
 namespace CultOfComfort.Client
 {
+    /// <summary>
+    /// Who rules over the village, for every line that names him: Wulfric of the Marchlands until the shared world
+    /// arrives, then whoever's seat is nearest ("Lord Thorkel Minor", "the Bishop of Sumpwell").
+    /// </summary>
+    public static class Ruler
+    {
+        /// <summary>"Lord Thorkel Minor", "the Bishop of Sumpwell".</summary>
+        public static string Full { get; private set; } = "Lord Wulfric";
+
+        /// <summary>"Thorkel Minor", "the Bishop": for "{Short}'s men are coming".</summary>
+        public static string Short { get; private set; } = "Wulfric";
+
+        public static void Set(string full)
+        {
+            if (string.IsNullOrEmpty(full))
+            {
+                return;
+            }
+
+            Full = full;
+            Short = full.StartsWith("Lord ", StringComparison.Ordinal) ? full.Substring(5)
+                : full.StartsWith("the Bishop", StringComparison.Ordinal) ? "the Bishop"
+                : full;
+        }
+
+        /// <summary>A name at the start of a sentence: "The Bishop's men…".</summary>
+        public static string Cap(string text) => string.IsNullOrEmpty(text) ? text : char.ToUpperInvariant(text[0]) + text.Substring(1);
+    }
+
     /// <summary>A place on the map screen: where it sits (0–1 across the map), what it is, how much of it is yours.</summary>
     public sealed class MapNodeModel
     {
@@ -280,8 +309,8 @@ namespace CultOfComfort.Client
             model.Tithes = Tithes(snapshot, table);
             SetDemand(model, snapshot, now);
             model.TitheNote = domain.TitheHalfUntilUtc != null
-                ? $"Wulfric was paid recently: tithes work at half strength for {VillagePresenter.Duration((long)(domain.TitheHalfUntilUtc.Value - now).TotalSeconds)}."
-                : "A tithe calms Wulfric down. Pay enough during a warning and he calls the raid off.";
+                ? $"{Ruler.Cap(Ruler.Short)} was paid recently: tithes work at half strength for {VillagePresenter.Duration((long)(domain.TitheHalfUntilUtc.Value - now).TotalSeconds)}."
+                : $"A tithe calms {Ruler.Short} down. Pay enough during a warning and he calls the raid off.";
             return model;
         }
 
@@ -470,6 +499,23 @@ namespace CultOfComfort.Client
             return options;
         }
 
+        /// <summary>The Mission House's board in the Marchlands: every place, nearest first; the ones out of reach last.</summary>
+        public static List<PlaceRowModel> Places(BaseSnapshot snapshot, BuildingTable table)
+        {
+            var domain = snapshot.Domain;
+            if (domain == null)
+            {
+                return new List<PlaceRowModel>();
+            }
+
+            return domain.Nodes
+                .OrderBy(n => n.Reachable ? 0 : 1).ThenBy(n => n.Node.Distance).ThenBy(n => n.Node.Id)
+                .Where(n => n.Reachable || n.Node.Distance <= table.Domain.Reach(snapshot.HearthLevel) + 1)
+                .Select(n => MissionHousePresenter.Place(n.Node.Id, n.Node.Name, n.Node.Type, n.Node.Distance, n.InfluencePercent, 0, n.Patron,
+                    n.OfferingsPerHour, n.Reachable, table))
+                .ToList();
+        }
+
         public static NodeCardModel Card(BaseSnapshot snapshot, BuildingTable table, int nodeId, int preacherId = 0)
         {
             var domain = snapshot.Domain;
@@ -486,7 +532,7 @@ namespace CultOfComfort.Client
             var node = view.Node;
             var card = new NodeCardModel { Title = node.Name, Kind = Kind(node.Type) };
             card.Lines.Add(node.Type == NodeType.Keep
-                ? "No offerings: prestige only. Preaching here makes Wulfric furious (+15 Tension)."
+                ? $"No offerings: prestige only. Preaching here makes {Ruler.Short} furious (+15 Tension)."
                 : $"Offerings at full faith: {VillagePresenter.ShortCost(view.OfferingsPerHour)}/h · Squalor {node.Squalor}");
             card.Lines.Add($"Your influence: {view.InfluencePercent}%{(view.Patron ? " · you're the Patron (+25% offerings)" : $" · Patron at {table.Domain.PatronInfluence}%")}");
             card.Lines.Add($"A walk of {VillagePresenter.Duration(view.TravelMinutes * 60L)} each way");

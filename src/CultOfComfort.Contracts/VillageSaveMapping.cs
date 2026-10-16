@@ -80,6 +80,7 @@ public static class VillageSaveMapping
             reports = (data.Domain.Reports ?? Array.Empty<RoadReport>()).Select(r => new RoadReportDto
             {
                 preacher = r.PreacherId, node = r.NodeId, inWorld = r.InWorld, hours = r.Hours, find = r.Find.ToString(),
+                tale = r.Tale?.ToString() ?? string.Empty, choice = r.Choice,
                 timber = r.Gift.Timber, peat = r.Gift.Peat, scrap = r.Gift.Scrap, devotion = r.Gift.Devotion, homeTicks = r.HomeAtUtcTicks,
             }).ToList(),
             hasDemand = data.Domain.Demand != null,
@@ -91,6 +92,13 @@ public static class VillageSaveMapping
             demandDueTicks = data.Domain.Demand?.DueAtUtcTicks ?? 0,
             nextDemandTicks = data.Domain.NextDemandUtcTicks ?? -1,
             nextDemandId = data.Domain.NextDemandId,
+            demandStalled = data.Domain.Demand?.Stalled ?? false,
+            demandHaggle = (data.Domain.Demand?.Haggle ?? DemandHaggle.None).ToString(),
+            demandFlattered = data.Domain.Demand?.Flattered ?? false,
+            tales = (data.Domain.Tales ?? Array.Empty<TaleData>()).Select(t => new TaleDto
+            {
+                id = t.Id, preacher = t.PreacherId, node = t.NodeId, inWorld = t.InWorld, hours = t.Hours, tale = t.Tale.ToString(), homeTicks = t.HomeAtUtcTicks,
+            }).ToList(),
         },
     };
 
@@ -156,10 +164,16 @@ public static class VillageSaveMapping
         d.inWorld ? new WorldLink(d.worldQ, d.worldR, d.worldTensionMilli) : null,
         (d.preachers ?? new List<PreacherXpDto>()).Select(p => (p.id, p.xp)).ToList(),
         (d.reports ?? new List<RoadReportDto>()).Select(r => new RoadReport(r.preacher, r.node, r.inWorld, r.hours,
-            Enum.TryParse<RoadFind>(r.find, out var find) ? find : RoadFind.Nothing, new ResourceBag(r.timber, r.peat, r.scrap, r.devotion), r.homeTicks)).ToList(),
-        d.hasDemand ? new DemandData(d.demandId, new ResourceBag(d.demandTimber, d.demandPeat, d.demandScrap, d.demandDevotion), d.demandDueTicks) : null,
+            Enum.TryParse<RoadFind>(r.find, out var find) ? find : RoadFind.Nothing, new ResourceBag(r.timber, r.peat, r.scrap, r.devotion), r.homeTicks,
+            Enum.TryParse<RoadTale>(r.tale, out var tale) ? tale : null, r.choice)).ToList(),
+        d.hasDemand
+            ? new DemandData(d.demandId, new ResourceBag(d.demandTimber, d.demandPeat, d.demandScrap, d.demandDevotion), d.demandDueTicks, d.demandStalled,
+                Enum.TryParse<DemandHaggle>(d.demandHaggle, out var haggle) ? haggle : DemandHaggle.None, d.demandFlattered)
+            : null,
         d.nextDemandTicks < 0 ? null : d.nextDemandTicks,
-        Math.Max(1, d.nextDemandId));
+        Math.Max(1, d.nextDemandId),
+        (d.tales ?? new List<TaleDto>()).Select(t => new TaleData(t.id, t.preacher, t.node, t.inWorld, t.hours,
+            Enum.TryParse<RoadTale>(t.tale, out var told) ? told : throw new InvalidBaseDataException($"unknown road tale '{t.tale}'"), t.homeTicks)).ToList());
 
     internal static NightDto ToDto(NightPlan plan) => new()
     {

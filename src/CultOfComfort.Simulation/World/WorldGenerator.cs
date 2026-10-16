@@ -61,8 +61,10 @@ public static class WorldGenerator
         for (var d = 0; d < seats.Count; d++)
         {
             var authority = d % 2 == 0 ? AuthorityKind.Warlord : AuthorityKind.Bishop;
-            var title = authority == AuthorityKind.Warlord ? $"Lord {Pick(random, Lords)}'s Keep" : $"Cathedral of St. {Pick(random, Saints)}";
-            var name = Unique(usedNames, title, random);
+            // A second Lord Thorkel is "Lord Thorkel the Younger", and his seat "Lord Thorkel the Younger's Keep".
+            var name = authority == AuthorityKind.Warlord
+                ? Unique(usedNames, $"Lord {Pick(random, Lords)}", random, LordSuffixes) + "'s Keep"
+                : Unique(usedNames, $"Cathedral of St. {Pick(random, Saints)}", random);
             var id = nodes.Count + 1;
             nodes.Add(new WorldNode(id, name, authority == AuthorityKind.Warlord ? NodeType.Keep : NodeType.Cathedral, seats[d].Q, seats[d].R,
                 5 + random.Next(0, 15), d + 1));
@@ -97,17 +99,20 @@ public static class WorldGenerator
         return new WorldMap(seed, shape, nodes, domains);
     }
 
+    private static readonly string[] PlaceSuffixes = { " Parva", " Magna", " Minor", " Major", "-on-the-Bog", "-under-Water" };
+    private static readonly string[] LordSuffixes = { " the Younger", " the Elder", " the Damp", " the Unready", " the Lesser", " the Loud" };
+
     private static string Pick(PcgRandom random, string[] from) => from[random.Next(0, from.Length)];
 
     /// <summary>Names repeat in a big world; a second "Mudwick" becomes "Mudwick Parva", a third "Mudwick Magna", then numbers.</summary>
-    private static string Unique(HashSet<string> used, string name, PcgRandom random)
+    private static string Unique(HashSet<string> used, string name, PcgRandom random, string[]? suffixes = null)
     {
         if (used.Add(name))
         {
             return name;
         }
 
-        foreach (var suffix in new[] { " Parva", " Magna", " Minor", " Major", "-on-the-Bog", "-under-Water" })
+        foreach (var suffix in suffixes ?? PlaceSuffixes)
         {
             if (used.Add(name + suffix))
             {

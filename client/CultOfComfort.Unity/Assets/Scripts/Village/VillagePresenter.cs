@@ -164,7 +164,7 @@ namespace CultOfComfort.Client
             if (s.RaidWarningEndsAtUtc != null)
             {
                 var left = Duration((long)(s.RaidWarningEndsAtUtc.Value - s.AsOfUtc).TotalSeconds);
-                return s.TensionState == TensionState.Punitive ? $"Punitive raid · {left}" : $"Wulfric's men are coming · {left}";
+                return s.TensionState == TensionState.Punitive ? $"Punitive raid · {left}" : $"{Ruler.Cap(Ruler.Short)}'s men are coming · {left}";
             }
 
             if (s.ShieldEndsAtUtc != null)
@@ -172,7 +172,7 @@ namespace CultOfComfort.Client
                 return $"Shielded · {Duration((long)(s.ShieldEndsAtUtc.Value - s.AsOfUtc).TotalSeconds)}";
             }
 
-            return s.TensionState == TensionState.Calm ? "Calm" : "Uneasy — Wulfric is muttering";
+            return s.TensionState == TensionState.Calm ? "Calm" : $"Uneasy — {Ruler.Short} is muttering";
         }
 
         /// <summary>The big Day button: face the raid that is coming, or invite a smaller one early.</summary>
@@ -182,6 +182,11 @@ namespace CultOfComfort.Client
             if (key == "people")
             {
                 return $"Villagers {s.Population} · beds {s.Beds}" + (s.IdleVillagers > 0 ? $" · {s.IdleVillagers} idle" : string.Empty);
+            }
+
+            if (key == "comfort")
+            {
+                return $"Comfort {s.Comfort}: baths and cottages raise it; middens and chutes beside homes lower it. More Comfort, more Devotion.";
             }
 
             var resource = key switch

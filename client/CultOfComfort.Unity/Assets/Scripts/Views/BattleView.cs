@@ -633,7 +633,7 @@ namespace CultOfComfort.Client
                     Announcement?.Invoke(rejected.Reason);
                     break;
                 case WaveStarted wave:
-                    Announcement?.Invoke($"Wave {wave.Wave} of {_battle.WaveCount}. Lord Wulfric remains unconvinced.");
+                    Announcement?.Invoke($"Wave {wave.Wave} of {_battle.WaveCount}. {Ruler.Cap(Ruler.Full)} remains unconvinced.");
                     break;
                 case HearthDamaged damaged:
                     _prophet?.Unimpressed();
@@ -647,7 +647,7 @@ namespace CultOfComfort.Client
                         EnemyType.Boar => $"A boar rammed the Hearth. −{damaged.Damage}. Snout first.",
                         EnemyType.Peasant => $"A peasant fiddled with the Hearth. −{damaged.Damage}. \"Just looking!\"",
                         EnemyType.Priest => $"A priest sprinkled cold water on the Hearth. −{damaged.Damage}. Sacrilege.",
-                        EnemyType.Lord => $"Lord Wulfric kicked the Hearth personally. −{damaged.Damage}. Very undignified.",
+                        EnemyType.Lord => $"{Ruler.Cap(Ruler.Full)} kicked the Hearth personally. −{damaged.Damage}. Very undignified.",
                         EnemyType.Bishop => $"The Bishop excommunicated the Hearth. −{damaged.Damage}. It took it personally.",
                         _ => $"A levy kicked the Hearth. −{damaged.Damage} warmth.",
                     });

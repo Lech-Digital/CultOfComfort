@@ -256,6 +256,32 @@ namespace CultOfComfort.Client
             return card;
         }
 
+        /// <summary>
+        /// The Mission House's board on the shared world: the places within reach, nearest first, then a ring just
+        /// beyond (what a bigger Hearth would open). Lords' seats come last among their distance.
+        /// </summary>
+        public static List<PlaceRowModel> Places(BaseSnapshot snapshot, BuildingTable table, WorldDto world)
+        {
+            var map = MapFor(world);
+            var reach = table.Domain.Reach(snapshot.HearthLevel);
+            var unlocked = snapshot.Domain?.Unlocked == true;
+            var holdings = Holdings(world);
+            return map.Near(world.q, world.r, reach + 1)
+                .Select(n => (Node: n, Distance: n.DistanceTo(world.q, world.r)))
+                .Where(x => x.Distance > 0)
+                .OrderBy(x => x.Distance > reach ? 1 : 0).ThenBy(x => x.Distance)
+                .ThenBy(x => x.Node.Type == NodeType.Keep || x.Node.Type == NodeType.Cathedral ? 1 : 0).ThenBy(x => x.Node.Id)
+                .Select(x =>
+                {
+                    holdings.TryGetValue(x.Node.Id, out var here);
+                    var mine = here?.FirstOrDefault(h => h.cult == world.cultId);
+                    var rival = here?.Where(h => h.cult != world.cultId).OrderByDescending(h => h.milli).FirstOrDefault();
+                    return MissionHousePresenter.Place(x.Node.Id, x.Node.Name, x.Node.Type, x.Distance, (int)((mine?.milli ?? 0) / 1000),
+                        (int)((rival?.milli ?? 0) / 1000), mine?.patron == true, table.Domain.Kinds[x.Node.Type].OfferingsPerHour, unlocked && x.Distance <= reach, table);
+                })
+                .ToList();
+        }
+
         /// <summary>The hexes from your village to a place (what SendWorldMissionary carries).</summary>
         public static int DistanceTo(WorldDto world, int nodeId) => MapFor(world).Node(nodeId)?.DistanceTo(world.q, world.r) ?? 0;
 

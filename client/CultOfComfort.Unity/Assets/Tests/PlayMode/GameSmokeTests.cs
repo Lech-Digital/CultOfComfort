@@ -123,7 +123,7 @@ namespace CultOfComfort.Client.Tests
             Assert.IsTrue(duskVisible, "Dusk should show the Light the Lamps button.");
             Assert.AreEqual(DisplayStyle.None, root.Q("dusk-bar").resolvedStyle.display, "The build bar hides at night.");
             Assert.AreEqual(DisplayStyle.Flex, root.Q("night-bar").resolvedStyle.display, "The skill bar shows at night.");
-            StringAssert.StartsWith("Open Sluice", sluice.Q<Label>(className: "skill-text").text);
+            StringAssert.StartsWith("Sluice", sluice.Q<Label>(className: "skill-text").text);
         }
     }
 }

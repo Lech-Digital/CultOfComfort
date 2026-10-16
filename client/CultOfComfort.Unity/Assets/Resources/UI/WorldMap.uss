@@ -103,3 +103,43 @@
 .house-name { font-size: 16px; color: #3a2a18; -unity-font-style: bold; margin: 0; padding: 0; }
 .house-xp-fill { height: 6px; background-color: #d9b45a; border-radius: 3px; width: 0; }
 .house-report { font-size: 12px; margin-top: 3px; }
+/* The mission board (spec 2026-10-16): tales, preachers, places, without the map. */
+.house-title { font-size: 19px; }
+.house-status { font-size: 13px; margin-top: 4px; }
+.house-small-button { height: 30px; font-size: 13px; margin-top: 4px; }
+.house-map-button { height: 32px; font-size: 13px; margin-top: 10px; }
+.house-tale { padding: 8px 10px; margin: 4px 0 6px 0; border-radius: 8px; background-image: resource("UI/Kit/note_yellow");
+    -unity-slice-left: 16; -unity-slice-right: 16; -unity-slice-top: 16; -unity-slice-bottom: 16; rotate: -0.6deg; }
+.house-tale-teller { font-size: 11px; color: #7a5a2a; -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC"); padding: 0; margin: 0; }
+.house-tale-text { font-size: 15px; color: #2b2215; margin: 2px 0 2px 0; padding: 0; -unity-font-definition: resource("UI/Fonts/PermanentMarker"); }
+.house-tale-choice { height: auto; min-height: 34px; white-space: normal; font-size: 13px; margin-top: 5px; padding: 4px 8px; background-color: rgba(255, 250, 235, 0.65); }
+.house-place { padding: 7px 9px; margin: 3px 0; border-radius: 8px; border-width: 1px; border-color: rgba(107, 82, 56, 0.35); background-color: rgba(255, 248, 230, 0.45); }
+.house-place-open { border-color: #6b5238; border-width: 2px; background-color: rgba(255, 248, 230, 0.85); }
+.house-place-far { opacity: 0.5; }
+.house-place-icon { width: 30px; height: 30px; margin-right: 8px; }
+.house-place-name { font-size: 15px; color: #3a2a18; -unity-font-style: bold; margin: 0; padding: 0; }
+.house-place-share { font-size: 15px; color: #3a2a18; -unity-font-style: bold; margin-left: 6px; -unity-text-align: middle-right; }
+.house-faith { flex-direction: row; margin-top: 5px; }
+.house-faith-mine { height: 6px; background-color: #d9a520; border-top-left-radius: 3px; border-bottom-left-radius: 3px; }
+.house-faith-rival { height: 6px; background-color: #a8322a; }
+.house-preach { height: 38px; font-size: 14px; margin-top: 5px; background-color: rgba(70, 97, 140, 0.14); border-color: #46618c; }
+/* The lord's hall (spec 2026-10-16). */
+.hall-throne { flex-direction: row; align-items: center; margin: 4px 0 8px 0; padding: 8px; border-radius: 10px; background-color: rgba(122, 31, 26, 0.10); }
+.hall-face { width: 96px; height: 96px; border-radius: 48px; border-width: 4px; border-color: #d9b45a; background-color: #6d4c2f; overflow: hidden; flex-shrink: 0; }
+.hall-face-art { width: 100%; height: 100%; }
+.hall-mood-1 { border-color: #d98a38; }
+.hall-mood-2 { border-color: #c0392b; background-color: #8a3a2a; }
+.hall-mood-3 { border-color: #7a1f1a; background-color: #a8322a; scale: 1.04 1.04; }
+.hall-words { flex-grow: 1; flex-shrink: 1; margin-left: 10px; }
+.hall-mood { font-size: 15px; color: #7a1f1a; -unity-font-style: bold; padding: 0; margin: 0; white-space: normal; }
+.hall-speech { font-size: 14px; color: #3a2a18; margin-top: 4px; padding: 0; -unity-font-style: italic; }
+.hall-paper { padding: 10px 12px 10px 12px; margin: 4px 0; border-radius: 4px; background-color: #f8edd0; border-width: 1px; border-color: #b39b6b; rotate: 0.5deg; }
+.hall-seal { position: absolute; right: 8px; top: -8px; width: 26px; height: 26px; border-radius: 13px; background-color: #a8322a; border-width: 2px; border-color: #7a1f1a; }
+.hall-letter-text { font-size: 15px; color: #2b2215; margin: 0 22px 4px 0; padding: 0; -unity-font-style: italic; }
+.hall-deliver { height: 46px; font-size: 17px; margin-top: 8px; background-color: #c97a2c; color: #fff4dc; border-color: #6b3a12; border-width: 2px; -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC"); }
+.hall-deliver:disabled { opacity: 0.5; }
+.hall-or { margin-top: 8px; }
+.hall-plea { height: 36px; font-size: 14px; margin-top: 4px; }
+.hall-note { margin: 1px 0 0 4px; }
+.hall-tithe { height: auto; min-height: 36px; white-space: normal; font-size: 13px; padding: 4px 8px; }
+.icon-portrait_lord { background-image: resource("UI/Icons/portrait_lord"); }

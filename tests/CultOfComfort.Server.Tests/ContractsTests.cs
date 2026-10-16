@@ -45,6 +45,8 @@ public class ContractsTests
         new SetCrew(Guid.NewGuid(), 4, 1),
         new CollectOfferings(Guid.NewGuid()),
         new PayTithe(Guid.NewGuid(), new ResourceBag(100, 20, 30, 40)),
+        new PleadWithLord(Guid.NewGuid(), 3, Plea.Flatter),
+        new ChooseTale(Guid.NewGuid(), 12, 1),
         new StartResearch(Guid.NewGuid(), "sharper-axes"),
         new Trade(Guid.NewGuid(), ResourceType.Timber, ResourceType.Peat, 25),
     };
@@ -131,7 +133,13 @@ public class ContractsTests
         state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
         state.Apply(new SendMissionary(Guid.NewGuid(), 1, 8, PreacherId: 1), T0);
         var later = T0.AddHours(11);
-        state.Snapshot(later).Domain!.Demand.Should().NotBeNull();
+        var domain = state.Snapshot(later).Domain!;
+        domain.Demand.Should().NotBeNull();
+        state.Apply(new ChooseTale(Guid.NewGuid(), domain.Tales!.Single().Id, 1), later);
+        state.Apply(new SendMissionary(Guid.NewGuid(), 1, 1, PreacherId: 1), later);
+        state.Apply(new PleadWithLord(Guid.NewGuid(), domain.Demand!.Id, Plea.Stall), later);
+        later = later.AddHours(2);
+        state.Snapshot(later).Domain!.Tales.Should().ContainSingle("a second tale waits");
         var data = state.ToData();
 
         // Act

@@ -511,7 +511,7 @@ public sealed partial class BaseState
         _now = nowUtc;
         MaterializeAll(nowUtc); // whatever this command changes, production up to now was earned under the old rules
         var roadsBefore = _buildings.Count(b => BuildingTable.IsRoad(b.Type));
-        if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain or SendMissionary or SendWorldMissionary or PayTithe or MeetDemand or SetCrew)
+        if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain or SendMissionary or SendWorldMissionary or PayTithe or MeetDemand or PleadWithLord or SetCrew)
         {
             return CommandOutcome.Reject("Not now — there's a Night on.") with { Version = Version };
         }
@@ -546,6 +546,8 @@ public sealed partial class BaseState
             CollectOfferings _ => CollectOfferings(nowUtc),
             PayTithe tithe => Tithe(tithe, nowUtc),
             MeetDemand meet => Meet(meet, nowUtc),
+            PleadWithLord plea => Plead(plea, nowUtc),
+            ChooseTale choose => Choose(choose, nowUtc),
             ClaimDaily claim => ClaimDailyErrand(claim, nowUtc),
             ClaimThermos _ => OpenThermos(nowUtc),
             SpendTowels spend => Spend(spend, nowUtc),

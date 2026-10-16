@@ -304,7 +304,7 @@ namespace CultOfComfort.Client
             body.Insert(body.IndexOf(_cardOptions), _cardPreachers);
 
             _tithe = Sheet("map-tithe-sheet", out _titheTitle, null);
-            _titheTitle.text = "Pay Lord Wulfric a tithe";
+            _titheTitle.text = $"Pay {Ruler.Full} a tithe";
             _titheOptions = new VisualElement();
             _titheNote = new Label();
             _titheNote.AddToClassList("small");
