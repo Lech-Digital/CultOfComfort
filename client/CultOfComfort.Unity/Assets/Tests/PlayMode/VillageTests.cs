@@ -91,6 +91,39 @@ namespace CultOfComfort.Client.Tests
             StringAssert.Contains("Storage Hut", note.Q<Label>(className: "errand-text").text);
         }
 
+        [UnityTest]
+        public IEnumerator BuildingCard_CancelTappedTwice_TakesTheBuildDownAndPaysBack()
+        {
+            // Arrange — a lean-to going up (owner 2026-10-16: "no way to cancel the build").
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            var timber = Snapshot(game).Stock.Timber;
+            Click(root.Q<Button>("card-Woodcutter"));
+            yield return Frames(2);
+            GhostTo(game, new GridPosition(3, 9));
+            Click(root.Q<Button>("ghost-confirm"));
+            yield return Frames(2);
+            Tap(game, new GridPosition(3, 9));
+            yield return Frames(2);
+            var cancel = root.Q<Button>("cancel-build");
+            Assert.AreEqual(DisplayStyle.Flex, cancel.resolvedStyle.display);
+
+            // Act: one tap only warns…
+            Click(cancel);
+            yield return Frames(2);
+            Assert.IsTrue(Snapshot(game).Buildings.Any(b => b.Type == BuildingType.Woodcutter), "one tap is not enough to undo work");
+
+            // …the second cancels.
+            Click(cancel);
+            yield return Frames(3);
+
+            // Assert
+            Assert.IsFalse(Snapshot(game).Buildings.Any(b => b.Type == BuildingType.Woodcutter));
+            Assert.AreEqual(timber, Snapshot(game).Stock.Timber);
+        }
+
         private static HudView Hud(GameController game) =>
             (HudView)typeof(GameController).GetField("_hud", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(game);
 

@@ -107,6 +107,15 @@ public sealed record PleadWithLord(Guid CommandId, int DemandId, Plea Plea) : Ba
 /// <summary>Starts a study at the Hearth (one at a time; spec 2026-10-14, research).</summary>
 public sealed record StartResearch(Guid CommandId, string TechId) : BaseCommand(CommandId);
 
+/// <summary>Stops the study under way; what it cost comes back (owner 2026-10-16: "no way to cancel the build or research").</summary>
+public sealed record CancelResearch(Guid CommandId) : BaseCommand(CommandId);
+
+/// <summary>
+/// Stops a construction or upgrade: a new building is taken down, an upgrade stays at its level. What it cost comes
+/// back (as far as the stores have room); the time spent is the price.
+/// </summary>
+public sealed record CancelConstruction(Guid CommandId, int BuildingId) : BaseCommand(CommandId);
+
 /// <summary>The Trolley Market: buys <paramref name="Amount"/> of <paramref name="Get"/> with <paramref name="Give"/>, at a bad rate.</summary>
 public sealed record Trade(Guid CommandId, ResourceType Give, ResourceType Get, int Amount) : BaseCommand(CommandId);
 

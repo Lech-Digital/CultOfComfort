@@ -512,7 +512,7 @@ public sealed partial class BaseState
         _now = nowUtc;
         MaterializeAll(nowUtc); // whatever this command changes, production up to now was earned under the old rules
         var roadsBefore = _buildings.Count(b => BuildingTable.IsRoad(b.Type));
-        if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain or SendMissionary or SendWorldMissionary or PayTithe or MeetDemand or PleadWithLord or SetCrew)
+        if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain or SendMissionary or SendWorldMissionary or PayTithe or MeetDemand or PleadWithLord or SetCrew or CancelConstruction)
         {
             return CommandOutcome.Reject("Not now — there's a Night on.") with { Version = Version };
         }
@@ -554,6 +554,8 @@ public sealed partial class BaseState
             SpendTowels spend => Spend(spend, nowUtc),
             SetDayClock clock => SetClock(clock),
             StartResearch start => StartStudy(start, nowUtc),
+            CancelResearch _ => StopStudy(),
+            CancelConstruction cancel => CancelBuild(cancel.BuildingId, nowUtc),
             Trade trade => DoTrade(trade),
             RepairBuilding repair => Repair(repair.BuildingId, nowUtc),
             _ => CommandOutcome.Reject("Unknown order."),
@@ -910,6 +912,44 @@ public sealed partial class BaseState
         MaterializeEconomy(now); // nothing accrued while wrecked; production restarts from now
         building.Wrecked = false;
         return CommandOutcome.Accept();
+    }
+
+    private CommandOutcome CancelBuild(int id, DateTimeOffset now)
+    {
+        var building = Find(id);
+        if (building == null || !building.IsUpgrading)
+        {
+            return CommandOutcome.Reject(building == null ? "That building is gone." : "Nothing is being built there.");
+        }
+
+        MaterializeTension(now);
+        MaterializeEconomy(now);
+        var spec = _table.Spec(building.Type);
+        var refund = Refund(spec.Levels[building.Level].Cost); // a new one paid for level 1; an upgrade for the next level
+        building.UpgradeEndsAtUtc = null;
+        if (building.Level == 0)
+        {
+            _buildings.Remove(building);
+        }
+        else if (now > building.AsOfUtc)
+        {
+            building.AsOfUtc = now;
+        }
+
+        return CommandOutcome.Accept(refund);
+    }
+
+    /// <summary>Gives <paramref name="cost"/> back, as far as the stores have room (like every gain: never over the cap).</summary>
+    private ResourceBag Refund(ResourceBag cost)
+    {
+        var caps = Caps;
+        var back = new ResourceBag(
+            Math.Min(cost.Timber, Math.Max(0, caps.Timber - _stock.Timber)),
+            Math.Min(cost.Peat, Math.Max(0, caps.Peat - _stock.Peat)),
+            Math.Min(cost.Scrap, Math.Max(0, caps.Scrap - _stock.Scrap)),
+            Math.Min(cost.Devotion, Math.Max(0, caps.Devotion - _stock.Devotion)));
+        _stock += back;
+        return back;
     }
 
     private CommandOutcome FinishNow(DateTimeOffset now)

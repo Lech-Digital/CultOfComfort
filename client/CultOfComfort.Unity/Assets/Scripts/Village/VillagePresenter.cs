@@ -21,6 +21,9 @@ namespace CultOfComfort.Client
 
         /// <summary>Spend a Towel to take half an hour off (spec 2026-10-15 daily errands); null: no Towels to spend.</summary>
         public string HurryLabel; public bool CanHurry;
+
+        /// <summary>Stop the build or upgrade, its cost back (null: nothing under way).</summary>
+        public string CancelLabel;
         public string DemolishLabel = "Demolish"; public bool IsTerrain; public bool CanMove;
 
         /// <summary>Who works here (spec 2026-10-14 cultist work): the line, and whether − and + do anything.</summary>
@@ -144,6 +147,9 @@ namespace CultOfComfort.Client
                 HurryLabel = b.IsUpgrading && snapshot.Daily != null ? $"Hurry {DailyBook.HurryMinutes} min · {DailyBook.HurryCost} Towel ({snapshot.Daily.Towels} left)" : null,
                 CanHurry = b.IsUpgrading && snapshot.Daily != null && snapshot.Daily.Towels >= DailyBook.HurryCost,
                 Remaining = b.IsUpgrading ? Duration((long)(b.UpgradeEndsAtUtc.Value - snapshot.AsOfUtc).TotalSeconds) + " left" : string.Empty,
+                CancelLabel = b.IsUpgrading && b.Level < spec.Levels.Count
+                    ? (b.Level == 0 ? "Cancel the build" : "Cancel the upgrade") + $" · {ShortCost(spec.Levels[b.Level].Cost)} back"
+                    : null,
             };
         }
 

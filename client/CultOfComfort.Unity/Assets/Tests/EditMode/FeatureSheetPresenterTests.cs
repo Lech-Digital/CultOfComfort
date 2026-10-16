@@ -76,7 +76,7 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
-        public void Research_Studying_ShowsTimeLeftAndNoButton()
+        public void Research_Studying_ShowsTimeLeftAndAStopButton()
         {
             // Arrange
             var (state, now) = Village(2);
@@ -86,8 +86,10 @@ namespace CultOfComfort.Client.Tests
             var sheet = FeatureSheetPresenter.Research(state.Snapshot(now.AddMinutes(30)), now.AddMinutes(30));
 
             // Assert
-            var notes = sheet.Rows.Single(r => r.Action == "research:sermon-notes");
-            Assert.IsNull(notes.Button);
+            var notes = sheet.Rows.Single(r => !r.Heading && r.Text.StartsWith("Sermon Notes"));
+            Assert.AreEqual("Stop", notes.Button, "a study can be stopped (owner 2026-10-16)");
+            Assert.AreEqual("research-stop", notes.Action);
+            Assert.IsTrue(notes.Enabled);
             StringAssert.Contains("left", notes.Detail);
             Assert.IsFalse(sheet.Rows.Single(r => r.Action == "research:sharper-axes").Enabled, "one study at a time");
         }

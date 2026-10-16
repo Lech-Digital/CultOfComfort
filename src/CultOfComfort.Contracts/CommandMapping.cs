@@ -81,6 +81,9 @@ public static class CommandMapping
             case StartResearch c:
                 dto.tech = c.TechId;
                 break;
+            case CancelConstruction c:
+                dto.buildingId = c.BuildingId;
+                break;
             case Trade c:
                 (dto.give, dto.get, dto.amount) = (c.Give.ToString(), c.Get.ToString(), c.Amount);
                 break;
@@ -134,6 +137,8 @@ public static class CommandMapping
             nameof(SendWorldMissionary) => new SendWorldMissionary(id, dto.buildingId, dto.amount, dto.x, dto.y),
             nameof(CollectOfferings) => new CollectOfferings(id),
             nameof(StartResearch) => new StartResearch(id, dto.tech ?? string.Empty),
+            nameof(CancelResearch) => new CancelResearch(id),
+            nameof(CancelConstruction) => new CancelConstruction(id, dto.buildingId),
             nameof(Trade) => new Trade(id, Resource(dto.give), Resource(dto.get), dto.amount),
             nameof(PayTithe) => new PayTithe(id, new ResourceBag(dto.timber, dto.peat, dto.scrap, dto.devotion)),
             _ => throw new ArgumentException($"Unknown command '{dto.type}'."),

@@ -322,6 +322,34 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
+        public void Card_BeingBuilt_OffersCancelWithItsCostBack()
+        {
+            // Arrange — a lean-to just placed (owner 2026-10-16: "no way to cancel the build").
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(20, 14)), T0);
+            var id = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Woodcutter).Id;
+
+            // Act
+            var card = VillagePresenter.Card(state.Snapshot(T0), BuildingTable.Default, id);
+
+            // Assert
+            Assert.AreEqual("Cancel the build · 50 Timber back", card.CancelLabel);
+        }
+
+        [Test]
+        public void Card_Finished_NoCancel()
+        {
+            // Arrange
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(20, 14)), T0);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+            var id = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Woodcutter).Id;
+
+            // Act & Assert
+            Assert.IsNull(VillagePresenter.Card(state.Snapshot(T0), BuildingTable.Default, id).CancelLabel);
+        }
+
+        [Test]
         public void Card_UnconnectedBuilding_SaysToBuildARoad()
         {
             // Arrange — a lean-to out in the field, nowhere near a road.

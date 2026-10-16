@@ -606,6 +606,27 @@ namespace CultOfComfort.Client
             _ => FeatureSheetPresenter.Cult(_snapshot),
         };
 
+        private string _armed;
+        private float _armedUntil;
+
+        /// <summary>
+        /// A second tap within a few seconds does it; the first only says what will happen. For undoing hours of work
+        /// with one finger (cancel a build, stop a study).
+        /// </summary>
+        private bool Armed(string what, string warning)
+        {
+            if (_armed == what && Time.unscaledTime < _armedUntil)
+            {
+                _armed = null;
+                return true;
+            }
+
+            _armed = what;
+            _armedUntil = Time.unscaledTime + 4f;
+            Announce(warning);
+            return false;
+        }
+
         private async void OnSheetAction(string action)
         {
             var parts = action.Split(':');
@@ -615,6 +636,17 @@ namespace CultOfComfort.Client
                 if (outcome.Status == CommandStatus.Accepted)
                 {
                     Announce("The faithful pile more stones round the fire. It'll be grander soon.");
+                }
+            }
+            else if (action == "research-stop")
+            {
+                if (Armed(action, "Tap Stop again to stop reading. The cost comes back; the time doesn't."))
+                {
+                    var outcome = await SendVillage(new CancelResearch(Guid.NewGuid()));
+                    if (outcome.Status == CommandStatus.Accepted)
+                    {
+                        Announce("The Prophet closes the manual and pretends he'd finished.");
+                    }
                 }
             }
             else if (parts[0] == "research" && parts.Length == 2)
@@ -2217,6 +2249,13 @@ namespace CultOfComfort.Client
             _hud.DemolishClicked += () => SendFromCard(b => new DemolishBuilding(Guid.NewGuid(), b.Id), closeCard: true);
             _hud.FinishNowClicked += () => SendFromCard(_ => new FinishConstructionNow(Guid.NewGuid()));
             _hud.HurryClicked += () => SendFromCard(_ => new SpendTowels(Guid.NewGuid(), TowelUse.Hurry));
+            _hud.CancelBuildClicked += () =>
+            {
+                if (Armed("cancel-build:" + _cardBuilding, "Tap again to cancel. The cost comes back; the time doesn't."))
+                {
+                    SendFromCard(b => new CancelConstruction(Guid.NewGuid(), b.Id));
+                }
+            };
             _hud.RepairClicked += () => SendFromCard(b => new RepairBuilding(Guid.NewGuid(), b.Id));
             _hud.CrewChanged += crew => SendFromCard(b => new SetCrew(Guid.NewGuid(), b.Id, crew));
             _hud.DevRaiseTensionClicked += () => SendSimple(new DebugRaiseTension(Guid.NewGuid(), 50));

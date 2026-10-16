@@ -99,9 +99,9 @@ namespace CultOfComfort.Client
                 {
                     Text = $"{view.Tech.Name}: {EffectText(view.Tech)}",
                     Detail = $"{view.Tech.Joke}\n{state}",
-                    Button = view.State == TechState.Available ? "Study" : null,
-                    Enabled = view.State == TechState.Available && view.Reason == null,
-                    Action = "research:" + view.Tech.Id,
+                    Button = view.State == TechState.Available ? "Study" : view.State == TechState.Studying ? "Stop" : null,
+                    Enabled = view.State == TechState.Studying || (view.State == TechState.Available && view.Reason == null),
+                    Action = view.State == TechState.Studying ? "research-stop" : "research:" + view.Tech.Id,
                     Tab = RoomName(view.Tech.Category),
                 });
             }

@@ -31,6 +31,18 @@ public sealed partial class BaseState
         return CommandOutcome.Accept();
     }
 
+    private CommandOutcome StopStudy()
+    {
+        if (_studying == null)
+        {
+            return CommandOutcome.Reject("He isn't reading anything.");
+        }
+
+        var refund = Refund(_studying.Cost);
+        _studying = null;
+        return CommandOutcome.Accept(refund);
+    }
+
     private string? StudyProblem(Tech tech)
     {
         if (_researched.Contains(tech.Id))

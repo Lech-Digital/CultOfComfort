@@ -48,6 +48,8 @@ public class ContractsTests
         new PleadWithLord(Guid.NewGuid(), 3, Plea.Flatter),
         new ChooseTale(Guid.NewGuid(), 12, 1),
         new StartResearch(Guid.NewGuid(), "sharper-axes"),
+        new CancelResearch(Guid.NewGuid()),
+        new CancelConstruction(Guid.NewGuid(), 7),
         new Trade(Guid.NewGuid(), ResourceType.Timber, ResourceType.Peat, 25),
     };
 

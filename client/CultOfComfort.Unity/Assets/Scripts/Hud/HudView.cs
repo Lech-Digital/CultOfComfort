@@ -509,6 +509,8 @@ namespace CultOfComfort.Client
 
         /// <summary>Spend a Towel: half an hour off the construction.</summary>
         public event Action HurryClicked;
+        public event Action CancelBuildClicked;
+        private Button _cancelBuild;
 
         private Button _hurry;
         public event Action RepairClicked;
@@ -754,6 +756,8 @@ namespace CultOfComfort.Client
                 _hurry.text = card.HurryLabel;
                 _hurry.SetEnabled(card.CanHurry);
             }
+            Show(_cancelBuild, card.CancelLabel != null);
+            _cancelBuild.text = card.CancelLabel ?? string.Empty;
             Show(_demolish, card.CanDemolish);
             _demolish.text = card.DemolishLabel;
             Show(_move, card.CanMove);
@@ -1515,6 +1519,8 @@ namespace CultOfComfort.Client
             finishNow.name = "finish-now";
             _hurry = ButtonWith("Hurry", () => HurryClicked?.Invoke(), "plain");
             _hurry.name = "hurry";
+            _cancelBuild = ButtonWith("Cancel", () => CancelBuildClicked?.Invoke(), "plain", "wrap");
+            _cancelBuild.name = "cancel-build";
             demolish = ButtonWith("Demolish", () => DemolishClicked?.Invoke(), "plain");
             demolish.name = "demolish";
             _move = ButtonWith("Move", () => MoveClicked?.Invoke(), "plain");
@@ -1546,7 +1552,7 @@ namespace CultOfComfort.Client
                 BuildingCardClosed?.Invoke();
             }, "plain");
             close.name = "card-close";
-            foreach (var element in new VisualElement[] { title, output, ready, _crewRow, remaining, _repair, upgrade, _hurry, finishNow, _move, demolish, close })
+            foreach (var element in new VisualElement[] { title, output, ready, _crewRow, remaining, _repair, upgrade, _hurry, _cancelBuild, finishNow, _move, demolish, close })
             {
                 sheet.Add(element);
             }
