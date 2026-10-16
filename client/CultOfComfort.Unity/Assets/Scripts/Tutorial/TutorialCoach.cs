@@ -93,7 +93,8 @@ namespace CultOfComfort.Client
                     return new CoachStep(CoachTarget.StartNight, "When you're ready, light the Lamps. The raiders come at Night.");
                 case ErrandGoal.SendMissionary:
                 case ErrandGoal.Patron:
-                    return new CoachStep(CoachTarget.Feature, "Open the Map.", feature: "map");
+                    // The Mission House lists the places in reach with their walks; the map makes you hunt for them.
+                    return new CoachStep(CoachTarget.Feature, "Open the Missionaries.", feature: "missionaries");
                 case ErrandGoal.Study:
                     return new CoachStep(CoachTarget.Feature, "Open Research.", feature: "research");
                 default:

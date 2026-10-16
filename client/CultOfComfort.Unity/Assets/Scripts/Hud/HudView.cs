@@ -1151,7 +1151,8 @@ namespace CultOfComfort.Client
             // The village's own floating notes and bubbles point at the village, which isn't on screen.
             foreach (var element in new[] { _top, _bar, _sideLeft, _sideRight, _errand, _coachArrow, _coachLine, _buildingCard }.Concat(_floaters).Concat(_bubbles))
             {
-                element.style.visibility = open ? Visibility.Hidden : Visibility.Visible;
+                // Closing clears the inline style rather than forcing Visible: that would beat USS rules like .hushed.
+                element.style.visibility = open ? new StyleEnum<Visibility>(Visibility.Hidden) : new StyleEnum<Visibility>(StyleKeyword.Null);
             }
         }
 

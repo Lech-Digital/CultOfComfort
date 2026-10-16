@@ -98,6 +98,25 @@ namespace CultOfComfort.Client.Tests
             Mathf.Abs(arrow.center.x - target.worldBound.center.x) < 30f && Mathf.Abs(arrow.center.y - target.worldBound.center.y) < 120f;
 
         [UnityTest]
+        public IEnumerator Coach_AfterTheMapCloses_ErrandNoteStaysHushed()
+        {
+            // Arrange — a fresh village: the coach points at the card, the note waits.
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(4);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var note = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement.Q<Button>("errand-note");
+
+            // Act: the map comes and goes.
+            Hud(game).SetMapOpen(true);
+            yield return Frames(2);
+            Hud(game).SetMapOpen(false);
+            yield return Frames(2);
+
+            // Assert — still one voice.
+            Assert.AreEqual(Visibility.Hidden, note.resolvedStyle.visibility, "the map left the note forced visible over the coach");
+        }
+
+        [UnityTest]
         public IEnumerator Coach_TapTheNote_StepsAsideUntilTheNextStep()
         {
             // Arrange — a fresh village; the coach points at the Lean-to card.

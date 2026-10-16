@@ -129,14 +129,14 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
-        public void Step_SendAMissionary_PointsAtTheMap()
+        public void Step_SendAMissionary_PointsAtTheMissionHouse()
         {
             // Act
             var step = TutorialCoach.Step(Errand(Index("missionary")), null, Nothing, Table);
 
             // Assert
             Assert.AreEqual(CoachTarget.Feature, step.Target);
-            Assert.AreEqual("map", step.Feature);
+            Assert.AreEqual("missionaries", step.Feature);
         }
 
         private static int Index(string id)

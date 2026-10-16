@@ -61,7 +61,7 @@ public sealed record ErrandBook(string Version, IReadOnlyList<Errand> Errands)
         new("cultist-hut", "Build a Cultist Hut. Devotion keeps the Prophet going.", ErrandGoal.Build, BuildingType.CultistHut, 1, new ResourceBag(0, 0, 0, 20)),
         new("first-night", "Light the Lamps and see your first Night through.", ErrandGoal.SurviveNight, null, 1, new ResourceBag(100, 0, 40, 0)),
         new("hearth-2", "Raise the Hearth to level 2.", ErrandGoal.HearthLevel, BuildingType.Hearth, 2, new ResourceBag(0, 0, 0, 30)),
-        new("missionary", "Open the Map and send a missionary into the Marchlands. The muddy ones listen best.", ErrandGoal.SendMissionary, null, 1, new ResourceBag(100, 0, 0, 20)),
+        new("missionary", "Open the Missionaries and send a preacher to a place nearby. The muddy ones listen best.", ErrandGoal.SendMissionary, null, 1, new ResourceBag(100, 0, 0, 20)),
         new("study", "Open Research and study something from the car's manual.", ErrandGoal.Study, null, 1, new ResourceBag(0, 30, 30, 0)),
         new("slurry-chute", "Put a Slurry Chute beside the road. Mud is a defence.", ErrandGoal.Build, BuildingType.SlurryChute, 1, new ResourceBag(0, 0, 50, 0)),
         new("road-gate", "Build a Gate across the raiders' road.", ErrandGoal.BuildOnRoad, BuildingType.Gate, 1, new ResourceBag(100, 0, 0, 0)),
