@@ -13,6 +13,9 @@ namespace CultOfComfort.Client
     /// </summary>
     public sealed class BattleView : MonoBehaviour
     {
+        /// <summary>Raiders, the Prophet and his cultists stand this much bigger at Night than a tile would make them.</summary>
+        public const float UnitScale = 1.6f;
+
         private readonly Dictionary<int, EnemyVisual> _enemies = new Dictionary<int, EnemyVisual>();
         private readonly List<Effect> _effects = new List<Effect>();
         private MaterialPropertyBlock _block;
@@ -76,6 +79,7 @@ namespace CultOfComfort.Client
             var model = ArtLibrary.Instantiate("prophet", _leader);
             if (model != null)
             {
+                model.transform.localScale *= UnitScale;
                 _prophet = model.AddComponent<PartAnimator>();
                 _prophet.Bind();
             }
@@ -125,6 +129,7 @@ namespace CultOfComfort.Client
             PartAnimator animator = null;
             if (model != null)
             {
+                model.transform.localScale *= UnitScale;
                 animator = model.AddComponent<PartAnimator>();
                 animator.Bind();
             }
@@ -700,6 +705,7 @@ namespace CultOfComfort.Client
                 modelRoot.SetParent(_root, false);
                 model.transform.SetParent(modelRoot, false);
                 var lord = enemy.Type == EnemyType.Lord;
+                model.transform.localScale *= UnitScale; // chunkier than the village's people: they're the show tonight
                 if (lord)
                 {
                     model.transform.localScale *= 1.35f; // the boss should look like one
@@ -711,7 +717,7 @@ namespace CultOfComfort.Client
 
                 var animator = model.AddComponent<PartAnimator>();
                 animator.Bind();
-                var barHeight = lord ? 1.5f : 1.1f;
+                var barHeight = (lord ? 1.5f : 1.1f) * UnitScale;
                 var modelBar = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, barHeight, 0f), new Vector3(0.6f, 0.06f, 0.06f), modelRoot, "Health");
                 var start = Shapes.ToWorld(_battle.PositionOf(enemy));
                 modelRoot.localPosition = start;

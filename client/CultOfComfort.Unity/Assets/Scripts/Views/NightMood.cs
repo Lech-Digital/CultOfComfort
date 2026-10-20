@@ -11,8 +11,8 @@ namespace CultOfComfort.Client
     {
         private static readonly Color Moonlight = Shapes.Hex("#8fa6d6");
         private static readonly Color NightHaze = Shapes.Hex("#26304a");
-        private const float NightSunIntensity = 0.75f; // bright enough to read the board on a phone (owner 2026-10-15: "does not look great")
-        private const float NightAmbient = 0.62f;
+        private const float NightSunIntensity = 0.9f; // bright enough to read the board on a phone (owner 2026-10-15: "does not look great")
+        private const float NightAmbient = 0.74f; // 2026-10-16: brighter again, the raiders were dark on dark
 
         private readonly Camera _camera;
         private readonly Light _sun;

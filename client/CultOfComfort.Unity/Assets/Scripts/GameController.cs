@@ -1743,9 +1743,7 @@ namespace CultOfComfort.Client
 
                 _openLevel = _snapshot.HearthLevel;
                 _board.SetOpenLevel(_openLevel);
-                var (min, max) = VillageFraming.HomeBounds(VillageMap.Demo, _openLevel);
-                _rig.SetBounds(min, max);
-                _framePending = 2;
+                FrameStage();
             }
 
             if (_phase == GamePhase.Dusk && _snapshot.UnseenReport != null && !_showingReport)
@@ -1835,6 +1833,7 @@ namespace CultOfComfort.Client
             _board.ShowCursor(null, false);
             _accumulator = 0f;
             _phase = GamePhase.Night;
+            FrameStage(); // in close on the road for the fight
             _hud.ShowPhase(_phase);
             Announce("Night falls. Tap the ground to move the Prophet.");
         }
@@ -2048,6 +2047,7 @@ namespace CultOfComfort.Client
             _framePending = 2;
             _audio.SetNight(false);
             _phase = GamePhase.Dusk;
+            FrameStage(); // back to the whole village
             _hud.ShowPhase(_phase);
             Announce(report != null && report.Salvage > 0
                 ? $"Dawn. {report.Salvage} Scrap salvaged from {Ruler.Short}'s dropped horseshoes."
@@ -2472,6 +2472,14 @@ namespace CultOfComfort.Client
         /// </summary>
         /// <summary>Captures render at a phone's size without one: the screen the layout and the camera frame for.</summary>
         public Vector2Int? ScreenOverride { get; set; }
+
+        /// <summary>The camera's stage: the raiders' road at Night, the village by day. Framed again on the next frames.</summary>
+        private void FrameStage()
+        {
+            var (min, max) = _phase == GamePhase.Night ? VillageFraming.NightBounds(VillageMap.Demo) : VillageFraming.HomeBounds(VillageMap.Demo, _openLevel);
+            _rig.SetBounds(min, max);
+            _framePending = 2;
+        }
 
         private void TrackOrientation()
         {

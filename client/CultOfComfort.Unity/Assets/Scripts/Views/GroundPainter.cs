@@ -28,7 +28,10 @@ namespace CultOfComfort.Client
         private static readonly Color DryMud = Shapes.Hex("#4a3d2b");
         private static readonly Color DampMud = Shapes.Hex("#2f271d");
         private static readonly Color Moss = Shapes.Hex("#3f4a2a");
-        private static readonly Color Track = Shapes.Hex("#5a4632");
+        // The raiders' road: trampled darker than any track the cult lays, with hoof and boot prints along it, so
+        // "That's the raiders' road" points at something you can see (2026-10-16: it looked like the village's tracks).
+        private static readonly Color Track = Shapes.Hex("#2c2117");
+        private static readonly Color Print = Shapes.Hex("#1a130d");
         private static readonly Color Dirt = Shapes.Hex("#6b5238");
         private static readonly Color Rut = Shapes.Hex("#57422d");
         private static readonly Color Plank = Shapes.Hex("#8a6a43");
@@ -162,7 +165,14 @@ namespace CultOfComfort.Client
                 }
 
                 default:
-                    return Track * (0.95f + grain);
+                {
+                    // Prints: small dark ovals in a staggered line along the way.
+                    var step = along == 1 ? x : y;
+                    var side = along == 1 ? ly : lx;
+                    var k = Mathf.FloorToInt(step * 3f);
+                    var print = Mathf.Abs(Mathf.Repeat(step * 3f, 1f) - 0.5f) < 0.18f && Mathf.Abs(side - (k % 2 == 0 ? 0.09f : -0.09f)) < 0.06f;
+                    return (print ? Print : Track) * (0.95f + grain);
+                }
             }
         }
 
