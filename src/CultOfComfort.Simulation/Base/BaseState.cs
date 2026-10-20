@@ -201,6 +201,7 @@ public sealed partial class BaseState
         state.RestoreProphet(data);
         state.RestoreNotables(data);
         state.RestoreTrials(data);
+        state.RestoreFestival(data);
         state.ClearRoads(); // a save from before more roads opened at its Hearth level
         state.Validate();
         return state;
@@ -561,7 +562,10 @@ public sealed partial class BaseState
         _notableAt.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => (kv.Key, kv.Value)).ToList(),
         _trialsCleared,
         _trial,
-        _almsAsOf?.UtcTicks ?? 0);
+        _almsAsOf?.UtcTicks ?? 0,
+        _festivalDay,
+        _festivalPoints,
+        _festivalClaimed.ToList());
 
     public CommandOutcome Apply(BaseCommand command, DateTimeOffset nowUtc)
     {
@@ -612,6 +616,7 @@ public sealed partial class BaseState
             BeginTrial _ => BeginTrial(nowUtc),
             ResolveTrial trial => ResolveTrial(trial, nowUtc),
             ClaimAlms _ => ClaimAlms(nowUtc),
+            ClaimFestival claim => ClaimFestival(claim, nowUtc),
             SendMissionary send => SendOut(send, nowUtc),
             SendWorldMissionary send => SendOutInWorld(send, nowUtc),
             JoinWorld join => Join(join, nowUtc),
@@ -658,7 +663,7 @@ public sealed partial class BaseState
         var tension = TensionValue(nowUtc);
         return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
             tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport, _cleared.Concat(_treeCuts.Keys.Where(t => !IsWildTreeStanding(t))).ToList(),
-            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts(), IdleVillagers(), DailyViewAt(nowUtc), _raidersRoad, NextRoad, _stowed.ToList(), _table.Builders(HearthLevel) - BuildersBusy, _towels, VisitorViewAt(nowUtc), ProphetViewNow(), NotableViews(), SeasonBook.Of(nowUtc), SeasonBook.EndsAt(nowUtc), Forecast(), TrialViewAt(nowUtc));
+            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts(), IdleVillagers(), DailyViewAt(nowUtc), _raidersRoad, NextRoad, _stowed.ToList(), _table.Builders(HearthLevel) - BuildersBusy, _towels, VisitorViewAt(nowUtc), ProphetViewNow(), NotableViews(), SeasonBook.Of(nowUtc), SeasonBook.EndsAt(nowUtc), Forecast(), TrialViewAt(nowUtc), FestivalViewAt(nowUtc));
     }
 
     public ResourceBag Caps
@@ -800,6 +805,7 @@ public sealed partial class BaseState
         if (!instant)
         {
             building.UpgradeEndsAtUtc = now.AddSeconds(BuildSeconds(spec.Levels[0].BuildSeconds));
+            Festival(FestivalDeed.BuildMinutes, BuildSeconds(spec.Levels[0].BuildSeconds) / 60, now);
         }
 
         _buildings.Add(building);
@@ -960,6 +966,7 @@ public sealed partial class BaseState
         _stock -= cost;
         MaterializeEconomy(now);
         building.UpgradeEndsAtUtc = now.AddSeconds(BuildSeconds(spec.Levels[building.Level].BuildSeconds));
+        Festival(FestivalDeed.BuildMinutes, BuildSeconds(spec.Levels[building.Level].BuildSeconds) / 60, now);
         if (instant)
         {
             Advance(now);
@@ -1567,6 +1574,7 @@ public sealed partial class BaseState
         _night = null;
         LastNightRecorded = plan.Night;
         GainProphetXp(result.Stars);
+        Festival(FestivalDeed.Stars, result.Stars, at);
         NoteNight(result.Stars, at);
         var report = new NightReport(plan.Night, plan.Scheduled, whileAway, result.Stars, result.HearthHealth, result.HearthMaxHealth, wrecked, salvage, result.StateHashHex);
         if (whileAway)

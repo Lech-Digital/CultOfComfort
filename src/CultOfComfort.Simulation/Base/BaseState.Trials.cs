@@ -102,11 +102,13 @@ public sealed partial class BaseState
             }
 
             _trialsCleared = plan.Night;
+            Festival(FestivalDeed.Stages, 1, now);
             var (bag, towels) = TrialBook.Reward(plan.Night);
             paid += Refund(bag);
             _towels += towels;
         }
 
+        Festival(FestivalDeed.Stars, result.Stars, now);
         var report = new NightReport(plan.Night, false, false, result.Stars, result.HearthHealth, result.HearthMaxHealth, Array.Empty<int>(), 0, result.StateHashHex);
         return CommandOutcome.Accept(paid) with { Report = report };
     }

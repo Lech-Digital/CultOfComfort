@@ -42,7 +42,10 @@ public sealed record BaseData(
     IReadOnlyList<(string Notable, int BuildingId)>? Notables = null,
     int TrialsCleared = 0,
     NightPlan? TrialInProgress = null,
-    long AlmsAsOfUtcTicks = 0);
+    long AlmsAsOfUtcTicks = 0,
+    long FestivalDay = -1,
+    int FestivalPoints = 0,
+    IReadOnlyList<bool>? FestivalClaimed = null);
 
 /// <summary>A tower packed up (spec 2026-10-20 river): set down again for free, at its level, wrecked or not.</summary>
 public sealed record StowedTower(BuildingType Type, int Level, bool Wrecked = false);

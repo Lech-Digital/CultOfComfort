@@ -147,6 +147,45 @@ namespace CultOfComfort.Client
         public const string RelicsTab = "Relics";
         public const string ErrandTab = "Errand";
 
+        /// <summary>The Comfort Festival (spec 2026-10-20 the festival): today's theme, its points, the three rewards, and the week.</summary>
+        public static SheetModel Festival(BaseSnapshot snapshot)
+        {
+            var f = snapshot.Festival;
+            var model = new SheetModel { Title = "The Comfort Festival", Footer = "A new theme every day at midnight (UTC). Claim before it's over." };
+            if (f == null)
+            {
+                return model;
+            }
+
+            model.Rows.Add(new SheetRow { Heading = true, Text = $"Today: {f.Day.Name}" });
+            model.Rows.Add(new SheetRow { Text = $"{f.Points} points", Detail = $"{f.Day.Text} Ends in {VillagePresenter.Duration((long)(f.EndsAtUtc - snapshot.AsOfUtc).TotalSeconds)}." });
+            for (var i = 0; i < f.Day.Tiers.Count; i++)
+            {
+                var (points, bag, towels) = f.Day.Tiers[i];
+                var reward = string.Join(" · ", new[] { bag.IsZero ? null : VillagePresenter.ShortCost(bag), towels > 0 ? $"{towels} Towel{(towels == 1 ? string.Empty : "s")}" : null }.Where(x => x != null));
+                model.Rows.Add(new SheetRow
+                {
+                    Text = $"{points} points: {reward}",
+                    Button = f.Claimed[i] ? "Claimed" : "Claim",
+                    Enabled = !f.Claimed[i] && f.Points >= points,
+                    Action = "festival:" + i,
+                });
+            }
+
+            model.Rows.Add(new SheetRow { Heading = true, Text = "This week" });
+            string[] names = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+            for (var d = 0; d < 7; d++)
+            {
+                model.Rows.Add(new SheetRow { Text = $"{names[d]} · {FestivalBook.Days[d].Name}" + (d == f.DayOfWeek ? "  (today)" : string.Empty), Detail = FestivalBook.Days[d].Text });
+            }
+
+            return model;
+        }
+
+        /// <summary>A festival reward is waiting to be claimed.</summary>
+        public static bool FestivalReady(BaseSnapshot s) =>
+            s.Festival is { } f && Enumerable.Range(0, f.Day.Tiers.Count).Any(i => !f.Claimed[i] && f.Points >= f.Day.Tiers[i].Points);
+
         /// <summary>
         /// The Pilgrims' Way (spec 2026-10-20 the Pilgrims' Way): the next stage (a boss every fifth), what clearing it
         /// pays, how far he's got, and the alms box filling meanwhile.

@@ -73,6 +73,7 @@ public sealed partial class BaseState
         }
 
         _answeredVisitorSlot = v.Slot;
+        Festival(FestivalDeed.Visitors, 1, now);
         return CommandOutcome.Accept(given);
     }
 

@@ -40,6 +40,9 @@ public static class CommandMapping
             case ChooseProphetPerk c:
                 dto.building = c.PerkId;
                 break;
+            case ClaimFestival c:
+                dto.amount = c.Tier;
+                break;
             case AnswerVisitor c:
                 dto.amount = c.Accept ? 1 : 0;
                 break;
@@ -145,6 +148,7 @@ public static class CommandMapping
             nameof(ResolveTrial) => new ResolveTrial(id, dto.night, (dto.inputs ?? new List<InputDto>()).Select(Input).ToList()),
             nameof(BeginTrial) => new BeginTrial(id),
             nameof(ClaimAlms) => new ClaimAlms(id),
+            nameof(ClaimFestival) => new ClaimFestival(id, dto.amount),
             nameof(AcknowledgeReport) => new AcknowledgeReport(id),
             nameof(ClaimErrand) => new ClaimErrand(id),
             nameof(RecordNightResult) => new RecordNightResult(id, dto.night, dto.stars, dto.wrecked),

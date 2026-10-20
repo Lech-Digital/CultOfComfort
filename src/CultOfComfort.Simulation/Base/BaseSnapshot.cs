@@ -55,7 +55,8 @@ public sealed record BaseSnapshot(
     Season Season = Season.Spring,
     DateTimeOffset? SeasonEndsAtUtc = null,
     IReadOnlyList<(int Night, int Road, string Who)>? Forecast = null,
-    TrialView? Trial = null)
+    TrialView? Trial = null,
+    FestivalView? Festival = null)
 {
     public DateTimeOffset? ConstructionEndsAtUtc => Buildings.FirstOrDefault(b => b.IsUpgrading)?.UpgradeEndsAtUtc;
 

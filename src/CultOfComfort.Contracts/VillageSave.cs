@@ -54,7 +54,10 @@ public sealed class VillageSaveDto
     public int trialsCleared;             // spec 2026-10-20 the Pilgrims' Way
     public bool hasTrial;
     public NightDto trial;
-    public long almsAsOfTicks; // the errand by id (errandIndex alone moved players when the book was reordered); empty: read errandIndex the old way
+    public long almsAsOfTicks;
+    public long festivalDay = -1;         // spec 2026-10-20 the festival
+    public int festivalPoints;
+    public List<bool> festivalClaimed; // the errand by id (errandIndex alone moved players when the book was reordered); empty: read errandIndex the old way
     public bool hasDomain; // older saves: no Marchlands yet
     public DomainDto domain;
     public List<string> researched;   // older saves: none

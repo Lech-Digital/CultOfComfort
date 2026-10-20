@@ -93,6 +93,7 @@ public sealed partial class BaseState
         MaterializeDomain(now);
         _stock -= Preachers.Provisions(preacher, Times(Domain.ProvisionsPerHour, send.Hours));
         _missionaries.Add(new MissionaryData(_nextMissionaryId++, node.Id, send.Hours, now.UtcTicks, Preached: false, PreacherId: preacher));
+        Festival(FestivalDeed.PreachHours, send.Hours, now);
         return CommandOutcome.Accept();
     }
 

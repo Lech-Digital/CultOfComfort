@@ -296,6 +296,7 @@ namespace CultOfComfort.Client
             _sideLeft.Add(Shortcut(LockedFeatures.Get("pilgrims")));
             _sideRight.Add(Shortcut(LockedFeatures.Get("missionaries")));
             _sideRight.Add(Shortcut(LockedFeatures.Get("tithes")));
+            _sideRight.Add(Shortcut(LockedFeatures.Get("festival")));
             var centre = Container("centre");
             _toast = Text(string.Empty, "toast", "hidden");
             _toast.name = "toast";

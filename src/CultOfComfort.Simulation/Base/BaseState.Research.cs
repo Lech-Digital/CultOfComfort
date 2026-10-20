@@ -28,6 +28,7 @@ public sealed partial class BaseState
         _stock -= tech!.Cost;
         _studying = tech;
         _studyEndsAt = now.AddMinutes(tech.Minutes);
+        Festival(FestivalDeed.StudyMinutes, tech.Minutes, now);
         return CommandOutcome.Accept();
     }
 

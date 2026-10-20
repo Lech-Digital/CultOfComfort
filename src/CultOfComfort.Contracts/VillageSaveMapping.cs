@@ -61,6 +61,9 @@ public static class VillageSaveMapping
         hasTrial = data.TrialInProgress != null,
         trial = data.TrialInProgress == null ? new NightDto() : ToDto(data.TrialInProgress),
         almsAsOfTicks = data.AlmsAsOfUtcTicks,
+        festivalDay = data.FestivalDay,
+        festivalPoints = data.FestivalPoints,
+        festivalClaimed = (data.FestivalClaimed ?? Array.Empty<bool>()).ToList(),
         notableIds = (data.Notables ?? Array.Empty<(string, int)>()).Select(n => n.Item1).ToList(),
         notableBuildings = (data.Notables ?? Array.Empty<(string, int)>()).Select(n => n.Item2).ToList(),
         stowed = (data.Stowed ?? Array.Empty<StowedTower>()).Select(t => new StowedDto { type = t.Type.ToString(), level = t.Level, wrecked = t.Wrecked }).ToList(),
@@ -174,7 +177,10 @@ public static class VillageSaveMapping
             (dto.notableIds ?? new List<string>()).Zip(dto.notableBuildings ?? new List<int>(), (n, b) => (n, b)).ToList(),
             dto.trialsCleared,
             dto.hasTrial && dto.trial != null ? FromDto(dto.trial) : null,
-            dto.almsAsOfTicks);
+            dto.almsAsOfTicks,
+            dto.festivalDay,
+            dto.festivalPoints,
+            dto.festivalClaimed ?? new List<bool>());
     }
 
     private static DomainData FromDto(DomainDto d) => new(

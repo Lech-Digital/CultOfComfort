@@ -243,5 +243,26 @@ namespace CultOfComfort.Client.Tests
             Assert.IsNull(AwaySummary.Welcome(AwaySummary.Remember(state.Snapshot(t0)), state.Snapshot(t0.AddMinutes(10)), BuildingTable.Default));
             Assert.IsNull(AwaySummary.Welcome("garbage", state.Snapshot(t0.AddHours(3)), BuildingTable.Default));
         }
+
+        [Test]
+        public void Festival_EnoughForTheFirstTier_ItsClaimable()
+        {
+            // Arrange — a Monday (Builders' Day) with 120 points.
+            var monday = new System.DateTimeOffset(2026, 10, 19, 9, 0, 0, System.TimeSpan.Zero);
+            var data = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, monday).ToData() with
+            {
+                FestivalDay = FestivalBook.DayOf(monday), FestivalPoints = 120, FestivalClaimed = new[] { false, false, false },
+            };
+            var snapshot = BaseState.Restore(BuildingTable.Default, VillageMap.Demo, data).Snapshot(monday);
+
+            // Act
+            var sheet = FeatureSheetPresenter.Festival(snapshot);
+
+            // Assert
+            Assert.AreEqual("Today: Builders' Day", sheet.Rows[0].Text);
+            Assert.IsTrue(sheet.Rows.Single(r => r.Action == "festival:0").Enabled);
+            Assert.IsFalse(sheet.Rows.Single(r => r.Action == "festival:1").Enabled);
+            Assert.IsTrue(FeatureSheetPresenter.FestivalReady(snapshot));
+        }
     }
 }

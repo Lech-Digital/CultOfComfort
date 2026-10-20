@@ -349,7 +349,7 @@ namespace CultOfComfort.Client
                     return;
                 }
 
-                if (id == "research" || id == "shop" || id == "cult" || id == "prophet" || id == "pilgrims")
+                if (id == "research" || id == "shop" || id == "cult" || id == "prophet" || id == "pilgrims" || id == "festival")
                 {
                     CloseMap();
                     _house.Show(false);
@@ -615,6 +615,7 @@ namespace CultOfComfort.Client
             "shop" => FeatureSheetPresenter.Market(_snapshot, BuildingTable.Default),
             "prophet" => FeatureSheetPresenter.Prophet(_snapshot),
             "pilgrims" => FeatureSheetPresenter.PilgrimsWay(_snapshot),
+            "festival" => FeatureSheetPresenter.Festival(_snapshot),
             _ => FeatureSheetPresenter.Cult(_snapshot),
         };
 
@@ -650,7 +651,16 @@ namespace CultOfComfort.Client
         private async void OnSheetAction(string action)
         {
             var parts = action.Split(':');
-            if (action == "trial:begin")
+            if (parts[0] == "festival" && parts.Length == 2 && int.TryParse(parts[1], out var tier))
+            {
+                var outcome = await SendVillage(new ClaimFestival(Guid.NewGuid(), tier));
+                if (outcome.Status == CommandStatus.Accepted)
+                {
+                    Announce("The festival committee hands over a prize, and a slightly sticky ribbon.");
+                    _sheet.Show("festival", SheetFor("festival"));
+                }
+            }
+            else if (action == "trial:begin")
             {
                 _sheet.Close();
                 StartTrial();
@@ -725,6 +735,7 @@ namespace CultOfComfort.Client
                     "missionaries" => "New: Missionaries. Send a preacher to win a village over.",
                     "tithes" => "New: Tithes. Keep the lord sweet before he sends men.",
                     "research" => "New: Research. Study better ways of doing things.",
+                    "festival" => "New: the Comfort Festival. A theme a day, and rewards for joining in.",
                     "pilgrims" => "New: the Pilgrims' Way. Challenge Nights, any time, and alms for every stage you clear.",
                     _ => $"New: {LockedFeatures.Get(id).Label}.",
                 });
@@ -744,6 +755,11 @@ namespace CultOfComfort.Client
 
             OpenFeature("research", _snapshot != null && _snapshot.HearthLevel >= 2);
             OpenFeature("pilgrims", _snapshot != null && _snapshot.HearthLevel >= 2);
+            OpenFeature("festival", _snapshot != null && _snapshot.HearthLevel >= 2);
+            if (_snapshot != null)
+            {
+                _hud.SetFeatureBadge("festival", FeatureSheetPresenter.FestivalReady(_snapshot));
+            }
             _featuresSeeded |= _snapshot != null;
             WatchDemand();
             _hud.SetFeatureBadge("missionaries", _snapshot?.Domain?.Tales?.Count > 0);

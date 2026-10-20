@@ -49,6 +49,9 @@ public sealed record AcknowledgeReport(Guid CommandId) : BaseCommand(CommandId);
 public sealed record ClaimErrand(Guid CommandId) : BaseCommand(CommandId);
 
 /// <summary>Cuts a wild tree (Timber) or clears a loose boulder (costs Timber, gives Scrap). Walls are bedrock.</summary>
+/// <summary>Claims one of today's festival rewards (spec 2026-10-20 the festival).</summary>
+public sealed record ClaimFestival(Guid CommandId, int Tier) : BaseCommand(CommandId);
+
 /// <summary>Sets out on the next stage of the Pilgrims' Way (spec 2026-10-20 the Pilgrims' Way): the outcome carries its plan.</summary>
 public sealed record BeginTrial(Guid CommandId) : BaseCommand(CommandId);
 

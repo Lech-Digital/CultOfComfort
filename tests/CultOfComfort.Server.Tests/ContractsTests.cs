@@ -29,6 +29,7 @@ public class ContractsTests
         new AssignNotable(Guid.NewGuid(), "agnes", 12),
         new BeginTrial(Guid.NewGuid()),
         new ClaimAlms(Guid.NewGuid()),
+        new ClaimFestival(Guid.NewGuid(), 2),
         new UpgradeBuilding(Guid.NewGuid(), 3),
         new UpgradeHearth(Guid.NewGuid()),
         new DemolishBuilding(Guid.NewGuid(), 4),
