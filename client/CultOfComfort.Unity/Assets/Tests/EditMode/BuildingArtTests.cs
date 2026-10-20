@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using CultOfComfort.Simulation.Base;
@@ -128,6 +129,23 @@ namespace CultOfComfort.Client.Tests
             }
 
             Assert.IsNotNull(Resources.Load<GameObject>("Art/Models/hearth_l4"), "Hearth 4");
+        }
+
+        [Test]
+        public void EveryIconTheHudAsksFor_HasAStylesheetRule()
+        {
+            // Arrange — owner 2026-10-20: "new buildings dont have icons in the build, like beehive or tavern". The image
+            // was there; the HUD draws icons through a .icon-<name> rule in Hud.uss, and new ones had none.
+            var uss = System.IO.File.ReadAllText(System.IO.Path.Combine(UnityEngine.Application.dataPath, "Resources/UI/Hud.uss"));
+            var wanted = System.Enum.GetValues(typeof(CultOfComfort.Simulation.Base.BuildingType)).Cast<CultOfComfort.Simulation.Base.BuildingType>()
+                .Select(VillagePresenter.IconFor).Where(i => i != null)
+                .Concat(LockedFeatures.All.Select(f => f.Icon)).Distinct();
+
+            // Assert
+            foreach (var icon in wanted)
+            {
+                StringAssert.Contains($".icon-{icon} ", uss, $"{icon} has no .icon-{icon} rule in Hud.uss");
+            }
         }
     }
 }

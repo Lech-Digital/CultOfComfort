@@ -632,7 +632,9 @@ namespace CultOfComfort.Client
             Show(_pills["comfort"].Pill, !frame.Comfort.IsDemo);
             Show(_pills["pennies"].Pill, !frame.Pennies.IsDemo);
             _tensionCover.style.width = Length.Percent((1f - Mathf.Clamp01(frame.Tension)) * 100f);
-            _tensionNote.text = frame.TensionIsDemo ? $"TENSION — {frame.TensionNote} (demo)" : $"TENSION — {frame.TensionNote}";
+            // The season leads the strip (spec 2026-10-20 seasons): the label under the portrait is hidden in portrait.
+            var lead = frame.Season == null ? "TENSION" : frame.Season.ToUpperInvariant();
+            _tensionNote.text = frame.TensionIsDemo ? $"{lead} — {frame.TensionNote} (demo)" : $"{lead} — {frame.TensionNote}";
         }
 
         public void UpdateDusk(int night, string probe)

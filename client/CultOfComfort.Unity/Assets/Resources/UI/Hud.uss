@@ -273,6 +273,19 @@
 .icon-b_plank_walk { background-image: resource("UI/Icons/b_plank_walk"); }
 .icon-b_cobbled_road { background-image: resource("UI/Icons/b_cobbled_road"); }
 .icon-b_cottage { background-image: resource("UI/Icons/b_cottage"); }
+.icon-b_beehive { background-image: resource("UI/Icons/b_beehive"); }
+.icon-b_sauna { background-image: resource("UI/Icons/b_sauna"); }
+.icon-b_blacksmith { background-image: resource("UI/Icons/b_blacksmith"); }
+.icon-b_pressure_sluice { background-image: resource("UI/Icons/b_pressure_sluice"); }
+.icon-b_guardhouse { background-image: resource("UI/Icons/b_guardhouse"); }
+.icon-b_comfy_altar { background-image: resource("UI/Icons/b_comfy_altar"); }
+.icon-b_mud_trap { background-image: resource("UI/Icons/b_mud_trap"); }
+.icon-b_decoy_duck { background-image: resource("UI/Icons/b_decoy_duck"); }
+.icon-b_watchtower { background-image: resource("UI/Icons/b_watchtower"); }
+.icon-b_tavern { background-image: resource("UI/Icons/b_tavern"); }
+.icon-b_bell_tower { background-image: resource("UI/Icons/b_bell_tower"); }
+.icon-pilgrims { background-image: resource("UI/Icons/pilgrims"); }
+.icon-festival { background-image: resource("UI/Icons/festival"); }
 .icon-b_midden_sorter { background-image: resource("UI/Icons/b_midden_sorter"); }
 .icon-b_bathhouse { background-image: resource("UI/Icons/b_bathhouse"); }
 .pill.cold, .pill-note.cold { background-color: #9fc7d9; }

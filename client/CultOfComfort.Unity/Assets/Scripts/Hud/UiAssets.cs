@@ -15,6 +15,7 @@ namespace CultOfComfort.Client
         {
             "timber", "scrap", "peat", "devotion", "penny", "comfort", "sluice", "voice", "stones", "speed", "laser", "torch", "magnifier",
             "map", "research", "missionaries", "tithes", "shop", "cult", "settings", "portrait_prophet", "portrait_lord", "mud", "swords", "b_hearth", "b_woodcutter", "b_peat_cut", "b_storage_hut", "b_cultist_hut", "b_cistern", "b_slurry_chute", "b_sapling_flinger", "b_wattle_fence", "b_stone", "b_tree", "b_wooden_wall", "b_gate", "b_dirt_track", "b_plank_walk", "b_cobbled_road", "b_cottage", "b_midden_sorter", "b_bathhouse",
+            "b_beehive", "b_sauna", "b_blacksmith", "b_pressure_sluice", "b_guardhouse", "b_comfy_altar", "b_mud_trap", "b_decoy_duck", "b_watchtower", "b_tavern", "b_bell_tower", "pilgrims", "festival",
         };
     }
 }
