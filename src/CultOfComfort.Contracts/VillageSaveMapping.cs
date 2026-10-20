@@ -77,6 +77,7 @@ public static class VillageSaveMapping
             worldQ = data.Domain.World?.Q ?? 0,
             worldR = data.Domain.World?.R ?? 0,
             worldTensionMilli = data.Domain.World?.TensionPerHourMilli ?? 0,
+            worldPatronages = data.Domain.World?.Patronages ?? 0,
             preachers = (data.Domain.PreacherXp ?? Array.Empty<(int, int)>()).Select(p => new PreacherXpDto { id = p.Item1, xp = p.Item2 }).ToList(),
             reports = (data.Domain.Reports ?? Array.Empty<RoadReport>()).Select(r => new RoadReportDto
             {
@@ -163,7 +164,7 @@ public static class VillageSaveMapping
         d.nextDecayTicks < 0 ? null : d.nextDecayTicks,
         d.lastTitheTicks < 0 ? null : d.lastTitheTicks,
         d.nextMissionaryId,
-        d.inWorld ? new WorldLink(d.worldQ, d.worldR, d.worldTensionMilli) : null,
+        d.inWorld ? new WorldLink(d.worldQ, d.worldR, d.worldTensionMilli, d.worldPatronages) : null,
         (d.preachers ?? new List<PreacherXpDto>()).Select(p => (p.id, p.xp)).ToList(),
         (d.reports ?? new List<RoadReportDto>()).Select(r => new RoadReport(r.preacher, r.node, r.inWorld, r.hours,
             Enum.TryParse<RoadFind>(r.find, out var find) ? find : RoadFind.Nothing, new ResourceBag(r.timber, r.peat, r.scrap, r.devotion), r.homeTicks,

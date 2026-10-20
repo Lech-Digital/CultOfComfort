@@ -228,6 +228,9 @@ public sealed class WorldLedger
     /// <summary>The Authority's share: whatever the cults don't hold.</summary>
     public long Loyalty(int nodeId) => Full - Holders(nodeId).Values.Sum();
 
+    /// <summary>How many places <paramref name="cultId"/> is Patron of.</summary>
+    public int Patronages(string cultId) => _placesOf.TryGetValue(cultId, out var places) ? places.Count(n => PatronOf(n) == cultId) : 0;
+
     /// <summary>The top holder at 40+ (ties: the cult whose id sorts first), or null.</summary>
     public string? PatronOf(int nodeId)
     {

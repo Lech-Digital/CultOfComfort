@@ -71,8 +71,9 @@ public sealed record SendWorldMissionary(Guid CommandId, int NodeId, int Hours, 
 /// <summary>Server only: the village joins a shared world at (Q, R). The Marchlands are left behind; the purse stays.</summary>
 public sealed record JoinWorld(Guid CommandId, int Q, int R) : BaseCommand(CommandId);
 
-/// <summary>Server only: the world's verdict on this cult: its new influence-driven Tension rate, plus a one-off spike.</summary>
-public sealed record WorldUpdate(Guid CommandId, int TensionPerHourMilli, int TensionSpike) : BaseCommand(CommandId);
+/// <summary>Server only: the world's verdict on this cult: its new influence-driven Tension rate, plus a one-off spike, and the places it is
+/// Patron of (null: unchanged).</summary>
+public sealed record WorldUpdate(Guid CommandId, int TensionPerHourMilli, int TensionSpike, int? Patronages = null) : BaseCommand(CommandId);
 
 /// <summary>Server only: offerings from the world's purse arrive; the village keeps what its stores hold (the outcome says how much).</summary>
 public sealed record ReceiveOfferings(Guid CommandId, ResourceBag Offerings) : BaseCommand(CommandId);

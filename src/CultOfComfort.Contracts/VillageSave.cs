@@ -86,6 +86,7 @@ public sealed class DomainDto
     public int worldQ;
     public int worldR;
     public int worldTensionMilli;
+    public int worldPatronages;
 
     /// <summary>The Mission House (spec 2026-10-15): preachers' experience and the latest road reports.</summary>
     public List<PreacherXpDto> preachers;

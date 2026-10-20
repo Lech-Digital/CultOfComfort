@@ -33,7 +33,7 @@ public sealed partial class BaseState
         ErrandGoal.HearthLevel => HearthLevel,
         ErrandGoal.BuildOnRoad => _buildings.Count(b => b.Type == errand.Type && b.Level >= 1 && b.Tiles.Any(_map.Road.Contains)),
         ErrandGoal.SendMissionary => _missionaries.Count > 0 || _influenceMilli.Any(i => i > 0) ? 1 : 0,
-        ErrandGoal.Patron => _influenceMilli.Count(i => i >= _table.Domain.PatronInfluence * 1000L),
+        ErrandGoal.Patron => _world?.Patronages ?? _influenceMilli.Count(i => i >= _table.Domain.PatronInfluence * 1000L), // on a shared world the server's ledger holds the influence
         ErrandGoal.Study => _researched.Count,
         _ => _errandEventDone ? errand.Target : 0, // events: the Night or the collect happened
     };

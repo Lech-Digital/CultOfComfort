@@ -56,13 +56,13 @@ public sealed partial class BaseState
 
     private CommandOutcome ApplyWorldUpdate(WorldUpdate update, DateTimeOffset now)
     {
-        if (_world == null || update.TensionPerHourMilli < 0 || update.TensionSpike < 0)
+        if (_world == null || update.TensionPerHourMilli < 0 || update.TensionSpike < 0 || update.Patronages < 0)
         {
             return CommandOutcome.Reject("Not on a world.");
         }
 
         MaterializeTension(now); // Tension up to now rose at the old rate
-        _world = _world with { TensionPerHourMilli = update.TensionPerHourMilli };
+        _world = _world with { TensionPerHourMilli = update.TensionPerHourMilli, Patronages = update.Patronages ?? _world.Patronages };
         _tensionMilli = Math.Min(_table.Tension.Max * 1000L, _tensionMilli + update.TensionSpike * 1000L);
         Advance(now);
         return CommandOutcome.Accept();
