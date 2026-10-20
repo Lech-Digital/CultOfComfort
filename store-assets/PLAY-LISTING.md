@@ -39,7 +39,7 @@ Build a cozy medieval village by day. Defend it with towers when raiders come.
 ### Full description — counted by count.mjs
 
 ```
-Stuck in the year 950, a cynical time traveller does the only sensible thing: builds an absurdly comfortable spa out of junk and basic physics. Your village runs on comfort. The neighbours would like to take it.
+Stuck in the year 950, a cynical time traveler does the only sensible thing: builds an absurdly comfortable spa out of junk and basic physics. Your village runs on comfort. The neighbors would like to take it.
 
 Cult of Comfort is a medieval village builder with tower defense. Build and upgrade by day. When the raiders come, hold the road at night.
 
