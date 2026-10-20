@@ -211,5 +211,37 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("trial:begin", sheet.Rows[1].Action);
             Assert.IsTrue(sheet.Rows.Any(r => r.Action == "trial:alms"));
         }
+
+        [Test]
+        public void AwaySummary_ThreeHoursLater_WhatTheStoresGainedAndWhatFinished()
+        {
+            // Arrange — remembered at noon; back at three with more Timber and a lean-to built.
+            var t0 = new System.DateTimeOffset(2026, 10, 20, 12, 0, 0, System.TimeSpan.Zero);
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, t0);
+            state.Apply(new PlaceBuilding(System.Guid.NewGuid(), BuildingType.Woodcutter, new CultOfComfort.Simulation.Grid.GridPosition(15, 5)), t0);
+            var remembered = AwaySummary.Remember(state.Snapshot(t0));
+            var later = state.Snapshot(t0.AddHours(3));
+
+            // Act
+            var sheet = AwaySummary.Welcome(remembered, later, BuildingTable.Default);
+
+            // Assert
+            Assert.IsNotNull(sheet);
+            StringAssert.Contains("Away 3h 00m", sheet.Footer);
+            StringAssert.Contains("Timber", sheet.Rows[1].Text);
+            Assert.IsTrue(sheet.Rows.Any(r => r.Text == "The Woodcutter's Lean-to is built."));
+        }
+
+        [Test]
+        public void AwaySummary_TenMinutes_Nothing()
+        {
+            // Arrange
+            var t0 = new System.DateTimeOffset(2026, 10, 20, 12, 0, 0, System.TimeSpan.Zero);
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, t0);
+
+            // Act & Assert
+            Assert.IsNull(AwaySummary.Welcome(AwaySummary.Remember(state.Snapshot(t0)), state.Snapshot(t0.AddMinutes(10)), BuildingTable.Default));
+            Assert.IsNull(AwaySummary.Welcome("garbage", state.Snapshot(t0.AddHours(3)), BuildingTable.Default));
+        }
     }
 }

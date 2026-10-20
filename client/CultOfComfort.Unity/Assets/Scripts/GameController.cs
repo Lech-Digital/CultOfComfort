@@ -116,6 +116,8 @@ namespace CultOfComfort.Client
 
         private void Start()
         {
+            _awayFrom = PlayerPrefs.GetString(AwayKey, null); // read before anything overwrites it (the Welcome sheet)
+            _backAt = DateTimeOffset.UtcNow;
             Application.targetFrameRate = 60;
             Screen.sleepTimeout = SleepTimeout.NeverSleep; // the screen never dims or locks while the game is open (owner 2026-10-15)
             PointerInput.Enable();
@@ -1829,6 +1831,11 @@ namespace CultOfComfort.Client
                 : hasCard ? VillagePresenter.Card(_snapshot, BuildingTable.Default, _cardBuilding.Value) : terrainCard;
             _board.ShowVisitor(_snapshot.Visitor?.Offer.Kind, VillagePresenter.VisitorTile(_snapshot, VillageMap.Demo));
             _hud.SetProphetBadge(_snapshot.Prophet?.Choice != null);
+            WelcomeBack();
+            if (_awayFrom == null)
+            {
+                RememberVillage(); // not before the Welcome sheet has read what was remembered
+            }
             _board.SetSeason(_snapshot.Season);
             _weather?.Set(_snapshot.Season, _phase == GamePhase.Night);
             if (_seasonSeen != null && _seasonSeen != _snapshot.Season)
@@ -2196,6 +2203,53 @@ namespace CultOfComfort.Client
         private const string MapHelpSeenKey = "map.help.seen";
         /// <summary>The errand note is open (2026-10-16: it starts as one line; "the errands take lots of space").</summary>
         private const string ErrandOpenKey = "hud.errand.open";
+
+        private const string AwayKey = "away.village";
+        private float _rememberedAt = -999f;
+        private string _awayFrom;          // the village as remembered when the player left, until the Welcome sheet has had its say
+        private DateTimeOffset _backAt;    // when the app came back
+
+        /// <summary>Once a fresh look at the village is in: "Welcome back", if they were away long enough (and no Night report waits).</summary>
+        private void WelcomeBack()
+        {
+            if (_awayFrom == null || _snapshot == null || _snapshot.AsOfUtc < _backAt.AddSeconds(-5) || _phase != GamePhase.Dusk)
+            {
+                return;
+            }
+
+            var remembered = _awayFrom;
+            _awayFrom = null;
+            if (_snapshot.UnseenReport == null && AwaySummary.Welcome(remembered, _snapshot, BuildingTable.Default) is { } welcome)
+            {
+                _sheet.Show("away", welcome);
+            }
+        }
+
+        /// <summary>Remembers the village as it is (for the "Welcome back" sheet), at most every half minute and on leaving.</summary>
+        private void RememberVillage(bool now = false)
+        {
+            if (_snapshot == null || (!now && Time.unscaledTime - _rememberedAt < 30f))
+            {
+                return;
+            }
+
+            _rememberedAt = Time.unscaledTime;
+            PlayerPrefs.SetString(AwayKey, AwaySummary.Remember(_snapshot));
+        }
+
+        private void OnApplicationPause(bool paused)
+        {
+            if (paused)
+            {
+                RememberVillage(now: true);
+                PlayerPrefs.Save();
+            }
+            else
+            {
+                _awayFrom = PlayerPrefs.GetString(AwayKey, null);
+                _backAt = DateTimeOffset.UtcNow;
+            }
+        }
 
         private static bool Pref(string key) => PlayerPrefs.GetInt(key, 0) == 1;
 

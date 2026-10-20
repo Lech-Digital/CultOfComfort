@@ -585,7 +585,11 @@ namespace CultOfComfort.Client.Tests
                 yield return null;
             }
 
-            yield return Frames(3);
+            for (var wait = Time.realtimeSinceStartup + 15f; game.LastNightVerified == null && Time.realtimeSinceStartup < wait;)
+            {
+                yield return null; // the village's replay of the Night runs off the main thread
+            }
+
             Time.timeScale = 1f;
 
             // Assert
