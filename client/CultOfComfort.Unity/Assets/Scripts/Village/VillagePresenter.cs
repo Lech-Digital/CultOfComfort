@@ -26,6 +26,9 @@ namespace CultOfComfort.Client
         public string CancelLabel;
         public string DemolishLabel = "Demolish"; public bool IsTerrain; public bool CanMove;
 
+        /// <summary>The card is the raiders' road: its upgrade button paves it.</summary>
+        public bool IsRaidersRoad;
+
         /// <summary>Who works here (spec 2026-10-14 cultist work): the line, and whether − and + do anything.</summary>
         public bool ShowCrew; public string CrewLine; public int CrewWanted; public bool CanCrewLess; public bool CanCrewMore;
     }
@@ -229,6 +232,11 @@ namespace CultOfComfort.Client
                 return null;
             }
 
+            if (map.Road.Contains(tile))
+            {
+                return RaidersRoadCard(s, table);
+            }
+
             if (map.IsBoulder(tile))
             {
                 return new BuildingCardModel
@@ -248,6 +256,30 @@ namespace CultOfComfort.Client
             }
 
             return null;
+        }
+
+        /// <summary>The raiders' road, tapped: what it is, and the next paving (spec 2026-10-20 roads and facings).</summary>
+        public static BuildingCardModel RaidersRoadCard(BaseSnapshot s, BuildingTable table)
+        {
+            var pavings = table.RaidersRoadPavings;
+            var laid = Math.Min(s.RaidersRoad, pavings.Count);
+            var surface = laid == 0 ? "Trodden mud" : pavings[laid - 1].Name;
+            var card = new BuildingCardModel
+            {
+                IsTerrain = true, IsRaidersRoad = true, Title = $"The raiders' road · {surface}",
+                Output = laid == 0
+                    ? "The way the lord's men come. Pave it and the village looks cared for (a little Comfort). They'll still come."
+                    : $"Comfort +{pavings[laid - 1].Comfort}. The raiders wipe their feet on it, which is something.",
+            };
+            if (laid < pavings.Count)
+            {
+                var next = pavings[laid];
+                var verb = next.Name == "Gravel" ? "Gravel it" : next.Name == "Cobbles" ? "Cobble it" : $"Lay {next.Name.ToLowerInvariant()}";
+                card.UpgradeLabel = s.HearthLevel < next.Hearth ? $"{verb} · needs Hearth {next.Hearth}" : $"{verb} · {ShortCost(next.Cost)}";
+                card.CanUpgrade = s.HearthLevel >= next.Hearth && s.Stock.Covers(next.Cost);
+            }
+
+            return card;
         }
 
         /// <summary>"Repair all (N) · cost" when anything is wrecked, else null (no button).</summary>

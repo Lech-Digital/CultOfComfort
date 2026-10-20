@@ -7,13 +7,14 @@ namespace CultOfComfort.Simulation.Base;
 public sealed class Building
 {
     internal Building(int id, BuildingType type, GridPosition position, int level, DateTimeOffset asOfUtc,
-        System.Collections.Generic.IReadOnlyList<GridPosition>? tiles = null, bool rotated = false)
+        System.Collections.Generic.IReadOnlyList<GridPosition>? tiles = null, bool rotated = false, bool flipped = false)
     {
         Id = id;
         Type = type;
         Position = position;
         Tiles = tiles ?? new[] { position };
         Rotated = rotated;
+        Flipped = flipped;
         Level = level;
         AsOfUtc = asOfUtc;
     }
@@ -28,6 +29,9 @@ public sealed class Building
 
     /// <summary>Turned a quarter: width and depth swap (and a fence runs north–south).</summary>
     public bool Rotated { get; }
+
+    /// <summary>Turned a half more: the same tiles, facing the other way (with <see cref="Rotated"/>, four facings).</summary>
+    public bool Flipped { get; }
     public int Level { get; internal set; }
     public DateTimeOffset? UpgradeEndsAtUtc { get; internal set; }
     public bool IsUpgrading => UpgradeEndsAtUtc != null;

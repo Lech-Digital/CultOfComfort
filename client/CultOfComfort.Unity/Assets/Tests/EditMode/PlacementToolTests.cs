@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.Linq;
 using CultOfComfort.Simulation.Base;
@@ -89,6 +90,41 @@ namespace CultOfComfort.Client.Tests
 
             // Assert
             Assert.AreEqual("That's the raiders' road. Build beside it.", tool.Problem(snapshot, VillageMap.Demo, BuildingTable.Default));
+        }
+
+        [Test]
+        public void Rotate_FourTimes_FourFacingsAndBackToTheStart()
+        {
+            // Arrange
+            var tool = PlacementTool.StartMove(new BuildingView(7, BuildingType.SlurryChute, 1, new GridPosition(15, 5), 0, 0, 0, null));
+            var seen = new List<int>();
+
+            // Act
+            for (var turn = 0; turn < 4; turn++)
+            {
+                seen.Add(tool.Facing);
+                tool.Rotate();
+            }
+
+            // Assert
+            CollectionAssert.AreEqual(new[] { 0, 1, 2, 3 }, seen, "a quarter turn each time");
+            Assert.AreEqual(0, tool.Facing, "the fifth turn is the first");
+        }
+
+        [Test]
+        public void Command_TurnedHalfway_SendsTheFacing()
+        {
+            // Arrange — a move keeps the facing it stands at, then two more quarter turns.
+            var move = PlacementTool.StartMove(new BuildingView(7, BuildingType.Woodcutter, 1, new GridPosition(15, 5), 0, 0, 0, null, Rotated: true, Flipped: true));
+            move.Rotate();
+            move.Rotate();
+
+            // Act
+            var command = (MoveBuilding)move.Command();
+
+            // Assert
+            Assert.IsTrue(command.Rotated);
+            Assert.IsFalse(command.Flipped, "three quarters and a half is one quarter");
         }
 
         [Test]

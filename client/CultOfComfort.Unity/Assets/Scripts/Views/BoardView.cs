@@ -100,7 +100,7 @@ namespace CultOfComfort.Client
                 seen.Add(building.Id);
                 var mask = Joins(building.Type) ? WallJoints.Mask(building.Position, barriers) : WallLink.None;
                 if (!_buildings.TryGetValue(building.Id, out var visual) || visual.Level != building.Level
-                    || (Joins(building.Type) && visual.Mask != mask) || visual.Anchor != building.Position || visual.Rotated != building.Rotated) // moved, turned or re-joined
+                    || (Joins(building.Type) && visual.Mask != mask) || visual.Anchor != building.Position || visual.Rotated != building.Rotated || visual.Flipped != building.Flipped) // moved, turned or re-joined
                 {
                     var levelledUp = visual != null && building.Level > visual.Level;
                     if (visual != null)
@@ -117,6 +117,7 @@ namespace CultOfComfort.Client
                     visual.Mask = mask;
                     visual.Anchor = building.Position;
                     visual.Rotated = building.Rotated;
+                    visual.Flipped = building.Flipped;
                     visual.Wrecked = false;
                     _buildings[building.Id] = visual;
                 }
@@ -366,6 +367,18 @@ namespace CultOfComfort.Client
             }
         }
 
+        /// <summary>What the raiders' road is paved with (0: trodden mud, 1: gravel, 2: cobbles); repaints when it changes.</summary>
+        public void SetRaidersRoad(int level)
+        {
+            if (level == _raidersRoad)
+            {
+                return;
+            }
+
+            _raidersRoad = level;
+            PaintGround();
+        }
+
         /// <summary>The raiders' track across the land, painted into the ground (the village's own roads paint over it).</summary>
         public void ShowRoad(IReadOnlyList<GridPosition> path)
         {
@@ -378,6 +391,7 @@ namespace CultOfComfort.Client
         private Texture2D _groundTexture;
         private Color32[] _groundBare;
         private List<GridPosition> _raidersPath = new List<GridPosition>();
+        private int _raidersRoad;
         private readonly Dictionary<GridPosition, RoadSurface> _villageRoads = new Dictionary<GridPosition, RoadSurface>();
         private readonly HashSet<GridPosition> _roadJoins = new HashSet<GridPosition>();
         private string _roadSignature = string.Empty;
@@ -424,7 +438,7 @@ namespace CultOfComfort.Client
             var roads = new Dictionary<GridPosition, RoadSurface>();
             foreach (var tile in _raidersPath)
             {
-                roads[tile] = RoadSurface.RaidersTrack;
+                roads[tile] = _raidersRoad >= 2 ? RoadSurface.RaidersCobbles : _raidersRoad == 1 ? RoadSurface.Gravel : RoadSurface.RaidersTrack;
             }
 
             foreach (var (tile, surface) in _villageRoads)
@@ -798,7 +812,7 @@ namespace CultOfComfort.Client
                 var whole = ArtLibrary.Instantiate(model, root);
                 if (whole != null)
                 {
-                    whole.transform.localRotation = building.Rotated ? Quaternion.Euler(0f, 90f, 0f) * FaceCamera : FaceCamera;
+                    whole.transform.localRotation = Quaternion.Euler(0f, Facings.Yaw(building.Rotated, building.Flipped), 0f) * FaceCamera;
                 }
 
                 return;
@@ -831,7 +845,7 @@ namespace CultOfComfort.Client
         }
 
         /// <summary>The see-through-in-spirit ghost of what is being placed or moved (null type: none).</summary>
-        public void ShowGhost(BuildingType? type, int level, IReadOnlyList<GridPosition> tiles, bool rotated, bool valid)
+        public void ShowGhost(BuildingType? type, int level, IReadOnlyList<GridPosition> tiles, bool rotated, bool valid, bool flipped = false)
         {
             if (type == null)
             {
@@ -845,7 +859,7 @@ namespace CultOfComfort.Client
                 return;
             }
 
-            var key = $"{type}:{level}:{rotated}";
+            var key = $"{type}:{level}:{rotated}:{flipped}";
             if (_ghost == null || _ghostKey != key)
             {
                 if (_ghost != null)
@@ -861,7 +875,7 @@ namespace CultOfComfort.Client
                 var model = ArtLibrary.Instantiate(name, _ghost.transform);
                 if (model != null)
                 {
-                    model.transform.localRotation = rotated ? Quaternion.Euler(0f, 90f, 0f) * FaceCamera : FaceCamera;
+                    model.transform.localRotation = Quaternion.Euler(0f, Facings.Yaw(rotated, flipped), 0f) * FaceCamera;
                     BuildingArt.Fit(model, _ghost.transform, new Vector2(size.x, size.y), finished: true);
                 }
             }
@@ -884,7 +898,7 @@ namespace CultOfComfort.Client
             }
             else if (BuildingTable.Default.Spec(building.Type).Tower is { } tower)
             {
-                visual.Root = CreateTower(new PlacedTower(tower, building.Position)).transform;
+                visual.Root = CreateTower(new PlacedTower(tower, building.Position), Facings.Yaw(building.Rotated, building.Flipped)).transform;
             }
             else
             {
@@ -922,7 +936,7 @@ namespace CultOfComfort.Client
                 var scale = (building.Level == 0 ? BuildingArt.ShellScalePerTile : BuildingArt.ScalePerTile) * Mathf.Min(size.x, size.y);
                 if (model != null)
                 {
-                    model.transform.localRotation = building.Rotated ? Quaternion.Euler(0f, 90f, 0f) * FaceCamera : FaceCamera;
+                    model.transform.localRotation = Quaternion.Euler(0f, Facings.Yaw(building.Rotated, building.Flipped), 0f) * FaceCamera;
                     if (building.Type == BuildingType.Stone || building.Type == BuildingType.Tree)
                     {
                         // Nature ignores plot lines: a crown may spread over its neighbours.
@@ -972,6 +986,7 @@ namespace CultOfComfort.Client
             public WallLink Mask = (WallLink)(-1);
             public GridPosition Anchor;
             public bool Rotated;
+            public bool Flipped;
 
             /// <summary>A gate's moving parts (found on first use) and how open it is, 0–1.</summary>
             public Transform DoorL, DoorR, Portcullis;
@@ -996,7 +1011,7 @@ namespace CultOfComfort.Client
             _hearthLight.intensity = 3.5f;
         }
 
-        private GameObject CreateTower(PlacedTower tower)
+        private GameObject CreateTower(PlacedTower tower, float yaw)
         {
             var root = new GameObject(tower.Type.ToString()).transform;
             root.SetParent(_root, false);
@@ -1010,7 +1025,7 @@ namespace CultOfComfort.Client
             }, root);
             if (model != null)
             {
-                model.transform.localRotation = FaceCamera;
+                model.transform.localRotation = Quaternion.Euler(0f, yaw, 0f) * FaceCamera;
                 return root.gameObject;
             }
 

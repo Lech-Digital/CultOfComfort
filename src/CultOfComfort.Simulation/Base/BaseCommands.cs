@@ -9,13 +9,14 @@ public abstract record BaseCommand(Guid CommandId);
 
 /// <param name="Position">The anchor: the footprint's lowest x and y.</param>
 /// <param name="Rotated">Turned a quarter: width and depth swap.</param>
-public sealed record PlaceBuilding(Guid CommandId, BuildingType Type, GridPosition Position, bool Rotated = false) : BaseCommand(CommandId);
+/// <param name="Flipped">Turned a half more: the same tiles, facing the other way.</param>
+public sealed record PlaceBuilding(Guid CommandId, BuildingType Type, GridPosition Position, bool Rotated = false, bool Flipped = false) : BaseCommand(CommandId);
 
 /// <summary>Paints roads, fences or walls over many tiles at once: tiles that can't take it are skipped.</summary>
 public sealed record PaintTiles(Guid CommandId, BuildingType Type, IReadOnlyList<GridPosition> Tiles) : BaseCommand(CommandId);
 
 /// <summary>Picks a building up and sets it down elsewhere: free, keeping its level, output, construction and damage.</summary>
-public sealed record MoveBuilding(Guid CommandId, int BuildingId, GridPosition Position, bool Rotated) : BaseCommand(CommandId);
+public sealed record MoveBuilding(Guid CommandId, int BuildingId, GridPosition Position, bool Rotated, bool Flipped = false) : BaseCommand(CommandId);
 
 /// <summary>Repairs every wrecked building at once, or none if the village can't pay for all of them.</summary>
 public sealed record RepairAll(Guid CommandId) : BaseCommand(CommandId);
@@ -48,6 +49,9 @@ public sealed record AcknowledgeReport(Guid CommandId) : BaseCommand(CommandId);
 public sealed record ClaimErrand(Guid CommandId) : BaseCommand(CommandId);
 
 /// <summary>Cuts a wild tree (Timber) or clears a loose boulder (costs Timber, gives Scrap). Walls are bedrock.</summary>
+/// <summary>Lays the next surface on the raiders' road (gravel, then cobbles): the village looks after itself. The raiders walk it the same.</summary>
+public sealed record PaveRaidersRoad(Guid CommandId) : BaseCommand(CommandId);
+
 public sealed record ClearTerrain(Guid CommandId, GridPosition Tile) : BaseCommand(CommandId);
 
 /// <summary>Development only: adds Tension at once. A server refuses this.</summary>

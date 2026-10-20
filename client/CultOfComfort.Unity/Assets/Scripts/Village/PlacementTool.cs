@@ -14,17 +14,24 @@ namespace CultOfComfort.Client
     {
         private GridPosition _grab; // which of its tiles the finger holds
 
-        private PlacementTool(BuildingType type, GridPosition anchor, bool rotated, int? movingId)
+        private PlacementTool(BuildingType type, GridPosition anchor, bool rotated, int? movingId, bool flipped = false)
         {
             Type = type;
             Anchor = anchor;
             Rotated = rotated;
+            Flipped = flipped;
             MovingId = movingId;
         }
 
         public BuildingType Type { get; }
         public GridPosition Anchor { get; private set; }
         public bool Rotated { get; private set; }
+
+        /// <summary>Turned a half more: the same tiles, facing the other way.</summary>
+        public bool Flipped { get; private set; }
+
+        /// <summary>Quarter turns from the default facing, 0 to 3.</summary>
+        public int Facing => Facings.Of(Rotated, Flipped);
 
         /// <summary>The building being moved, or null for a new one.</summary>
         public int? MovingId { get; }
@@ -85,7 +92,7 @@ namespace CultOfComfort.Client
 
         /// <summary>A standing building lifted for moving: it starts where and as it stands.</summary>
         public static PlacementTool StartMove(BuildingView building) =>
-            new PlacementTool(building.Type, building.Position, building.Rotated, building.Id);
+            new PlacementTool(building.Type, building.Position, building.Rotated, building.Id, building.Flipped);
 
         public IReadOnlyList<GridPosition> Tiles(BuildingTable table) => Footprint.Tiles(table.Spec(Type), Anchor, Rotated);
 
@@ -109,14 +116,33 @@ namespace CultOfComfort.Client
 
         public void Release() => Dragging = false;
 
-        public void Rotate() => Rotated = !Rotated;
+        /// <summary>A quarter turn: four facings, round and back (the footprint swaps on every other one).</summary>
+        public void Rotate()
+        {
+            (Rotated, Flipped) = Facings.From(Facing + 1);
+        }
 
         /// <summary>Why it can't stand here (null: it can) — the village's own rule; costs are checked when ✓ is pressed.</summary>
         public string Problem(BaseSnapshot snapshot, VillageMap map, BuildingTable table) =>
             map.PlacementProblem(snapshot, table.Spec(Type), Anchor, Rotated, MovingId, table);
 
         public BaseCommand Command() => MovingId != null
-            ? new MoveBuilding(Guid.NewGuid(), MovingId.Value, Anchor, Rotated)
-            : (BaseCommand)new PlaceBuilding(Guid.NewGuid(), Type, Anchor, Rotated);
+            ? new MoveBuilding(Guid.NewGuid(), MovingId.Value, Anchor, Rotated, Flipped)
+            : (BaseCommand)new PlaceBuilding(Guid.NewGuid(), Type, Anchor, Rotated, Flipped);
+    }
+
+    /// <summary>A building's facing as quarter turns (0–3), stored as two flags: <c>Rotated</c> (a quarter) and <c>Flipped</c> (a half more).</summary>
+    public static class Facings
+    {
+        public static int Of(bool rotated, bool flipped) => (rotated ? 1 : 0) + (flipped ? 2 : 0);
+
+        public static (bool Rotated, bool Flipped) From(int facing)
+        {
+            var f = ((facing % 4) + 4) % 4;
+            return (f % 2 == 1, f >= 2);
+        }
+
+        /// <summary>The model's turn about the vertical axis, in degrees.</summary>
+        public static float Yaw(bool rotated, bool flipped) => 90f * Of(rotated, flipped);
     }
 }

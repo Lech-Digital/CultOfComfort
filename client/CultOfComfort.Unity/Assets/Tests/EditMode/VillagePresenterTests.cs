@@ -242,6 +242,53 @@ namespace CultOfComfort.Client.Tests
         }
     
         [Test]
+        public void TerrainCard_RaidersRoadAtHearthOne_SaysWhatPavingNeeds()
+        {
+            // Arrange
+            var tile = VillageMap.Demo.Road[VillageMap.Demo.Road.Count / 2];
+
+            // Act
+            var card = VillagePresenter.TerrainCard(Fresh(), VillageMap.Demo, BuildingTable.Default, tile);
+
+            // Assert
+            Assert.IsNotNull(card, "tapping the raiders' road shows what it is");
+            Assert.IsTrue(card.IsRaidersRoad);
+            StringAssert.Contains("Trodden mud", card.Title);
+            Assert.AreEqual("Gravel it · needs Hearth 2", card.UpgradeLabel);
+            Assert.IsFalse(card.CanUpgrade);
+        }
+
+        [Test]
+        public void RaidersRoadCard_Gravelled_OffersCobbles()
+        {
+            // Arrange
+            var snapshot = Fresh() with { HearthLevel = 3, RaidersRoad = 1, Stock = new ResourceBag(5000, 5000, 5000, 5000) };
+
+            // Act
+            var card = VillagePresenter.RaidersRoadCard(snapshot, BuildingTable.Default);
+
+            // Assert
+            StringAssert.Contains("Gravel", card.Title);
+            StringAssert.StartsWith("Cobble it · ", card.UpgradeLabel);
+            Assert.IsTrue(card.CanUpgrade);
+        }
+
+        [Test]
+        public void RaidersRoadCard_AllLaid_NoButton()
+        {
+            // Arrange
+            var snapshot = Fresh() with { HearthLevel = 3, RaidersRoad = BuildingTable.Default.RaidersRoadPavings.Count };
+
+            // Act
+            var card = VillagePresenter.RaidersRoadCard(snapshot, BuildingTable.Default);
+
+            // Assert
+            StringAssert.Contains("Cobbles", card.Title);
+            Assert.IsNull(card.UpgradeLabel);
+            Assert.IsFalse(card.CanUpgrade);
+        }
+
+        [Test]
         public void TerrainCard_WildTreeBoulderAndWall_ReadRight()
         {
             // Arrange

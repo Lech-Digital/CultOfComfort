@@ -16,14 +16,14 @@ public static class CommandMapping
         switch (command)
         {
             case PlaceBuilding c:
-                (dto.building, dto.x, dto.y, dto.rotated) = (c.Type.ToString(), c.Position.X, c.Position.Y, c.Rotated);
+                (dto.building, dto.x, dto.y, dto.rotated, dto.flipped) = (c.Type.ToString(), c.Position.X, c.Position.Y, c.Rotated, c.Flipped);
                 break;
             case PaintTiles c:
                 dto.building = c.Type.ToString();
                 dto.tiles = c.Tiles.Select(t => new TileDto { x = t.X, y = t.Y }).ToList();
                 break;
             case MoveBuilding c:
-                (dto.buildingId, dto.x, dto.y, dto.rotated) = (c.BuildingId, c.Position.X, c.Position.Y, c.Rotated);
+                (dto.buildingId, dto.x, dto.y, dto.rotated, dto.flipped) = (c.BuildingId, c.Position.X, c.Position.Y, c.Rotated, c.Flipped);
                 break;
             case UpgradeBuilding c:
                 dto.buildingId = c.BuildingId;
@@ -105,10 +105,11 @@ public static class CommandMapping
 
         return dto.type switch
         {
-            nameof(PlaceBuilding) => new PlaceBuilding(id, Building(dto), new GridPosition(dto.x, dto.y), dto.rotated),
+            nameof(PlaceBuilding) => new PlaceBuilding(id, Building(dto), new GridPosition(dto.x, dto.y), dto.rotated, dto.flipped),
             nameof(PaintTiles) => new PaintTiles(id, Building(dto), (dto.tiles ?? new List<TileDto>()).Select(t => new GridPosition(t.x, t.y)).ToList()),
-            nameof(MoveBuilding) => new MoveBuilding(id, dto.buildingId, new GridPosition(dto.x, dto.y), dto.rotated),
+            nameof(MoveBuilding) => new MoveBuilding(id, dto.buildingId, new GridPosition(dto.x, dto.y), dto.rotated, dto.flipped),
             nameof(RepairAll) => new RepairAll(id),
+            nameof(PaveRaidersRoad) => new PaveRaidersRoad(id),
             nameof(UpgradeBuilding) => new UpgradeBuilding(id, dto.buildingId),
             nameof(UpgradeHearth) => new UpgradeHearth(id),
             nameof(DemolishBuilding) => new DemolishBuilding(id, dto.buildingId),

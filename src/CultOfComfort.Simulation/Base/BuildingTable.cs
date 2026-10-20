@@ -118,6 +118,16 @@ public sealed class BuildingTable
     /// <summary>A cut wild tree grows back on its tile after this long (unless something was built there).</summary>
     public int WildTreeRegrowHours { get; init; } = 8;
 
+    /// <summary>
+    /// What the raiders' road can be paved with, in order (spec 2026-10-20 roads and facings): a look and a little
+    /// Comfort, never a change to the Night. Level 0 is the trodden mud it starts as.
+    /// </summary>
+    public IReadOnlyList<RoadPaving> RaidersRoadPavings { get; init; } = new[]
+    {
+        new RoadPaving("Gravel", 2, new ResourceBag(300, 0, 150, 0), 3),
+        new RoadPaving("Cobbles", 3, new ResourceBag(900, 0, 500, 100), 8),
+    };
+
     /// <summary>Clearing a loose boulder costs this and gives <see cref="BoulderScrap"/> back (stone: in = out).</summary>
     public ResourceBag BoulderCost { get; init; } = default;
 
@@ -308,3 +318,6 @@ public sealed class BuildingTable
 
     public int Salvage(int stars) => SalvageBase + SalvagePerStar * Math.Min(Math.Max(stars, 0), 3);
 }
+
+/// <summary>A surface for the raiders' road: from Hearth <paramref name="Hearth"/>, for <paramref name="Cost"/>; <paramref name="Comfort"/> in all while it lies there.</summary>
+public sealed record RoadPaving(string Name, int Hearth, ResourceBag Cost, int Comfort);

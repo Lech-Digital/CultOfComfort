@@ -31,6 +31,7 @@ public sealed partial class BaseState
     private ScheduledRaid? _raid;
     private int _nextRaidId = 1;
     private NightPlan? _night;
+    private int _raidersRoad; // 0: trodden mud; else how many of the table's pavings are laid
     private DateTimeOffset _nightStartedAt;
     private NightReport? _unseenReport;
     private readonly List<GridPosition> _cleared = new(); // boulders, gone for good
@@ -104,6 +105,7 @@ public sealed partial class BaseState
             _cold = data.Cold,
             _errandIndex = table.Errands.IndexOf(data.ErrandId, data.ErrandIndex), // by id; old saves through the old order
             _errandEventDone = data.ErrandEventDone,
+            _raidersRoad = Math.Clamp(data.RaidersRoad, 0, table.RaidersRoadPavings.Count),
         };
         foreach (var b in data.Buildings.OrderBy(b => b.Type == BuildingType.Hearth ? -1 : b.Id))
         {
@@ -115,7 +117,7 @@ public sealed partial class BaseState
             var anchor = new GridPosition(b.X, b.Y);
             var tiles = b.Type == BuildingType.Hearth ? map.HearthTiles
                 : data.LayoutVersion >= 1 ? Footprint.Tiles(spec, anchor, b.Rotated) : new[] { anchor }; // shapes arrived in layout version 1
-            state._buildings.Add(new Building(b.Id, b.Type, anchor, b.Level, new DateTimeOffset(b.AsOfUtcTicks, TimeSpan.Zero), tiles, b.Rotated)
+            state._buildings.Add(new Building(b.Id, b.Type, anchor, b.Level, new DateTimeOffset(b.AsOfUtcTicks, TimeSpan.Zero), tiles, b.Rotated, b.Flipped)
             {
                 BufferMilli = b.BufferMilli,
                 UpgradeEndsAtUtc = b.UpgradeEndsAtUtcTicks == null ? null : new DateTimeOffset(b.UpgradeEndsAtUtcTicks.Value, TimeSpan.Zero),
@@ -246,7 +248,7 @@ public sealed partial class BaseState
         }
 
         var (anchor, rotated) = spot.Value;
-        _buildings.Add(new Building(b.Id, b.Type, anchor, b.Level, b.AsOfUtc, Footprint.Tiles(spec, anchor, rotated), rotated)
+        _buildings.Add(new Building(b.Id, b.Type, anchor, b.Level, b.AsOfUtc, Footprint.Tiles(spec, anchor, rotated), rotated, b.Flipped)
         {
             BufferMilli = b.BufferMilli,
             UpgradeEndsAtUtc = b.UpgradeEndsAtUtc,
@@ -474,7 +476,7 @@ public sealed partial class BaseState
 
     public BaseData ToData() => new(
         Version, _stock, _nextId, LastNightRecorded,
-        _buildings.Select(b => new BuildingData(b.Id, b.Type, b.Level, b.Position.X, b.Position.Y, b.UpgradeEndsAtUtc?.UtcTicks, b.BufferMilli, b.AsOfUtc.UtcTicks, b.Wrecked, b.Rotated, b.CrewWanted)).ToList(),
+        _buildings.Select(b => new BuildingData(b.Id, b.Type, b.Level, b.Position.X, b.Position.Y, b.UpgradeEndsAtUtc?.UtcTicks, b.BufferMilli, b.AsOfUtc.UtcTicks, b.Wrecked, b.Rotated, b.CrewWanted, b.Flipped)).ToList(),
         _recentOrder.ToList(),
         _tensionMilli,
         _tensionAsOf.UtcTicks,
@@ -498,7 +500,8 @@ public sealed partial class BaseState
         ResearchToData(),
         _fractions.ToList(),
         DailyToData(),
-        CurrentErrand?.Id);
+        CurrentErrand?.Id,
+        _raidersRoad);
 
     public CommandOutcome Apply(BaseCommand command, DateTimeOffset nowUtc)
     {
@@ -512,7 +515,7 @@ public sealed partial class BaseState
         _now = nowUtc;
         MaterializeAll(nowUtc); // whatever this command changes, production up to now was earned under the old rules
         var roadsBefore = _buildings.Count(b => BuildingTable.IsRoad(b.Type));
-        if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain or SendMissionary or SendWorldMissionary or PayTithe or MeetDemand or PleadWithLord or SetCrew or CancelConstruction)
+        if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain or SendMissionary or SendWorldMissionary or PayTithe or MeetDemand or PleadWithLord or SetCrew or CancelConstruction or PaveRaidersRoad)
         {
             return CommandOutcome.Reject("Not now — there's a Night on.") with { Version = Version };
         }
@@ -524,6 +527,7 @@ public sealed partial class BaseState
             AcknowledgeReport _ => Acknowledge(),
             ClaimErrand _ => ClaimCurrentErrand(),
             ClearTerrain clear => Clear(clear.Tile),
+            PaveRaidersRoad _ => Pave(),
             PlaceBuilding place => Place(place, nowUtc),
             PaintTiles paint => Paint(paint, nowUtc),
             MoveBuilding move => Move(move),
@@ -581,11 +585,11 @@ public sealed partial class BaseState
         _now = nowUtc;
         var views = _buildings.Select(b => new BuildingView(
             b.Id, b.Type, b.Level, b.Position, 0, 0, Rate(b), b.UpgradeEndsAtUtc, b.Wrecked, b.Rotated, b.Tiles, IsConnected(b),
-            CrewOf(b), Slots(b), b.CrewWanted ?? Slots(b))).ToList();
+            CrewOf(b), Slots(b), b.CrewWanted ?? Slots(b), b.Flipped)).ToList();
         var tension = TensionValue(nowUtc);
         return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
             tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport, _cleared.Concat(_treeCuts.Keys.Where(t => !IsWildTreeStanding(t))).ToList(),
-            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts(), IdleVillagers(), DailyViewAt(nowUtc));
+            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts(), IdleVillagers(), DailyViewAt(nowUtc), _raidersRoad);
     }
 
     public ResourceBag Caps
@@ -669,7 +673,7 @@ public sealed partial class BaseState
 
         _stock -= cost;
         var building = new Building(_nextId++, command.Type, command.Position, instant ? 1 : 0, now,
-            Footprint.Tiles(spec, command.Position, command.Rotated), command.Rotated);
+            Footprint.Tiles(spec, command.Position, command.Rotated), command.Rotated, command.Flipped);
         if (!instant)
         {
             building.UpgradeEndsAtUtc = now.AddSeconds(BuildSeconds(spec.Levels[0].BuildSeconds));
@@ -756,7 +760,7 @@ public sealed partial class BaseState
 
         var index = _buildings.IndexOf(building);
         _buildings[index] = new Building(building.Id, building.Type, command.Position, building.Level, building.AsOfUtc,
-            Footprint.Tiles(spec, command.Position, command.Rotated), command.Rotated)
+            Footprint.Tiles(spec, command.Position, command.Rotated), command.Rotated, command.Flipped)
         {
             BufferMilli = building.BufferMilli,
             UpgradeEndsAtUtc = building.UpgradeEndsAtUtc,
@@ -1561,7 +1565,35 @@ public sealed partial class BaseState
             parts.Add(("Research", Bonus(TechEffect.Comfort)));
         }
 
+        if (_raidersRoad > 0)
+        {
+            parts.Add(($"The raiders' road ({_table.RaidersRoadPavings[_raidersRoad - 1].Name.ToLowerInvariant()})", _table.RaidersRoadPavings[_raidersRoad - 1].Comfort));
+        }
+
         return parts;
+    }
+
+    private CommandOutcome Pave()
+    {
+        if (_raidersRoad >= _table.RaidersRoadPavings.Count)
+        {
+            return CommandOutcome.Reject("The raiders' road is as fine as it gets. They still won't wipe their feet.");
+        }
+
+        var next = _table.RaidersRoadPavings[_raidersRoad];
+        if (HearthLevel < next.Hearth)
+        {
+            return CommandOutcome.Reject($"{next.Name} needs Hearth level {next.Hearth}.");
+        }
+
+        if (!_stock.Covers(next.Cost))
+        {
+            return CommandOutcome.Reject($"Need {_stock.Missing(next.Cost)} more.");
+        }
+
+        _stock -= next.Cost;
+        _raidersRoad++;
+        return CommandOutcome.Accept();
     }
 
     private static bool IsHome(BuildingType type) => type is BuildingType.Cottage or BuildingType.CultistHut or BuildingType.Bathhouse or BuildingType.Sauna;

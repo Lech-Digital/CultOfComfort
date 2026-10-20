@@ -12,6 +12,10 @@ namespace CultOfComfort.Client
         Dirt,
         Planks,
         Cobbles,
+        /// <summary>The raiders' road, gravelled (its first paving).</summary>
+        Gravel,
+        /// <summary>The raiders' road, cobbled: wider and darker than the village's own cobbles.</summary>
+        RaidersCobbles,
     }
 
     /// <summary>
@@ -22,7 +26,7 @@ namespace CultOfComfort.Client
     /// </summary>
     public static class GroundPainter
     {
-        public const int PixelsPerTile = 16;
+        public const int PixelsPerTile = 32;
 
         private static readonly Color Mud = Shapes.Hex("#3d3225");
         private static readonly Color DryMud = Shapes.Hex("#4a3d2b");
@@ -33,7 +37,12 @@ namespace CultOfComfort.Client
         private static readonly Color Track = Shapes.Hex("#2c2117");
         private static readonly Color Print = Shapes.Hex("#1a130d");
         private static readonly Color Dirt = Shapes.Hex("#6b5238");
-        private static readonly Color Rut = Shapes.Hex("#57422d");
+        private static readonly Color DirtLight = Shapes.Hex("#7d6244");
+        private static readonly Color Rut = Shapes.Hex("#4e3b28");
+        private static readonly Color Pebble = Shapes.Hex("#857d70");
+        private static readonly Color Kerb = Shapes.Hex("#77726a");
+        private static readonly Color Gravel = Shapes.Hex("#57503f");
+        private static readonly Color GravelLoose = Shapes.Hex("#6e6553");
         private static readonly Color Plank = Shapes.Hex("#8a6a43");
         private static readonly Color PlankGap = Shapes.Hex("#4a321e");
         private static readonly Color Stone = Shapes.Hex("#8c877d");
@@ -66,7 +75,8 @@ namespace CultOfComfort.Client
 
         /// <summary>
         /// The ground with its roads painted on: a band from each road tile's middle to each neighbouring road (or the
-        /// Hearth, or a gate), with frayed edges. Returns a new array; <paramref name="ground"/> is untouched.
+        /// Hearth, or a gate), with wandering, frayed edges and a worn verge. Returns a new array; <paramref name="ground"/>
+        /// is untouched.
         /// </summary>
         public static Color32[] WithRoads(Color32[] ground, int width, int height, IReadOnlyDictionary<GridPosition, RoadSurface> roads,
             ICollection<GridPosition> joins)
@@ -74,13 +84,8 @@ namespace CultOfComfort.Client
             var w = width * PixelsPerTile;
             var pixels = (Color32[])ground.Clone();
             var dirs = new[] { new GridPosition(1, 0), new GridPosition(-1, 0), new GridPosition(0, 1), new GridPosition(0, -1) };
-            foreach (var (tile, surface) in roads)
+            List<GridPosition> Links(GridPosition tile)
             {
-                if (surface == RoadSurface.None || tile.X < 0 || tile.Y < 0 || tile.X >= width || tile.Y >= height)
-                {
-                    continue;
-                }
-
                 var links = new List<GridPosition>();
                 foreach (var d in dirs)
                 {
@@ -91,42 +96,118 @@ namespace CultOfComfort.Client
                     }
                 }
 
-                var halfWidth = surface == RoadSurface.RaidersTrack ? 0.3f : surface == RoadSurface.Dirt ? 0.34f : 0.4f;
-                for (var py = tile.Y * PixelsPerTile; py < (tile.Y + 1) * PixelsPerTile; py++)
+                return links;
+            }
+
+            // Straight stretches carry ruts; bends and crossings don't (crossed ruts drew a grid of lines: owner 2026-10-20 "the roads are not looking great").
+            var straight = new HashSet<GridPosition>();
+            foreach (var (tile, surface) in roads)
+            {
+                var l = Links(tile);
+                if (surface != RoadSurface.None && (l.Count == 1 || (l.Count == 2 && l[0].X == -l[1].X && l[0].Y == -l[1].Y)))
                 {
-                    for (var px = tile.X * PixelsPerTile; px < (tile.X + 1) * PixelsPerTile; px++)
+                    straight.Add(tile);
+                }
+            }
+
+            // Two passes: the verge (darkened mud beside every road, the strongest wear wins) first, then the roads over it.
+            var worn = new float[pixels.Length];
+            var pebbles = new bool[pixels.Length];
+            for (var pass = 0; pass < 2; pass++)
+            {
+                if (pass == 1)
+                {
+                    for (var i = 0; i < pixels.Length; i++)
                     {
-                        // Position inside the tile, -0.5..0.5 from its middle.
-                        var lx = (px + 0.5f) / PixelsPerTile - tile.X - 0.5f;
-                        var ly = (py + 0.5f) / PixelsPerTile - tile.Y - 0.5f;
-                        var fray = Fbm((px + 0.5f) / PixelsPerTile * 3f, (py + 0.5f) / PixelsPerTile * 3f, 7) * 0.06f;
-                        var inside = new Vector2(lx, ly).magnitude - (halfWidth + 0.04f);
-                        var along = 0; // 1: runs along x, 2: along y (for boards and ruts)
-                        foreach (var d in links)
+                        if (worn[i] > 0f)
                         {
-                            // A band from the middle to the edge the neighbour is on.
-                            var t = d.X != 0 ? lx * d.X : ly * d.Y;
-                            var side = d.X != 0 ? Mathf.Abs(ly) : Mathf.Abs(lx);
-                            var band = t >= 0f ? side - halfWidth : Mathf.Max(side - halfWidth, -t - halfWidth);
-                            if (band < inside)
+                            var c = (Color)pixels[i] * (1f - worn[i]);
+                            c = pebbles[i] ? Color.Lerp(c, Pebble, 0.5f) : c;
+                            c.a = 1f;
+                            pixels[i] = c;
+                        }
+                    }
+                }
+
+                foreach (var (tile, surface) in roads)
+                {
+                    if (surface == RoadSurface.None || tile.X < 0 || tile.Y < 0 || tile.X >= width || tile.Y >= height)
+                    {
+                        continue;
+                    }
+
+                    var links = Links(tile);
+                    var isStraight = straight.Contains(tile);
+                    var baseHalf = HalfWidth(surface);
+                    var reach = pass == 0 ? PixelsPerTile / 6 : 0; // the verge spills a little past the tile
+                    for (var py = tile.Y * PixelsPerTile - reach; py < (tile.Y + 1) * PixelsPerTile + reach; py++)
+                    {
+                        for (var px = tile.X * PixelsPerTile - reach; px < (tile.X + 1) * PixelsPerTile + reach; px++)
+                        {
+                            if (px < 0 || py < 0 || px >= w || py >= height * PixelsPerTile)
                             {
-                                inside = band;
-                                along = d.X != 0 ? 1 : 2;
+                                continue;
                             }
-                        }
 
-                        var edge = inside + fray;
-                        if (edge > 0.03f)
-                        {
-                            continue;
-                        }
+                            var wx = (px + 0.5f) / PixelsPerTile;
+                            var wy = (py + 0.5f) / PixelsPerTile;
+                            // Position from the tile's middle (-0.5..0.5 inside it).
+                            var lx = wx - tile.X - 0.5f;
+                            var ly = wy - tile.Y - 0.5f;
+                            var inTile = Mathf.Abs(lx) <= 0.5f && Mathf.Abs(ly) <= 0.5f;
+                            if (pass == 1 && !inTile)
+                            {
+                                continue;
+                            }
 
-                        var blend = Mathf.Clamp01((0.03f - edge) / 0.06f);
-                        var wx = (px + 0.5f) / PixelsPerTile;
-                        var wy = (py + 0.5f) / PixelsPerTile;
-                        var colour = Surface(surface, wx, wy, along == 0 ? (links.Count > 0 && links[0].X != 0 ? 1 : 2) : along, lx, ly);
-                        var i = py * w + px;
-                        pixels[i] = Color.Lerp(pixels[i], colour, blend);
+                            // The road wanders: wider and narrower along its length, never ruler-straight.
+                            var halfWidth = baseHalf * (1f + Fbm(wx * 0.5f, wy * 0.5f, 11) * 0.16f);
+                            var inside = new Vector2(lx, ly).magnitude - (halfWidth + 0.04f);
+                            var along = 0; // 1: runs along x, 2: along y
+                            foreach (var d in links)
+                            {
+                                var t = d.X != 0 ? lx * d.X : ly * d.Y;
+                                var side = d.X != 0 ? Mathf.Abs(ly) : Mathf.Abs(lx);
+                                // From the middle to the neighbour's edge, with a round end behind the middle: bends come out rounded.
+                                var band = t >= 0f ? side - halfWidth : new Vector2(t, side).magnitude - halfWidth;
+                                if (band < inside)
+                                {
+                                    inside = band;
+                                    along = d.X != 0 ? 1 : 2;
+                                }
+                            }
+
+                            var edge = inside + Fbm(wx * 1.8f, wy * 1.8f, 7) * 0.04f;
+                            var i = py * w + px;
+                            if (pass == 0)
+                            {
+                                // The verge: trodden mud just outside the edge, with a few pebbles kicked aside.
+                                if (edge > 0f && edge < 0.12f && surface != RoadSurface.RaidersTrack)
+                                {
+                                    worn[i] = Mathf.Max(worn[i], (1f - edge / 0.12f) * 0.22f);
+                                    pebbles[i] = Hash(px * 3, py * 5) > 0.996f;
+                                }
+
+                                continue;
+                            }
+
+                            if (edge > 0.02f)
+                            {
+                                continue;
+                            }
+
+                            var blend = Mathf.Clamp01((0.02f - edge) / 0.05f);
+                            if (along == 0)
+                            {
+                                along = links.Count > 0 && links[0].X != 0 ? 1 : 2;
+                            }
+
+                            // Ruts fade out towards a neighbour that bends or crosses, so they never stop dead at a tile edge.
+                            var rutStrength = isStraight ? RutFade(tile, along, lx, ly, straight) : 0f;
+                            var colour = Surface(surface, wx, wy, along, lx, ly, -edge, rutStrength);
+                            colour.a = 1f;
+                            pixels[i] = Color.Lerp(pixels[i], colour, blend);
+                        }
                     }
                 }
             }
@@ -134,47 +215,113 @@ namespace CultOfComfort.Client
             return pixels;
         }
 
-        private static Color Surface(RoadSurface surface, float x, float y, int along, float lx, float ly)
+        private static float HalfWidth(RoadSurface surface) => surface switch
+        {
+            RoadSurface.RaidersTrack => 0.34f,
+            RoadSurface.Dirt => 0.36f,
+            RoadSurface.Planks => 0.34f,
+            RoadSurface.Gravel => 0.38f,
+            RoadSurface.RaidersCobbles => 0.42f,
+            _ => 0.38f,
+        };
+
+        /// <summary>1 in a straight stretch; fading to 0 across the half tile next to a neighbour that isn't straight.</summary>
+        private static float RutFade(GridPosition tile, int along, float lx, float ly, HashSet<GridPosition> straight)
+        {
+            var t = along == 1 ? lx : ly;
+            var next = along == 1 ? new GridPosition(tile.X + (t >= 0 ? 1 : -1), tile.Y) : new GridPosition(tile.X, tile.Y + (t >= 0 ? 1 : -1));
+            return straight.Contains(next) ? 1f : Mathf.Clamp01((0.5f - Mathf.Abs(t)) / 0.4f);
+        }
+
+        /// <param name="depth">How far inside the edge (tiles): kerbs and worn edges use it.</param>
+        /// <param name="ruts">0..1: how strongly the cart ruts show here.</param>
+        private static Color Surface(RoadSurface surface, float x, float y, int along, float lx, float ly, float depth, float ruts)
         {
             var grain = Fbm(x * 2.3f, y * 2.3f, 9) * 0.06f;
+            var speck = Hash(Mathf.FloorToInt(x * PixelsPerTile), Mathf.FloorToInt(y * PixelsPerTile));
+            var side = along == 1 ? ly : lx;
+            var step = along == 1 ? x : y;
             switch (surface)
             {
                 case RoadSurface.Planks:
                 {
-                    // Boards across the way, with dark gaps between them.
-                    var across = along == 1 ? x : y;
-                    var gap = Mathf.Repeat(across * 4f, 1f) < 0.12f;
-                    return (gap ? PlankGap : Plank) * (0.94f + grain);
+                    // Boards across the way, each its own shade, with dark gaps and a nail at each end.
+                    var board = Mathf.FloorToInt(step * 5f);
+                    var inBoard = Mathf.Repeat(step * 5f, 1f);
+                    var gap = inBoard < 0.1f;
+                    var tone = 0.86f + Hash(board, along) * 0.2f;
+                    var nail = Mathf.Abs(inBoard - 0.55f) < 0.12f && Mathf.Abs(Mathf.Abs(side) - 0.26f) < 0.025f;
+                    var c = gap ? PlankGap : nail ? PlankGap * 1.2f : Plank * tone;
+                    return c * (0.94f + grain + Fbm(step * 9f, side * 1.5f, 13) * 0.05f) * Edge(depth);
                 }
 
+                case RoadSurface.Gravel:
+                {
+                    // Grey-brown grit, packed down the middle, loose and lighter at the sides; a scatter of bigger stones.
+                    var c = Color.Lerp(Gravel, GravelLoose, Mathf.Clamp01(1f - depth * 4f));
+                    var stone = Hash(Mathf.FloorToInt(x * 12f), Mathf.FloorToInt(y * 12f)) > 0.82f
+                        && new Vector2(Mathf.Repeat(x * 12f, 1f) - 0.5f, Mathf.Repeat(y * 12f, 1f) - 0.5f).magnitude < 0.3f;
+                    c = stone ? Color.Lerp(c, Pebble, 0.7f) : c;
+                    return c * (0.78f + speck * 0.34f + grain * 2f) * Edge(depth);
+                }
+
+                case RoadSurface.RaidersCobbles:
                 case RoadSurface.Cobbles:
                 {
-                    var row = Mathf.FloorToInt(y * 4f);
-                    var cx = Mathf.Repeat(x * 4f + (row % 2) * 0.5f, 1f);
-                    var cy = Mathf.Repeat(y * 4f, 1f);
-                    var gap = cx < 0.12f || cy < 0.12f;
-                    return (gap ? StoneGap : Stone) * (0.92f + grain + Hash(Mathf.FloorToInt(x * 4f + (row % 2) * 0.5f), row) * 0.1f);
+                    // Round stones on staggered rows, each its own shade, lit from the top left; a row of kerb stones on each side.
+                    const float rows = 5f;
+                    var row = Mathf.FloorToInt(y * rows);
+                    var shift = (row & 1) * 0.5f;
+                    var col = Mathf.FloorToInt(x * rows + shift);
+                    var cx = Mathf.Repeat(x * rows + shift, 1f) - 0.5f + (Hash(col, row * 7) - 0.5f) * 0.12f;
+                    var cy = Mathf.Repeat(y * rows, 1f) - 0.5f + (Hash(col * 5, row) - 0.5f) * 0.12f;
+                    var r = Mathf.Max(Mathf.Abs(cx), Mathf.Abs(cy)) * 0.55f + new Vector2(cx, cy).magnitude * 0.45f;
+                    var kerb = depth < 0.07f;
+                    if (r > 0.4f && !kerb)
+                    {
+                        return StoneGap * (0.9f + grain);
+                    }
+
+                    var light = 1f + (-cx - cy) * 0.25f;
+                    var tone = 0.88f + Hash(col, row) * 0.18f;
+                    var dark = surface == RoadSurface.RaidersCobbles ? 0.72f : 1f; // the raiders' cobbles: older, darker stone
+                    return (kerb ? Kerb : Stone) * tone * light * dark * (0.96f + grain);
                 }
 
                 case RoadSurface.Dirt:
                 {
-                    // Two cart ruts running along the way.
-                    var side = along == 1 ? ly : lx;
-                    var rut = Mathf.Abs(Mathf.Abs(side) - 0.15f) < 0.05f;
-                    return (rut ? Rut : Dirt) * (0.95f + grain);
+                    // Packed earth, lighter where feet go, with two wobbling cart ruts on the straight and a little grit.
+                    var wobble = Fbm(step * 1.3f, 0.5f, 17) * 0.04f;
+                    var rut = Mathf.Clamp01(1f - Mathf.Abs(Mathf.Abs(side + wobble) - 0.15f) / 0.045f) * ruts;
+                    var c = Color.Lerp(Dirt, DirtLight, Mathf.Clamp01(depth * 3f) * 0.5f);
+                    c = Color.Lerp(c, Rut, rut * 0.75f);
+                    if (speck > 0.99f)
+                    {
+                        c = Color.Lerp(c, Pebble, 0.3f);
+                    }
+
+                    return c * (0.95f + grain) * Edge(depth);
                 }
 
                 default:
                 {
-                    // Prints: small dark ovals in a staggered line along the way.
-                    var step = along == 1 ? x : y;
-                    var side = along == 1 ? ly : lx;
+                    // The raiders' road: trampled dark, with prints in a staggered line along it.
                     var k = Mathf.FloorToInt(step * 3f);
-                    var print = Mathf.Abs(Mathf.Repeat(step * 3f, 1f) - 0.5f) < 0.18f && Mathf.Abs(side - (k % 2 == 0 ? 0.09f : -0.09f)) < 0.06f;
-                    return (print ? Print : Track) * (0.95f + grain);
+                    var jitter = (Hash(k, 3) - 0.5f) * 0.08f;
+                    var print = Mathf.Abs(Mathf.Repeat(step * 3f, 1f) - 0.5f) < 0.13f && Mathf.Abs(side - (k % 2 == 0 ? 0.1f : -0.1f) - jitter) < 0.05f;
+                    var c = Color.Lerp(Track, print ? Print : Track, 0.8f);
+                    if (speck > 0.975f)
+                    {
+                        c = Color.Lerp(c, Pebble, 0.35f);
+                    }
+
+                    return c * (0.95f + grain);
                 }
             }
         }
+
+        /// <summary>A soft darkening at the road's edge, so it sits in the ground rather than on it.</summary>
+        private static float Edge(float depth) => 0.9f + Mathf.Clamp01(depth / 0.08f) * 0.1f;
 
         // ---------------- noise ----------------
 

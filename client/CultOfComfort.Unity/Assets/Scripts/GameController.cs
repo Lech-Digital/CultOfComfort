@@ -1199,7 +1199,7 @@ namespace CultOfComfort.Client
             var tiles = _tool.Tiles(table);
             var problem = _tool.Problem(_snapshot, VillageMap.Demo, table);
             var level = _tool.MovingId != null ? _snapshot.Building(_tool.MovingId.Value).Level : 1;
-            _board.ShowGhost(_tool.Type, level, tiles, _tool.Rotated, problem == null);
+            _board.ShowGhost(_tool.Type, level, tiles, _tool.Rotated, problem == null, _tool.Flipped);
             var (centre, size) = BoardView.FootprintBox(tiles);
             var spec = table.Spec(_tool.Type);
             var needsRoad = problem == null && !spec.IsTower && !BuildingTable.IsRoad(spec.Type) && !BuildingTable.IsBarrier(spec.Type)
@@ -1755,6 +1755,7 @@ namespace CultOfComfort.Client
             }
 
             _board.SetBuildings(_snapshot.Buildings, _snapshot.HearthLevel, BuildingTable.Default, _snapshot.AsOfUtc);
+            _board.SetRaidersRoad(_snapshot.RaidersRoad);
             _board.SetTerrain(_snapshot);
             if (_snapshot.Version != _roadVersion)
             {
@@ -2288,6 +2289,12 @@ namespace CultOfComfort.Client
                 if (_cardTerrain != null)
                 {
                     var tile = _cardTerrain.Value;
+                    if (VillageMap.Demo.Road.Contains(tile))
+                    {
+                        SendSimple(new PaveRaidersRoad(Guid.NewGuid())); // the card stays: the next paving shows on it
+                        return;
+                    }
+
                     _cardTerrain = null;
                     SendSimple(new ClearTerrain(Guid.NewGuid(), tile));
                     return;

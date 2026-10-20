@@ -30,6 +30,7 @@ public sealed class CommandDto
     public int x;
     public int y;
     public bool rotated;
+    public bool flipped;
     public List<TileDto> tiles;
     public int night;
     public List<InputDto> inputs;

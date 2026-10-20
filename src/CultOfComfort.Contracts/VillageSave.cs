@@ -43,7 +43,8 @@ public sealed class VillageSaveDto
     public bool cold;
     public int errandIndex; // older saves lack it: 0, so they start the errands (already-true ones are claimable at once)
     public bool errandEventDone;
-    public string errandId; // the errand by id (errandIndex alone moved players when the book was reordered); empty: read errandIndex the old way
+    public string errandId;
+    public int raidersRoad; // pavings laid on the raiders' road (0: trodden mud) // the errand by id (errandIndex alone moved players when the book was reordered); empty: read errandIndex the old way
     public bool hasDomain; // older saves: no Marchlands yet
     public DomainDto domain;
     public List<string> researched;   // older saves: none
@@ -257,6 +258,7 @@ public sealed class BuildingDto
     public long asOfTicks;
     public bool wrecked;
     public bool rotated;
+    public bool flipped;
     public int crew = -1; // the crew the player chose; -1: a full crew
 }
 

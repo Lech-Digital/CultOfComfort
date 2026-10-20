@@ -159,6 +159,57 @@ public class FootprintTests
     }
 
     [Fact]
+    public void Place_TowerFlipped_SameTileFacingTheOtherWayAndSaved()
+    {
+        // Arrange
+        var state = RichBase();
+
+        // Act
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(13, 4), Rotated: true, Flipped: true), T0).Status.Should().Be(CommandStatus.Accepted);
+        var restored = BaseState.Restore(new BuildingTable { StartingStock = new ResourceBag(5000, 900, 1000, 300) }, Map, state.ToData());
+
+        // Assert
+        var chute = restored.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.SlurryChute);
+        (chute.Rotated, chute.Flipped).Should().Be((true, true), "three quarter turns, kept in the save");
+        chute.Tiles.Should().Equal(new GridPosition(13, 4));
+    }
+
+    [Fact]
+    public void Move_Flipped_KeepsTheTilesOfAnUnturnedFootprint()
+    {
+        // Arrange
+        var state = RichBase();
+        Place(state, BuildingType.Woodcutter, 13, 5).Status.Should().Be(CommandStatus.Accepted);
+        state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+        var id = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Woodcutter).Id;
+
+        // Act
+        state.Apply(new MoveBuilding(Guid.NewGuid(), id, new GridPosition(13, 5), false, Flipped: true), T0).Status.Should().Be(CommandStatus.Accepted);
+
+        // Assert — a half turn: the same two tiles east–west, facing the other way.
+        var lean = state.Snapshot(T0).Buildings.Single(b => b.Id == id);
+        lean.Flipped.Should().BeTrue();
+        lean.Tiles.Should().BeEquivalentTo(new[] { new GridPosition(13, 5), new GridPosition(14, 5) });
+    }
+
+    [Fact]
+    public void Restore_OldSaveWithoutFlipped_FacesAsBefore()
+    {
+        // Arrange
+        var state = RichBase();
+        Place(state, BuildingType.Woodcutter, 13, 5, rotated: true);
+        var data = state.ToData();
+        data = data with { Buildings = data.Buildings.Select(b => b with { Flipped = false }).ToList() };
+
+        // Act
+        var restored = BaseState.Restore(new BuildingTable { StartingStock = new ResourceBag(5000, 900, 1000, 300) }, Map, data);
+
+        // Assert
+        var lean = restored.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Woodcutter);
+        (lean.Rotated, lean.Flipped).Should().Be((true, false));
+    }
+
+    [Fact]
     public void Restore_RotatedFence_RoundTrips()
     {
         // Arrange

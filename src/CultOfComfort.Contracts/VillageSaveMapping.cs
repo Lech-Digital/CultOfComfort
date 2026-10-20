@@ -27,7 +27,7 @@ public static class VillageSaveMapping
         buildings = data.Buildings.Select(b => new BuildingDto
         {
             id = b.Id, type = b.Type.ToString(), level = b.Level, x = b.X, y = b.Y,
-            upgradeEndsAtTicks = b.UpgradeEndsAtUtcTicks ?? -1, bufferMilli = b.BufferMilli, asOfTicks = b.AsOfUtcTicks, wrecked = b.Wrecked, rotated = b.Rotated, crew = b.Crew ?? -1,
+            upgradeEndsAtTicks = b.UpgradeEndsAtUtcTicks ?? -1, bufferMilli = b.BufferMilli, asOfTicks = b.AsOfUtcTicks, wrecked = b.Wrecked, rotated = b.Rotated, flipped = b.Flipped, crew = b.Crew ?? -1,
         }).ToList(),
         recentCommands = data.RecentCommands.Select(g => g.ToString()).ToList(),
         tensionMilli = data.TensionMilli,
@@ -53,6 +53,7 @@ public static class VillageSaveMapping
         errandIndex = data.ErrandIndex,
         errandEventDone = data.ErrandEventDone,
         errandId = data.ErrandId ?? string.Empty,
+        raidersRoad = data.RaidersRoad,
         researched = data.Research?.Done.ToList() ?? new List<string>(),
         researching = data.Research?.Current ?? string.Empty,
         researchEndsTicks = data.Research?.EndsAtUtcTicks ?? 0,
@@ -125,7 +126,7 @@ public static class VillageSaveMapping
                 throw new InvalidBaseDataException($"unknown building type '{b.type}'");
             }
 
-            buildings.Add(new BuildingData(b.id, type, b.level, b.x, b.y, b.upgradeEndsAtTicks < 0 ? null : b.upgradeEndsAtTicks, b.bufferMilli, b.asOfTicks, b.wrecked, b.rotated, b.crew < 0 ? null : b.crew));
+            buildings.Add(new BuildingData(b.id, type, b.level, b.x, b.y, b.upgradeEndsAtTicks < 0 ? null : b.upgradeEndsAtTicks, b.bufferMilli, b.asOfTicks, b.wrecked, b.rotated, b.crew < 0 ? null : b.crew, b.flipped));
         }
 
         var recent = (dto.recentCommands ?? new List<string>()).Select(s => Guid.TryParse(s, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).ToList();
@@ -153,7 +154,8 @@ public static class VillageSaveMapping
                 ? new DailyData(dto.daily.day, dto.daily.offsetMinutes, dto.daily.ids ?? new List<string>(), dto.daily.progress ?? new List<int>(),
                     dto.daily.claimed ?? new List<bool>(), dto.daily.thermos, dto.daily.streak, dto.daily.lastThermosDay, dto.daily.towels, dto.daily.cosmetics ?? new List<string>())
                 : null,
-            string.IsNullOrEmpty(dto.errandId) ? null : dto.errandId);
+            string.IsNullOrEmpty(dto.errandId) ? null : dto.errandId,
+            dto.raidersRoad);
     }
 
     private static DomainData FromDto(DomainDto d) => new(
