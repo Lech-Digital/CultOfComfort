@@ -65,6 +65,7 @@ namespace CultOfComfort.Client
         private int? _cardBuilding;
         private GridPosition? _cardTerrain;
         private bool _cardVisitor;          // the visitor's card is open (spec 2026-10-20 visitors)
+        private Season? _seasonSeen;
         private long _greetedVisitorSlot = -1;
         private NightPlan _plan;
         private NightReport _lastReport;
@@ -1806,6 +1807,13 @@ namespace CultOfComfort.Client
                 : hasCard ? VillagePresenter.Card(_snapshot, BuildingTable.Default, _cardBuilding.Value) : terrainCard;
             _board.ShowVisitor(_snapshot.Visitor?.Offer.Kind, VillagePresenter.VisitorTile(_snapshot, VillageMap.Demo));
             _hud.SetProphetBadge(_snapshot.Prophet?.Choice != null);
+            _board.SetSeason(_snapshot.Season);
+            if (_seasonSeen != null && _seasonSeen != _snapshot.Season)
+            {
+                Say($"{SeasonBook.Name(_snapshot.Season)}. {SeasonBook.Note(_snapshot.Season)}", prophet: false);
+            }
+
+            _seasonSeen = _snapshot.Season;
             if (_snapshot.Visitor is { } visitor && visitor.Slot != _greetedVisitorSlot && _phase == GamePhase.Dusk)
             {
                 _greetedVisitorSlot = visitor.Slot;

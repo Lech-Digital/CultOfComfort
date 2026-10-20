@@ -351,7 +351,39 @@ namespace CultOfComfort.Client
             material.SetFloat("_Smoothness", 0.05f);
             sheet.AddComponent<MeshRenderer>().sharedMaterial = material;
             GroundPainter.Warm();
-            _beyondPainting = System.Threading.Tasks.Task.Run(() => GroundPainter.Beyond(map.Width, map.Height, BeyondMargin, BeyondPerTile, map.River));
+            PaintBeyond();
+        }
+
+        private CultOfComfort.Simulation.Base.Season _season = CultOfComfort.Simulation.Base.Season.Summer;
+
+        /// <summary>The season shows on the ground and the land beyond (spec 2026-10-20 seasons); repaints when it turns.</summary>
+        public void SetSeason(CultOfComfort.Simulation.Base.Season season)
+        {
+            if (season == _season)
+            {
+                return;
+            }
+
+            _season = season;
+            PaintGround();
+            PaintBeyond();
+        }
+
+        private void PaintBeyond()
+        {
+            if (_beyondTexture == null || _beyondPainting != null)
+            {
+                return;
+            }
+
+            var map = VillageMap.Demo;
+            var season = _season;
+            _beyondPainting = System.Threading.Tasks.Task.Run(() =>
+            {
+                var pixels = GroundPainter.Beyond(map.Width, map.Height, BeyondMargin, BeyondPerTile, map.River);
+                GroundPainter.Season(pixels, map.Width, map.Height, BeyondPerTile, BeyondMargin, season, map.River);
+                return pixels;
+            });
         }
 
         /// <summary>Where the stone circle stands on the far bank (the forest leaves room round it).</summary>
@@ -781,6 +813,7 @@ namespace CultOfComfort.Client
 
             var joins = new HashSet<GridPosition>(_roadJoins);
             var level = _wantedFloorLevel;
+            var season = _season;
             _painting = System.Threading.Tasks.Task.Run(() =>
             {
                 _groundBare ??= GroundPainter.Ground(map.Width, map.Height, map.River);
@@ -792,7 +825,9 @@ namespace CultOfComfort.Client
                     _floorLevel = level;
                 }
 
-                return GroundPainter.WithRoads(_groundFloor ?? _groundBare, map.Width, map.Height, roads, joins, map.River);
+                var pixels = GroundPainter.WithRoads(_groundFloor ?? _groundBare, map.Width, map.Height, roads, joins, map.River);
+                GroundPainter.Season(pixels, map.Width, map.Height, GroundPainter.PixelsPerTile, 0, season, map.River);
+                return pixels;
             });
         }
 

@@ -651,7 +651,7 @@ public sealed partial class BaseState
         var tension = TensionValue(nowUtc);
         return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
             tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport, _cleared.Concat(_treeCuts.Keys.Where(t => !IsWildTreeStanding(t))).ToList(),
-            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts(), IdleVillagers(), DailyViewAt(nowUtc), _raidersRoad, NextRoad, _stowed.ToList(), _table.Builders(HearthLevel) - BuildersBusy, _towels, VisitorViewAt(nowUtc), ProphetViewNow(), NotableViews());
+            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts(), IdleVillagers(), DailyViewAt(nowUtc), _raidersRoad, NextRoad, _stowed.ToList(), _table.Builders(HearthLevel) - BuildersBusy, _towels, VisitorViewAt(nowUtc), ProphetViewNow(), NotableViews(), SeasonBook.Of(nowUtc), SeasonBook.EndsAt(nowUtc));
     }
 
     public ResourceBag Caps
@@ -679,9 +679,17 @@ public sealed partial class BaseState
     /// Which road the raiders take on Night <paramref name="night"/> (spec 2026-10-20 defence): one of the roads open at
     /// this Hearth, fixed by the Night's number and the raid's seed, so the scout can tell at dusk.
     /// </summary>
-    public int TonightsRoad(int night, ulong seed)
+    public int TonightsRoad(int night, ulong seed) => TonightsRoad(night, seed, null);
+
+    /// <summary>As <see cref="TonightsRoad(int, ulong)"/>, in a season: a spring flood shuts the south road (spec 2026-10-20 seasons).</summary>
+    public int TonightsRoad(int night, ulong seed, Season? season)
     {
-        var open = _map.OpenRoads(HearthLevel);
+        var open = _map.OpenRoads(HearthLevel).Where(r => !(season == Season.Spring && r == SeasonBook.FloodedRoad)).ToList();
+        if (open.Count == 0)
+        {
+            return 0;
+        }
+
         if (open.Count == 1)
         {
             return open[0];
@@ -701,7 +709,7 @@ public sealed partial class BaseState
         get
         {
             var night = LastNightRecorded + 1;
-            return _night?.Road ?? TonightsRoad(night, _raid?.Seed ?? (ulong)(946 + night));
+            return _night?.Road ?? TonightsRoad(night, _raid?.Seed ?? (ulong)(946 + night), SeasonBook.Of(_now));
         }
     }
 
@@ -1389,6 +1397,8 @@ public sealed partial class BaseState
         var layout = ToBattleLayout();
         var budget = _raid != null ? power * (100 + tension - _table.Tension.Hostile) / 100 : Math.Max(power * tension / _table.Tension.Hostile, power / 2);
         var waves = _raid != null && tension >= _table.Tension.Punitive ? 5 : 4;
+        var season = SeasonBook.Of(now);
+        budget = Math.Max(1, budget * SeasonBook.BudgetPercent(season) / 100); // short summer nights, autumn's harvest raids
         if (night == 1 && _raid == null)
         {
             // The first Night teaches (spec 2026-10-16 first day): won by a Chute alone, three stars for a Prophet who
@@ -1398,7 +1408,7 @@ public sealed partial class BaseState
         }
 
         var seed = _raid?.Seed ?? (ulong)(946 + night);
-        var road = TonightsRoad(night, seed);
+        var road = TonightsRoad(night, seed, season);
         layout = road == 0 ? layout : ToBattleLayout(road);
         var (towers, wardens) = Garrison(layout);
         return new NightPlan(night, seed, budget, waves, SluiceBonus, _raid != null, towers, layout.Obstacles, layout.Structures, HearthLevel,
@@ -1409,7 +1419,9 @@ public sealed partial class BaseState
             ProphetDamagePercent: ProphetDamageBonus,
             ProphetSpeedPercent: TakenPerks.Sum(p => p.SpeedPercent),
             VoicePercent: TakenPerks.Sum(p => p.VoicePercent),
-            StonesPercent: TakenPerks.Sum(p => p.StonesPercent));
+            StonesPercent: TakenPerks.Sum(p => p.StonesPercent),
+            EnemySpeedPercent: SeasonBook.EnemySpeedPercent(season),
+            SalvagePercent: SeasonBook.SalvagePercent(season));
     }
 
     /// <summary>
@@ -1526,7 +1538,7 @@ public sealed partial class BaseState
             }
         }
 
-        var salvage = Math.Min(Salvage(result.Stars), Math.Max(0, Caps.Scrap - _stock.Scrap));
+        var salvage = Math.Min(Salvage(result.Stars) * (100 + plan.SalvagePercent) / 100, Math.Max(0, Caps.Scrap - _stock.Scrap));
         _stock += new ResourceBag(0, 0, salvage, 0);
         foreach (var id in wrecked)
         {

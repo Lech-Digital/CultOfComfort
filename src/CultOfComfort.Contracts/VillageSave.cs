@@ -213,6 +213,8 @@ public sealed class NightDto
     public int prophetSpeed;
     public int voice;
     public int stones;
+    public int enemySpeed;           // the season, % (spec 2026-10-20 seasons)
+    public int salvage;
 }
 
 [Serializable]

@@ -122,6 +122,54 @@ namespace CultOfComfort.Client
             return pixels;
         }
 
+        private static readonly Color Snow = Shapes.Hex("#e4e8ec");
+        private static readonly Color Ice = Shapes.Hex("#a9c3cf");
+        private static readonly Color Russet = Shapes.Hex("#7a4e26");
+        private static readonly Color SpringGreen = Shapes.Hex("#4d6a2a");
+
+        /// <summary>
+        /// The season on the ground (spec 2026-10-20 seasons): snow in winter (the river iced over), russet leaves in
+        /// autumn, fresh green in spring; summer as it is. In place, on a painted ground.
+        /// </summary>
+        public static void Season(Color32[] pixels, int width, int height, int perTile, int margin, CultOfComfort.Simulation.Base.Season season,
+            Func<double, double, double> river)
+        {
+            if (season == CultOfComfort.Simulation.Base.Season.Summer)
+            {
+                return;
+            }
+
+            var w = (width + margin * 2) * perTile;
+            for (var i = 0; i < pixels.Length; i++)
+            {
+                var px = i % w;
+                var py = i / w;
+                var x = (px + 0.5f) / perTile - margin;
+                var y = (py + 0.5f) / perTile - margin;
+                var c = (Color)pixels[i];
+                var patch = Noise(x / 2.5f, y / 2.5f, 41) * 0.5f + 0.5f;
+                switch (season)
+                {
+                    case CultOfComfort.Simulation.Base.Season.Winter:
+                    {
+                        var frozen = river != null && river(x - 0.5, y - 0.5) < 0; // the river ices over
+                        c = frozen ? Color.Lerp(c, Ice, 0.55f) : Color.Lerp(c, Snow, 0.45f + patch * 0.3f);
+                        break;
+                    }
+
+                    case CultOfComfort.Simulation.Base.Season.Autumn:
+                        c = Color.Lerp(c, Russet, 0.12f + patch * 0.18f);
+                        break;
+                    default:
+                        c = Color.Lerp(c, SpringGreen, 0.08f + patch * 0.14f);
+                        break;
+                }
+
+                c.a = 1f;
+                pixels[i] = c;
+            }
+        }
+
         private static readonly Color Meadow = Shapes.Hex("#3f4a2c");
         private static readonly Color MeadowLight = Shapes.Hex("#4b5733");
 

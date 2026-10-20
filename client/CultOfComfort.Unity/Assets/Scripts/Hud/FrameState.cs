@@ -21,8 +21,9 @@ namespace CultOfComfort.Client
     public readonly struct FrameState
     {
         public FrameState(Reading timber, Reading scrap, Reading peat, Reading devotion, Reading pennies, Reading comfort,
-            int hearthLevel, float tension, string tensionNote, bool tensionIsDemo, Reading people = default, bool cold = false)
+            int hearthLevel, float tension, string tensionNote, bool tensionIsDemo, Reading people = default, bool cold = false, string season = null)
         {
+            Season = season;
             People = people;
             Cold = cold;
             Timber = timber;
@@ -36,6 +37,9 @@ namespace CultOfComfort.Client
             TensionNote = tensionNote;
             TensionIsDemo = tensionIsDemo;
         }
+
+        /// <summary>The season's name under the portrait (spec 2026-10-20 seasons); null: none shown.</summary>
+        public string Season { get; }
 
         public Reading Timber { get; }
         public Reading Scrap { get; }

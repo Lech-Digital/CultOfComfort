@@ -429,7 +429,7 @@ namespace CultOfComfort.Client
             new Reading(s.Stock.Devotion, s.Caps.Devotion, false),
             new Reading(50, 0, true),
             new Reading(s.Comfort, 0, false),
-            s.HearthLevel, s.Tension / 150f, ScoutNote(s, VillageMap.Demo) is { } scout ? $"{TensionNote(s)} · {scout}" : TensionNote(s), false, new Reading(s.Population, s.Beds, false), s.Cold);
+            s.HearthLevel, s.Tension / 150f, ScoutNote(s, VillageMap.Demo) is { } scout ? $"{TensionNote(s)} · {scout}" : TensionNote(s), false, new Reading(s.Population, s.Beds, false), s.Cold, SeasonBook.Name(s.Season));
 
         /// <summary>
         /// Whether <paramref name="candidate"/> should replace <paramref name="current"/>: a later version, or the same

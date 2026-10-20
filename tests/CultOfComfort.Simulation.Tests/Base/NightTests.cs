@@ -6,7 +6,7 @@ namespace CultOfComfort.Simulation.Tests.Base;
 
 public class NightTests
 {
-    private static readonly DateTimeOffset T0 = new(2026, 10, 11, 12, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset T0 = new(2026, 10, 9, 12, 0, 0, TimeSpan.Zero); // a spring day: the season changes nothing
 
     private static BaseState NewBase() => BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
 

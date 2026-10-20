@@ -147,7 +147,7 @@ public class WouldConnectTests
 /// <summary>The first Night teaches (found on the Pixel 2026-10-16: lost at 1★ even with the Chute and a Gate).</summary>
 public class FirstNightTests
 {
-    private static readonly DateTimeOffset T0 = new(2026, 10, 16, 9, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset T0 = new(2026, 10, 9, 9, 0, 0, TimeSpan.Zero); // a spring day: the season changes nothing
 
     [Fact]
     public void BeginNight_TheFirst_IsSmall()

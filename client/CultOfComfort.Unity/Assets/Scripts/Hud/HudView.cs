@@ -622,7 +622,7 @@ namespace CultOfComfort.Client
             _pills["peat"].Pill.EnableInClassList("cold", frame.Cold);
             _pills["people"].Pill.EnableInClassList("cold", frame.Cold);
             _hearthBadge.text = frame.HearthLevel.ToString();
-            _hearthLine.text = $"Hearth Lv {frame.HearthLevel}";
+            _hearthLine.text = frame.Season == null ? $"Hearth Lv {frame.HearthLevel}" : $"Hearth Lv {frame.HearthLevel} · {frame.Season}";
             // Placeholders stay out of sight until they are real (Comfort, pennies).
             _comfort.text = $"Comfort {frame.Comfort.Value}";
             Show(_comfort, !frame.Comfort.IsDemo);

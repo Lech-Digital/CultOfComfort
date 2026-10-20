@@ -51,7 +51,9 @@ public sealed record BaseSnapshot(
     int Towels = 0,
     VisitorView? Visitor = null,
     ProphetView? Prophet = null,
-    IReadOnlyList<NotableView>? Notables = null)
+    IReadOnlyList<NotableView>? Notables = null,
+    Season Season = Season.Spring,
+    DateTimeOffset? SeasonEndsAtUtc = null)
 {
     public DateTimeOffset? ConstructionEndsAtUtc => Buildings.FirstOrDefault(b => b.IsUpgrading)?.UpgradeEndsAtUtc;
 

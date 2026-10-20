@@ -30,7 +30,9 @@ public sealed record NightPlan(
     int ProphetDamagePercent = 0,
     int ProphetSpeedPercent = 0,
     int VoicePercent = 0,
-    int StonesPercent = 0)
+    int StonesPercent = 0,
+    int EnemySpeedPercent = 0,
+    int SalvagePercent = 0)
 {
     /// <summary>
     /// The balance this Night is fought with: research makes towers hit harder and the Prophet sturdier. Nothing
@@ -38,7 +40,7 @@ public sealed record NightPlan(
     /// </summary>
     public BalanceTable? Balance()
     {
-        if (TowerDamagePercent == 0 && ProphetHealthPercent == 0 && ProphetDamagePercent == 0 && ProphetSpeedPercent == 0 && VoicePercent == 0 && StonesPercent == 0)
+        if (TowerDamagePercent == 0 && ProphetHealthPercent == 0 && ProphetDamagePercent == 0 && ProphetSpeedPercent == 0 && VoicePercent == 0 && StonesPercent == 0 && EnemySpeedPercent == 0)
         {
             return null;
         }
@@ -56,6 +58,9 @@ public sealed record NightPlan(
                 VoiceRadius = d.Leader.VoiceRadius * (100 + VoicePercent) / 100,
             },
             HotStones = d.HotStones with { Damage = d.HotStones.Damage * (100 + StonesPercent) / 100 },
+            // The season (spec 2026-10-20 seasons): winter snow slows every raider.
+            Enemies = EnemySpeedPercent == 0 ? d.Enemies
+                : d.Enemies.ToDictionary(e => e.Key, e => e.Value with { TilesPerSecond = e.Value.TilesPerSecond * (100 + EnemySpeedPercent) / 100 }),
         };
     }
 
