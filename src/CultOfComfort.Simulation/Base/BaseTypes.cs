@@ -42,6 +42,9 @@ public enum BuildingType
 
     /// <summary>Hearth 2: wardens who man the nearest towers (they fire faster) or go out and fight (spec 2026-10-20 defence).</summary>
     Guardhouse,
+
+    /// <summary>Hearth 5: a flat stone, a cushion and a candle in the middle of the stone circle. Devotion and Comfort.</summary>
+    ComfyAltar,
 }
 
 public enum ResourceType

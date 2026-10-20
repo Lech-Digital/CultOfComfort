@@ -68,6 +68,7 @@ namespace CultOfComfort.Client
             BuildingType.Blacksmith => "b_blacksmith",
             BuildingType.PressureSluice => "b_pressure_sluice",
             BuildingType.Guardhouse => "b_guardhouse",
+            BuildingType.ComfyAltar => "b_comfy_altar",
             _ => "b_sapling_flinger",
         };
 
@@ -211,11 +212,13 @@ namespace CultOfComfort.Client
         }
 
         /// <summary>
-        /// The scout's word on the next Night's road (spec 2026-10-20 defence): "Scouts: the south road", or null while
-        /// only one road is open.
+        /// The scout's word on the next Night (specs 2026-10-20 defence and across the river): who and which road, "Next:
+        /// Odo's flock, south road", or null while only one road is open.
         /// </summary>
         public static string ScoutNote(BaseSnapshot s, VillageMap map) =>
-            map.OpenRoads(s.HearthLevel).Count > 1 ? $"Scouts: the {map.RoadName(s.NextRoad)}" : null;
+            map.OpenRoads(s.HearthLevel).Count > 1
+                ? $"Next: {CultOfComfort.Simulation.Waves.RaidRoster.Who(s.HearthLevel, s.NextRoad)}, {map.RoadName(s.NextRoad)}"
+                : null;
 
         /// <summary>The big Day button: face the raid that is coming, or invite a smaller one early.</summary>
         /// <summary>What a tapped resource pill says: its name, stock and net income per hour.</summary>

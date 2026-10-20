@@ -368,3 +368,113 @@ public class DefenceTests
         snapshot.Buildings.Should().ContainSingle(b => b.Type == BuildingType.Cottage, "the cottage moved, it wasn't lost");
     }
 }
+
+/// <summary>Spec 2026-10-20 across the river: gates on the bridges, each road's raiders, Hearth 5 and the Comfy Altar.</summary>
+public class AcrossTheRiverTests
+{
+    private static readonly DateTimeOffset T0 = new(2026, 10, 20, 9, 0, 0, TimeSpan.Zero);
+    private static readonly VillageMap Map = VillageMap.Demo;
+
+    private static BaseState Village(int hearth)
+    {
+        var state = BaseState.CreateNew(BuildingTable.Default, Map, T0);
+        for (var level = 2; level <= hearth; level++)
+        {
+            state.Apply(new DebugFillStores(Guid.NewGuid()), T0);
+            state.Apply(new UpgradeHearth(Guid.NewGuid()), T0).Status.Should().Be(CommandStatus.Accepted);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+        }
+
+        state.Apply(new DebugFillStores(Guid.NewGuid()), T0);
+        return state;
+    }
+
+    private static GridPosition SouthBridge => Map.RoadAt(1).First(Map.IsBridge);
+
+    [Fact]
+    public void Place_GateOnABridge_RefusedBeforeHearthFourHeldFromIt()
+    {
+        // Arrange
+        var three = Village(3);
+        var four = Village(4);
+
+        // Act
+        var early = three.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Gate, SouthBridge), T0);
+        var held = four.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Gate, SouthBridge), T0);
+
+        // Assert
+        early.Reason.Should().Contain("from Hearth 4");
+        held.Status.Should().Be(CommandStatus.Accepted);
+        BaseState.Restore(BuildingTable.Default, Map, four.ToData()).Snapshot(T0).BuildingAt(SouthBridge)!.Type.Should().Be(BuildingType.Gate, "a bridge gate survives a reload");
+    }
+
+    [Fact]
+    public void Place_AnythingButAGateOnABridge_Refused()
+    {
+        // Act
+        var outcome = Village(4).Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, SouthBridge), T0);
+
+        // Assert
+        outcome.Status.Should().Be(CommandStatus.Rejected);
+    }
+
+    [Theory]
+    [InlineData(3, 0, CultOfComfort.Simulation.Balance.EnemyType.Lord)]
+    [InlineData(3, 1, CultOfComfort.Simulation.Balance.EnemyType.Bishop)]
+    public void ForRoad_EachRoadItsOwnLeader(int hearth, int road, CultOfComfort.Simulation.Balance.EnemyType boss)
+    {
+        // Act & Assert
+        CultOfComfort.Simulation.Waves.RaidRoster.ForRoad(hearth, road)!.Boss.Should().Be(boss);
+    }
+
+    [Fact]
+    public void ForRoad_EastRoad_Beasts_AndTheFirstRoadIsAsBefore()
+    {
+        // Act
+        var east = CultOfComfort.Simulation.Waves.RaidRoster.ForRoad(3, 2)!;
+
+        // Assert
+        east.Mix.Should().OnlyContain(m => m.Type == CultOfComfort.Simulation.Balance.EnemyType.Boar || m.Type == CultOfComfort.Simulation.Balance.EnemyType.Goat
+            || m.Type == CultOfComfort.Simulation.Balance.EnemyType.Goose || m.Type == CultOfComfort.Simulation.Balance.EnemyType.Peasant);
+        foreach (var hearth in new[] { 1, 2, 3, 4 })
+        {
+            CultOfComfort.Simulation.Waves.RaidRoster.ForRoad(hearth, 0).Should().BeSameAs(CultOfComfort.Simulation.Waves.RaidRoster.ForHearth(hearth), "old Nights replay as they were");
+        }
+    }
+
+    [Fact]
+    public void HearthFive_OpensTheFarBankByTheStoneCircle()
+    {
+        // Assert
+        Map.IsOpen(Map.StoneCircle!.Value, 4).Should().BeFalse();
+        Map.IsOpen(Map.StoneCircle.Value, 5).Should().BeTrue();
+        Map.Water.Should().OnlyContain(t => !Map.IsOpen(t, 5), "the river itself never opens");
+    }
+
+    [Fact]
+    public void Place_ComfyAltar_OnlyInTheMiddleOfTheCircle()
+    {
+        // Arrange
+        var state = Village(5);
+        var circle = Map.StoneCircle!.Value;
+
+        // Act
+        var beside = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.ComfyAltar, new GridPosition(circle.X - 2, circle.Y)), T0);
+        var middle = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.ComfyAltar, circle), T0);
+        state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+        // A track from the east road (row 17, over the bridge) down to the circle, felling the wild trees in its way.
+        foreach (var tree in Enumerable.Range(18, circle.Y - 18).Select(y => new GridPosition(circle.X, y)).Where(Map.WildTrees.Contains))
+        {
+            state.Apply(new ClearTerrain(Guid.NewGuid(), tree), T0);
+        }
+
+        state.Apply(new PaintTiles(Guid.NewGuid(), BuildingType.DirtTrack, Enumerable.Range(18, circle.Y - 18).Select(y => new GridPosition(circle.X, y)).ToList()), T0);
+
+        // Assert
+        beside.Reason.Should().Contain("middle of the stone circle");
+        middle.Status.Should().Be(CommandStatus.Accepted);
+        var altar = state.Snapshot(T0).BuildingAt(circle)!;
+        altar.Connected.Should().BeTrue("the east road carries the network over the bridge, a track does the rest");
+        altar.PerHour.Should().BeGreaterThan(0, "its crew keep the candles lit");
+    }
+}

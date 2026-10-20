@@ -216,7 +216,7 @@ public class ErrandTests
         var hearthOne = errands.TakeWhile(e => !(e.Goal == ErrandGoal.HearthLevel && e.Target == 2)).Append(errands.First(e => e.Goal == ErrandGoal.HearthLevel));
 
         // Assert
-        errands.Should().HaveCount(26); // 2026-10-16: defences before the first Night, a fuller middle, then Hearth 4
+        errands.Should().HaveCount(29); // 2026-10-20: then the Guardhouse, Hearth 5 and the altar across the river
         var hearthTwo = errands.ToList().FindIndex(e => e.Goal == ErrandGoal.HearthLevel && e.Target == 2);
         errands.Skip(hearthTwo + 1).Select(e => e.Goal).Should().Contain(new[] { ErrandGoal.SendMissionary, ErrandGoal.Study, ErrandGoal.Patron }, "the Marchlands and the manual come after Hearth 2");
         errands[0].Type.Should().Be(BuildingType.Woodcutter);
@@ -241,6 +241,6 @@ public class ErrandTests
 
         // Assert
         levels.Select(l => l.PerHour).Should().Equal(10, 18, 28);
-        BuildingTable.Default.Version.Should().Be("village-2026.10.20");
+        BuildingTable.Default.Version.Should().Be("village-2026.10.20b");
     }
 }

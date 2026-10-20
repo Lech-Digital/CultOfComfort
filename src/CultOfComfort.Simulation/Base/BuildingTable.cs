@@ -77,7 +77,7 @@ public sealed class BuildingTable
 
     public static BuildingTable Default { get; } = new();
 
-    public string Version { get; init; } = "village-2026.10.20";
+    public string Version { get; init; } = "village-2026.10.20b";
 
     /// <summary>Health of a building whose first level is still being built.</summary>
     public int UnderConstructionHealth { get; init; } = 30;
@@ -85,7 +85,7 @@ public sealed class BuildingTable
     /// <summary>Producers hold at most this many hours of output before someone collects.</summary>
     public int BufferHours { get; init; } = 8;
 
-    public IReadOnlyList<int> HearthStorageCaps { get; init; } = new[] { 1000, 2500, 6000, 12000 };
+    public IReadOnlyList<int> HearthStorageCaps { get; init; } = new[] { 1000, 2500, 6000, 12000, 25000 };
 
     public ResourceBag StartingStock { get; init; } = new(500, 60, 380, 0);
 
@@ -137,7 +137,7 @@ public sealed class BuildingTable
     public IReadOnlyList<int> RoadGatesByHearth { get; init; } = new[] { 1, 2, 3 };
 
     /// <summary>How many towers (of every kind together) may stand at Hearth 1, 2, 3, 4 (spec 2026-10-20 defence).</summary>
-    public IReadOnlyList<int> TowerCapByHearth { get; init; } = new[] { 8, 14, 20, 26 }; // owner 2026-10-20: "4 towers is way too little"
+    public IReadOnlyList<int> TowerCapByHearth { get; init; } = new[] { 8, 14, 20, 26, 32 }; // owner 2026-10-20: "4 towers is way too little"
 
     public int TowerCap(int hearthLevel) => TowerCapByHearth[Math.Min(Math.Max(hearthLevel, 1), TowerCapByHearth.Count) - 1];
 
@@ -181,6 +181,7 @@ public sealed class BuildingTable
             new BuildingLevel(new ResourceBag(450, 0, 50, 0), 10 * 60), // 2026.10.4: the tutorial step (GDD ~20 min), was 600
             new BuildingLevel(new ResourceBag(1200, 150, 200, 100), 45 * 60), // 2026.10.16 first day: ~5 h, not ~30 (was 2000/200/300/100, 60 min)
             new BuildingLevel(new ResourceBag(3000, 600, 600, 300), 3 * 60 * 60), // 2026.10.16: Hearth 4, the Comfort Era
+            new BuildingLevel(new ResourceBag(8000, 1500, 1500, 800), 6 * 60 * 60), // 2026.10.20: Hearth 5, across the river
         }),
         [BuildingType.Woodcutter] = new(BuildingType.Woodcutter, "Woodcutter's Lean-to", 1, new[] { 2, 3, 4, 5 }, new[]
         {
@@ -273,6 +274,11 @@ public sealed class BuildingTable
             new BuildingLevel(new ResourceBag(300, 0, 300, 0), 0, Health: 160),
             new BuildingLevel(new ResourceBag(500, 0, 500, 0), 0, Health: 200),
         }, Tower: TowerType.PressureSluice),
+        // Spec 2026-10-20 across the river: the reason to cross. It goes in the middle of the stone circle and only there.
+        [BuildingType.ComfyAltar] = new(BuildingType.ComfyAltar, "Comfy Altar", 5, new[] { 0, 0, 0, 0, 1 }, new[]
+        {
+            new BuildingLevel(new ResourceBag(2000, 400, 400, 400), 2 * 60 * 60, PerHour: 40, Health: 300, Comfort: 30),
+        }, Produces: ResourceType.Devotion, Width: 2, Depth: 2, Workers: 2),
         [BuildingType.Guardhouse] = new(BuildingType.Guardhouse, "Guardhouse", 2, new[] { 0, 1, 2, 3 }, new[]
         {
             new BuildingLevel(new ResourceBag(300, 0, 100, 0), 10 * 60, Health: 200, Slots: 2),

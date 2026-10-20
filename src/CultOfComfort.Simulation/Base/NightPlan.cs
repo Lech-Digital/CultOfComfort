@@ -50,7 +50,7 @@ public sealed record NightPlan(
         new(new BattleLayout(map.Width, map.Height, map.SpawnOf(Road), map.Hearth, Towers, Obstacles, null, Structures, map.RoadAt(Road)), Seed, Budget, Waves, inputs, Balance()) // the fixed road: a gate blocks it, nothing reroutes it
         {
             ExtraSluiceCharges = ExtraSluiceCharges,
-            Roster = CultOfComfort.Simulation.Waves.RaidRoster.ForHearth(Roster),
+            Roster = CultOfComfort.Simulation.Waves.RaidRoster.ForRoad(Roster, Road), // each road brings its own (spec 2026-10-20 across the river)
             Relics = RelicBook.ForHearth(Roster), // Roster is the Hearth level the Night was planned at
             AutoRelics = AutoRelics,
             Defenders = Defenders ?? System.Array.Empty<GridPosition>(),

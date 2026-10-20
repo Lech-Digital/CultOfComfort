@@ -494,7 +494,7 @@ public sealed partial class BaseState
             foreach (var tile in b.Tiles)
             {
                 if (!tiles.Add(tile) || (b.Type != BuildingType.Hearth
-                    && (!_map.IsOpen(tile, HearthLevel) || _map.IsSpawn(tile) || _map.IsHearthTile(tile) || (_road.Contains(tile) && b.Type != BuildingType.Gate)
+                    && (!_map.CanStand(tile, b.Type, HearthLevel) || _map.IsSpawn(tile) || _map.IsHearthTile(tile) || (_road.Contains(tile) && b.Type != BuildingType.Gate)
                         || _map.IsBedrock(tile) || (_map.IsBoulder(tile) && !_cleared.Contains(tile)))))
                 {
                     Fail($"building {b.Id} stands somewhere it cannot");
@@ -1146,10 +1146,15 @@ public sealed partial class BaseState
         var tiles = Footprint.Tiles(spec, anchor, rotated);
         foreach (var tile in tiles)
         {
-            if (_map.Contains(tile) && !_map.IsOpen(tile, HearthLevel))
+            if (_map.Contains(tile) && !_map.CanStand(tile, spec.Type, HearthLevel))
             {
-                return $"That land opens at Hearth {_map.OpensAt(tile)}.";
+                return _map.LockedReason(tile, spec.Type);
             }
+        }
+
+        if (_map.AltarProblem(spec.Type, tiles) is { } altar)
+        {
+            return altar;
         }
 
         foreach (var tile in tiles)

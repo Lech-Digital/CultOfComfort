@@ -123,7 +123,7 @@ public sealed record DomainTable(
             [NodeType.Cathedral] = new(NodeType.Cathedral, 15, 300, default),
         },
         UnlockHearth: 2,
-        ReachByHearth: new[] { 0, 3, 5, 6 },
+        ReachByHearth: new[] { 0, 3, 5, 6, 7 },
         MissionaryPower: 5,
         Sessions: new[] { (1, 100), (2, 110), (4, 125), (8, 150) },
         MinutesPerHex: 20,

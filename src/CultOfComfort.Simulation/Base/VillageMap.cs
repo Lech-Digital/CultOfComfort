@@ -80,11 +80,16 @@ public sealed record VillageMap(
         new MapZone(0, 32, 52, 35, 4),
         new MapZone(48, 0, 52, 31, 4),
         new MapZone(0, 36, 67, 47, Wild),
-        new MapZone(53, 0, 67, 35, Wild),
+        new MapZone(53, 0, 67, 17, Wild),
+        new MapZone(53, 18, 59, 35, Wild),
+        // Hearth 5 crosses the river (spec 2026-10-20 across the river): the east bank by the stone circle, reached
+        // over the bridge on the east road.
+        new MapZone(60, 18, 67, 35, 5),
     }, DemoBoulders, SpawnClearance: 3)
     {
         HearthSize = 4,
         River = DemoRiver,
+        StoneCircle = new GridPosition(63, 28),
         // Spec 2026-10-20 defence: more roads as the Hearth grows, so no one layout covers every Night. Laid over open
         // ground and the village's own tracks, round the rock and the boulders.
         Routes = new[]
@@ -95,6 +100,18 @@ public sealed record VillageMap(
             new RaiderRoute("east road", 3, new GridPosition[] { new(67, 17), new(28, 17), new(28, 13), new(19, 13), new(19, 9), new(17, 9) }),
         },
     };
+
+    /// <summary>Why a building can't stand on a tile that hasn't opened.</summary>
+    public string LockedReason(GridPosition tile, BuildingType type) =>
+        type == BuildingType.Gate && IsBridge(tile) ? $"A gate can hold the bridge from Hearth {BridgeGateHearth}."
+        : OpensAt(tile) >= Wild ? (Water.Contains(tile) ? "That's the river." : "That's the raiders' country. Nobody builds there.")
+        : $"That land opens at Hearth {OpensAt(tile)}.";
+
+    /// <summary>The Comfy Altar goes in the middle of the stone circle and nowhere else (null: fine, or not the altar).</summary>
+    public string? AltarProblem(BuildingType type, IReadOnlyList<GridPosition> tiles) =>
+        type == BuildingType.ComfyAltar && (StoneCircle == null || tiles[0] != StoneCircle.Value)
+            ? "The altar goes in the middle of the stone circle, across the river."
+            : null;
 
     /// <summary>A zone's Hearth level for land that never opens: the river and the far bank.</summary>
     public const int Wild = 99;
@@ -112,6 +129,20 @@ public sealed record VillageMap(
         : new HashSet<GridPosition>(Enumerable.Range(0, Width * Height).Select(i => new GridPosition(i % Width, i / Width)).Where(t => River(t.X, t.Y) < 0));
 
     public bool IsBridge(GridPosition tile) => Water.Contains(tile) && AllRoadTiles.Contains(tile);
+
+    /// <summary>From this Hearth level a gate may stand on a bridge (spec 2026-10-20 across the river): hold the crossing.</summary>
+    public const int BridgeGateHearth = 4;
+
+    /// <summary>Whether this kind of building may stand on the tile at this Hearth: open land, or a gate on a bridge.</summary>
+    public bool CanStand(GridPosition tile, BuildingType type, int hearthLevel) =>
+        IsOpen(tile, hearthLevel) || (type == BuildingType.Gate && hearthLevel >= BridgeGateHearth && IsBridge(tile));
+
+    /// <summary>The middle of the stone circle on the far bank, where the altar goes (anchor of its 2×2); null: no circle.</summary>
+    public GridPosition? StoneCircle { get; init; }
+
+    /// <summary>Within the ring of stones (kept clear: no wild tree grows there).</summary>
+    public bool InStoneCircle(GridPosition tile) =>
+        StoneCircle is { } c && Math.Abs(tile.X - c.X - 0.5) <= 2.5 && Math.Abs(tile.Y - c.Y - 0.5) <= 2.5;
 
     /// <summary>
     /// The demo valley's river: in from the west below the village, a band three to four tiles wide winding east along
@@ -242,7 +273,7 @@ public sealed record VillageMap(
                 var tile = new GridPosition(x, y);
                 var hash = (x * 73856093) ^ (y * 19349663) ^ 0x2545F491;
                 var nearHearth = DistanceFromHearth(tile) <= 1;
-                if ((hash & 0x7fffffff) % 12 == 5 && !road.Contains(tile) && !water.Contains(tile) && OpensAt(tile) < Wild && !Rocks.Contains(tile) && !IsInSpawnClearance(tile) && !nearHearth && !IsSpawn(tile))
+                if ((hash & 0x7fffffff) % 12 == 5 && !road.Contains(tile) && !water.Contains(tile) && OpensAt(tile) < Wild && !Rocks.Contains(tile) && !InStoneCircle(tile) && !IsInSpawnClearance(tile) && !nearHearth && !IsSpawn(tile))
                 {
                     trees.Add(tile);
                 }
@@ -279,8 +310,10 @@ public sealed record VillageMap(
     {
         var rocks = cleared == null ? Rocks : Rocks.Where(r => !cleared.Contains(r)).ToList();
         var path = RoadAt(road);
-        // Raiders walk their road even through land the village hasn't opened: the forest is theirs.
-        var locked = LockedTiles(hearthLevel).Except(Rocks).Where(t => !path.Contains(t));
+        // Raiders walk their roads even through land the village hasn't opened: the forest is theirs. (A gate held on a
+        // bridge stands on such a road.)
+        var roads = AllRoadTiles;
+        var locked = LockedTiles(hearthLevel).Except(Rocks).Where(t => !roads.Contains(t));
         return new(Width, Height, SpawnOf(road), Hearth, towers, rocks.Concat(locked).Concat(obstacles), null, structures, path);
     }
 
@@ -343,10 +376,15 @@ public sealed record VillageMap(
         var tiles = Footprint.Tiles(spec, anchor, rotated);
         var cleared = snapshot.ClearedTerrain ?? System.Array.Empty<GridPosition>();
         var road = RoadTiles(snapshot.HearthLevel);
-        var locked = tiles.Where(t => Contains(t) && !IsOpen(t, snapshot.HearthLevel)).Select(t => (GridPosition?)t).FirstOrDefault();
+        var locked = tiles.Where(t => Contains(t) && !CanStand(t, spec.Type, snapshot.HearthLevel)).Select(t => (GridPosition?)t).FirstOrDefault();
         if (locked != null)
         {
-            return $"That land opens at Hearth {OpensAt(locked.Value)}.";
+            return LockedReason(locked.Value, spec.Type);
+        }
+
+        if (AltarProblem(spec.Type, tiles) is { } altar)
+        {
+            return altar;
         }
 
         if (tiles.Any(t => !Contains(t) || IsSpawn(t) || IsHearthTile(t)))

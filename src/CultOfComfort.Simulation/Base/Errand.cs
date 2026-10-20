@@ -83,6 +83,10 @@ public sealed record ErrandBook(string Version, IReadOnlyList<Errand> Errands)
         new("sauna", "Build a Sauna. Hot stones, a bucket, and twigs. Trust him.", ErrandGoal.Build, BuildingType.Sauna, 1, new ResourceBag(300, 100, 0, 0)),
         new("pressure-sluice", "Put a Pressure Sluice right beside the raiders' road. Water, but rude.", ErrandGoal.Build, BuildingType.PressureSluice, 1, new ResourceBag(100, 0, 100, 0)),
         new("blacksmith", "Build a Blacksmith. Scrap, by the hammerful.", ErrandGoal.Build, BuildingType.Blacksmith, 1, new ResourceBag(300, 0, 100, 0)),
+        // 2026-10-20 across the river.
+        new("guardhouse", "Build a Guardhouse. Wardens on the towers, or out with brooms.", ErrandGoal.Build, BuildingType.Guardhouse, 1, new ResourceBag(200, 0, 100, 0)),
+        new("hearth-5", "Raise the Hearth to level 5. The far bank is waiting, and so is the stone circle.", ErrandGoal.HearthLevel, BuildingType.Hearth, 5, new ResourceBag(0, 0, 0, 200)),
+        new("comfy-altar", "Cross the river and set the Comfy Altar in the middle of the stone circle.", ErrandGoal.Build, BuildingType.ComfyAltar, 1, new ResourceBag(1000, 0, 500, 200)),
     });
 
     /// <summary>

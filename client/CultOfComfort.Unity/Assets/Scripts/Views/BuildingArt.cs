@@ -41,6 +41,7 @@ namespace CultOfComfort.Client
             BuildingType.Blacksmith => "blacksmith",
             BuildingType.PressureSluice => "pressure_sluice",
             BuildingType.Guardhouse => "guardhouse",
+            BuildingType.ComfyAltar => "comfy_altar",
             _ => null,
         };
 

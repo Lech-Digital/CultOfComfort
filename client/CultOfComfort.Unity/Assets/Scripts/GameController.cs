@@ -2263,7 +2263,9 @@ namespace CultOfComfort.Client
                 _cardBuilding = null;
                 if (type != null && !BuildingTable.IsPaintable(type.Value) && _snapshot != null)
                 {
-                    var near = CentreTile(); // owner 2026-10-14: the ghost appears where the player is looking
+                    var near = type == BuildingType.ComfyAltar && VillageMap.Demo.StoneCircle is { } circle
+                        ? circle // it goes in the stone circle and nowhere else: start it there
+                        : CentreTile(); // owner 2026-10-14: the ghost appears where the player is looking
                     _tool = PlacementTool.StartNew(type.Value, near, _snapshot, VillageMap.Demo, BuildingTable.Default);
                     BringIntoView(_tool.Anchor);
                 }

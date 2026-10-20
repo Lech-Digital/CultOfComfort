@@ -296,7 +296,8 @@ namespace CultOfComfort.Client.Tests
         {
             // Act & Assert
             Assert.IsNull(VillagePresenter.ScoutNote(Fresh(), VillageMap.Demo));
-            Assert.AreEqual("Scouts: the south road", VillagePresenter.ScoutNote(Fresh() with { HearthLevel = 2, NextRoad = 1 }, VillageMap.Demo));
+            Assert.AreEqual("Next: Odo's flock, south road", VillagePresenter.ScoutNote(Fresh() with { HearthLevel = 2, NextRoad = 1 }, VillageMap.Demo));
+            Assert.AreEqual("Next: wild beasts, east road", VillagePresenter.ScoutNote(Fresh() with { HearthLevel = 3, NextRoad = 2 }, VillageMap.Demo));
         }
 
         [Test]
