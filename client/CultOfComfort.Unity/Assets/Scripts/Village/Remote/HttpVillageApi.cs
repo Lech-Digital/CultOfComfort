@@ -42,6 +42,12 @@ namespace CultOfComfort.Client
             return status == 200 ? JsonUtility.FromJson<GuestDto>(text) : null;
         }
 
+        public async Task<GuestDto> GoogleSignInAsync(string token, string idToken, CancellationToken ct)
+        {
+            var (status, text) = await SendAsync("POST", "/api/auth/google", token, JsonUtility.ToJson(new GoogleSignInDto { idToken = idToken }), ct);
+            return status == 200 ? JsonUtility.FromJson<GuestDto>(text) : null;
+        }
+
         public async Task<WorldDto> JoinWorldAsync(string token, CancellationToken ct)
         {
             var (status, text) = await SendAsync("POST", "/api/world/join", token, null, ct);

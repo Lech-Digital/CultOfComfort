@@ -115,6 +115,25 @@ namespace CultOfComfort.Client.Tests
             public Task<WorldCollectDto> CollectWorldAsync(string token, CancellationToken ct) =>
                 Task.FromResult(Down ? null : new WorldCollectDto { reason = "No offerings yet." });
 
+            /// <summary>Google subjects the fake knows: an ID token "google:x" signs in as subject x.</summary>
+            public readonly Dictionary<string, string> GoogleVillages = new Dictionary<string, string>();
+
+            public Task<GuestDto> GoogleSignInAsync(string token, string idToken, CancellationToken ct)
+            {
+                if (Down || idToken == null || !idToken.StartsWith("google:"))
+                {
+                    return Task.FromResult<GuestDto>(null);
+                }
+
+                var subject = idToken.Substring(7);
+                if (!GoogleVillages.TryGetValue(subject, out var owner))
+                {
+                    GoogleVillages[subject] = owner = token; // links this guest village
+                }
+
+                return Task.FromResult(new GuestDto { playerId = owner, token = owner });
+            }
+
             public Task<GuestDto> RecoverAsync(string code, CancellationToken ct)
             {
                 if (Down || !Codes.TryGetValue(code, out var oldToken))
@@ -420,6 +439,61 @@ namespace CultOfComfort.Client.Tests
 
             // Assert
             Assert.IsNull(world);
+        }
+
+        [Test]
+        public async Task SignInWithGoogleAsync_FirstTime_LinksThisVillageAndKeepsItsQueuedTaps()
+        {
+            // Arrange — a tap made offline, waiting to be sent.
+            var gateway = Gateway();
+            await gateway.SyncNowAsync(None);
+            _server.Down = true;
+            await gateway.SendAsync(Chute(), None);
+            _server.Down = false;
+
+            // Act
+            var ok = await gateway.SignInWithGoogleAsync("google:andrzej", None);
+            var snapshot = await gateway.LoadAsync(None);
+
+            // Assert
+            Assert.IsTrue(ok);
+            Assert.AreEqual(1, snapshot.Buildings.Count(b => b.Type == BuildingType.SlurryChute), "the tap reached the village before the switch");
+        }
+
+        [Test]
+        public async Task SignInWithGoogleAsync_OnAnotherPhone_ThatPhoneGetsTheAccountsVillage()
+        {
+            // Arrange — phone A signs in and builds a chute; phone B has its own fresh village.
+            var phoneA = Gateway();
+            await phoneA.SyncNowAsync(None);
+            await phoneA.SendAsync(Chute(), None);
+            await phoneA.SignInWithGoogleAsync("google:andrzej", None);
+            var phoneB = new RemoteBaseGateway(_server, new MemoryCredentials(), new MemoryCache(), _clock, BuildingTable.Default, VillageMap.Demo, _ => { });
+            await phoneB.SyncNowAsync(None);
+
+            // Act
+            var ok = await phoneB.SignInWithGoogleAsync("google:andrzej", None);
+            var snapshot = await phoneB.LoadAsync(None);
+
+            // Assert
+            Assert.IsTrue(ok);
+            Assert.AreEqual(new GridPosition(7, 6), snapshot.Buildings.Single(b => b.Type == BuildingType.SlurryChute).Position, "phone A's chute");
+        }
+
+        [Test]
+        public async Task SignInWithGoogleAsync_Refused_KeepsThisVillage()
+        {
+            // Arrange
+            var gateway = Gateway();
+            await gateway.SyncNowAsync(None);
+            var token = _credentials.Token;
+
+            // Act
+            var ok = await gateway.SignInWithGoogleAsync("not-a-google-token", None);
+
+            // Assert
+            Assert.IsFalse(ok);
+            Assert.AreEqual(token, _credentials.Token);
         }
 
         [Test]

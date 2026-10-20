@@ -42,6 +42,9 @@ namespace CultOfComfort.Client
         /// <summary>A token for the village the code belongs to, or null (unknown code, or no connection).</summary>
         Task<GuestDto> RecoverAsync(string code, CancellationToken ct);
 
+        /// <summary>Signs in with a Google ID token (ADR 0007): this account's village, or this guest village linked to it. Null: refused or offline.</summary>
+        Task<GuestDto> GoogleSignInAsync(string token, string idToken, CancellationToken ct);
+
         /// <summary>Puts the village on a shared world (or finds where it already is): the window around it, or null.</summary>
         Task<WorldDto> JoinWorldAsync(string token, CancellationToken ct);
 

@@ -568,6 +568,10 @@ namespace CultOfComfort.Client
         public event Action DevEndShieldClicked;
         public event Action VillageCodeClicked;
         public event Action<string> RecoverClicked;
+
+        /// <summary>Settings → Sign in with Google.</summary>
+        public event Action GoogleSignInClicked;
+        private Button _google;
         public event Action SoundToggled;
         public event Action MusicToggled;
         public event Action LaserClicked;
@@ -1498,6 +1502,11 @@ namespace CultOfComfort.Client
             codeRow.Add(showCode);
             codeRow.Add(useCode);
             sheet.Add(codeRow);
+            // Sign in with Google (ADR 0007, 2026-10-20): the village follows the account, no code to write down.
+            _google = ButtonWith("Sign in with Google", () => GoogleSignInClicked?.Invoke(), "plain", "wrap");
+            _google.name = "google-sign-in";
+            Show(_google, GoogleAuthConfig.Enabled);
+            sheet.Add(_google);
             _codeLine = Text(string.Empty, "sheet-line", "village-code");
             _codeLine.name = "village-code";
             Show(_codeLine, false);

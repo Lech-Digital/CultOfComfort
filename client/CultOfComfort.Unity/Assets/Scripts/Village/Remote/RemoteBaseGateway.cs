@@ -278,6 +278,36 @@ namespace CultOfComfort.Client
         }
 
         /// <summary>
+        /// Signs in with Google (ADR 0007): the server answers with the village linked to that account, or links this
+        /// guest village to it. When the village changes, whatever was queued for the old one is dropped, as for a code.
+        /// </summary>
+        public async Task<bool> SignInWithGoogleAsync(string idToken, CancellationToken ct)
+        {
+            await SyncNowAsync(ct); // what this phone did reaches its village first: the queue is dropped below
+            var current = await EnsureAccountAsync(ct);
+            var account = await _api.GoogleSignInAsync(current, idToken, ct);
+            if (account == null || string.IsNullOrEmpty(account.token))
+            {
+                return false;
+            }
+
+            _credentials.Save(account.token);
+            await _gate.WaitAsync(ct);
+            try
+            {
+                _pending.Clear();
+                _version = -1;
+                _lastServerVillage = null;
+            }
+            finally
+            {
+                _gate.Release();
+            }
+
+            return await SyncNowAsync(ct);
+        }
+
+        /// <summary>
         /// The shared world around (q, r) (null: around the village). The first time, the village joins a world, and the
         /// village is pulled again so the mirror knows where it stands. Null offline.
         /// </summary>
