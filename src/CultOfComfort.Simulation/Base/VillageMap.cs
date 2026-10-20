@@ -90,14 +90,23 @@ public sealed record VillageMap(
         HearthSize = 4,
         River = DemoRiver,
         StoneCircle = new GridPosition(63, 28),
+        RisenRocks = DemoRisenRocks(),
         // Spec 2026-10-20 defence: more roads as the Hearth grows, so no one layout covers every Night. Laid over open
         // ground and the village's own tracks, round the rock and the boulders.
+        // The north road as it always ran (pinned, so reshaping the rock round it can't move it).
+        FirstRoad = new RaiderRoute("north road", 1, new GridPosition[] { new(0, 1), new(4, 1), new(4, 8), new(10, 8), new(10, 2), new(17, 2), new(17, 9) }),
         Routes = new[]
         {
-            // From the far bank, over a bridge, through the forest to the village (owner 2026-10-20: "the south and east
-            // roads should actually start on the other sides of our river").
-            new RaiderRoute("south road", 2, new GridPosition[] { new(28, 47), new(28, 13), new(19, 13), new(19, 9), new(17, 9) }),
-            new RaiderRoute("east road", 3, new GridPosition[] { new(67, 17), new(28, 17), new(28, 13), new(19, 13), new(19, 9), new(17, 9) }),
+            // From the far bank, over a bridge, winding through the forest to the village (owner 2026-10-20: "the south and
+            // east roads should actually start on the other sides of our river"; then "more interesting, not just straight lines").
+            new RaiderRoute("south road", 2, new GridPosition[]
+            {
+                new(24, 47), new(24, 44), new(31, 44), new(31, 33), new(25, 33), new(25, 22), new(28, 22), new(28, 13), new(19, 13), new(19, 9), new(17, 9),
+            }),
+            new RaiderRoute("east road", 3, new GridPosition[]
+            {
+                new(67, 12), new(64, 12), new(64, 18), new(62, 18), new(62, 15), new(49, 15), new(49, 20), new(44, 20), new(44, 17), new(28, 17), new(28, 13), new(19, 13), new(19, 9), new(17, 9),
+            }),
         },
     };
 
@@ -259,7 +268,17 @@ public sealed record VillageMap(
     /// The raiders' road: the old track on the bare valley (every rock standing, all land open). It never moves:
     /// nobody may build on it, and clearing a boulder doesn't open a shortcut.
     /// </summary>
-    public IReadOnlyList<GridPosition> Road => _road ??= new BattleLayout(Width, Height, Spawn, Hearth, System.Array.Empty<PlacedTower>(), Rocks).ResolveEnemyPath();
+    public IReadOnlyList<GridPosition> Road => _road ??= FirstRoad?.Tiles()
+        ?? new BattleLayout(Width, Height, Spawn, Hearth, System.Array.Empty<PlacedTower>(), Rocks).ResolveEnemyPath();
+
+    /// <summary>Bedrock added after villages were built (2026-10-20): whatever stood there moves aside when a save loads.</summary>
+    public IReadOnlyCollection<GridPosition> RisenRocks { get; init; } = Array.Empty<GridPosition>();
+
+    /// <summary>
+    /// The first road's route, when it is pinned (2026-10-20: the rock around it was reshaped, and the road must not move
+    /// under the village's towers); null: found round the rocks.
+    /// </summary>
+    public RaiderRoute? FirstRoad { get; init; }
 
     private IReadOnlyList<GridPosition> ComputeWildTrees()
     {
@@ -553,19 +572,52 @@ public sealed record VillageMap(
             road);
     }
 
+    /// <summary>The rock of 2026-10-20 (outcrops, the reshaped walls) that wasn't there before: the old walls ran straight.</summary>
+    private static IReadOnlyCollection<GridPosition> DemoRisenRocks()
+    {
+        var old = new HashSet<GridPosition>(Enumerable.Range(0, 8).Select(y => new GridPosition(5, y)).Concat(Enumerable.Range(3, 33).Select(y => new GridPosition(11, y))));
+        return new HashSet<GridPosition>(DemoRocks().Where(r => !old.Contains(r) && !DemoBoulders.Contains(r))
+            .Except(new GridPosition[] { new(1, 6), new(2, 9), new(8, 4), new(14, 1), new(16, 4), new(8, 0), new(40, 33), new(41, 33), new(41, 34), new(17, 34), new(50, 8), new(50, 9) }));
+    }
+
     private static IReadOnlyList<GridPosition> DemoRocks()
     {
         var rocks = new List<GridPosition>();
+        // The west wall beside the road's first bend: jagged, with outcrops into the field (2026-10-20: "change the existing
+        // bedrock pattern on the north to be more interesting").
         for (var y = 0; y <= 7; y++)
         {
             rocks.Add(new GridPosition(5, y));
         }
 
-        // The eastern wall runs to the southern edge, so the land that opens at Hearth 2 is no shortcut for raiders.
-        for (var y = 3; y <= 35; y++) // down to the river (spec 2026-10-20 river)
+        rocks.AddRange(new GridPosition[] { new(6, 0), new(6, 3), new(7, 3), new(6, 4) });
+
+        // The long eastern wall to the river: it wanders west and back, thickens into crags, and breaks once at a pass.
+        for (var y = 3; y <= 35; y++)
         {
-            rocks.Add(new GridPosition(11, y));
+            if (y is 26 or 27)
+            {
+                continue; // the pass
+            }
+
+            var x = y switch
+            {
+                <= 11 => 11,
+                <= 15 => 11,
+                <= 19 => 10,
+                <= 23 => 9,
+                <= 25 => 10,
+                <= 31 => 11,
+                _ => 11,
+            };
+            rocks.Add(new GridPosition(x, y));
+            if (y is >= 20 and <= 23)
+            {
+                rocks.Add(new GridPosition(10, y)); // a thick shoulder
+            }
         }
+
+        rocks.AddRange(new GridPosition[] { new(12, 13), new(9, 17), new(8, 22), new(8, 23), new(12, 29), new(12, 30) });
 
         rocks.AddRange(new[]
         {
@@ -580,6 +632,18 @@ public sealed record VillageMap(
             // The river country (Hearth 4): crags on the near bank.
             new GridPosition(40, 33), new GridPosition(41, 33), new GridPosition(41, 34), new GridPosition(17, 34), new GridPosition(50, 8), new GridPosition(50, 9),
         });
-        return rocks;
+
+        // Outcrops of bedrock in the open land (2026-10-20: "add more bedrocks inside our camp"): small crags to build round.
+        rocks.AddRange(new GridPosition[]
+        {
+            new(6, 14), new(7, 14), new(7, 15), new(6, 16),
+            new(43, 10), new(44, 10), new(44, 11), new(45, 11),
+            new(14, 30), new(15, 30), new(15, 31), new(16, 31),
+            new(34, 29), new(34, 30), new(35, 30),
+            new(44, 23), new(45, 24), new(46, 24), new(45, 23),
+            new(27, 5), new(28, 5), new(28, 6),
+            new(19, 26), new(20, 26), new(20, 27),
+        });
+        return rocks.Distinct().ToList();
     }
 }

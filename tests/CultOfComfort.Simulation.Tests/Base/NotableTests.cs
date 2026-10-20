@@ -70,14 +70,14 @@ public class NotableTests
     {
         // Arrange
         var (state, _) = Village();
-        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(6, 3)), T0).Status.Should().Be(CommandStatus.Accepted);
-        var chute = state.Snapshot(T0).BuildingAt(new GridPosition(6, 3))!.Id;
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.SlurryChute, new GridPosition(3, 10)), T0).Status.Should().Be(CommandStatus.Accepted);
+        var chute = state.Snapshot(T0).BuildingAt(new GridPosition(3, 10))!.Id;
         state.Apply(new AssignNotable(Guid.NewGuid(), "ember", chute), T0).Status.Should().Be(CommandStatus.Accepted);
 
         // Act
         var plan = state.Apply(new BeginNight(Guid.NewGuid()), T0).Plan!;
 
         // Assert
-        plan.Towers.Single(t => t.Position == new GridPosition(6, 3)).Manned.Should().BeTrue();
+        plan.Towers.Single(t => t.Position == new GridPosition(3, 10)).Manned.Should().BeTrue();
     }
 }

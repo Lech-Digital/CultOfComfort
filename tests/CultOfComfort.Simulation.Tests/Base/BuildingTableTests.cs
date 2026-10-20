@@ -73,7 +73,8 @@ public class BuildingTableTests
         (map.Width, map.Height).Should().Be((68, 48), "the full map with the river and its far bank; 30×20 is open at Hearth 1");
         map.Spawn.Should().Be(new GridPosition(0, 1));
         map.Hearth.Should().Be(new GridPosition(17, 9));
-        map.Rocks.Should().HaveCount(8 + 33 + 6 + 10 + 6, "walls of 8 and 33 tiles, 6 boulders on the road side, 10 out in the new land, 6 crags by the river");
+        map.Rocks.Should().HaveCountGreaterThan(90, "jagged walls, boulders and outcrops (2026-10-20: 'more bedrocks inside our camp')");
+        map.RisenRocks.Should().NotBeEmpty().And.OnlyContain(r => map.IsBedrock(r));
         map.ToBattleLayout([], []).ResolveEnemyPath().Should().NotBeEmpty();
     }
 }

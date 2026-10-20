@@ -84,7 +84,7 @@ public class DefenceTests
         outcome.Reason.Should().Contain("Hearth to level 3");
     }
 
-    private static readonly (int X, int Y)[] EightSpots = { (6, 2), (6, 3), (6, 4), (6, 6), (7, 2), (7, 3), (7, 4), (7, 6) };
+    private static readonly (int X, int Y)[] EightSpots = { (22, 16), (23, 16), (24, 16), (25, 16), (22, 18), (23, 18), (24, 18), (25, 18) };
 
     [Fact]
     public void Place_TowerPastTheCap_Rejected()
@@ -98,7 +98,7 @@ public class DefenceTests
         }
 
         // Act
-        var outcome = Place(state, BuildingType.SlurryChute, 9, 2);
+        var outcome = Place(state, BuildingType.SlurryChute, 22, 19);
 
         // Assert
         outcome.Status.Should().Be(CommandStatus.Rejected);
@@ -119,12 +119,12 @@ public class DefenceTests
         var stock = state.Snapshot(T0).Stock;
 
         // Act
-        var outcome = Place(state, BuildingType.SlurryChute, 6, 3);
+        var outcome = Place(state, BuildingType.SlurryChute, 3, 10);
 
         // Assert
         outcome.Status.Should().Be(CommandStatus.Accepted);
         var snapshot = state.Snapshot(T0);
-        snapshot.BuildingAt(new GridPosition(6, 3))!.Level.Should().Be(2);
+        snapshot.BuildingAt(new GridPosition(3, 10))!.Level.Should().Be(2);
         snapshot.Stock.Should().Be(stock, "a packed-up tower costs nothing to set down");
         snapshot.Stowed.Should().BeEmpty();
     }
@@ -135,7 +135,7 @@ public class DefenceTests
         // Arrange
         var state = Village(2);
         Place(state, BuildingType.SlurryChute, 16, 6);
-        Place(state, BuildingType.SaplingFlinger, 6, 3);
+        Place(state, BuildingType.SaplingFlinger, 3, 10);
 
         // Act
         state.Apply(new PackUpTowers(Guid.NewGuid()), T0).Status.Should().Be(CommandStatus.Accepted);
@@ -161,7 +161,7 @@ public class DefenceTests
         state.Apply(new PackUpTowers(Guid.NewGuid()), T0);
 
         // Act & Assert — a packed-up one may go back; a ninth may not be bought.
-        Place(state, BuildingType.SlurryChute, 9, 2).Status.Should().Be(CommandStatus.Accepted);
+        Place(state, BuildingType.SlurryChute, 22, 19).Status.Should().Be(CommandStatus.Accepted);
         state.Apply(new PackUpTowers(Guid.NewGuid()), T0);
         state.Apply(new DebugFillStores(Guid.NewGuid()), T0);
         state.Snapshot(T0).Stowed.Should().HaveCount(8);
@@ -187,7 +187,7 @@ public class DefenceTests
         Place(state, BuildingType.Guardhouse, 20, 8).Status.Should().Be(CommandStatus.Accepted);
         state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
         Place(state, BuildingType.SlurryChute, 16, 6).Status.Should().Be(CommandStatus.Accepted);  // 4 tiles away
-        Place(state, BuildingType.SlurryChute, 6, 3).Status.Should().Be(CommandStatus.Accepted);   // far out of reach
+        Place(state, BuildingType.SlurryChute, 3, 10).Status.Should().Be(CommandStatus.Accepted);   // far out of reach
         return (state, IdAt(state, 20, 8));
     }
 
@@ -203,7 +203,7 @@ public class DefenceTests
 
         // Assert
         plan.Towers.Single(t => t.Position == new GridPosition(16, 6)).Manned.Should().BeTrue();
-        plan.Towers.Single(t => t.Position == new GridPosition(6, 3)).Manned.Should().BeFalse("eight tiles is as far as a warden goes");
+        plan.Towers.Single(t => t.Position == new GridPosition(3, 10)).Manned.Should().BeFalse("eight tiles is as far as a warden goes");
         plan.Defenders.Should().HaveCount(1, "the warden with no tower in reach comes out to fight");
     }
 
@@ -296,6 +296,19 @@ public class DefenceTests
         }
 
         Map.Road.Should().NotContain(t => Map.Water.Contains(t), "the north road stays dry");
+    }
+
+    [Fact]
+    public void Roads_TheNewOnes_WindInsteadOfRunningStraight()
+    {
+        // Assert — owner 2026-10-20: "the two new raid roads, they should be more interesting, not just straight lines".
+        foreach (var route in Map.Routes)
+        {
+            route.Corners.Count.Should().BeGreaterThanOrEqualTo(8, route.Name);
+        }
+
+        Map.Road.Should().Equal(new RaiderRoute("north road", 1, new GridPosition[] { new(0, 1), new(4, 1), new(4, 8), new(10, 8), new(10, 2), new(17, 2), new(17, 9) }).Tiles(),
+            "the north road never moved");
     }
 
     [Fact]

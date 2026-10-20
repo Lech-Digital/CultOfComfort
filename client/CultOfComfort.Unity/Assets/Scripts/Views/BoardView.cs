@@ -315,6 +315,39 @@ namespace CultOfComfort.Client
         /// runs on as water tiles to the horizon. Plank bridges carry the raiders' roads over it, reeds grow on the banks,
         /// a few rocks break the current, and a ring of standing stones waits on the far bank.
         /// </summary>
+        /// <summary>
+        /// Clouds round the edge of the world (owner 2026-10-20: "when you fully zoom out, you can see the different
+        /// texture. maybe we should wrap it up behind the mountains with a clouds/fog of war concept"): a ring of banks
+        /// just inside where the painted land ends, and a bigger, higher one beyond it.
+        /// </summary>
+        private void BuildClouds()
+        {
+            var map = VillageMap.Demo;
+            foreach (var (inset, step, scale, height) in new[] { (BeyondMargin - 3, 5, 5.5f, 1.2f), (BeyondMargin + 6, 7, 8.5f, 2.5f) })
+            {
+                var (x0, x1, y0, y1) = (-inset, map.Width - 1 + inset, -inset, map.Height - 1 + inset);
+                var ring = new List<Vector2Int>();
+                for (var x = x0; x <= x1; x += step)
+                {
+                    ring.Add(new Vector2Int(x, y0));
+                    ring.Add(new Vector2Int(x, y1));
+                }
+
+                for (var y = y0 + step; y < y1; y += step)
+                {
+                    ring.Add(new Vector2Int(x0, y));
+                    ring.Add(new Vector2Int(x1, y));
+                }
+
+                foreach (var at in ring)
+                {
+                    var hash = (at.x * 73856093) ^ (at.y * 19349663) ^ 0x6c8e9cf5;
+                    var jitter = new Vector3((hash >> 4 & 15) / 5f - 1.5f, (hash >> 8 & 7) / 10f, (hash >> 12 & 15) / 5f - 1.5f);
+                    Place("cloud_bank", new Vector3(at.x, height, -at.y) + jitter, hash >> 16 & 359, scale * (0.85f + (hash >> 20 & 7) * 0.05f));
+                }
+            }
+        }
+
         private const int BeyondMargin = 26;
         private const int BeyondPerTile = 8;
         private Texture2D _beyondTexture;
@@ -1199,9 +1232,10 @@ namespace CultOfComfort.Client
             }
 
             // The ground runs to the horizon (the haze hides the end of it): no blackness when zooming out.
-            Shapes.Create(PrimitiveType.Cube, Palette.Grass, new Vector3((VillageMap.Demo.Width - 1) / 2f, -0.32f, -(VillageMap.Demo.Height - 1) / 2f),
-                new Vector3(VillageMap.Demo.Width + 120f, 0.2f, VillageMap.Demo.Height + 120f), _root, "Apron");
+            Shapes.Create(PrimitiveType.Cube, Shapes.Hex("#b8a47a"), new Vector3((VillageMap.Demo.Width - 1) / 2f, -0.32f, -(VillageMap.Demo.Height - 1) / 2f),
+                new Vector3(VillageMap.Demo.Width + 160f, 0.2f, VillageMap.Demo.Height + 160f), _root, "Apron"); // the haze's colour: the world fades into it
             BuildBeyond();
+            BuildClouds();
             BuildRiver();
             foreach (var item in WorldScenery.WorldLayout(VillageMap.Demo))
             {

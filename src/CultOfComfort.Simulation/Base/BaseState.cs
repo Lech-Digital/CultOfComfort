@@ -251,7 +251,9 @@ public sealed partial class BaseState
     private void ClearRoads()
     {
         var road = new HashSet<GridPosition>(_map.OpenRoads(HearthLevel).Where(i => i > 0).SelectMany(_map.RoadAt)); // the first road was never built on
-        var displaced = _buildings.Where(b => b.Type is not (BuildingType.Hearth or BuildingType.Gate) && b.Tiles.Any(road.Contains)).OrderBy(b => b.Id).ToList();
+        road.UnionWith(_map.RisenRocks); // and rock that has risen since (2026-10-20: outcrops, reshaped walls)
+        var displaced = _buildings.Where(b => b.Type is not (BuildingType.Hearth or BuildingType.Gate or BuildingType.MudTrap) && b.Tiles.Any(road.Contains)
+            || (b.Type is BuildingType.Gate or BuildingType.MudTrap && b.Tiles.Any(_map.RisenRocks.Contains))).OrderBy(b => b.Id).ToList();
         if (displaced.Count == 0)
         {
             return;

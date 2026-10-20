@@ -1070,7 +1070,8 @@ namespace CultOfComfort.Client
             if (_stage == null || !_stage.IsOpen)
             {
                 RenderSettings.fogStartDistance = _rig.Distance + 12f;
-                RenderSettings.fogEndDistance = _rig.Distance * 2.2f + 40f;
+                // Not so far out that the end of the world shows (2026-10-20): the clouds and the haze take it.
+                RenderSettings.fogEndDistance = Mathf.Min(_rig.Distance * 2.2f + 40f, _rig.Distance + 70f);
             }
             UpdateHud();
         }
