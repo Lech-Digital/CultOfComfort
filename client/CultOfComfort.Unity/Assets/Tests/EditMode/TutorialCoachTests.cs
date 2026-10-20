@@ -72,21 +72,107 @@ namespace CultOfComfort.Client.Tests
 
             // Assert
             Assert.AreEqual(CoachTarget.ErrandNote, step.Target);
+            Assert.IsNull(step.Line, "the note already says \"Done! Tap to claim\": the arrow alone");
         }
 
         [Test]
-        public void Step_PastTheCottage_TutorialIsOver()
+        public void Step_NoErrandsLeft_CoachIsQuiet()
         {
             // Act & Assert
-            Assert.AreSame(CoachStep.None, TutorialCoach.Step(Errand(TutorialCoach.LastErrand + 1), null, Nothing, Table));
             Assert.AreSame(CoachStep.None, TutorialCoach.Step(null, null, Nothing, Table));
         }
 
         [Test]
-        public void LastErrand_IsTheCottage()
+        public void Step_PastTheCottage_StillPointsAtTheNextCard()
         {
+            // Act — the Peat Cut errand, after the old three-errand tutorial ended.
+            var step = TutorialCoach.Step(Errand(Index("peat-cut")), null, Nothing, Table);
+
             // Assert
-            Assert.AreEqual("cottage", ErrandBook.Default.Errands[TutorialCoach.LastErrand].Id, "the errand book changed: re-check the tutorial");
+            Assert.AreEqual(CoachTarget.BuildCard, step.Target);
+            Assert.AreEqual(BuildingType.PeatCut, step.Type);
+        }
+
+        [Test]
+        public void Step_FirstNight_PointsAtTheLamps()
+        {
+            // Act
+            var step = TutorialCoach.Step(Errand(Index("first-night")), null, Nothing, Table);
+
+            // Assert
+            Assert.AreEqual(CoachTarget.StartNight, step.Target);
+        }
+
+        [Test]
+        public void Step_RaiseTheHearth_PointsAtTheHearth()
+        {
+            // Arrange
+            var hearth = new BuildingView(1, BuildingType.Hearth, 1, new GridPosition(5, 5), 0, 0, 0, null);
+
+            // Act
+            var step = TutorialCoach.Step(Errand(Index("hearth-2")), null, new[] { hearth }, Table);
+
+            // Assert
+            Assert.AreEqual(CoachTarget.Building, step.Target);
+            Assert.AreEqual(1, step.BuildingId);
+            StringAssert.Contains("Upgrade", step.Line);
+        }
+
+        [Test]
+        public void Step_HearthAlreadyUpgrading_CoachIsQuiet()
+        {
+            // Arrange — hours of work: the note, not a nagging line.
+            var hearth = new BuildingView(1, BuildingType.Hearth, 1, new GridPosition(5, 5), 0, 0, 0, DateTimeOffset.UtcNow.AddHours(2));
+
+            // Act & Assert
+            Assert.AreSame(CoachStep.None, TutorialCoach.Step(Errand(Index("hearth-2")), null, new[] { hearth }, Table));
+        }
+
+        [Test]
+        public void Step_SendAMissionary_PointsAtTheMissionHouse()
+        {
+            // Act
+            var step = TutorialCoach.Step(Errand(Index("missionary")), null, Nothing, Table);
+
+            // Assert
+            Assert.AreEqual(CoachTarget.Feature, step.Target);
+            Assert.AreEqual("missionaries", step.Feature);
+        }
+
+        [Test]
+        public void Step_PlacingTheChute_SaysBesideTheRaidersRoad()
+        {
+            // Act — the chute errand, before the first Night (spec 2026-10-16).
+            var step = TutorialCoach.Step(Errand(Index("slurry-chute")), BuildingType.SlurryChute, Nothing, Table);
+
+            // Assert
+            Assert.AreEqual(CoachTarget.GhostConfirm, step.Target);
+            StringAssert.Contains("raiders' road", step.Line);
+            Assert.Less(Index("slurry-chute"), Index("first-night"), "the first Night is defended");
+        }
+
+        [Test]
+        public void Step_StudyUnderWay_SaysHesReadingWithoutAnArrow()
+        {
+            // Act — found on the Pixel: "Open Research" while he was already reading.
+            var step = TutorialCoach.Step(Errand(Index("study")), null, Nothing, Table, studying: true);
+
+            // Assert
+            Assert.IsFalse(step.HasArrow);
+            StringAssert.Contains("reading", step.Line);
+        }
+
+        private static int Index(string id)
+        {
+            for (var i = 0; i < ErrandBook.Default.Errands.Count; i++)
+            {
+                if (ErrandBook.Default.Errands[i].Id == id)
+                {
+                    return i;
+                }
+            }
+
+            throw new ArgumentException($"no errand {id}: the errand book changed, re-check the coach");
         }
     }
 }

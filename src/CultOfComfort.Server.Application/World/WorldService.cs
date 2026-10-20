@@ -84,6 +84,18 @@ internal sealed class WorldService(
 
     public async Task<WorldWindow?> WindowAsync(Guid playerId, int? q, int? r, int radius, CancellationToken ct)
     {
+        var window = await LookAsync(playerId, q, r, radius, ct);
+        if (window != null)
+        {
+            // A village that joined before the ledger's count reached it (or whose count drifted) catches up when it looks.
+            await PushAsync(playerId, window.TensionPerHourMilli, 0, window.Patronages, ct);
+        }
+
+        return window;
+    }
+
+    private async Task<WorldWindow?> LookAsync(Guid playerId, int? q, int? r, int radius, CancellationToken ct)
+    {
         var id = CultId(playerId);
         var now = clock.GetUtcNow();
         await _gate.WaitAsync(ct);
@@ -110,7 +122,7 @@ internal sealed class WorldService(
                 .OrderBy(h => h.Item1).ThenBy(h => h.Item2, StringComparer.Ordinal)
                 .ToList();
             return new WorldWindow(world.Record.Id, world.Record.Seed, me, cq, cr, span, cults, holdings,
-                ledger.Purse(id, now), ledger.OfferingsPerHour(id), ledger.TensionPerHourMilli(id), now);
+                ledger.Purse(id, now), ledger.OfferingsPerHour(id), ledger.TensionPerHourMilli(id), now, ledger.Patronages(id));
         }
         finally
         {
@@ -217,7 +229,7 @@ internal sealed class WorldService(
     public async Task TickAsync(CancellationToken ct)
     {
         var now = clock.GetUtcNow();
-        var pushes = new List<(Guid Player, int Rate, int Spike)>();
+        var pushes = new List<(Guid Player, int Rate, int Spike, int Patronages)>();
         await _gate.WaitAsync(ct);
         try
         {
@@ -237,7 +249,7 @@ internal sealed class WorldService(
                     var cult = world.Ledger.Cult(change.CultId);
                     if (cult is { IsBot: false } && Guid.TryParseExact(cult.Id, "N", out var player))
                     {
-                        pushes.Add((player, world.Ledger.TensionPerHourMilli(cult.Id), change.TensionSpike));
+                        pushes.Add((player, world.Ledger.TensionPerHourMilli(cult.Id), change.TensionSpike, world.Ledger.Patronages(cult.Id)));
                     }
                 }
             }
@@ -247,16 +259,23 @@ internal sealed class WorldService(
             _gate.Release();
         }
 
-        foreach (var (player, rate, spike) in pushes)
+        foreach (var (player, rate, spike, patronages) in pushes)
         {
-            var village = await villages.FindAsync(player, ct);
-            if (village?.Domain?.World == null || (spike == 0 && village.Domain.World.TensionPerHourMilli == rate))
-            {
-                continue; // nothing new for this village
-            }
-
-            await ApplyAsync(player, () => new WorldUpdate(Guid.NewGuid(), rate, spike), ct);
+            await PushAsync(player, rate, spike, patronages, ct);
         }
+    }
+
+    /// <summary>Tells the village the world's verdict, unless it already knows it.</summary>
+    private async Task PushAsync(Guid player, int rate, int spike, int patronages, CancellationToken ct)
+    {
+        var village = await villages.FindAsync(player, ct);
+        var link = village?.Domain?.World;
+        if (link == null || (spike == 0 && link.TensionPerHourMilli == rate && link.Patronages == patronages))
+        {
+            return; // nothing new for this village
+        }
+
+        await ApplyAsync(player, () => new WorldUpdate(Guid.NewGuid(), rate, spike, patronages), ct);
     }
 
     // ---------------- helpers ----------------

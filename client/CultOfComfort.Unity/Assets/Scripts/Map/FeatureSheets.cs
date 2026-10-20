@@ -39,27 +39,57 @@ namespace CultOfComfort.Client
         {
             TechEffect.TimberPercent => $"Timber +{tech.Amount}%",
             TechEffect.PeatPercent => $"Peat +{tech.Amount}%",
+            TechEffect.ScrapPercent => $"Scrap +{tech.Amount}%",
+            TechEffect.DevotionPercent => $"Devotion +{tech.Amount}%",
+            TechEffect.BuildTimePercent => $"Building {tech.Amount}% quicker",
             TechEffect.MissionaryPercent => $"Missionaries win +{tech.Amount}% influence",
             TechEffect.HealthPercent => $"Buildings +{tech.Amount}% health in a Night",
+            TechEffect.SluiceCharges => $"+{tech.Amount} Open Sluice a Night",
+            TechEffect.TowerDamagePercent => $"Towers hit {tech.Amount}% harder",
+            TechEffect.ProphetHealthPercent => $"The Prophet +{tech.Amount}% health",
+            TechEffect.SalvagePercent => $"+{tech.Amount}% Scrap after a Night",
             TechEffect.BathComfort => $"Bathhouse Comfort +{tech.Amount}",
             TechEffect.TithePercent => $"Tithes +{tech.Amount}% stronger",
+            TechEffect.DemandPercent => $"The lord asks {tech.Amount}% less",
+            TechEffect.TemperPercent => $"The lord's temper rises {tech.Amount}% slower",
             TechEffect.SlowerDecay => $"Influence fades {tech.Amount} point a day slower",
             TechEffect.StoragePercent => $"Storage +{tech.Amount}%",
             _ => $"Comfort +{tech.Amount}",
         };
 
-        public static SheetModel Research(BaseSnapshot snapshot, DateTimeOffset now)
+        /// <summary>The four rooms of the manual, as tabs (spec 2026-10-16 first day).</summary>
+        public static string RoomName(TechCategory category) => category switch
+        {
+            TechCategory.Workshop => "Workshop",
+            TechCategory.Night => "Night",
+            TechCategory.Pulpit => "Pulpit",
+            _ => "Bath",
+        };
+
+        /// <param name="confirmStop">Stop was tapped once: the button asks to be sure.</param>
+        public static SheetModel Research(BaseSnapshot snapshot, DateTimeOffset now, bool confirmStop = false)
         {
             var model = new SheetModel { Title = "Research: the car's manual", Footer = "One study at a time. The Prophet reads slowly and moves his lips." };
-            var era = 0;
-            foreach (var view in snapshot.Research ?? Array.Empty<TechView>())
+            var views = snapshot.Research ?? Array.Empty<TechView>();
+            foreach (var category in (TechCategory[])Enum.GetValues(typeof(TechCategory)))
             {
-                if (view.Tech.Era != era)
-                {
-                    era = view.Tech.Era;
-                    model.Rows.Add(new SheetRow { Heading = true, Text = era == 1 ? "The Mud Era" : "The Comfort Era (\"Plumbing, Probably\")" });
-                }
+                model.Tabs.Add(RoomName(category));
+            }
 
+            // What's under way, on every tab: one study at a time, so it matters wherever you look.
+            var studying = views.FirstOrDefault(v => v.State == TechState.Studying);
+            if (studying != null)
+            {
+                model.Rows.Add(new SheetRow
+                {
+                    Heading = true,
+                    Text = $"Reading: {studying.Tech.Name} · {VillagePresenter.Duration((long)Math.Max(0, ((studying.EndsAtUtc ?? now) - now).TotalSeconds))} left",
+                });
+            }
+
+            // In each room: what can be read now first, then what's done, then what's still locked.
+            foreach (var view in views.OrderBy(v => v.State switch { TechState.Studying => 0, TechState.Available => 1, TechState.Done => 2, _ => 3 }))
+            {
                 var state = view.State switch
                 {
                     TechState.Done => "✓ Read and understood (mostly).",
@@ -70,9 +100,10 @@ namespace CultOfComfort.Client
                 {
                     Text = $"{view.Tech.Name}: {EffectText(view.Tech)}",
                     Detail = $"{view.Tech.Joke}\n{state}",
-                    Button = view.State == TechState.Available ? "Study" : null,
-                    Enabled = view.State == TechState.Available && view.Reason == null,
-                    Action = "research:" + view.Tech.Id,
+                    Button = view.State == TechState.Available ? "Study" : view.State == TechState.Studying ? (confirmStop ? "Sure? Tap again" : "Stop") : null,
+                    Enabled = view.State == TechState.Studying || (view.State == TechState.Available && view.Reason == null),
+                    Action = view.State == TechState.Studying ? "research-stop" : "research:" + view.Tech.Id,
+                    Tab = RoomName(view.Tech.Category),
                 });
             }
 

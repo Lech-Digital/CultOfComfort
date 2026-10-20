@@ -49,7 +49,8 @@ public sealed record WorldWindow(
     ResourceBag Purse,
     ResourceBag OfferingsPerHour,
     int TensionPerHourMilli,
-    DateTimeOffset ServerTimeUtc);
+    DateTimeOffset ServerTimeUtc,
+    int Patronages = 0);
 
 /// <summary>What a collect from the world's purse did: what reached the stores, or why nothing did; the village after.</summary>
 public sealed record WorldCollect(ResourceBag Taken, string? Reason, VillageView? Village);

@@ -70,7 +70,8 @@ namespace CultOfComfort.Client
                 ErrandGoal.Study => ErrandHint.Research,
                 _ => ErrandHint.StartNight,
             };
-            return new ErrandNote($"Errand {view.Index + 1} of {view.Count}", view.Text, counted ? $"{view.Progress}/{view.Target}" : null,
+            // The book (shared with the server) names the old lord: the note names whoever rules here.
+            return new ErrandNote($"Errand {view.Index + 1} of {view.Count}", view.Text?.Replace("Wulfric", Ruler.Short), counted ? $"{view.Progress}/{view.Target}" : null,
                 Rewards(view.Reward), view.Done, hint, view.Type);
         }
 

@@ -751,7 +751,7 @@ namespace CultOfComfort.Client
         /// <summary>The Hearth grows by accretion: level 1 ruin, level 2 banya, level 3 upper floor.</summary>
         private bool SwapHearthModel(int level)
         {
-            var model = ArtLibrary.Instantiate($"hearth_l{Mathf.Clamp(level, 1, 3)}", _hearth);
+            var model = ArtLibrary.Instantiate($"hearth_l{Mathf.Clamp(level, 1, 4)}", _hearth);
             if (model == null)
             {
                 return false;
@@ -882,9 +882,8 @@ namespace CultOfComfort.Client
                 visual.Root.SetParent(_root, false);
                 visual.Root.localPosition = FootprintBox(building.Tiles).Centre;
             }
-            else if (building.Type == BuildingType.SlurryChute || building.Type == BuildingType.SaplingFlinger)
+            else if (BuildingTable.Default.Spec(building.Type).Tower is { } tower)
             {
-                var tower = building.Type == BuildingType.SlurryChute ? TowerType.SlurryChute : TowerType.SaplingFlinger;
                 visual.Root = CreateTower(new PlacedTower(tower, building.Position)).transform;
             }
             else
@@ -1003,7 +1002,12 @@ namespace CultOfComfort.Client
             root.SetParent(_root, false);
             root.localPosition = Shapes.ToWorld(tower.Position);
 
-            var model = ArtLibrary.Instantiate(tower.Type == TowerType.SlurryChute ? "slurry_chute" : "sapling_flinger", root);
+            var model = ArtLibrary.Instantiate(tower.Type switch
+            {
+                TowerType.SlurryChute => "slurry_chute",
+                TowerType.PressureSluice => "pressure_sluice",
+                _ => "sapling_flinger",
+            }, root);
             if (model != null)
             {
                 model.transform.localRotation = FaceCamera;

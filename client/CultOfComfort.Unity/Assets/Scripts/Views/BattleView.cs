@@ -13,6 +13,9 @@ namespace CultOfComfort.Client
     /// </summary>
     public sealed class BattleView : MonoBehaviour
     {
+        /// <summary>Raiders, the Prophet and his cultists stand this much bigger at Night than a tile would make them.</summary>
+        public const float UnitScale = 1.6f;
+
         private readonly Dictionary<int, EnemyVisual> _enemies = new Dictionary<int, EnemyVisual>();
         private readonly List<Effect> _effects = new List<Effect>();
         private MaterialPropertyBlock _block;
@@ -76,6 +79,7 @@ namespace CultOfComfort.Client
             var model = ArtLibrary.Instantiate("prophet", _leader);
             if (model != null)
             {
+                model.transform.localScale *= UnitScale;
                 _prophet = model.AddComponent<PartAnimator>();
                 _prophet.Bind();
             }
@@ -125,6 +129,7 @@ namespace CultOfComfort.Client
             PartAnimator animator = null;
             if (model != null)
             {
+                model.transform.localScale *= UnitScale;
                 animator = model.AddComponent<PartAnimator>();
                 animator.Bind();
             }
@@ -498,6 +503,10 @@ namespace CultOfComfort.Client
                     {
                         SpawnMudSplat(from, to);
                     }
+                    else if (tower.Type == TowerType.PressureSluice)
+                    {
+                        SpawnWaterJet(from, to);
+                    }
                     else
                     {
                         SpawnRock(from, to, fired.Critical);
@@ -696,6 +705,7 @@ namespace CultOfComfort.Client
                 modelRoot.SetParent(_root, false);
                 model.transform.SetParent(modelRoot, false);
                 var lord = enemy.Type == EnemyType.Lord;
+                model.transform.localScale *= UnitScale; // chunkier than the village's people: they're the show tonight
                 if (lord)
                 {
                     model.transform.localScale *= 1.35f; // the boss should look like one
@@ -707,7 +717,7 @@ namespace CultOfComfort.Client
 
                 var animator = model.AddComponent<PartAnimator>();
                 animator.Bind();
-                var barHeight = lord ? 1.5f : 1.1f;
+                var barHeight = (lord ? 1.5f : 1.1f) * UnitScale;
                 var modelBar = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, barHeight, 0f), new Vector3(0.6f, 0.06f, 0.06f), modelRoot, "Health");
                 var start = Shapes.ToWorld(_battle.PositionOf(enemy));
                 modelRoot.localPosition = start;
@@ -780,6 +790,27 @@ namespace CultOfComfort.Client
                 var flash = Shapes.Create(PrimitiveType.Sphere, Palette.Highlight, to + Vector3.up * 0.5f, Vector3.zero, _root, "THWACK");
                 AddEffect(flash, 0.35f, (go, t) => go.transform.localScale = Vector3.one * Mathf.Sin(t * Mathf.PI) * 0.6f);
             }
+        }
+
+        /// <summary>The Pressure Sluice: a straight, fast jet (no arc, unlike the Chute's lob) and a wet splash.</summary>
+        private void SpawnWaterJet(Vector3 from, Vector3 to)
+        {
+            var start = from + Vector3.up * 0.4f;
+            var jet = Shapes.Create(PrimitiveType.Cylinder, Palette.Water, start, new Vector3(0.08f, 0.01f, 0.08f), _root, "Jet");
+            AddEffect(jet, 0.3f, (go, t) =>
+            {
+                var tip = Vector3.Lerp(start, to + Vector3.up * 0.3f, Mathf.Min(1f, t * 2f));
+                var tail = Vector3.Lerp(start, tip, Mathf.Max(0f, t * 2f - 1f));
+                go.transform.localPosition = (tip + tail) / 2f;
+                go.transform.up = (tip - tail).sqrMagnitude > 0.0001f ? (tip - tail).normalized : Vector3.up;
+                go.transform.localScale = new Vector3(0.08f, Mathf.Max(0.01f, (tip - tail).magnitude / 2f), 0.08f);
+            });
+            var splash = Shapes.Create(PrimitiveType.Sphere, Palette.Water, to + Vector3.up * 0.3f, Vector3.zero, _root, "Splash");
+            AddEffect(splash, 0.5f, (go, t) =>
+            {
+                go.SetActive(t > 0.5f);
+                go.transform.localScale = Vector3.one * (t - 0.5f) * 1.4f;
+            });
         }
 
         private void SpawnMudSplat(Vector3 from, Vector3 to)

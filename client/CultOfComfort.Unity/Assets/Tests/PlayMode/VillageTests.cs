@@ -70,6 +70,7 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual(DisplayStyle.Flex, note.resolvedStyle.display);
             StringAssert.Contains("Woodcutter", note.Q<Label>(className: "errand-text").text);
             Assert.AreEqual(DisplayStyle.None, note.Q<Label>(className: "errand-claim").resolvedStyle.display);
+            Assert.IsTrue(note.ClassListContains("hushed"), "one voice: the coach points at the card, the note waits");
             Assert.IsTrue(root.Q<Button>("start-night").ClassListContains("waiting"), "the lamps wait for the first-Night errand");
             Click(root.Q<Button>("card-Woodcutter"));
             yield return Frames(2);
@@ -90,11 +91,134 @@ namespace CultOfComfort.Client.Tests
             StringAssert.Contains("Storage Hut", note.Q<Label>(className: "errand-text").text);
         }
 
+        [UnityTest]
+        public IEnumerator BuildingCard_CancelTappedTwice_TakesTheBuildDownAndPaysBack()
+        {
+            // Arrange — a lean-to going up (owner 2026-10-16: "no way to cancel the build").
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            var timber = Snapshot(game).Stock.Timber;
+            Click(root.Q<Button>("card-Woodcutter"));
+            yield return Frames(2);
+            GhostTo(game, new GridPosition(3, 9));
+            Click(root.Q<Button>("ghost-confirm"));
+            yield return Frames(2);
+            Tap(game, new GridPosition(3, 9));
+            yield return Frames(2);
+            var cancel = root.Q<Button>("cancel-build");
+            Assert.AreEqual(DisplayStyle.Flex, cancel.resolvedStyle.display);
+
+            // Act: one tap only warns…
+            Click(cancel);
+            yield return Frames(2);
+            Assert.IsTrue(Snapshot(game).Buildings.Any(b => b.Type == BuildingType.Woodcutter), "one tap is not enough to undo work");
+            StringAssert.StartsWith("Sure?", cancel.text, "the button itself asks (a toast hides behind the card)");
+
+            // …the second cancels.
+            Click(cancel);
+            yield return Frames(3);
+
+            // Assert
+            Assert.IsFalse(Snapshot(game).Buildings.Any(b => b.Type == BuildingType.Woodcutter));
+            Assert.AreEqual(timber, Snapshot(game).Stock.Timber);
+        }
+
+        [UnityTest]
+        public IEnumerator Ghost_AwayFromAnyRoad_WarnsButStillAllowsIt()
+        {
+            // Arrange — found on the Pixel: a green ✓, then "Not connected" only after placing.
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            Click(root.Q<Button>("card-Woodcutter"));
+            yield return Frames(2);
+
+            // Act
+            GhostTo(game, new GridPosition(20, 14));
+            yield return Frames(2);
+
+            // Assert
+            var line = root.Q<Label>(className: "ghost-problem");
+            StringAssert.Contains("No road here yet", line.text);
+            Assert.AreEqual(DisplayStyle.Flex, line.resolvedStyle.display);
+            Assert.IsTrue(root.Q<Button>("ghost-confirm").enabledSelf, "allowed: roads can come after");
+        }
+
+        [UnityTest]
+        public IEnumerator GhostActions_AnywhereOnScreen_NeverCoverTheGhost()
+        {
+            // Arrange — owner 2026-10-16: ✓ ✗ Turn sat on a small ghost, so a drag on it missed.
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            var width = root.worldBound.width;
+
+            foreach (var ghost in new[] { new Rect(width - 60f, 300f, 40f, 40f), new Rect(20f, 200f, 40f, 40f), new Rect(width / 2f, 520f, 60f, 60f) })
+            {
+                // Act
+                Hud(game).ShowGhostActions(ghost, null, true);
+                yield return Frames(2);
+
+                // Assert
+                var actions = root.Q("ghost-actions").worldBound;
+                Assert.IsFalse(actions.Overlaps(ghost), $"buttons {actions} over the ghost {ghost}");
+                Assert.GreaterOrEqual(actions.xMin, 0f);
+                Assert.LessOrEqual(actions.xMax, width);
+            }
+        }
+
         private static HudView Hud(GameController game) =>
             (HudView)typeof(GameController).GetField("_hud", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(game);
 
         private static bool Near(Rect arrow, VisualElement target) =>
             Mathf.Abs(arrow.center.x - target.worldBound.center.x) < 30f && Mathf.Abs(arrow.center.y - target.worldBound.center.y) < 120f;
+
+        [UnityTest]
+        public IEnumerator Coach_AfterTheMapCloses_ErrandNoteStaysHushed()
+        {
+            // Arrange — a fresh village: the coach points at the card, the note waits.
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(4);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var note = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement.Q<Button>("errand-note");
+
+            // Act: the map comes and goes.
+            Hud(game).SetMapOpen(true);
+            yield return Frames(2);
+            Hud(game).SetMapOpen(false);
+            yield return Frames(2);
+
+            // Assert — still one voice.
+            Assert.AreEqual(Visibility.Hidden, note.resolvedStyle.visibility, "the map left the note forced visible over the coach");
+        }
+
+        [UnityTest]
+        public IEnumerator Coach_TapTheNote_StepsAsideUntilTheNextStep()
+        {
+            // Arrange — a fresh village; the coach points at the Lean-to card.
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(4);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            var line = root.Q<Label>("coach-line");
+
+            // Act: tap the coach's note away.
+            using (var e = ClickEvent.GetPooled()) { e.target = line; line.SendEvent(e); }
+            yield return Frames(2);
+
+            // Assert — quiet now, and the errand note is back…
+            Assert.IsFalse(Hud(game).CoachShown.Line);
+            Assert.IsFalse(root.Q<Button>("errand-note").ClassListContains("hushed"));
+
+            // …but not gone for good: the next step brings him back.
+            Click(root.Q<Button>("card-Woodcutter"));
+            yield return Frames(3);
+            Assert.IsTrue(Hud(game).CoachShown.Line, "picking the card: the coach says where to put it");
+        }
 
         [UnityTest]
         public IEnumerator Coach_FirstErrand_PointsAtCardThenConfirmThenNote()
@@ -132,6 +256,14 @@ namespace CultOfComfort.Client.Tests
             yield return new WaitForSecondsRealtime(1.2f);
             shown = Hud(game).CoachShown;
             Assert.IsTrue(Near(shown.ArrowBounds, root.Q<Button>("errand-note")), "arrow at the note: claim it");
+            Assert.IsFalse(shown.Line, "the note says it already: the arrow alone");
+
+            // Act: claim it — the next card is on the Homes tab, which opens for it.
+            Click(root.Q<Button>("errand-note"));
+            yield return Frames(4);
+            shown = Hud(game).CoachShown;
+            StringAssert.Contains("Storage Hut", shown.Text);
+            Assert.IsTrue(Near(shown.ArrowBounds, root.Q<Button>("card-StorageHut")), $"arrow {shown.ArrowBounds} over the hut {root.Q<Button>("card-StorageHut").worldBound}");
         }
 
         [UnityTest]
@@ -272,6 +404,11 @@ namespace CultOfComfort.Client.Tests
             var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
             Click(root.Q<Button>("card-Woodcutter"));
             yield return Frames(2);
+            if (Tool(game).Rotated)
+            {
+                Tool(game).Rotate(); // the ghost may start turned to reach a road; this spot wants it lying east–west
+            }
+
             GhostTo(game, new GridPosition(3, 9));
             Click(root.Q<Button>("ghost-confirm"));
             yield return Frames(2);
@@ -513,6 +650,11 @@ namespace CultOfComfort.Client.Tests
             yield return Frames(2);
             Assert.AreEqual(DisplayStyle.Flex, root.Q<Button>("ghost-rotate").resolvedStyle.display, "↻ shows for things that turn");
 
+            if (Tool(game).Rotated)
+            {
+                Tool(game).Rotate(); // start lying east–west, so Turn makes it north–south
+            }
+
             // Act
             Click(root.Q<Button>("ghost-rotate"));
             GhostTo(game, new GridPosition(13, 5));
@@ -524,6 +666,25 @@ namespace CultOfComfort.Client.Tests
             var lean = Snapshot(game).BuildingAt(new GridPosition(13, 6));
             Assert.IsNotNull(lean, "a turned lean-to runs north–south");
             Assert.IsTrue(lean.Rotated);
+        }
+
+        [UnityTest]
+        public IEnumerator Drawer_SquareBuilding_CanTurnToo()
+        {
+            // Arrange
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            Hud(game).ShowBuildTab("Homes");
+            yield return null;
+
+            // Act
+            Click(root.Q<Button>("card-StorageHut"));
+            yield return Frames(2);
+
+            // Assert
+            Assert.AreEqual(DisplayStyle.Flex, root.Q<Button>("ghost-rotate").resolvedStyle.display, "a 2×2 hut can face another way");
         }
 
         [UnityTest]

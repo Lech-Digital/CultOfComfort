@@ -382,7 +382,7 @@ public sealed partial class BaseState
     {
         if (_demand == null && _nextDemandAt == null)
         {
-            _nextDemandAt = at.AddHours(Demands.FirstGapHours);
+            _nextDemandAt = at.AddMinutes(Demands.FirstGapMinutes);
         }
     }
 
@@ -401,7 +401,7 @@ public sealed partial class BaseState
         else if (_demand == null && _nextDemandAt <= at && HearthLevel >= Domain.UnlockHearth)
         {
             var id = _nextDemandId++;
-            _demand = new DemandData(id, Demands.Amount(id, HearthLevel), at.AddHours(Demands.WindowHours).UtcTicks);
+            _demand = new DemandData(id, Demands.Scaled(Demands.Amount(id, HearthLevel), 100 - Math.Min(90, Bonus(TechEffect.DemandPercent))), at.AddHours(Demands.WindowHours).UtcTicks);
             _nextDemandAt = null;
         }
     }
@@ -629,7 +629,7 @@ public sealed partial class BaseState
         _domainAsOf = fallback;
         if (data?.NextDemandUtcTicks == null && data?.Demand == null && HearthLevel >= Domain.UnlockHearth)
         {
-            StartDemands(fallback); // a village from before the lord's demands: the first comes ten hours after its latest moment
+            StartDemands(fallback); // a village from before the lord's demands: the first comes half an hour after its latest moment
         }
 
         if (data == null)

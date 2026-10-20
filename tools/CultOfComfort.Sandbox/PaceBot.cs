@@ -115,11 +115,15 @@ internal sealed class PaceBot
         var free = !BuilderBusy(Snap());
         var _ = goal.Goal switch
         {
-            ErrandGoal.Build when free || !_table.Spec(goal.Type!.Value).UsesBuilder || _table.Spec(goal.Type.Value).Levels[0].BuildSeconds == 0 => Place(goal.Type!.Value),
+            ErrandGoal.Build when free || !_table.Spec(goal.Type!.Value).UsesBuilder || _table.Spec(goal.Type.Value).Levels[0].BuildSeconds == 0 =>
+                Place(goal.Type!.Value, besideRoad: _table.Spec(goal.Type.Value).IsTower),
             ErrandGoal.UpgradeTo when free => Upgrade(goal.Type!.Value),
             ErrandGoal.HearthLevel when free => Send(new UpgradeHearth(Guid.NewGuid()), "UPGRADE HEARTH"),
             ErrandGoal.BuildOnRoad => PlaceOnRoad(goal.Type!.Value),
             ErrandGoal.SurviveNight or ErrandGoal.WinRaid => FightIfAllowed(arm: goal.Goal == ErrandGoal.WinRaid),
+            ErrandGoal.SendMissionary => Send(new SendMissionary(Guid.NewGuid(), 1, 1), "SEND MISSIONARY"),
+            ErrandGoal.Patron => Send(new SendMissionary(Guid.NewGuid(), 1, 8), "SEND MISSIONARY 8h"),
+            ErrandGoal.Study => StudyCheapest(),
             _ => false,
         };
     }
@@ -128,19 +132,41 @@ internal sealed class PaceBot
     private bool SavingForErrand()
     {
         var s = Snap();
-        if (_policy != "errands" || s.Errand == null || _table.Errands.Errands[s.Errand.Index].Goal != ErrandGoal.HearthLevel || s.HearthLevel >= _table.Spec(BuildingType.Hearth).MaxLevel)
+        if (_policy != "errands" || s.Errand == null || s.Errand.Done)
         {
             return false;
         }
 
-        return !Affords(s.Stock, _table.Spec(BuildingType.Hearth).Levels[s.HearthLevel].Cost);
+        // An errand player saves for what the note asks (2026-10-16: not only the Hearth): the next build or upgrade.
+        var goal = _table.Errands.Errands[s.Errand.Index];
+        ResourceBag? cost = goal.Goal switch
+        {
+            ErrandGoal.HearthLevel when s.HearthLevel < _table.Spec(BuildingType.Hearth).MaxLevel => _table.Spec(BuildingType.Hearth).Levels[s.HearthLevel].Cost,
+            ErrandGoal.Build or ErrandGoal.BuildOnRoad when goal.Type != null =>
+                _table.Spec(goal.Type.Value).Levels[0].Cost + new ResourceBag(_table.Spec(goal.Type.Value).IsTower ? 0 : 30, 0, 0, 0), // as Place: Timber for its road
+            ErrandGoal.UpgradeTo when goal.Type != null && goal.Target - 1 < _table.Spec(goal.Type.Value).Levels.Count => _table.Spec(goal.Type.Value).Levels[goal.Target - 1].Cost,
+            ErrandGoal.Study => (s.Research ?? Array.Empty<TechView>()).Where(t => t.State == TechState.Available)
+                .Select(t => (ResourceBag?)t.Tech.Cost).OrderBy(c => c!.Value.Timber + c.Value.Peat + c.Value.Scrap + c.Value.Devotion).FirstOrDefault(),
+            _ => null,
+        };
+        return cost != null && !Affords(s.Stock, cost.Value);
     }
 
     private bool Economy() =>
         Place(BuildingType.Woodcutter) || Place(BuildingType.Cottage) || Place(BuildingType.PeatCut) ||
         Send(new UpgradeHearth(Guid.NewGuid()), "UPGRADE HEARTH") ||
-        Place(BuildingType.CultistHut) || Place(BuildingType.StorageHut) || Place(BuildingType.Cistern) ||
+        Place(BuildingType.CultistHut) || Place(BuildingType.StorageHut) || Place(BuildingType.MiddenSorter) || Place(BuildingType.Cistern) ||
         Upgrade(BuildingType.Woodcutter) || Upgrade(BuildingType.CultistHut) || Upgrade(BuildingType.PeatCut) || Upgrade(BuildingType.StorageHut) || Upgrade(BuildingType.Cottage);
+
+    /// <summary>Starts the cheapest study it can afford (an errand player reads whatever the note lets them).</summary>
+    private bool StudyCheapest()
+    {
+        var tech = (Snap().Research ?? Array.Empty<TechView>())
+            .Where(t => t.State == TechState.Available && t.Reason == null)
+            .OrderBy(t => t.Tech.Cost.Timber + t.Tech.Cost.Peat + t.Tech.Cost.Scrap + t.Tech.Cost.Devotion)
+            .FirstOrDefault();
+        return tech != null && Send(new StartResearch(Guid.NewGuid(), tech.Tech.Id), $"STUDY {tech.Tech.Name}");
+    }
 
     private bool Rush() =>
         Place(BuildingType.Woodcutter) || Send(new UpgradeHearth(Guid.NewGuid()), "UPGRADE HEARTH") || (Snap().HearthLevel >= 2 && Economy());

@@ -220,7 +220,8 @@ public sealed record DemandData(int Id, ResourceBag Amount, long DueAtUtcTicks, 
 /// <summary>The lord's demands: when they come, what he asks for, what meeting or missing one does. Pure.</summary>
 public static class Demands
 {
-    public const int FirstGapHours = 10;
+    /// <summary>The first letter comes soon after Hearth 2, so the hall has something to argue with on the first evening.</summary>
+    public const int FirstGapMinutes = 30;
     public const int GapHours = 10;
     public const int GapJitterHours = 4;
     public const int WindowHours = 6;
@@ -237,6 +238,13 @@ public static class Demands
 
     /// <summary>Flattery's price in Devotion, per Hearth level.</summary>
     public const int FlatterDevotionPerHearth = 15;
+
+    /// <summary>A demand at <paramref name="percent"/>% (research: Grovelling), rounded down to tens like a haggle.</summary>
+    public static ResourceBag Scaled(ResourceBag amount, int percent)
+    {
+        int S(int v) => v * percent / 100 / 10 * 10;
+        return percent >= 100 ? amount : new ResourceBag(S(amount.Timber), S(amount.Peat), S(amount.Scrap), S(amount.Devotion));
+    }
 
     public static ResourceBag Haggled(ResourceBag amount)
     {

@@ -90,6 +90,46 @@ public class WorldModeTests
     }
 
     [Fact]
+    public void WorldUpdate_Patronages_PatronErrandCountsTheWorldsPlaces()
+    {
+        // Arrange — on the Patron errand; on a world the village's own Marchlands influence is always empty.
+        var (state, now) = WorldVillage();
+        state = BaseState.Restore(Rich(), VillageMap.Demo, state.ToData() with { ErrandId = "patron" });
+        state.Snapshot(now).Errand!.Done.Should().BeFalse();
+
+        // Act
+        state.Apply(new WorldUpdate(Guid.NewGuid(), 0, 0, Patronages: 1), now).Status.Should().Be(CommandStatus.Accepted);
+
+        // Assert
+        state.Snapshot(now).Errand!.Done.Should().BeTrue();
+        BaseState.Restore(Rich(), VillageMap.Demo, state.ToData()).Snapshot(now).Errand!.Done.Should().BeTrue("the count is saved");
+    }
+
+    [Fact]
+    public void WorldUpdate_NoPatronages_KeepsTheCount()
+    {
+        // Arrange
+        var (state, now) = WorldVillage();
+        state.Apply(new WorldUpdate(Guid.NewGuid(), 0, 0, Patronages: 2), now);
+
+        // Act
+        state.Apply(new WorldUpdate(Guid.NewGuid(), 3_000, 4), now);
+
+        // Assert
+        state.ToData().Domain!.World!.Patronages.Should().Be(2);
+    }
+
+    [Fact]
+    public void WorldUpdate_NegativePatronages_Rejected()
+    {
+        // Arrange
+        var (state, now) = WorldVillage();
+
+        // Act & Assert
+        state.Apply(new WorldUpdate(Guid.NewGuid(), 0, 0, Patronages: -1), now).Status.Should().Be(CommandStatus.Rejected);
+    }
+
+    [Fact]
     public void WorldUpdate_HigherRate_TensionRisesFasterFromNowOn()
     {
         // Arrange

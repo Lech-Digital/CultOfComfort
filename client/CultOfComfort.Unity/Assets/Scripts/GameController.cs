@@ -132,8 +132,7 @@ namespace CultOfComfort.Client
             // Dev tools: on a device that runs the rules itself (editor, tests), or one holding the owner's dev key.
             _devTools = _village is RemoteBaseGateway remoteVillage ? remoteVillage.Developer : Debug.isDebugBuild;
             _hud.SetDevTools(_devTools);
-            LoadVillage();
-            Announce("Build from the drawer below; tap a building to upgrade it. What they make stacks itself.");
+            LoadVillage(); // no opening toast: the coach and the errand note say what to do (spec 2026-10-16 one thing at a time)
             PlayIntroOnFirstLaunch();
         }
 
@@ -602,10 +601,39 @@ namespace CultOfComfort.Client
 
         private SheetModel SheetFor(string id) => id switch
         {
-            "research" => FeatureSheetPresenter.Research(_snapshot, _snapshot.AsOfUtc),
+            "research" => FeatureSheetPresenter.Research(_snapshot, _snapshot.AsOfUtc, confirmStop: IsArmed("research-stop")),
             "shop" => FeatureSheetPresenter.Market(_snapshot, BuildingTable.Default),
             _ => FeatureSheetPresenter.Cult(_snapshot),
         };
+
+        private string _armed;
+        private float _armedUntil;
+
+        /// <summary>
+        /// A second tap within a few seconds does it; the first only says what will happen. For undoing hours of work
+        /// with one finger (cancel a build, stop a study).
+        /// </summary>
+        private bool Armed(string what, string warning)
+        {
+            if (_armed == what && Time.unscaledTime < _armedUntil)
+            {
+                _armed = null;
+                return true;
+            }
+
+            _armed = what;
+            _armedUntil = Time.unscaledTime + 4f;
+            Announce(warning);
+            RefreshVillage(); // the button itself says "Sure?" (the toast can sit behind a sheet)
+            if (_sheet.Shown == "research")
+            {
+                _sheet.Show(_sheet.Shown, SheetFor(_sheet.Shown));
+            }
+
+            return false;
+        }
+
+        private bool IsArmed(string what) => _armed == what && Time.unscaledTime < _armedUntil;
 
         private async void OnSheetAction(string action)
         {
@@ -616,6 +644,17 @@ namespace CultOfComfort.Client
                 if (outcome.Status == CommandStatus.Accepted)
                 {
                     Announce("The faithful pile more stones round the fire. It'll be grander soon.");
+                }
+            }
+            else if (action == "research-stop")
+            {
+                if (Armed(action, "Tap Stop again to stop reading. The cost comes back; the time doesn't."))
+                {
+                    var outcome = await SendVillage(new CancelResearch(Guid.NewGuid()));
+                    if (outcome.Status == CommandStatus.Accepted)
+                    {
+                        Announce("The Prophet closes the manual and pretends he'd finished.");
+                    }
                 }
             }
             else if (parts[0] == "research" && parts.Length == 2)
@@ -637,16 +676,38 @@ namespace CultOfComfort.Client
             }
         }
 
+        /// <summary>
+        /// Shortcuts appear only when they open (spec 2026-10-16 one thing at a time): the first time one does while
+        /// you play (not on load), a toast says what it is.
+        /// </summary>
+        private void OpenFeature(string id, bool open)
+        {
+            if (_hud.SetFeatureOpen(id, open) && open && _featuresSeeded)
+            {
+                Announce(id switch
+                {
+                    "map" => "New: the Map. See the lands around you and who rules them.",
+                    "missionaries" => "New: Missionaries. Send a preacher to win a village over.",
+                    "tithes" => "New: Tithes. Keep the lord sweet before he sends men.",
+                    "research" => "New: Research. Study better ways of doing things.",
+                    _ => $"New: {LockedFeatures.Get(id).Label}.",
+                });
+            }
+        }
+
+        private bool _featuresSeeded;
+
         /// <summary>Keeps the map and sheets current while open; opens the shortcuts as the village earns them.</summary>
         private void RefreshMap()
         {
             var open = _snapshot?.Domain?.Unlocked == true;
             foreach (var id in new[] { "map", "missionaries", "tithes" })
             {
-                _hud.SetFeatureOpen(id, open);
+                OpenFeature(id, open);
             }
 
-            _hud.SetFeatureOpen("research", _snapshot != null && _snapshot.HearthLevel >= 2);
+            OpenFeature("research", _snapshot != null && _snapshot.HearthLevel >= 2);
+            _featuresSeeded |= _snapshot != null;
             WatchDemand();
             _hud.SetFeatureBadge("missionaries", _snapshot?.Domain?.Tales?.Count > 0);
             if (_house != null && _house.IsOpen && _snapshot != null)
@@ -1140,10 +1201,40 @@ namespace CultOfComfort.Client
             var level = _tool.MovingId != null ? _snapshot.Building(_tool.MovingId.Value).Level : 1;
             _board.ShowGhost(_tool.Type, level, tiles, _tool.Rotated, problem == null);
             var (centre, size) = BoardView.FootprintBox(tiles);
-            _hud.ShowGhostActions(PanelPoint(centre + new Vector3(size.x / 2f + 0.2f, 0.6f, 0f)), problem, CanTurn(table.Spec(_tool.Type)));
+            var spec = table.Spec(_tool.Type);
+            var needsRoad = problem == null && !spec.IsTower && !BuildingTable.IsRoad(spec.Type) && !BuildingTable.IsBarrier(spec.Type)
+                && spec.Type is not (BuildingType.Tree or BuildingType.Stone) && BuildingTable.NeedsRoad(spec.Type) && !VillageMap.Demo.WouldConnect(_snapshot, tiles);
+            _hud.ShowGhostActions(GhostBox(centre, size), problem, CanTurn(spec),
+                needsRoad ? "No road here yet: it won't work until you paint one to it." : null);
         }
 
         /// <summary>A world point in UI panel coordinates, or null when it's behind the camera or there's no panel yet.</summary>
+        /// <summary>
+        /// The ghost's box on screen (panel coordinates): its footprint corners at the ground and a model's height up,
+        /// so ✓ ✗ Turn can sit clear of it (they used to cover a small ghost, and a drag on them missed it).
+        /// </summary>
+        private Rect? GhostBox(Vector3 centre, Vector2 size)
+        {
+            float xMin = float.MaxValue, yMin = float.MaxValue, xMax = float.MinValue, yMax = float.MinValue;
+            foreach (var dx in new[] { -0.5f, 0.5f })
+            foreach (var dz in new[] { -0.5f, 0.5f })
+            foreach (var up in new[] { 0f, 1.2f })
+            {
+                var p = PanelPoint(centre + new Vector3(dx * size.x, up, dz * size.y));
+                if (p == null)
+                {
+                    return null;
+                }
+
+                xMin = Mathf.Min(xMin, p.Value.x);
+                xMax = Mathf.Max(xMax, p.Value.x);
+                yMin = Mathf.Min(yMin, p.Value.y);
+                yMax = Mathf.Max(yMax, p.Value.y);
+            }
+
+            return Rect.MinMaxRect(xMin, yMin, xMax, yMax);
+        }
+
         private Vector2? PanelPoint(Vector3 world)
         {
             var panel = _document != null ? _document.rootVisualElement.panel : null;
@@ -1430,7 +1521,7 @@ namespace CultOfComfort.Client
                 if (_snapshot.Errand?.Index == 0 && _snapshot.Buildings.Count == 1)
                 {
                     // A brand-new village: the Prophet says one line, then the errand note takes over.
-                    _hud.Announce("A cosy spot. Let's make it cosier. Build us a woodcutter, would you? (See the note.)", Time.time, 6f, prophet: true);
+                    _hud.Announce("A cosy spot. Let's make it cosier. Build us a woodcutter, would you?", Time.time, 6f, prophet: true);
                 }
 
                 RefreshVillage();
@@ -1652,9 +1743,7 @@ namespace CultOfComfort.Client
 
                 _openLevel = _snapshot.HearthLevel;
                 _board.SetOpenLevel(_openLevel);
-                var (min, max) = VillageFraming.HomeBounds(VillageMap.Demo, _openLevel);
-                _rig.SetBounds(min, max);
-                _framePending = 2;
+                FrameStage();
             }
 
             if (_phase == GamePhase.Dusk && _snapshot.UnseenReport != null && !_showingReport)
@@ -1685,7 +1774,13 @@ namespace CultOfComfort.Client
             _board.SetCosmetics(_snapshot.Daily?.Cosmetics);
             var hasCard = _cardBuilding != null && _snapshot.Buildings.Any(b => b.Id == _cardBuilding.Value);
             var terrainCard = _cardTerrain != null ? VillagePresenter.TerrainCard(_snapshot, VillageMap.Demo, BuildingTable.Default, _cardTerrain.Value) : null;
-            _hud.ShowBuildingCard(hasCard ? VillagePresenter.Card(_snapshot, BuildingTable.Default, _cardBuilding.Value) : terrainCard);
+            var card = hasCard ? VillagePresenter.Card(_snapshot, BuildingTable.Default, _cardBuilding.Value) : terrainCard;
+            if (card?.CancelLabel != null && IsArmed("cancel-build:" + _cardBuilding))
+            {
+                card.CancelLabel = "Sure? Tap again to cancel"; // the warning on the button itself: a toast hides behind the card
+            }
+
+            _hud.ShowBuildingCard(card);
             RefreshMap();
         }
 
@@ -1738,6 +1833,7 @@ namespace CultOfComfort.Client
             _board.ShowCursor(null, false);
             _accumulator = 0f;
             _phase = GamePhase.Night;
+            FrameStage(); // in close on the road for the fight
             _hud.ShowPhase(_phase);
             Announce("Night falls. Tap the ground to move the Prophet.");
         }
@@ -1951,6 +2047,7 @@ namespace CultOfComfort.Client
             _framePending = 2;
             _audio.SetNight(false);
             _phase = GamePhase.Dusk;
+            FrameStage(); // back to the whole village
             _hud.ShowPhase(_phase);
             Announce(report != null && report.Salvage > 0
                 ? $"Dawn. {report.Salvage} Scrap salvaged from {Ruler.Short}'s dropped horseshoes."
@@ -1979,10 +2076,8 @@ namespace CultOfComfort.Client
         /// <summary>The tutorial's step this frame (Dusk only, no card or report in the way) and, for a building, where it is on screen.</summary>
         private const string DrawerCollapsedKey = "hud.drawer.collapsed";
         private const string MapHelpSeenKey = "map.help.seen";
-        private const string HowToSeenKey = "howto.seen";
         /// <summary>The errand note is open (2026-10-16: it starts as one line; "the errands take lots of space").</summary>
         private const string ErrandOpenKey = "hud.errand.open";
-        private const string CoachOffKey = "hud.coach.off";
 
         private static bool Pref(string key) => PlayerPrefs.GetInt(key, 0) == 1;
 
@@ -1995,12 +2090,17 @@ namespace CultOfComfort.Client
         private CoachStep CoachNow(out Vector2? point)
         {
             point = null;
-            if (_phase != GamePhase.Dusk || _snapshot == null || _showingReport || Pref(CoachOffKey))
+            if (_phase != GamePhase.Dusk || _snapshot == null || _showingReport)
             {
                 return CoachStep.None;
             }
 
-            var step = TutorialCoach.Step(_snapshot.Errand, _tool?.Type, _snapshot.Buildings, BuildingTable.Default);
+            var step = TutorialCoach.Step(_snapshot.Errand, _tool?.Type, _snapshot.Buildings, BuildingTable.Default,
+                studying: _snapshot.Research?.Any(t => t.State == TechState.Studying) == true);
+            if (_tool != null && step.Target != CoachTarget.GhostConfirm)
+            {
+                return CoachStep.None; // placing something else: the ghost has the player's attention (the note steps aside too)
+            }
             if (step.Target == CoachTarget.Building && step.BuildingId != null)
             {
                 var building = _snapshot.Buildings.FirstOrDefault(b => b.Id == step.BuildingId.Value);
@@ -2198,6 +2298,13 @@ namespace CultOfComfort.Client
             _hud.DemolishClicked += () => SendFromCard(b => new DemolishBuilding(Guid.NewGuid(), b.Id), closeCard: true);
             _hud.FinishNowClicked += () => SendFromCard(_ => new FinishConstructionNow(Guid.NewGuid()));
             _hud.HurryClicked += () => SendFromCard(_ => new SpendTowels(Guid.NewGuid(), TowelUse.Hurry));
+            _hud.CancelBuildClicked += () =>
+            {
+                if (Armed("cancel-build:" + _cardBuilding, "Tap again to cancel. The cost comes back; the time doesn't."))
+                {
+                    SendFromCard(b => new CancelConstruction(Guid.NewGuid(), b.Id));
+                }
+            };
             _hud.RepairClicked += () => SendFromCard(b => new RepairBuilding(Guid.NewGuid(), b.Id));
             _hud.CrewChanged += crew => SendFromCard(b => new SetCrew(Guid.NewGuid(), b.Id, crew));
             _hud.DevRaiseTensionClicked += () => SendSimple(new DebugRaiseTension(Guid.NewGuid(), 50));
@@ -2283,7 +2390,6 @@ namespace CultOfComfort.Client
             _hud.ResetTipsClicked += () =>
             {
                 _tips.Reset();
-                SetPref(CoachOffKey, false);
                 SetPref(ErrandOpenKey, true);
                 _hud.SetErrandFolded(false);
                 Announce("Tips are back. The Prophet clears his throat.");
@@ -2305,11 +2411,6 @@ namespace CultOfComfort.Client
                 SetPref(ErrandOpenKey, !folded);
                 RefreshVillage();
             };
-            _hud.CoachDismissClicked += () =>
-            {
-                SetPref(CoachOffKey, true);
-                Announce("The coach steps aside. Settings → Tips again brings him back.");
-            };
             _hud.ShowPhase(_phase);
         }
 
@@ -2320,12 +2421,6 @@ namespace CultOfComfort.Client
                 _hud.SetCloudStatus(remote.Online
                     ? remote.PendingCount == 0 ? "Cloud save: synced ✓" : $"Cloud save: sending {remote.PendingCount}…"
                     : remote.PendingCount == 0 ? "Cloud save: offline" : $"Cloud save: offline · {remote.PendingCount} waiting");
-            }
-
-            if (_phase == GamePhase.Dusk && _snapshot != null && _intro == null && !_showingReport && !Pref(HowToSeenKey))
-            {
-                SetPref(HowToSeenKey, true);
-                _hud.ShowHowTo(true); // once, the first time the village is up: what the game is and how it's played
             }
 
             var coach = CoachNow(out var coachPoint);
@@ -2378,6 +2473,14 @@ namespace CultOfComfort.Client
         /// <summary>Captures render at a phone's size without one: the screen the layout and the camera frame for.</summary>
         public Vector2Int? ScreenOverride { get; set; }
 
+        /// <summary>The camera's stage: the raiders' road at Night, the village by day. Framed again on the next frames.</summary>
+        private void FrameStage()
+        {
+            var (min, max) = _phase == GamePhase.Night ? VillageFraming.NightBounds(VillageMap.Demo) : VillageFraming.HomeBounds(VillageMap.Demo, _openLevel);
+            _rig.SetBounds(min, max);
+            _framePending = 2;
+        }
+
         private void TrackOrientation()
         {
             var size = ScreenOverride ?? new Vector2Int(Screen.width, Screen.height);
@@ -2397,8 +2500,12 @@ namespace CultOfComfort.Client
             }
         }
 
-        /// <summary>Square things look the same turned, except a gate (fences and walls join up by themselves).</summary>
-        private static bool CanTurn(BuildingSpec spec) => spec.Width != spec.Depth || spec.Type == BuildingType.Gate;
+        /// <summary>
+        /// Everything turns, square or not, so a Slurry Chute can face the gate (owner 2026-10-16: "we should be able to
+        /// always rotate them"); only fence and wall pieces don't, as they join up with their neighbours by themselves.
+        /// </summary>
+        private static bool CanTurn(BuildingSpec spec) =>
+            spec.Type == BuildingType.Gate || (spec.Type != BuildingType.WattleFence && spec.Type != BuildingType.WoodenWall);
 
         private float Seconds(int readyAtTick) => Mathf.Ceil((readyAtTick - _battle.Tick) / (float)BalanceTable.TicksPerSecond);
 

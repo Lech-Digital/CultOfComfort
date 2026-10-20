@@ -71,8 +71,9 @@ public sealed record SendWorldMissionary(Guid CommandId, int NodeId, int Hours, 
 /// <summary>Server only: the village joins a shared world at (Q, R). The Marchlands are left behind; the purse stays.</summary>
 public sealed record JoinWorld(Guid CommandId, int Q, int R) : BaseCommand(CommandId);
 
-/// <summary>Server only: the world's verdict on this cult: its new influence-driven Tension rate, plus a one-off spike.</summary>
-public sealed record WorldUpdate(Guid CommandId, int TensionPerHourMilli, int TensionSpike) : BaseCommand(CommandId);
+/// <summary>Server only: the world's verdict on this cult: its new influence-driven Tension rate, plus a one-off spike, and the places it is
+/// Patron of (null: unchanged).</summary>
+public sealed record WorldUpdate(Guid CommandId, int TensionPerHourMilli, int TensionSpike, int? Patronages = null) : BaseCommand(CommandId);
 
 /// <summary>Server only: offerings from the world's purse arrive; the village keeps what its stores hold (the outcome says how much).</summary>
 public sealed record ReceiveOfferings(Guid CommandId, ResourceBag Offerings) : BaseCommand(CommandId);
@@ -106,6 +107,15 @@ public sealed record PleadWithLord(Guid CommandId, int DemandId, Plea Plea) : Ba
 
 /// <summary>Starts a study at the Hearth (one at a time; spec 2026-10-14, research).</summary>
 public sealed record StartResearch(Guid CommandId, string TechId) : BaseCommand(CommandId);
+
+/// <summary>Stops the study under way; what it cost comes back (owner 2026-10-16: "no way to cancel the build or research").</summary>
+public sealed record CancelResearch(Guid CommandId) : BaseCommand(CommandId);
+
+/// <summary>
+/// Stops a construction or upgrade: a new building is taken down, an upgrade stays at its level. What it cost comes
+/// back (as far as the stores have room); the time spent is the price.
+/// </summary>
+public sealed record CancelConstruction(Guid CommandId, int BuildingId) : BaseCommand(CommandId);
 
 /// <summary>The Trolley Market: buys <paramref name="Amount"/> of <paramref name="Get"/> with <paramref name="Give"/>, at a bad rate.</summary>
 public sealed record Trade(Guid CommandId, ResourceType Give, ResourceType Get, int Amount) : BaseCommand(CommandId);

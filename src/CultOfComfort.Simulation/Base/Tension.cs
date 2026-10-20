@@ -26,7 +26,7 @@ public sealed record TensionTable(
     int AbandonedNightMinutes)
 {
     // 2026-10-14: passive rise 0/6/9 (was 0/8/12): the Marchlands add Tension from influence on top (spec world map).
-    public static TensionTable Default { get; } = new(new[] { 0, 6, 9 }, 40, 70, 100, 150, 8, 12, new[] { 40, 54, 72 }, 15);
+    public static TensionTable Default { get; } = new(new[] { 0, 6, 9, 12 }, 40, 70, 100, 150, 8, 12, new[] { 40, 54, 72, 90 }, 15); // 2026-10-16: Hearth 4
 
     public int RatePerHour(int hearthLevel) => RatePerHourByHearth[Math.Min(Math.Max(hearthLevel, 1), RatePerHourByHearth.Count) - 1];
 

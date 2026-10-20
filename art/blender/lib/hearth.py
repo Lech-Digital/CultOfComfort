@@ -15,7 +15,7 @@ middle. Level by level the cult takes the car apart and builds the Hearth out of
 """
 import math
 
-from lib.buildings import log_wall, thatch_roof, wattle_fence, wheel
+from lib.buildings import log_wall, rubber_duck, thatch_roof, wattle_fence, wheel
 from lib.car import bonnet_hinge, bonnet_lid, boot_hinge, boot_lid, car_body, car_door, car_seat
 from lib.mesh import Part
 
@@ -246,8 +246,31 @@ def temple(part):
         part.box((0.26, 0.03, 0.04), (x, 1.37, 2.02), "old_wood", bevel=0.005)
 
 
+def baths(part):
+    """Hearth 4, the Comfort Era: a cistern on a tower, copper pipes to the pool, a sauna hut, the Duck Ascendant."""
+    # The cistern tower at the back left: four posts, a hooped barrel, a pipe down to the pool's edge.
+    for x, y in ((-1.62, 1.0), (-1.18, 1.0), (-1.62, 1.44), (-1.18, 1.44)):
+        part.box((0.08, 0.08, 1.5), (x, y, 0.75), "old_wood", bevel=0.01)
+    part.box((0.6, 0.6, 0.06), (-1.4, 1.22, 1.52), "fresh_log", bevel=0.01)
+    part.cylinder(0.3, 0.5, (-1.4, 1.22, 1.8), "old_wood", segments=12)
+    for z in (1.62, 1.8, 1.98):
+        part.cylinder(0.31, 0.03, (-1.4, 1.22, z), "mail", segments=12)
+    part.cylinder(0.27, 0.02, (-1.4, 1.22, 2.05), "water", segments=12)
+    rod(part, (-1.18, 1.0, 1.55), (-0.2, -0.55, 0.32), 0.04, "gold_trim")          # copper pipe to the pool
+    rod(part, (-0.2, -0.55, 0.32), (0.55, -0.9, 0.3), 0.04, "gold_trim")
+    # The sauna hut, back right of the temple: logs, a turf roof, a little chimney and a bench by the door.
+    part.box((0.7, 0.6, 0.5), (1.95, 1.75, 0.25), "fresh_log", bevel=0.03)
+    part.box((0.78, 0.68, 0.08), (1.95, 1.75, 0.54), "grass", bevel=0.02, rotation=(0, 0, 3))
+    part.box((0.12, 0.12, 0.3), (2.15, 1.85, 0.72), "fieldstone", bevel=0.01)
+    part.box((0.18, 0.04, 0.3), (1.95, 1.43, 0.17), "tarred_wood", bevel=0.005)    # the door
+    part.box((0.5, 0.14, 0.05), (1.6, 1.36, 0.2), "old_wood", bevel=0.005)          # bench
+    # The Duck Ascendant: a carved duck, weld-painted, on a post above the temple roof.
+    part.box((0.08, 0.08, 0.7), (1.17, 1.13, 1.95), "old_wood", bevel=0.01)
+    rubber_duck(part, (1.17, 1.13, 2.35), size=2.4, yaw=-20, relic=False)
+
+
 def build_hearth(hearth_root, level):
-    """The whole Hearth at `level` (1–3) under `hearth_root`, with its animated `Fire` and `Steam`."""
+    """The whole Hearth at `level` (1–4) under `hearth_root`, with its animated `Fire` and `Steam`."""
     ruin_part = Part("Ruin", parent=hearth_root)
     ruin(ruin_part, level)
     camp(ruin_part, level)
@@ -255,6 +278,8 @@ def build_hearth(hearth_root, level):
         camp_comfort(ruin_part, roofed=level < 3)
     if level >= 3:
         temple(ruin_part)
+    if level >= 4:
+        baths(ruin_part)
     ruin_obj = ruin_part.build()
     landed_car(ruin_obj, level)
 

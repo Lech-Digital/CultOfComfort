@@ -102,7 +102,7 @@ public sealed partial class BaseState
             _populationAsOf = new DateTimeOffset(data.PopulationAsOfUtcTicks, TimeSpan.Zero),
             _upkeepAsOf = new DateTimeOffset(data.UpkeepAsOfUtcTicks, TimeSpan.Zero),
             _cold = data.Cold,
-            _errandIndex = data.ErrandIndex,
+            _errandIndex = table.Errands.IndexOf(data.ErrandId, data.ErrandIndex), // by id; old saves through the old order
             _errandEventDone = data.ErrandEventDone,
         };
         foreach (var b in data.Buildings.OrderBy(b => b.Type == BuildingType.Hearth ? -1 : b.Id))
@@ -356,7 +356,7 @@ public sealed partial class BaseState
     /// <summary>A building works only when a tile beside it is on the road network (or it stands by the Hearth).</summary>
     private bool IsConnected(Building b)
     {
-        if (b.Type == BuildingType.Hearth || BuildingTable.IsRoad(b.Type))
+        if (b.Type == BuildingType.Hearth || BuildingTable.IsRoad(b.Type) || !BuildingTable.NeedsRoad(b.Type))
         {
             return true;
         }
@@ -497,7 +497,8 @@ public sealed partial class BaseState
         DomainToData(),
         ResearchToData(),
         _fractions.ToList(),
-        DailyToData());
+        DailyToData(),
+        CurrentErrand?.Id);
 
     public CommandOutcome Apply(BaseCommand command, DateTimeOffset nowUtc)
     {
@@ -511,7 +512,7 @@ public sealed partial class BaseState
         _now = nowUtc;
         MaterializeAll(nowUtc); // whatever this command changes, production up to now was earned under the old rules
         var roadsBefore = _buildings.Count(b => BuildingTable.IsRoad(b.Type));
-        if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain or SendMissionary or SendWorldMissionary or PayTithe or MeetDemand or PleadWithLord or SetCrew)
+        if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain or SendMissionary or SendWorldMissionary or PayTithe or MeetDemand or PleadWithLord or SetCrew or CancelConstruction)
         {
             return CommandOutcome.Reject("Not now — there's a Night on.") with { Version = Version };
         }
@@ -553,6 +554,8 @@ public sealed partial class BaseState
             SpendTowels spend => Spend(spend, nowUtc),
             SetDayClock clock => SetClock(clock),
             StartResearch start => StartStudy(start, nowUtc),
+            CancelResearch _ => StopStudy(),
+            CancelConstruction cancel => CancelBuild(cancel.BuildingId, nowUtc),
             Trade trade => DoTrade(trade),
             RepairBuilding repair => Repair(repair.BuildingId, nowUtc),
             _ => CommandOutcome.Reject("Unknown order."),
@@ -603,7 +606,8 @@ public sealed partial class BaseState
         }
     }
 
-    public int SluiceBonus => _buildings.Where(b => b.Level > 0 && !b.Wrecked && IsConnected(b)).Sum(b => _table.Spec(b.Type).Levels[b.Level - 1].SluiceCharges);
+    public int SluiceBonus => _buildings.Where(b => b.Level > 0 && !b.Wrecked && IsConnected(b)).Sum(b => _table.Spec(b.Type).Levels[b.Level - 1].SluiceCharges)
+        + Bonus(TechEffect.SluiceCharges);
 
     /// <summary>The locked layout for a Night: towers fight, every other building is in the way.</summary>
     public BattleLayout ToBattleLayout()
@@ -668,7 +672,7 @@ public sealed partial class BaseState
             Footprint.Tiles(spec, command.Position, command.Rotated), command.Rotated);
         if (!instant)
         {
-            building.UpgradeEndsAtUtc = now.AddSeconds(spec.Levels[0].BuildSeconds);
+            building.UpgradeEndsAtUtc = now.AddSeconds(BuildSeconds(spec.Levels[0].BuildSeconds));
         }
 
         _buildings.Add(building);
@@ -822,7 +826,7 @@ public sealed partial class BaseState
 
         _stock -= cost;
         MaterializeEconomy(now);
-        building.UpgradeEndsAtUtc = now.AddSeconds(spec.Levels[building.Level].BuildSeconds);
+        building.UpgradeEndsAtUtc = now.AddSeconds(BuildSeconds(spec.Levels[building.Level].BuildSeconds));
         if (instant)
         {
             Advance(now);
@@ -874,7 +878,7 @@ public sealed partial class BaseState
             return CommandOutcome.Reject("That Night is already in the books.");
         }
 
-        var salvage = Math.Min(_table.Salvage(night.Stars), Math.Max(0, Caps.Scrap - _stock.Scrap));
+        var salvage = Math.Min(Salvage(night.Stars), Math.Max(0, Caps.Scrap - _stock.Scrap));
         _stock += new ResourceBag(0, 0, salvage, 0);
         LastNightRecorded = night.Night;
         NoteNight(night.Stars, now);
@@ -908,6 +912,44 @@ public sealed partial class BaseState
         MaterializeEconomy(now); // nothing accrued while wrecked; production restarts from now
         building.Wrecked = false;
         return CommandOutcome.Accept();
+    }
+
+    private CommandOutcome CancelBuild(int id, DateTimeOffset now)
+    {
+        var building = Find(id);
+        if (building == null || !building.IsUpgrading)
+        {
+            return CommandOutcome.Reject(building == null ? "That building is gone." : "Nothing is being built there.");
+        }
+
+        MaterializeTension(now);
+        MaterializeEconomy(now);
+        var spec = _table.Spec(building.Type);
+        var refund = Refund(spec.Levels[building.Level].Cost); // a new one paid for level 1; an upgrade for the next level
+        building.UpgradeEndsAtUtc = null;
+        if (building.Level == 0)
+        {
+            _buildings.Remove(building);
+        }
+        else if (now > building.AsOfUtc)
+        {
+            building.AsOfUtc = now;
+        }
+
+        return CommandOutcome.Accept(refund);
+    }
+
+    /// <summary>Gives <paramref name="cost"/> back, as far as the stores have room (like every gain: never over the cap).</summary>
+    private ResourceBag Refund(ResourceBag cost)
+    {
+        var caps = Caps;
+        var back = new ResourceBag(
+            Math.Min(cost.Timber, Math.Max(0, caps.Timber - _stock.Timber)),
+            Math.Min(cost.Peat, Math.Max(0, caps.Peat - _stock.Peat)),
+            Math.Min(cost.Scrap, Math.Max(0, caps.Scrap - _stock.Scrap)),
+            Math.Min(cost.Devotion, Math.Max(0, caps.Devotion - _stock.Devotion)));
+        _stock += back;
+        return back;
     }
 
     private CommandOutcome FinishNow(DateTimeOffset now)
@@ -1204,6 +1246,9 @@ public sealed partial class BaseState
     }
 
     /// <summary>The coming raid, or an early Night sized by the current Tension; the layout is frozen into the plan.</summary>
+    public const int FirstNightBudget = 12;
+    public const int FirstNightWaves = 3;
+
     private NightPlan PlanNight(DateTimeOffset now)
     {
         MaterializeTension(now);
@@ -1213,9 +1258,18 @@ public sealed partial class BaseState
         var layout = ToBattleLayout();
         var budget = _raid != null ? power * (100 + tension - _table.Tension.Hostile) / 100 : Math.Max(power * tension / _table.Tension.Hostile, power / 2);
         var waves = _raid != null && tension >= _table.Tension.Punitive ? 5 : 4;
+        if (night == 1 && _raid == null)
+        {
+            // The first Night teaches (spec 2026-10-16 first day): won by a Chute alone, three stars for a Prophet who
+            // fights. At the old size (20, four waves) nothing a new village has could win it, skills included.
+            budget = Math.Min(budget, FirstNightBudget);
+            waves = FirstNightWaves;
+        }
+
         var seed = _raid?.Seed ?? (ulong)(946 + night);
         return new NightPlan(night, seed, budget, waves, SluiceBonus, _raid != null, layout.Towers, layout.Obstacles, layout.Structures, HearthLevel,
-            AutoRelics: true, Defenders: DefenderPosts(layout));
+            AutoRelics: true, Defenders: DefenderPosts(layout),
+            TowerDamagePercent: Bonus(TechEffect.TowerDamagePercent), ProphetHealthPercent: Bonus(TechEffect.ProphetHealthPercent)); // research, frozen into the plan
     }
 
     /// <summary>
@@ -1274,7 +1328,7 @@ public sealed partial class BaseState
             }
         }
 
-        var salvage = Math.Min(_table.Salvage(result.Stars), Math.Max(0, Caps.Scrap - _stock.Scrap));
+        var salvage = Math.Min(Salvage(result.Stars), Math.Max(0, Caps.Scrap - _stock.Scrap));
         _stock += new ResourceBag(0, 0, salvage, 0);
         foreach (var id in wrecked)
         {
@@ -1350,7 +1404,14 @@ public sealed partial class BaseState
     // ---------------- Tension (lazy and linear, ADR 0004) ----------------
 
     /// <summary>Tension per hour (thousandths): the Authority's passive mood plus the Marchlands' influence.</summary>
-    private long TensionRateMilli() => _table.Tension.RatePerHour(HearthLevel) * 1000L + DomainTensionPerHourMilli();
+    private long TensionRateMilli() =>
+        (_table.Tension.RatePerHour(HearthLevel) * 1000L + DomainTensionPerHourMilli()) * (100 - Math.Min(90, Bonus(TechEffect.TemperPercent))) / 100;
+
+    /// <summary>A construction's time after research (Measure Twice): never under a second, if it took any.</summary>
+    private int BuildSeconds(int seconds) => seconds <= 0 ? seconds : Math.Max(1, seconds * (100 - Math.Min(90, Bonus(TechEffect.BuildTimePercent))) / 100);
+
+    /// <summary>The Scrap a Night leaves behind, with research (Finders Keepers).</summary>
+    private int Salvage(int stars) => _table.Salvage(stars) * (100 + Bonus(TechEffect.SalvagePercent)) / 100;
 
     /// <summary>Tension in thousandths at <paramref name="at"/>: no rise during a shield, capped at the max.</summary>
     private long TensionMilliAt(DateTimeOffset at)
@@ -1448,7 +1509,13 @@ public sealed partial class BaseState
         }
 
         var produces = _table.Spec(b.Type).Produces;
-        var research = produces == ResourceType.Timber ? Bonus(TechEffect.TimberPercent) : produces == ResourceType.Peat ? Bonus(TechEffect.PeatPercent) : 0;
+        var research = Bonus(produces switch
+        {
+            ResourceType.Timber => TechEffect.TimberPercent,
+            ResourceType.Peat => TechEffect.PeatPercent,
+            ResourceType.Scrap => TechEffect.ScrapPercent,
+            _ => TechEffect.DevotionPercent,
+        });
         var rate = (int)((long)LevelRate(b) * BuildingSpec.CrewPerMille(CrewOf(b), Slots(b)) / 1000) * (100 + RoadBonus(b) + research) / 100;
         return produces == ResourceType.Devotion ? DevotionWithComfort(rate) : rate;
     }
@@ -1497,7 +1564,7 @@ public sealed partial class BaseState
         return parts;
     }
 
-    private static bool IsHome(BuildingType type) => type is BuildingType.Cottage or BuildingType.CultistHut or BuildingType.Bathhouse;
+    private static bool IsHome(BuildingType type) => type is BuildingType.Cottage or BuildingType.CultistHut or BuildingType.Bathhouse or BuildingType.Sauna;
 
     /// <summary>Tiles between two footprints (0: touching or overlapping; diagonals count as one).</summary>
     private static int Gap(Building a, Building b)

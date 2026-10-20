@@ -25,7 +25,7 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
-        public void Research_HearthTwo_MudEraStudiesHaveButtonsComfortEraWaits()
+        public void Research_HearthTwo_HearthTwoStudiesHaveButtonsDeeperOnesWait()
         {
             // Arrange
             var (state, now) = Village(2);
@@ -38,12 +38,59 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("Study", axes.Button);
             Assert.IsTrue(axes.Enabled);
             var plumbing = sheet.Rows.Single(r => r.Action == "research:plumbing");
-            Assert.IsNull(plumbing.Button, "the Comfort Era opens at Hearth 3");
-            Assert.IsTrue(sheet.Rows.Any(r => r.Heading));
+            Assert.IsNull(plumbing.Button, "plumbing opens at Hearth 3");
         }
 
         [Test]
-        public void Research_Studying_ShowsTimeLeftAndNoButton()
+        public void Research_FourRooms_EveryStudyOnItsRoomsTab()
+        {
+            // Arrange
+            var (state, now) = Village(2);
+
+            // Act
+            var sheet = FeatureSheetPresenter.Research(state.Snapshot(now), now);
+
+            // Assert
+            CollectionAssert.AreEqual(new[] { "Workshop", "Night", "Pulpit", "Bath" }, sheet.Tabs);
+            var studies = sheet.Rows.Where(r => r.Action != null && r.Action.StartsWith("research:")).ToList();
+            Assert.AreEqual(ResearchBook.Default.Techs.Count, studies.Count);
+            Assert.IsTrue(studies.All(r => sheet.Tabs.Contains(r.Tab)), "every study sits on a tab");
+            Assert.AreEqual("Night", sheet.Rows.Single(r => r.Action == "research:springier-saplings").Tab);
+            StringAssert.Contains("Towers hit 20% harder", sheet.Rows.Single(r => r.Action == "research:springier-saplings").Text);
+        }
+
+        [Test]
+        public void Research_StopTappedOnce_ButtonAsksToBeSure()
+        {
+            // Arrange
+            var (state, now) = Village(2);
+            state.Apply(new StartResearch(Guid.NewGuid(), "sermon-notes"), now);
+
+            // Act
+            var sheet = FeatureSheetPresenter.Research(state.Snapshot(now), now, confirmStop: true);
+
+            // Assert — on the button itself: a toast would sit behind the sheet.
+            Assert.AreEqual("Sure? Tap again", sheet.Rows.Single(r => r.Action == "research-stop").Button);
+        }
+
+        [Test]
+        public void Research_Studying_SaidOnEveryTab()
+        {
+            // Arrange
+            var (state, now) = Village(2);
+            state.Apply(new StartResearch(Guid.NewGuid(), "sermon-notes"), now);
+
+            // Act
+            var sheet = FeatureSheetPresenter.Research(state.Snapshot(now), now);
+
+            // Assert — a heading with no tab shows on all of them.
+            var reading = sheet.Rows.Single(r => r.Heading);
+            Assert.IsNull(reading.Tab);
+            StringAssert.Contains("Sermon Notes", reading.Text);
+        }
+
+        [Test]
+        public void Research_Studying_ShowsTimeLeftAndAStopButton()
         {
             // Arrange
             var (state, now) = Village(2);
@@ -53,8 +100,10 @@ namespace CultOfComfort.Client.Tests
             var sheet = FeatureSheetPresenter.Research(state.Snapshot(now.AddMinutes(30)), now.AddMinutes(30));
 
             // Assert
-            var notes = sheet.Rows.Single(r => r.Action == "research:sermon-notes");
-            Assert.IsNull(notes.Button);
+            var notes = sheet.Rows.Single(r => !r.Heading && r.Text.StartsWith("Sermon Notes"));
+            Assert.AreEqual("Stop", notes.Button, "a study can be stopped (owner 2026-10-16)");
+            Assert.AreEqual("research-stop", notes.Action);
+            Assert.IsTrue(notes.Enabled);
             StringAssert.Contains("left", notes.Detail);
             Assert.IsFalse(sheet.Rows.Single(r => r.Action == "research:sharper-axes").Enabled, "one study at a time");
         }

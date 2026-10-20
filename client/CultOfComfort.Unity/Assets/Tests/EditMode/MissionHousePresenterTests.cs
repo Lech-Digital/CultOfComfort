@@ -86,9 +86,9 @@ namespace CultOfComfort.Client.Tests
         [Test]
         public void SetDemand_AnOpenDemand_ALineWithTheDeadlineAndTheStakes()
         {
-            // Arrange — the first demand comes ten hours after Hearth 2.
+            // Arrange — the first demand comes half an hour after Hearth 2.
             var state = Village(2);
-            var at = T0.AddHours(11);
+            var at = T0.AddHours(1);
             var snapshot = state.Snapshot(at);
             var model = new WorldMapModel { Lord = "Lord Wulfric" };
 
@@ -222,7 +222,7 @@ namespace CultOfComfort.Client.Tests
         {
             // Arrange
             var state = Village(2);
-            var at = T0.AddHours(11);
+            var at = T0.AddHours(1);
 
             // Act
             var model = LordHallPresenter.Build(state.Snapshot(at), Rich(), "Lord Wulfric", "Wulfric's Keep", at);
@@ -242,7 +242,7 @@ namespace CultOfComfort.Client.Tests
 
             // Assert
             Assert.IsNull(model.Letter);
-            StringAssert.Contains("next letter comes in about 10h", model.NoDemand);
+            StringAssert.Contains("next letter comes in about 30m", model.NoDemand);
         }
 
         [Test]
@@ -250,7 +250,7 @@ namespace CultOfComfort.Client.Tests
         {
             // Arrange
             var state = Village(2);
-            var at = T0.AddHours(11);
+            var at = T0.AddHours(1);
             state.Apply(new PleadWithLord(Guid.NewGuid(), state.Snapshot(at).Domain.Demand.Id, Plea.Stall), at);
 
             // Act

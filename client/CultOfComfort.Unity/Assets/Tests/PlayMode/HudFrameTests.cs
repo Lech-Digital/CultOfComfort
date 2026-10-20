@@ -327,7 +327,7 @@ namespace CultOfComfort.Client.Tests
 
             // Assert
             foreach (var name in new[] { "frame", "pill-timber", "pill-scrap", "pill-peat", "pill-devotion", "portrait",
-                         "settings-button", "tension-strip", "side-left", "side-right", "locked-map", "dusk-bar", "start-night" })
+                         "settings-button", "tension-strip", "dusk-bar", "start-night" })
             {
                 Assert.IsTrue(Visible(root.Q(name)), name);
             }
@@ -357,39 +357,17 @@ namespace CultOfComfort.Client.Tests
         }
 
         [UnityTest]
-        public IEnumerator LockedButton_Tapped_ShowsItsNote()
+        public IEnumerator Shortcut_BeforeItOpens_IsNotOnShow()
         {
-            // Arrange
+            // Arrange & Act — a fresh village, Hearth 1: nothing beyond building is open yet.
             yield return LoadGame();
             var root = Root();
 
-            // Act
-            Click(root.Q<Button>("locked-research"));
-            yield return null; // Tick un-hides the note
-            yield return null; // UI Toolkit lays it out
-
             // Assert
-            var note = root.Q<Label>("locked-note");
-            Assert.IsTrue(Visible(note));
-            StringAssert.Contains("Hearth 2", note.text);
-        }
-
-        [UnityTest]
-        public IEnumerator LockedButton_SecondTapOnAnother_ReplacesTheNote()
-        {
-            // Arrange
-            yield return LoadGame();
-            var root = Root();
-            Click(root.Q<Button>("locked-research"));
-            yield return null;
-
-            // Act
-            Click(root.Q<Button>("locked-tithes"));
-            yield return null;
-
-            // Assert
-            Assert.AreEqual(1, root.Query<Label>("locked-note").ToList().Count);
-            StringAssert.Contains("Hearth 2", root.Q<Label>("locked-note").text);
+            foreach (var name in new[] { "locked-map", "locked-research", "locked-missionaries", "locked-tithes" })
+            {
+                Assert.IsFalse(Visible(root.Q(name)), name + ": no padlocks on show (spec 2026-10-16 one thing at a time)");
+            }
         }
 
         [UnityTest]
@@ -409,6 +387,7 @@ namespace CultOfComfort.Client.Tests
             Assert.IsTrue(Visible(root.Q("wave-strip")));
             Assert.IsFalse(Visible(root.Q("tension-strip")));
             Assert.IsFalse(Visible(root.Q("side-left")));
+            Assert.IsFalse(Visible(root.Q("pill-timber")), "the stores fold away mid-fight");
             StringAssert.StartsWith("Wave", root.Q<Label>("wave-label").text);
             Assert.IsTrue(Visible(root.Q("frame")), "The frame stays at night.");
         }

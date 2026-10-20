@@ -13,11 +13,12 @@ public class BuildingTableTests
         var hearth = BuildingTable.Default.Spec(BuildingType.Hearth);
 
         // Assert
-        hearth.MaxLevel.Should().Be(3);
+        hearth.MaxLevel.Should().Be(4); // 2026-10-16: the Comfort Era
         hearth.Levels[1].Cost.Should().Be(new ResourceBag(450, 0, 50, 0)); // village-2026.10.4: the tutorial step
         hearth.Levels[1].BuildSeconds.Should().Be(600);
-        hearth.Levels[2].Cost.Should().Be(new ResourceBag(2000, 200, 300, 100));
-        BuildingTable.Default.HearthStorageCaps.Should().Equal(1000, 2500, 6000);
+        hearth.Levels[2].Cost.Should().Be(new ResourceBag(1200, 150, 200, 100)); // 2026-10-16 first day: ~7 h for an errand player, not ~30
+        hearth.Levels[2].BuildSeconds.Should().Be(45 * 60);
+        BuildingTable.Default.HearthStorageCaps.Should().Equal(1000, 2500, 6000, 12000);
         BuildingTable.Default.StartingStock.Should().Be(new ResourceBag(500, 60, 380, 0));
     }
 

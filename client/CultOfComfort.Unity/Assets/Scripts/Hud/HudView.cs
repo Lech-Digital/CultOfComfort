@@ -99,6 +99,7 @@ namespace CultOfComfort.Client
 
         private readonly VisualElement _root;
         private readonly VisualElement _top;
+        private readonly VisualElement _pillRow;
         private readonly Dictionary<string, (VisualElement Pill, Label Value)> _pills = new Dictionary<string, (VisualElement, Label)>();
         private readonly Label _hearthBadge;
         private readonly Label _hearthLine;
@@ -200,6 +201,8 @@ namespace CultOfComfort.Client
         private readonly Label _coachLine;
         private CoachStep _coach = CoachStep.None;
         private Vector2? _coachPoint;
+        private bool _coachSnoozed; // the player tapped the line away: quiet until the step changes
+        private bool _coachScroll; // the coach's card should scroll into view once it has a layout
         private float _hintUntil;
         private float _toastUntil;
         private float _noteUntil;
@@ -216,6 +219,7 @@ namespace CultOfComfort.Client
             var frame = Container("frame");
             frame.name = "frame";
             var pills = Container("pills");
+            _pillRow = pills;
             foreach (var (key, icon) in new[] { ("timber", "timber"), ("scrap", "scrap"), ("peat", "peat"), ("devotion", "devotion"), ("pennies", "penny"), ("people", "cult"), ("comfort", "comfort") })
             {
                 var pill = Surface(key == "pennies" || key == "people" ? "pill-note" : "pill");
@@ -471,7 +475,9 @@ namespace CultOfComfort.Client
             _coachArrow.generateVisualContent += DrawCoachArrow;
             _coachLine = Text(string.Empty, "coach-line", "note-yellow");
             _coachLine.name = "coach-line";
-            _coachLine.RegisterCallback<ClickEvent>(_ => CoachDismissClicked?.Invoke()); // tap the note to hide the coach
+            // Tap the note: it steps aside until the next step. Never for good: a new player taps notes (the errand
+            // note beside it is one), and switching the coach off by accident left the playtest with nothing to follow.
+            _coachLine.RegisterCallback<ClickEvent>(_ => _coachSnoozed = true);
             _root.Add(_coachArrow);
             _root.Add(_coachLine);
             Show(_coachArrow, false);
@@ -503,6 +509,8 @@ namespace CultOfComfort.Client
 
         /// <summary>Spend a Towel: half an hour off the construction.</summary>
         public event Action HurryClicked;
+        public event Action CancelBuildClicked;
+        private Button _cancelBuild;
 
         private Button _hurry;
         public event Action RepairClicked;
@@ -536,7 +544,6 @@ namespace CultOfComfort.Client
         public event Action ReplayIntroClicked;
         public event Action DrawerToggleClicked;
         public event Action ErrandFoldClicked;
-        public event Action CoachDismissClicked;
         public event Action<string> FeatureClicked;
         public event Action DevFillStoresClicked;
         public event Action DevEndShieldClicked;
@@ -571,6 +578,7 @@ namespace CultOfComfort.Client
                 Show(_codeEntry, false);
             }
             Show(_waveStrip, phase == GamePhase.Night);
+            Show(_pillRow, phase != GamePhase.Night); // the stores don't matter mid-fight; the board gets the room (spec 2026-10-16 one thing at a time)
             Show(_sideLeft, phase == GamePhase.Dusk);
             Show(_sideRight, phase == GamePhase.Dusk);
             Show(_duskBar, phase == GamePhase.Dusk);
@@ -673,6 +681,7 @@ namespace CultOfComfort.Client
             }
 
             _drawer.scrollOffset = Vector2.zero;
+            _coachScroll = _coach.Target == CoachTarget.BuildCard; // back to the start, then to the coach's card if it's here
         }
 
         /// <summary>Done shows while a paint tool (roads, fences, walls) is on.</summary>
@@ -686,24 +695,32 @@ namespace CultOfComfort.Client
         }
 
         /// <summary>✓ ✗ ↻ beside the ghost (panel coordinates of its right edge), or hidden (null).</summary>
-        public void ShowGhostActions(Vector2? at, string problem, bool canRotate)
+        /// <param name="ghost">The ghost's box on screen (panel coordinates), or null to hide the buttons.</param>
+        /// <param name="warning">Allowed, but worth knowing (it would stand unconnected): said without blocking ✓.</param>
+        public void ShowGhostActions(Rect? ghost, string problem, bool canRotate, string warning = null)
         {
-            Show(_ghostActions, at != null);
-            if (at == null)
+            // A sheet on screen (settings, how to play) has the finger: the ghost's buttons wait behind it.
+            var sheetOpen = Visible(_settings) || Visible(_howTo);
+            Show(_ghostActions, ghost != null && !sheetOpen);
+            if (ghost == null || sheetOpen)
             {
                 return;
             }
 
-            // Beside the ghost; flipped to its left when the row would run off the right edge.
+            // Under the ghost, centred, never on it: a finger dragging the ghost must find the ghost (owner 2026-10-16).
+            // Over it instead when there's no room below (the drawer), and kept inside the screen's sides.
+            var box = ghost.Value;
             var width = _ghostActions.resolvedStyle.width > 0f ? _ghostActions.resolvedStyle.width : 180f;
-            var panelWidth = _root.resolvedStyle.width > 0f ? _root.resolvedStyle.width : float.MaxValue;
-            var left = at.Value.x + 8f + width > panelWidth - CornerMargin ? at.Value.x - 8f - width : at.Value.x + 8f;
-            _ghostActions.style.left = Mathf.Max(CornerMargin, left);
-            _ghostActions.style.top = at.Value.y - 30f;
+            var height = _ghostActions.resolvedStyle.height > 0f ? _ghostActions.resolvedStyle.height : 60f;
+            var panelWidth = _root.resolvedStyle.width > 0f ? _root.resolvedStyle.width : 400f;
+            var floor = Visible(_drawer) ? _drawer.worldBound.yMin - 50f : (_root.resolvedStyle.height > 0f ? _root.resolvedStyle.height : 800f) - 120f;
+            var top = box.yMax + 10f + height <= floor ? box.yMax + 10f : box.yMin - 10f - height;
+            _ghostActions.style.left = Mathf.Clamp(box.center.x - width / 2f, CornerMargin, Mathf.Max(CornerMargin, panelWidth - width - CornerMargin));
+            _ghostActions.style.top = Mathf.Max(CornerMargin, top);
             _ghostConfirm.SetEnabled(problem == null);
             Show(_ghostRotate, canRotate);
-            _ghostProblem.text = problem ?? string.Empty;
-            Show(_ghostProblem, problem != null);
+            _ghostProblem.text = problem ?? warning ?? string.Empty;
+            Show(_ghostProblem, problem != null || warning != null);
         }
 
         /// <summary>A speech bubble that follows its speaker (panel coordinates from <paramref name="anchor"/>, null once gone).</summary>
@@ -747,6 +764,8 @@ namespace CultOfComfort.Client
                 _hurry.text = card.HurryLabel;
                 _hurry.SetEnabled(card.CanHurry);
             }
+            Show(_cancelBuild, card.CancelLabel != null);
+            _cancelBuild.text = card.CancelLabel ?? string.Empty;
             Show(_demolish, card.CanDemolish);
             _demolish.text = card.DemolishLabel;
             Show(_move, card.CanMove);
@@ -911,10 +930,16 @@ namespace CultOfComfort.Client
             _coachPoint = buildingPoint;
             if (changed)
             {
-                _coachLine.text = string.IsNullOrEmpty(step.Line) ? string.Empty : step.Line + "  ✕";
+                _coachSnoozed = false;
+                _coachLine.text = step.Line ?? string.Empty; // no ✕: the fonts lack it (a box on the phone); tapping the note still hides it
                 if (step.Target == CoachTarget.BuildCard && step.Type != null && _cards.TryGetValue(step.Type.Value, out var card))
                 {
-                    _drawer.ScrollTo(card);
+                    if (_cardCategory.TryGetValue(step.Type.Value, out var category) && category != _buildTab)
+                    {
+                        ShowBuildTab(category); // the next card is on another tab: open it, or the coach has nothing to point at
+                    }
+
+                    _coachScroll = true;
                 }
             }
         }
@@ -929,12 +954,18 @@ namespace CultOfComfort.Client
             {
                 case CoachTarget.BuildCard when _drawerCollapsed:
                     return Visible(_drawerToggle) ? _drawerToggle.worldBound : (Rect?)null; // open the drawer first
+                case CoachTarget.BuildCard when _coach.Type != null && _cardCategory.TryGetValue(_coach.Type.Value, out var category)
+                                                && category != _buildTab && _buildTabs.Q<Button>($"tab-{category}") is { } tab && Visible(tab):
+                    return tab.worldBound; // the player went to another tab: point back at the card's
                 case CoachTarget.BuildCard when _coach.Type != null && _cards.TryGetValue(_coach.Type.Value, out var card) && Visible(card):
-                    var drawer = _drawer.worldBound;
                     var bounds = card.worldBound;
-                    return bounds.xMax < drawer.xMin || bounds.xMin > drawer.xMax ? (Rect?)null : bounds;
+                    return OffTheDrawer(card) ? (Rect?)null : bounds;
                 case CoachTarget.GhostConfirm when Visible(_ghostConfirm):
                     return _ghostConfirm.worldBound;
+                case CoachTarget.StartNight when _root.Q<Button>("start-night") is { } start && Visible(start) && start.enabledSelf:
+                    return start.worldBound;
+                case CoachTarget.Feature when _coach.Feature != null && _featureButtons.TryGetValue(_coach.Feature, out var feature) && Visible(feature):
+                    return feature.worldBound;
                 case CoachTarget.ErrandNote when Visible(_errand):
                     return _errand.worldBound;
                 case CoachTarget.Building when _coachPoint != null:
@@ -942,6 +973,14 @@ namespace CultOfComfort.Client
                 default:
                     return null;
             }
+        }
+
+        /// <summary>True when a card's middle is scrolled past the drawer's edge (a drawer not laid out yet clips nothing).</summary>
+        private bool OffTheDrawer(VisualElement card)
+        {
+            var edge = _drawer.contentViewport.worldBound;
+            var x = card.worldBound.center.x;
+            return edge.width > 0f && (x < edge.xMin || x > edge.xMax);
         }
 
         private static bool Visible(VisualElement element)
@@ -960,12 +999,25 @@ namespace CultOfComfort.Client
         private void TickCoach(float now)
         {
             // A sheet (settings, a building card, the Dawn card) has the player's attention: the coach waits behind it.
-            var sheetOpen = Visible(_settings) || Visible(_buildingCard) || Visible(_card) || Visible(_howTo);
+            var sheetOpen = Visible(_settings) || Visible(_buildingCard) || Visible(_card) || Visible(_howTo) || _coachSnoozed;
+            if (_coachScroll && _coach.Type != null && _cards.TryGetValue(_coach.Type.Value, out var coachCard) && Visible(coachCard))
+            {
+                _coachScroll = false;
+                if (OffTheDrawer(coachCard))
+                {
+                    _drawer.ScrollTo(coachCard); // off the drawer's edge, the arrow would point at nothing
+                }
+            }
+
             var target = _coach.HasArrow && !sheetOpen ? CoachTargetBounds() : null;
             var hasLine = !sheetOpen && !string.IsNullOrEmpty(_coach.Line) && (target != null || !_coach.HasArrow);
             Show(_coachArrow, target != null);
             Show(_coachLine, hasLine);
-            if (!hasLine)
+            // One voice: while the coach points somewhere else, the errand note (saying the same thing) waits.
+            var hush = hasLine && _coach.Target != CoachTarget.ErrandNote;
+            _errand.EnableInClassList("hushed", hush);
+            _daily.EnableInClassList("hushed", hush);
+            if (!hasLine && target == null)
             {
                 return;
             }
@@ -980,7 +1032,9 @@ namespace CultOfComfort.Client
                 var r = target.Value;
                 var below = r.center.y < _root.worldBound.height * 0.4f; // near the top: point up from underneath
                 var tipX = r.center.x;
-                var tipY = below ? r.yMax + 4f + bounce : r.yMin - 4f - bounce;
+                // A card: point into it, past the tab row above, so the arrow can't read as "tap the Work tab".
+                var inset = _coach.Target == CoachTarget.BuildCard ? r.height * 0.3f : -4f;
+                var tipY = below ? r.yMax - inset + bounce : r.yMin + inset - bounce;
                 var local = _root.WorldToLocal(new Vector2(tipX, tipY));
                 _coachArrow.style.left = local.x - arrowW / 2f;
                 _coachArrow.style.top = below ? local.y : local.y - arrowH;
@@ -993,7 +1047,17 @@ namespace CultOfComfort.Client
             {
                 var note = Visible(_errand) ? _root.WorldToLocal(new Vector2(0f, _errand.worldBound.yMax)).y : 120f;
                 lineY = note + 8f;
+                if (Visible(_toast) && !_toast.ClassListContains("hidden"))
+                {
+                    lineY = Mathf.Max(lineY, _root.WorldToLocal(new Vector2(0f, _toast.worldBound.yMax)).y + 8f); // under the toast, not on it
+                }
+
                 _coachLine.EnableInClassList("coach-line-above", false);
+            }
+
+            if (!hasLine)
+            {
+                return; // an arrow alone (at the note, which says it already)
             }
 
             var lineW = Mathf.Max(_coachLine.resolvedStyle.width, 60f);
@@ -1043,13 +1107,15 @@ namespace CultOfComfort.Client
             }
         }
 
-        /// <summary>Opens (or locks) a frame shortcut: open ones raise <see cref="FeatureClicked"/>, locked ones show their note.</summary>
-        public void SetFeatureOpen(string id, bool open)
+        /// <summary>Opens (or locks and hides) a frame shortcut. True when that changed it.</summary>
+        public bool SetFeatureOpen(string id, bool open)
         {
             if ((_openFeatures.Contains(id)) == open || !_featureButtons.TryGetValue(id, out var button))
             {
-                return;
+                return false;
             }
+
+            Show(button.parent, open);
 
             if (open)
             {
@@ -1066,6 +1132,8 @@ namespace CultOfComfort.Client
             {
                 padlock.style.display = open ? DisplayStyle.None : DisplayStyle.Flex;
             }
+
+            return true;
         }
 
         /// <summary>A red dot on a frame button: something wants you there (the lord's demand on Tithes).</summary>
@@ -1100,7 +1168,8 @@ namespace CultOfComfort.Client
             // The village's own floating notes and bubbles point at the village, which isn't on screen.
             foreach (var element in new[] { _top, _bar, _sideLeft, _sideRight, _errand, _coachArrow, _coachLine, _buildingCard }.Concat(_floaters).Concat(_bubbles))
             {
-                element.style.visibility = open ? Visibility.Hidden : Visibility.Visible;
+                // Closing clears the inline style rather than forcing Visible: that would beat USS rules like .hushed.
+                element.style.visibility = open ? new StyleEnum<Visibility>(Visibility.Hidden) : new StyleEnum<Visibility>(StyleKeyword.Null);
             }
         }
 
@@ -1191,8 +1260,9 @@ namespace CultOfComfort.Client
             _cardFlavour.text = won
                 ? "The attackers left damp, confused and noticeably cleaner."
                 : $"{Ruler.Cap(Ruler.Short)}'s men warmed their hands on the embers and left. Tomorrow: repairs, and a strongly worded diary entry.";
-            _cardStats.text = $"{result.EnemiesDefeated} defeated · {result.EnemiesLeaked} reached the Hearth · {commands} commands logged\n" +
-                              $"Client hash {result.StateHashHex} · server replay {serverReplay.StateHashHex}";
+            // The hashes are for us, not the player: the stamp says it all (spec 2026-10-16 one thing at a time).
+            _cardStats.text = $"{result.EnemiesDefeated} defeated · {result.EnemiesLeaked} reached the Hearth";
+            Debug.Log($"[CoC] Dawn: {commands} commands · client hash {result.StateHashHex} · server replay {serverReplay.StateHashHex}");
             _stamp.EnableInClassList("verified", match);
             _stamp.EnableInClassList("mismatch", !match);
         }
@@ -1462,6 +1532,8 @@ namespace CultOfComfort.Client
             finishNow.name = "finish-now";
             _hurry = ButtonWith("Hurry", () => HurryClicked?.Invoke(), "plain");
             _hurry.name = "hurry";
+            _cancelBuild = ButtonWith("Cancel", () => CancelBuildClicked?.Invoke(), "plain", "wrap");
+            _cancelBuild.name = "cancel-build";
             demolish = ButtonWith("Demolish", () => DemolishClicked?.Invoke(), "plain");
             demolish.name = "demolish";
             _move = ButtonWith("Move", () => MoveClicked?.Invoke(), "plain");
@@ -1493,7 +1565,7 @@ namespace CultOfComfort.Client
                 BuildingCardClosed?.Invoke();
             }, "plain");
             close.name = "card-close";
-            foreach (var element in new VisualElement[] { title, output, ready, _crewRow, remaining, _repair, upgrade, _hurry, finishNow, _move, demolish, close })
+            foreach (var element in new VisualElement[] { title, output, ready, _crewRow, remaining, _repair, upgrade, _hurry, _cancelBuild, finishNow, _move, demolish, close })
             {
                 sheet.Add(element);
             }
@@ -1545,6 +1617,7 @@ namespace CultOfComfort.Client
             _featureButtons[id] = button;
             holder.Add(button);
             holder.Add(Text(feature.Label, "shortcut-label"));
+            Show(holder, false); // nothing locked on show: a shortcut appears when it opens (spec 2026-10-16 one thing at a time)
             return holder;
         }
 

@@ -21,7 +21,7 @@ public class DailyTests
         state.Apply(new UpgradeHearth(Guid.NewGuid()), T0);
         state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
         state.Apply(new DebugFillStores(Guid.NewGuid()), T0);
-        var data = state.ToData() with { ErrandIndex = ErrandBook.Default.Errands.Count };
+        var data = state.ToData() with { ErrandIndex = ErrandBook.Default.Errands.Count, ErrandId = null }; // every errand claimed
         if (today.Length > 0)
         {
             var day = DailyBook.DayOf(T0, 0);

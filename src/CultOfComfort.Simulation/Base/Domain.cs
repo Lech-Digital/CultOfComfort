@@ -33,8 +33,9 @@ public sealed record NodeKind(NodeType Type, int ReceptivityPercent, int WeightP
 /// <paramref name="PreacherId"/> is the Mission House preacher who went (0: from before the Mission House).</summary>
 public sealed record MissionaryData(int Id, int NodeId, int Hours, long DepartedAtUtcTicks, bool Preached, int? Distance = null, int PreacherId = 0);
 
-/// <summary>The village's place on a shared world (spec 2026-10-14 shared world): where it stands, and the Tension the world's Authorities add per hour.</summary>
-public sealed record WorldLink(int Q, int R, int TensionPerHourMilli);
+/// <summary>The village's place on a shared world (spec 2026-10-14 shared world): where it stands, the Tension the world's Authorities add per hour,
+/// and how many of the world's places it is Patron of (the server's ledger counts; the Patron errand reads it).</summary>
+public sealed record WorldLink(int Q, int R, int TensionPerHourMilli, int Patronages = 0);
 
 /// <summary>The Domain as stored: your influence per node (thousandths), the missionaries out, the offerings purse (thousandths of Timber, Peat, Scrap, Devotion).</summary>
 public sealed record DomainData(
@@ -122,7 +123,7 @@ public sealed record DomainTable(
             [NodeType.Cathedral] = new(NodeType.Cathedral, 15, 300, default),
         },
         UnlockHearth: 2,
-        ReachByHearth: new[] { 0, 3, 5 },
+        ReachByHearth: new[] { 0, 3, 5, 6 },
         MissionaryPower: 5,
         Sessions: new[] { (1, 100), (2, 110), (4, 125), (8, 150) },
         MinutesPerHex: 20,

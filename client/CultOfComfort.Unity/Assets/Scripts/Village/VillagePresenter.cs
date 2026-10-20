@@ -21,6 +21,9 @@ namespace CultOfComfort.Client
 
         /// <summary>Spend a Towel to take half an hour off (spec 2026-10-15 daily errands); null: no Towels to spend.</summary>
         public string HurryLabel; public bool CanHurry;
+
+        /// <summary>Stop the build or upgrade, its cost back (null: nothing under way).</summary>
+        public string CancelLabel;
         public string DemolishLabel = "Demolish"; public bool IsTerrain; public bool CanMove;
 
         /// <summary>Who works here (spec 2026-10-14 cultist work): the line, and whether − and + do anything.</summary>
@@ -50,6 +53,10 @@ namespace CultOfComfort.Client
             BuildingType.Bathhouse => "b_bathhouse",
             BuildingType.Stone => "b_stone",
             BuildingType.Tree => "b_tree",
+            BuildingType.Beehive => "b_beehive",
+            BuildingType.Sauna => "b_sauna",
+            BuildingType.Blacksmith => "b_blacksmith",
+            BuildingType.PressureSluice => "b_pressure_sluice",
             _ => "b_sapling_flinger",
         };
 
@@ -65,13 +72,14 @@ namespace CultOfComfort.Client
         /// <summary>Which tab a building sits under: what it's for, in a word.</summary>
         public static string Category(BuildingType type) => type switch
         {
-            BuildingType.Cottage or BuildingType.CultistHut or BuildingType.Bathhouse or BuildingType.StorageHut or BuildingType.Cistern => Homes,
-            BuildingType.SlurryChute or BuildingType.SaplingFlinger or BuildingType.WattleFence or BuildingType.WoodenWall or BuildingType.Gate => Defence,
+            BuildingType.Cottage or BuildingType.CultistHut or BuildingType.Bathhouse or BuildingType.Sauna or BuildingType.StorageHut or BuildingType.Cistern => Homes,
+            BuildingType.SlurryChute or BuildingType.SaplingFlinger or BuildingType.PressureSluice or BuildingType.WattleFence or BuildingType.WoodenWall or BuildingType.Gate => Defence,
             BuildingType.DirtTrack or BuildingType.PlankWalk or BuildingType.CobbledRoad => Roads,
             BuildingType.Stone or BuildingType.Tree => Land,
             _ => Work,
         };
 
+        /// <summary>The build drawer's cards; what can be built now comes first, locked ones wait at the end of their tab.</summary>
         public static IReadOnlyList<BuildCardModel> BuildCards(BaseSnapshot snapshot, BuildingTable table) =>
             table.Specs.Values.Where(s => s.Type != BuildingType.Hearth).Select(spec =>
             {
@@ -88,7 +96,7 @@ namespace CultOfComfort.Client
                     Size = spec.Width == 1 && spec.Depth == 1 ? string.Empty : $"{spec.Width}×{spec.Depth}",
                     Category = Category(spec.Type),
                 };
-            }).ToList();
+            }).OrderBy(c => c.Locked).ToList();
 
         public static BuildingCardModel Card(BaseSnapshot snapshot, BuildingTable table, int buildingId)
         {
@@ -143,6 +151,9 @@ namespace CultOfComfort.Client
                 HurryLabel = b.IsUpgrading && snapshot.Daily != null ? $"Hurry {DailyBook.HurryMinutes} min · {DailyBook.HurryCost} Towel ({snapshot.Daily.Towels} left)" : null,
                 CanHurry = b.IsUpgrading && snapshot.Daily != null && snapshot.Daily.Towels >= DailyBook.HurryCost,
                 Remaining = b.IsUpgrading ? Duration((long)(b.UpgradeEndsAtUtc.Value - snapshot.AsOfUtc).TotalSeconds) + " left" : string.Empty,
+                CancelLabel = b.IsUpgrading && b.Level < spec.Levels.Count
+                    ? (b.Level == 0 ? "Cancel the build" : "Cancel the upgrade") + $" · {ShortCost(spec.Levels[b.Level].Cost)} back"
+                    : null,
             };
         }
 

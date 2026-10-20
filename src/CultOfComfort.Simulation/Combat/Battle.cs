@@ -659,6 +659,12 @@ public sealed class Battle
         damage = ApplyResistance(target, damage);
         _tickEvents.Add(new TowerFired(Tick, tower.Id, target.Id, damage, critical));
         DealDamage(target, damage);
+        if (stats.PushbackTiles > Fix.Zero && target.IsActive)
+        {
+            target.EndRaid(); // washed back to the road, off whatever it was smashing or swinging at
+            target.CancelSwing();
+            target.PushBack(stats.PushbackTiles);
+        }
     }
 
     private void FireSplash(Tower tower, TowerStats stats, Enemy target)

@@ -216,14 +216,20 @@ public class ErrandTests
         var hearthOne = errands.TakeWhile(e => !(e.Goal == ErrandGoal.HearthLevel && e.Target == 2)).Append(errands.First(e => e.Goal == ErrandGoal.HearthLevel));
 
         // Assert
-        errands.Should().HaveCount(16); // 2026-10-14: missionary, study and patron errands after Hearth 2
+        errands.Should().HaveCount(26); // 2026-10-16: defences before the first Night, a fuller middle, then Hearth 4
         var hearthTwo = errands.ToList().FindIndex(e => e.Goal == ErrandGoal.HearthLevel && e.Target == 2);
         errands.Skip(hearthTwo + 1).Select(e => e.Goal).Should().Contain(new[] { ErrandGoal.SendMissionary, ErrandGoal.Study, ErrandGoal.Patron }, "the Marchlands and the manual come after Hearth 2");
         errands[0].Type.Should().Be(BuildingType.Woodcutter);
-        errands[^2].Goal.Should().Be(ErrandGoal.HearthLevel);
-        errands[^2].Target.Should().Be(3);
-        errands[^1].Goal.Should().Be(ErrandGoal.WinRaid, "the 12-hour shield after a Night makes a won raid a next-session goal");
-        hearthOne.Sum(e => e.Reward.Timber).Should().Be(350, "the Hearth 1 errands bridge the 450 Timber Hearth 2 after a starter village (and pay the Storage Hut back)");
+        var hearthThree = errands.ToList().FindIndex(e => e.Goal == ErrandGoal.HearthLevel && e.Target == 3);
+        hearthThree.Should().BeLessThan(errands.ToList().FindIndex(e => e.Goal == ErrandGoal.Patron), "a Patron takes days of preaching: it must not hold up the Hearth");
+        errands.Skip(hearthThree + 1).Should().NotBeEmpty("there is still something to do at Hearth 3");
+        errands.Should().Contain(e => e.Goal == ErrandGoal.WinRaid, "the 12-hour shield after a Night makes a won raid a next-session goal");
+        errands.Should().Contain(e => e.Goal == ErrandGoal.HearthLevel && e.Target == 4, "Hearth 4 is the next goal after Hearth 3 (2026-10-16)");
+        hearthOne.Sum(e => e.Reward.Timber).Should().Be(370, "the Hearth 1 errands bridge the 450 Timber Hearth 2 after a starter village (and pay the hut back)");
+        var night = errands.ToList().FindIndex(e => e.Goal == ErrandGoal.SurviveNight);
+        errands.Take(night).Select(e => e.Type).Should().Contain(BuildingType.SlurryChute, "the first Night is defended");
+        errands.ToList().FindIndex(e => e.Type == BuildingType.Gate).Should().BeGreaterThan(errands.ToList().FindIndex(e => e.Type == BuildingType.SaplingFlinger),
+            "a gate holds raiders under fire: at Hearth 1, with no Flinger, goats break it and the crowd wrecks what's near (2026-10-16)");
         errands.Select(e => e.Id).Should().OnlyHaveUniqueItems();
     }
 
@@ -235,6 +241,6 @@ public class ErrandTests
 
         // Assert
         levels.Select(l => l.PerHour).Should().Equal(10, 18, 28);
-        BuildingTable.Default.Version.Should().Be("village-2026.10.6");
+        BuildingTable.Default.Version.Should().Be("village-2026.10.16");
     }
 }

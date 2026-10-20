@@ -284,6 +284,17 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
+        public void BuildCards_FreshVillage_LockedCardsComeLast()
+        {
+            // Act
+            var homes = VillagePresenter.BuildCards(Fresh(), BuildingTable.Default).Where(c => c.Category == VillagePresenter.Homes).ToList();
+
+            // Assert — the Cottage (the third errand) isn't hidden behind a Cistern nobody can build yet.
+            Assert.IsTrue(homes.SkipWhile(c => !c.Locked).All(c => c.Locked), string.Join(", ", homes.Select(c => $"{c.Name}:{c.Locked}")));
+            Assert.Less(homes.FindIndex(c => c.Type == BuildingType.Cottage), homes.FindIndex(c => c.Type == BuildingType.Cistern));
+        }
+
+        [Test]
         public void BuildCards_Shapes_ShowTheirSize()
         {
             // Act
@@ -308,6 +319,34 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("30 Timber", wall.Cost);
             Assert.AreEqual("b_wooden_wall", wall.Icon);
             Assert.AreEqual("b_gate", gate.Icon);
+        }
+
+        [Test]
+        public void Card_BeingBuilt_OffersCancelWithItsCostBack()
+        {
+            // Arrange — a lean-to just placed (owner 2026-10-16: "no way to cancel the build").
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(20, 14)), T0);
+            var id = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Woodcutter).Id;
+
+            // Act
+            var card = VillagePresenter.Card(state.Snapshot(T0), BuildingTable.Default, id);
+
+            // Assert
+            Assert.AreEqual("Cancel the build · 50 Timber back", card.CancelLabel);
+        }
+
+        [Test]
+        public void Card_Finished_NoCancel()
+        {
+            // Arrange
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(20, 14)), T0);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+            var id = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Woodcutter).Id;
+
+            // Act & Assert
+            Assert.IsNull(VillagePresenter.Card(state.Snapshot(T0), BuildingTable.Default, id).CancelLabel);
         }
 
         [Test]

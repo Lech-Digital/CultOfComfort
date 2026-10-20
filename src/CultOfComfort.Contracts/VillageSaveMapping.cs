@@ -52,6 +52,7 @@ public static class VillageSaveMapping
         cold = data.Cold,
         errandIndex = data.ErrandIndex,
         errandEventDone = data.ErrandEventDone,
+        errandId = data.ErrandId ?? string.Empty,
         researched = data.Research?.Done.ToList() ?? new List<string>(),
         researching = data.Research?.Current ?? string.Empty,
         researchEndsTicks = data.Research?.EndsAtUtcTicks ?? 0,
@@ -76,6 +77,7 @@ public static class VillageSaveMapping
             worldQ = data.Domain.World?.Q ?? 0,
             worldR = data.Domain.World?.R ?? 0,
             worldTensionMilli = data.Domain.World?.TensionPerHourMilli ?? 0,
+            worldPatronages = data.Domain.World?.Patronages ?? 0,
             preachers = (data.Domain.PreacherXp ?? Array.Empty<(int, int)>()).Select(p => new PreacherXpDto { id = p.Item1, xp = p.Item2 }).ToList(),
             reports = (data.Domain.Reports ?? Array.Empty<RoadReport>()).Select(r => new RoadReportDto
             {
@@ -150,7 +152,8 @@ public static class VillageSaveMapping
             dto.hasDaily && dto.daily != null
                 ? new DailyData(dto.daily.day, dto.daily.offsetMinutes, dto.daily.ids ?? new List<string>(), dto.daily.progress ?? new List<int>(),
                     dto.daily.claimed ?? new List<bool>(), dto.daily.thermos, dto.daily.streak, dto.daily.lastThermosDay, dto.daily.towels, dto.daily.cosmetics ?? new List<string>())
-                : null);
+                : null,
+            string.IsNullOrEmpty(dto.errandId) ? null : dto.errandId);
     }
 
     private static DomainData FromDto(DomainDto d) => new(
@@ -161,7 +164,7 @@ public static class VillageSaveMapping
         d.nextDecayTicks < 0 ? null : d.nextDecayTicks,
         d.lastTitheTicks < 0 ? null : d.lastTitheTicks,
         d.nextMissionaryId,
-        d.inWorld ? new WorldLink(d.worldQ, d.worldR, d.worldTensionMilli) : null,
+        d.inWorld ? new WorldLink(d.worldQ, d.worldR, d.worldTensionMilli, d.worldPatronages) : null,
         (d.preachers ?? new List<PreacherXpDto>()).Select(p => (p.id, p.xp)).ToList(),
         (d.reports ?? new List<RoadReportDto>()).Select(r => new RoadReport(r.preacher, r.node, r.inWorld, r.hours,
             Enum.TryParse<RoadFind>(r.find, out var find) ? find : RoadFind.Nothing, new ResourceBag(r.timber, r.peat, r.scrap, r.devotion), r.homeTicks,
@@ -188,6 +191,8 @@ public static class VillageSaveMapping
         }).ToList(),
         autoRelics = plan.AutoRelics,
         defenders = (plan.Defenders ?? Array.Empty<GridPosition>()).Select(t => new TileDto { x = t.X, y = t.Y }).ToList(),
+        towerDamage = plan.TowerDamagePercent,
+        prophetHealth = plan.ProphetHealthPercent,
     };
 
     /// <summary>A Night plan from its wire form (the server's answer to BeginNight).</summary>
@@ -222,7 +227,8 @@ public static class VillageSaveMapping
             }).ToList(),
             d.roster,
             d.autoRelics,
-            (d.defenders ?? new List<TileDto>()).Select(t => new GridPosition(t.x, t.y)).ToList());
+            (d.defenders ?? new List<TileDto>()).Select(t => new GridPosition(t.x, t.y)).ToList(),
+            Math.Max(0, d.towerDamage), Math.Max(0, d.prophetHealth));
     }
 
     internal static ReportDto ToDto(NightReport r) => new()

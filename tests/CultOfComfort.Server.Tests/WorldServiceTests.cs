@@ -133,6 +133,80 @@ public class WorldServiceTests
         _stored[player].Domain!.World!.TensionPerHourMilli.Should().Be(window.TensionPerHourMilli);
     }
 
+    /// <summary>Preaches at the nearest hamlet, a sermon and a tick at a time, until the player's cult is its Patron.</summary>
+    private async Task<bool> PreachUntilPatron(WorldService world, Guid player, WorldCult cult)
+    {
+        var map = WorldGenerator.Generate(new WorldOptions().Seed);
+        var place = map.Near(cult.Q, cult.R, 3).Where(n => n.Type is NodeType.Hamlet).OrderBy(n => n.DistanceTo(cult.Q, cult.R)).First();
+        for (var trip = 0; trip < 12; trip++)
+        {
+            var send = new SendWorldMissionary(Guid.NewGuid(), place.Id, 4, place.DistanceTo(cult.Q, cult.R));
+            await Villages(world).SyncAsync(player, _stored[player].Version, new BaseCommand[] { new DebugFillStores(Guid.NewGuid()), send }, CancellationToken.None);
+            _clock.Now = _clock.Now.AddHours(6);
+            await world.TickAsync(CancellationToken.None);
+            var window = (await world.WindowAsync(player, null, null, 4, CancellationToken.None))!;
+            if (window.Holdings.Any(h => h.NodeId == place.Id && h.CultId == cult.Id && h.Patron))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    [Fact]
+    public async Task Sermons_UntilPatronThenTicked_TheVillageKnowsAndThePatronErrandIsDone()
+    {
+        // Arrange — on World 1, on the Patron errand.
+        var player = HearthTwoVillage();
+        _stored[player] = _stored[player] with { ErrandId = "patron" };
+        var world = World();
+        var cult = (await world.JoinAsync(player, CancellationToken.None))!;
+
+        // Act
+        var patron = await PreachUntilPatron(world, player, cult);
+
+        // Assert
+        patron.Should().BeTrue("enough sermons make a Patron");
+        _stored[player].Domain!.World!.Patronages.Should().Be(1);
+        BaseState.Restore(BuildingTable.Default, VillageMap.Demo, _stored[player]).Snapshot(_clock.Now).Errand!.Done.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task WindowAsync_VillageBehindTheLedger_CatchesUp()
+    {
+        // Arrange — a Patron whose village was never told (it became one before villages kept the count).
+        var player = HearthTwoVillage();
+        var world = World();
+        var cult = (await world.JoinAsync(player, CancellationToken.None))!;
+        (await PreachUntilPatron(world, player, cult)).Should().BeTrue();
+        var stale = _stored[player];
+        _stored[player] = stale with { Domain = stale.Domain! with { World = stale.Domain.World! with { Patronages = 0 } } };
+
+        // Act
+        var window = await world.WindowAsync(player, null, null, 4, CancellationToken.None);
+
+        // Assert
+        window!.Patronages.Should().Be(1);
+        _stored[player].Domain!.World!.Patronages.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task WindowAsync_VillageAlreadyKnows_NothingApplied()
+    {
+        // Arrange
+        var player = HearthTwoVillage();
+        var world = World();
+        await world.JoinAsync(player, CancellationToken.None);
+        var version = _stored[player].Version;
+
+        // Act
+        await world.WindowAsync(player, null, null, 4, CancellationToken.None);
+
+        // Assert
+        _stored[player].Version.Should().Be(version);
+    }
+
     [Fact]
     public async Task Sync_WorldMissionaryWithAWrongDistance_RejectedAndNotRecorded()
     {

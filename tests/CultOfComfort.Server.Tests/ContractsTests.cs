@@ -48,6 +48,8 @@ public class ContractsTests
         new PleadWithLord(Guid.NewGuid(), 3, Plea.Flatter),
         new ChooseTale(Guid.NewGuid(), 12, 1),
         new StartResearch(Guid.NewGuid(), "sharper-axes"),
+        new CancelResearch(Guid.NewGuid()),
+        new CancelConstruction(Guid.NewGuid(), 7),
         new Trade(Guid.NewGuid(), ResourceType.Timber, ResourceType.Peat, 25),
     };
 
@@ -126,18 +128,19 @@ public class ContractsTests
     [Fact]
     public void VillageJson_DemandPreachersAndReports_RoundTrip()
     {
-        // Arrange — Hearth 2 done, Brother Damp home from 8 hours of preaching, the lord's first demand open.
+        // Arrange — Hearth 2 done, Brother Damp home from 4 hours of preaching, the lord's first demand open.
         var table = new BuildingTable { StartingStock = new ResourceBag(5000, 900, 900, 900), HearthStorageCaps = new[] { 9000, 9000, 9000 } };
         var state = BaseState.CreateNew(table, VillageMap.Demo, T0);
         state.Apply(new UpgradeHearth(Guid.NewGuid()), T0);
         state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
-        state.Apply(new SendMissionary(Guid.NewGuid(), 1, 8, PreacherId: 1), T0);
-        var later = T0.AddHours(11);
+        state.Apply(new SendMissionary(Guid.NewGuid(), 1, 4, PreacherId: 1), T0);
+        var asked = T0.AddHours(1); // the first letter (half an hour after Hearth 2), stalled so it's still open when he's home
+        state.Apply(new PleadWithLord(Guid.NewGuid(), state.Snapshot(asked).Domain!.Demand!.Id, Plea.Stall), asked).Status.Should().Be(CommandStatus.Accepted);
+        var later = T0.AddHours(5);
         var domain = state.Snapshot(later).Domain!;
         domain.Demand.Should().NotBeNull();
         state.Apply(new ChooseTale(Guid.NewGuid(), domain.Tales!.Single().Id, 1), later);
         state.Apply(new SendMissionary(Guid.NewGuid(), 1, 1, PreacherId: 1), later);
-        state.Apply(new PleadWithLord(Guid.NewGuid(), domain.Demand!.Id, Plea.Stall), later);
         later = later.AddHours(2);
         state.Snapshot(later).Domain!.Tales.Should().ContainSingle("a second tale waits");
         var data = state.ToData();
@@ -182,6 +185,33 @@ public class ContractsTests
         // Assert
         back.AutoRelics.Should().BeTrue();
         back.Defenders.Should().Equal(plan.Defenders);
+    }
+
+    [Fact]
+    public void NightPlan_ResearchBonuses_RoundTrip()
+    {
+        // Arrange — research is frozen into the plan, so the server replays the Night the phone fought.
+        var plan = new NightPlan(3, 99, 40, 4, 1, false, [], [], [], 2, AutoRelics: true, TowerDamagePercent: 40, ProphetHealthPercent: 25);
+
+        // Act
+        var back = VillageSaveMapping.PlanFromDto(VillageSaveMapping.PlanToDto(plan));
+
+        // Assert
+        back.TowerDamagePercent.Should().Be(40);
+        back.ProphetHealthPercent.Should().Be(25);
+    }
+
+    [Fact]
+    public void VillageJson_ErrandId_RoundTrips()
+    {
+        // Arrange
+        var data = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0).ToData() with { ErrandId = "study-2" };
+
+        // Act
+        var back = VillageJson.Read(VillageJson.Write(data));
+
+        // Assert
+        back.ErrandId.Should().Be("study-2");
     }
 
     [Fact]

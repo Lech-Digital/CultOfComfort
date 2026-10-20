@@ -74,7 +74,7 @@ namespace CultOfComfort.Client.Tests
             var data = !string.IsNullOrEmpty(path) && File.Exists(path)
                 ? VillageSaveMapping.FromDto(JsonUtility.FromJson<VillageSaveDto>(File.ReadAllText(path)))
                 : state.ToData();
-            data = data with { ErrandIndex = table.Errands.Errands.Count };
+            data = data with { ErrandIndex = table.Errands.Errands.Count, ErrandId = null }; // every errand claimed
             var store = new Store { Saved = data };
             VillageComposition.Override = () => new LocalBaseGateway(store, clock, table, map, _ => { });
             yield return SceneManager.LoadSceneAsync("SampleScene");

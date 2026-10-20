@@ -43,6 +43,7 @@ public sealed class VillageSaveDto
     public bool cold;
     public int errandIndex; // older saves lack it: 0, so they start the errands (already-true ones are claimable at once)
     public bool errandEventDone;
+    public string errandId; // the errand by id (errandIndex alone moved players when the book was reordered); empty: read errandIndex the old way
     public bool hasDomain; // older saves: no Marchlands yet
     public DomainDto domain;
     public List<string> researched;   // older saves: none
@@ -85,6 +86,7 @@ public sealed class DomainDto
     public int worldQ;
     public int worldR;
     public int worldTensionMilli;
+    public int worldPatronages;
 
     /// <summary>The Mission House (spec 2026-10-15): preachers' experience and the latest road reports.</summary>
     public List<PreacherXpDto> preachers;
@@ -196,6 +198,8 @@ public sealed class NightDto
     public List<StructureDto> structures;
     public bool autoRelics;          // older plans lack it: the relics wait for the player
     public List<TileDto> defenders;  // older plans lack it: nobody comes out to defend
+    public int towerDamage;          // research, % (older plans lack it: 0, the default balance)
+    public int prophetHealth;        // research, %
 }
 
 [Serializable]
