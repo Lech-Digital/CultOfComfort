@@ -77,7 +77,7 @@ public sealed class BuildingTable
 
     public static BuildingTable Default { get; } = new();
 
-    public string Version { get; init; } = "village-2026.10.20d";
+    public string Version { get; init; } = "village-2026.10.20e";
 
     /// <summary>Health of a building whose first level is still being built.</summary>
     public int UnderConstructionHealth { get; init; } = 30;
@@ -162,6 +162,12 @@ public sealed class BuildingTable
 
     /// <summary>A villager moves in this often while there is a free bed.</summary>
     public int VillagerArrivalMinutes { get; init; } = 10;
+
+    /// <summary>With a Tavern standing, villagers arrive this much quicker, in percent of the usual wait.</summary>
+    public int TavernArrivalPercent { get; init; } = 60;
+
+    /// <summary>With a Bell Tower standing, cultists and wardens hit this much harder at Night, in percent.</summary>
+    public int BellDefenderPercent { get; init; } = 50;
 
     /// <summary>Peat each villager burns per hour (GDD: heating upkeep). None left: everyone downs tools.</summary>
     public int PeatPerVillagerPerHour { get; init; } = 1;
@@ -287,6 +293,19 @@ public sealed class BuildingTable
         {
             new BuildingLevel(new ResourceBag(2000, 400, 400, 400), 2 * 24 * 60 * 60, PerHour: 40, Health: 300, Comfort: 30),
         }, Produces: ResourceType.Devotion, Width: 2, Depth: 2, Workers: 2),
+        // Spec 2026-10-20 new buildings: choices rather than more producers.
+        [BuildingType.Watchtower] = new(BuildingType.Watchtower, "Watchtower", 3, new[] { 0, 0, 1, 1, 2 }, new[]
+        {
+            new BuildingLevel(new ResourceBag(600, 0, 150, 0), 2 * 60 * 60, Health: 150),
+        }, Width: 1, Depth: 1),
+        [BuildingType.Tavern] = new(BuildingType.Tavern, "Tavern", 3, new[] { 0, 0, 1, 1, 2 }, new[]
+        {
+            new BuildingLevel(new ResourceBag(900, 100, 0, 0), 4 * 60 * 60, PerHour: 18, Health: 160, Comfort: 12),
+        }, Produces: ResourceType.Devotion, Width: 3, Depth: 2, Workers: 2),
+        [BuildingType.BellTower] = new(BuildingType.BellTower, "Bell Tower", 3, new[] { 0, 0, 1, 1, 1 }, new[]
+        {
+            new BuildingLevel(new ResourceBag(500, 0, 300, 50), 3 * 60 * 60, Health: 200),
+        }, Width: 2, Depth: 2),
         // Dusk tricks (spec 2026-10-20 dusk tricks): laid before a Night, gone after it.
         [BuildingType.MudTrap] = new(BuildingType.MudTrap, "Mud Trap", 1, new[] { 2, 3, 4, 5, 6 }, new[]
         {

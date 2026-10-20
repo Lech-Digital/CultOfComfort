@@ -80,6 +80,9 @@ namespace CultOfComfort.Client
             BuildingType.ComfyAltar => "b_comfy_altar",
             BuildingType.MudTrap => "b_mud_trap",
             BuildingType.DecoyDuck => "b_decoy_duck",
+            BuildingType.Watchtower => "b_watchtower",
+            BuildingType.Tavern => "b_tavern",
+            BuildingType.BellTower => "b_bell_tower",
             _ => "b_sapling_flinger",
         };
 
@@ -97,7 +100,7 @@ namespace CultOfComfort.Client
         {
             BuildingType.Cottage or BuildingType.CultistHut or BuildingType.Bathhouse or BuildingType.Sauna or BuildingType.StorageHut or BuildingType.Cistern => Homes,
             BuildingType.SlurryChute or BuildingType.SaplingFlinger or BuildingType.PressureSluice or BuildingType.WattleFence or BuildingType.WoodenWall or BuildingType.Gate
-                or BuildingType.Guardhouse or BuildingType.MudTrap or BuildingType.DecoyDuck => Defence,
+                or BuildingType.Guardhouse or BuildingType.MudTrap or BuildingType.DecoyDuck or BuildingType.Watchtower or BuildingType.BellTower => Defence,
             BuildingType.DirtTrack or BuildingType.PlankWalk or BuildingType.CobbledRoad => Roads,
             BuildingType.Stone or BuildingType.Tree => Land,
             _ => Work,
@@ -167,6 +170,7 @@ namespace CultOfComfort.Client
                     : b.Level > 0 && spec.Produces != null && spec.Produces != ResourceType.Peat && snapshot.Cold ? "Cold — no Peat, nobody works but the peat cutters"
                     : b.Level == 0 ? string.Empty : spec.Produces != null ? $"+{b.PerHour} {spec.Produces}/h{ComfortNote(spec, b.Level)}"
                     : b.Type == BuildingType.Guardhouse ? GuardNote(b, table)
+                    : b.Type == BuildingType.Watchtower ? ForecastNote(snapshot)
                     : Effect(spec, b.Level) + ComfortNote(spec, b.Level),
                 Ready = spec.Produces != null && b.Level > 0 && b.PerHour > 0 ? "Goes straight into the stores." : string.Empty,
                 ShowCrew = b.Level > 0 && b.CrewNeeded > 0 && !b.Wrecked,
@@ -481,6 +485,19 @@ namespace CultOfComfort.Client
                 : $"{wardens} · manning the nearest towers (within {table.GuardhouseReach} tiles): they fire faster";
         }
 
+        /// <summary>What the Watchtower sees: "Tonight: Wulfric, north road. The Night after: the Bishop, south road."</summary>
+        public static string ForecastNote(BaseSnapshot s)
+        {
+            var forecast = s.Forecast ?? Array.Empty<(int Night, int Road, string Who)>();
+            if (forecast.Count == 0)
+            {
+                return "One road, one way they come. Nothing to look out for yet.";
+            }
+
+            var map = VillageMap.Demo;
+            return string.Join(" ", forecast.Select((f, i) => $"{(i == 0 ? "Next Night" : "The Night after")}: {f.Who}, {map.RoadName(f.Road)}."));
+        }
+
         /// <summary>A tower at its level: "Reach 3.5 tiles · hits 12 · every 1.5 s".</summary>
         public static string TowerLine(TowerType tower, int level)
         {
@@ -492,6 +509,7 @@ namespace CultOfComfort.Client
         private static string Effect(BuildingSpec spec, int level)
         {
             if (level == 0) return string.Empty;
+            if (spec.Type == BuildingType.BellTower) return "At Night the cultists and wardens hit half as hard again.";
             if (spec.Type == BuildingType.MudTrap) return "Sticks the first three raiders who step in it. Used up by the Night.";
             if (spec.Type == BuildingType.DecoyDuck) return "Raiders within three tiles go for it first. Used up by the Night.";
             if (spec.Tower is { } tower) return TowerLine(tower, level);

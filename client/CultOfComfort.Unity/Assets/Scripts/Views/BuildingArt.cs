@@ -44,6 +44,9 @@ namespace CultOfComfort.Client
             BuildingType.ComfyAltar => "comfy_altar",
             BuildingType.MudTrap => "mud_trap",
             BuildingType.DecoyDuck => "decoy_duck",
+            BuildingType.Watchtower => "watchtower",
+            BuildingType.Tavern => "tavern",
+            BuildingType.BellTower => "bell_tower",
             _ => null,
         };
 

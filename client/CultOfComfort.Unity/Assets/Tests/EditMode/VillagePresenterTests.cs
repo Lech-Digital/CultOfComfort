@@ -353,6 +353,16 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
+        public void ForecastNote_TwoNights_SaysWhoAndWhere()
+        {
+            // Arrange
+            var snapshot = Fresh() with { HearthLevel = 3, Forecast = new[] { (2, 0, "Wulfric"), (3, 1, "the Bishop") } };
+
+            // Act & Assert
+            Assert.AreEqual("Next Night: Wulfric, north road. The Night after: the Bishop, south road.", VillagePresenter.ForecastNote(snapshot));
+        }
+
+        [Test]
         public void TerrainCard_RaidersRoadAtHearthOne_SaysWhatPavingNeeds()
         {
             // Arrange

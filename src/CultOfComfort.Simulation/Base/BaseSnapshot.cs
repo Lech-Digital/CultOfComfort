@@ -53,7 +53,8 @@ public sealed record BaseSnapshot(
     ProphetView? Prophet = null,
     IReadOnlyList<NotableView>? Notables = null,
     Season Season = Season.Spring,
-    DateTimeOffset? SeasonEndsAtUtc = null)
+    DateTimeOffset? SeasonEndsAtUtc = null,
+    IReadOnlyList<(int Night, int Road, string Who)>? Forecast = null)
 {
     public DateTimeOffset? ConstructionEndsAtUtc => Buildings.FirstOrDefault(b => b.IsUpgrading)?.UpgradeEndsAtUtc;
 

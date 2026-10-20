@@ -214,6 +214,7 @@ public static class VillageSaveMapping
         stones = plan.StonesPercent,
         enemySpeed = plan.EnemySpeedPercent,
         salvage = plan.SalvagePercent,
+        defenderDamage = plan.DefenderDamagePercent,
         traps = (plan.Traps ?? Array.Empty<GridPosition>()).Select(t => new TileDto { x = t.X, y = t.Y }).ToList(),
     };
 
@@ -253,7 +254,7 @@ public static class VillageSaveMapping
             Math.Max(0, d.towerDamage), Math.Max(0, d.prophetHealth), Math.Max(0, d.road),
             (d.traps ?? new List<TileDto>()).Select(t => new GridPosition(t.x, t.y)).ToList(),
             Math.Max(0, d.prophetDamage), Math.Max(0, d.prophetSpeed), Math.Max(0, d.voice), Math.Max(0, d.stones),
-            Math.Clamp(d.enemySpeed, -90, 0), Math.Max(0, d.salvage));
+            Math.Clamp(d.enemySpeed, -90, 0), Math.Max(0, d.salvage), Math.Max(0, d.defenderDamage));
     }
 
     internal static ReportDto ToDto(NightReport r) => new()

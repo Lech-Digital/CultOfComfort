@@ -651,7 +651,7 @@ public sealed partial class BaseState
         var tension = TensionValue(nowUtc);
         return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
             tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport, _cleared.Concat(_treeCuts.Keys.Where(t => !IsWildTreeStanding(t))).ToList(),
-            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts(), IdleVillagers(), DailyViewAt(nowUtc), _raidersRoad, NextRoad, _stowed.ToList(), _table.Builders(HearthLevel) - BuildersBusy, _towels, VisitorViewAt(nowUtc), ProphetViewNow(), NotableViews(), SeasonBook.Of(nowUtc), SeasonBook.EndsAt(nowUtc));
+            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts(), IdleVillagers(), DailyViewAt(nowUtc), _raidersRoad, NextRoad, _stowed.ToList(), _table.Builders(HearthLevel) - BuildersBusy, _towels, VisitorViewAt(nowUtc), ProphetViewNow(), NotableViews(), SeasonBook.Of(nowUtc), SeasonBook.EndsAt(nowUtc), Forecast());
     }
 
     public ResourceBag Caps
@@ -1272,7 +1272,7 @@ public sealed partial class BaseState
             var crossing = Due(_raid == null && _night == null ? HostileCrossing() : null, now);
             var deadline = Due(_raid != null && _night == null ? _raid.WarningEndsAtUtc : (DateTimeOffset?)null, now);
             var abandoned = Due(_night != null ? _nightStartedAt.AddMinutes(_table.Tension.AbandonedNightMinutes) : (DateTimeOffset?)null, now);
-            var arrival = Due(_population < Beds() ? _populationAsOf.AddMinutes(_table.VillagerArrivalMinutes) : (DateTimeOffset?)null, now);
+            var arrival = Due(_population < Beds() ? _populationAsOf.AddMinutes(ArrivalMinutes) : (DateTimeOffset?)null, now);
             var runsOut = Due(PeatRunsOutAt(), now);
             var warms = Due(WarmsUpAt(), now);
             var domain = Due(NextDomainEvent(), now);
@@ -1421,6 +1421,7 @@ public sealed partial class BaseState
             VoicePercent: TakenPerks.Sum(p => p.VoicePercent),
             StonesPercent: TakenPerks.Sum(p => p.StonesPercent),
             EnemySpeedPercent: SeasonBook.EnemySpeedPercent(season),
+            DefenderDamagePercent: Standing(BuildingType.BellTower) ? _table.BellDefenderPercent : 0,
             SalvagePercent: SeasonBook.SalvagePercent(season));
     }
 
@@ -1874,6 +1875,28 @@ public sealed partial class BaseState
 
     /// <summary>Villagers at home with no work: what's left after every crew is filled.</summary>
     private int IdleVillagers() => Math.Max(0, _population - MissionariesAway - _buildings.Sum(CrewOf));
+
+    /// <summary>A building of this type stands finished, unwrecked and on the road network.</summary>
+    private bool Standing(BuildingType type) => _buildings.Any(b => b.Type == type && b.Level >= 1 && !b.Wrecked && IsConnected(b));
+
+    /// <summary>Minutes between villagers (a Tavern draws them in quicker).</summary>
+    private double ArrivalMinutes => _table.VillagerArrivalMinutes * (Standing(BuildingType.Tavern) ? _table.TavernArrivalPercent / 100.0 : 1.0);
+
+    /// <summary>What the Watchtower sees (spec 2026-10-20 new buildings): the next two Nights' roads and who comes; empty without one.</summary>
+    private IReadOnlyList<(int Night, int Road, string Who)> Forecast()
+    {
+        if (!Standing(BuildingType.Watchtower) || _map.OpenRoads(HearthLevel).Count <= 1)
+        {
+            return Array.Empty<(int, int, string)>();
+        }
+
+        var first = LastNightRecorded + 1;
+        return Enumerable.Range(first, 2).Select(n =>
+        {
+            var road = n == first ? NextRoad : TonightsRoad(n, (ulong)(946 + n), SeasonBook.Of(_now));
+            return (n, road, CultOfComfort.Simulation.Waves.RaidRoster.Who(HearthLevel, road));
+        }).ToList();
+    }
 
     /// <summary>Towers standing or packed up, every kind together (the Hearth's cap counts these).</summary>
     public int TowerCount => _buildings.Count(b => _table.Spec(b.Type).IsTower) + _stowed.Count;

@@ -51,6 +51,15 @@ public enum BuildingType
 
     /// <summary>A dusk trick: a giant wooden duck beside the road that raiders can't resist smashing; used up by the Night.</summary>
     DecoyDuck,
+
+    /// <summary>Hearth 3 (spec 2026-10-20 new buildings): a lookout who sees two Nights ahead.</summary>
+    Watchtower,
+
+    /// <summary>Hearth 3: ale and a fire. Devotion and Comfort, and new villagers find the place quicker.</summary>
+    Tavern,
+
+    /// <summary>Hearth 3: a bell to ring when they come. The cultists and wardens fight half as hard again.</summary>
+    BellTower,
 }
 
 public enum ResourceType
