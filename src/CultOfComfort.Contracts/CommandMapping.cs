@@ -56,6 +56,10 @@ public static class CommandMapping
                 dto.night = c.Night;
                 dto.inputs = c.Inputs.Select(i => new InputDto { tick = i.Tick, action = i.Type.ToString(), x = i.Target.X, y = i.Target.Y }).ToList();
                 break;
+            case ResolveTrial c:
+                dto.night = c.Stage;
+                dto.inputs = c.Inputs.Select(i => new InputDto { tick = i.Tick, action = i.Type.ToString(), x = i.Target.X, y = i.Target.Y }).ToList();
+                break;
             case RecordNightResult c:
                 (dto.night, dto.stars) = (c.Night, c.Stars);
                 dto.wrecked = c.WreckedBuildingIds?.ToList() ?? new List<int>();
@@ -138,6 +142,9 @@ public static class CommandMapping
             nameof(ClearTerrain) => new ClearTerrain(id, new GridPosition(dto.x, dto.y)),
             nameof(BeginNight) => new BeginNight(id),
             nameof(ResolveNight) => new ResolveNight(id, dto.night, (dto.inputs ?? new List<InputDto>()).Select(Input).ToList()),
+            nameof(ResolveTrial) => new ResolveTrial(id, dto.night, (dto.inputs ?? new List<InputDto>()).Select(Input).ToList()),
+            nameof(BeginTrial) => new BeginTrial(id),
+            nameof(ClaimAlms) => new ClaimAlms(id),
             nameof(AcknowledgeReport) => new AcknowledgeReport(id),
             nameof(ClaimErrand) => new ClaimErrand(id),
             nameof(RecordNightResult) => new RecordNightResult(id, dto.night, dto.stars, dto.wrecked),

@@ -148,6 +148,38 @@ namespace CultOfComfort.Client
         public const string ErrandTab = "Errand";
 
         /// <summary>
+        /// The Pilgrims' Way (spec 2026-10-20 the Pilgrims' Way): the next stage (a boss every fifth), what clearing it
+        /// pays, how far he's got, and the alms box filling meanwhile.
+        /// </summary>
+        public static SheetModel PilgrimsWay(BaseSnapshot snapshot)
+        {
+            var t = snapshot.Trial;
+            var model = new SheetModel { Title = "The Pilgrims' Way", Footer = "Fight it any time, shield or no shield. Nothing in the village gets broken." };
+            if (t == null)
+            {
+                return model;
+            }
+
+            var (bag, towels) = TrialBook.Reward(t.NextStage);
+            model.Rows.Add(new SheetRow { Heading = true, Text = t.Boss ? $"Stage {t.NextStage} · a boss leads it" : $"Stage {t.NextStage}" });
+            model.Rows.Add(new SheetRow
+            {
+                Text = $"{TrialBook.Budget(t.NextStage)} raiders' worth, {TrialBook.Waves(t.NextStage)} waves",
+                Detail = $"Clear it: {VillagePresenter.ShortCost(bag)}" + (towels > 0 ? $" · {towels} Towels" : string.Empty),
+                Button = "Walk it", Enabled = snapshot.NightInProgress == null, Action = "trial:begin",
+            });
+            model.Rows.Add(new SheetRow { Text = t.Cleared == 0 ? "No stages cleared yet." : $"Cleared {t.Cleared} stage{(t.Cleared == 1 ? string.Empty : "s")}." });
+            model.Rows.Add(new SheetRow { Heading = true, Text = "The alms box" });
+            model.Rows.Add(new SheetRow
+            {
+                Text = t.AlmsWaiting.IsZero ? "Empty" : VillagePresenter.ShortCost(t.AlmsWaiting),
+                Detail = t.Cleared == 0 ? "Clear a stage and pilgrims start leaving alms." : $"Fills by {VillagePresenter.ShortCost(t.AlmsPerHour)} an hour, up to {TrialBook.AlmsCapHours} hours.",
+                Button = "Claim", Enabled = !t.AlmsWaiting.IsZero, Action = "trial:alms",
+            });
+            return model;
+        }
+
+        /// <summary>
         /// The Prophet's sheet (spec 2026-10-20 the Prophet grows): his level and experience, what it's done for him, the
         /// pair of perks to choose from when one is due, and the perks he has.
         /// </summary>

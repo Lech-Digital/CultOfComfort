@@ -57,6 +57,10 @@ public static class VillageSaveMapping
         answeredVisitorSlot = data.AnsweredVisitorSlot,
         prophetXp = data.ProphetXp,
         prophetPerks = (data.ProphetPerks ?? Array.Empty<string>()).ToList(),
+        trialsCleared = data.TrialsCleared,
+        hasTrial = data.TrialInProgress != null,
+        trial = data.TrialInProgress == null ? new NightDto() : ToDto(data.TrialInProgress),
+        almsAsOfTicks = data.AlmsAsOfUtcTicks,
         notableIds = (data.Notables ?? Array.Empty<(string, int)>()).Select(n => n.Item1).ToList(),
         notableBuildings = (data.Notables ?? Array.Empty<(string, int)>()).Select(n => n.Item2).ToList(),
         stowed = (data.Stowed ?? Array.Empty<StowedTower>()).Select(t => new StowedDto { type = t.Type.ToString(), level = t.Level, wrecked = t.Wrecked }).ToList(),
@@ -167,7 +171,10 @@ public static class VillageSaveMapping
             dto.answeredVisitorSlot,
             dto.prophetXp,
             dto.prophetPerks ?? new List<string>(),
-            (dto.notableIds ?? new List<string>()).Zip(dto.notableBuildings ?? new List<int>(), (n, b) => (n, b)).ToList());
+            (dto.notableIds ?? new List<string>()).Zip(dto.notableBuildings ?? new List<int>(), (n, b) => (n, b)).ToList(),
+            dto.trialsCleared,
+            dto.hasTrial && dto.trial != null ? FromDto(dto.trial) : null,
+            dto.almsAsOfTicks);
     }
 
     private static DomainData FromDto(DomainDto d) => new(

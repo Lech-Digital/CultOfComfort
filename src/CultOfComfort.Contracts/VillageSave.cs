@@ -50,7 +50,11 @@ public sealed class VillageSaveDto
     public int prophetXp;                 // spec 2026-10-20 the Prophet grows
     public List<string> prophetPerks;
     public List<string> notableIds;       // spec 2026-10-20 notables: who works where
-    public List<int> notableBuildings; // the errand by id (errandIndex alone moved players when the book was reordered); empty: read errandIndex the old way
+    public List<int> notableBuildings;
+    public int trialsCleared;             // spec 2026-10-20 the Pilgrims' Way
+    public bool hasTrial;
+    public NightDto trial;
+    public long almsAsOfTicks; // the errand by id (errandIndex alone moved players when the book was reordered); empty: read errandIndex the old way
     public bool hasDomain; // older saves: no Marchlands yet
     public DomainDto domain;
     public List<string> researched;   // older saves: none

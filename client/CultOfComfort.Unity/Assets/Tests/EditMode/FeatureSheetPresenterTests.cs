@@ -195,5 +195,21 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("Level 3 of 10", sheet.Rows[0].Text);
             CollectionAssert.AreEquivalent(new[] { "perk:bathrobe", "perk:slippers" }, sheet.Rows.Where(r => r.Button == "Choose").Select(r => r.Action).ToArray());
         }
+
+        [Test]
+        public void PilgrimsWay_StageFive_ABossAndAWalkButton()
+        {
+            // Arrange
+            var state = BaseState.Restore(BuildingTable.Default, VillageMap.Demo,
+                BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, System.DateTimeOffset.UnixEpoch).ToData() with { TrialsCleared = 4 });
+
+            // Act
+            var sheet = FeatureSheetPresenter.PilgrimsWay(state.Snapshot(System.DateTimeOffset.UnixEpoch));
+
+            // Assert
+            Assert.AreEqual("Stage 5 · a boss leads it", sheet.Rows[0].Text);
+            Assert.AreEqual("trial:begin", sheet.Rows[1].Action);
+            Assert.IsTrue(sheet.Rows.Any(r => r.Action == "trial:alms"));
+        }
     }
 }

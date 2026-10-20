@@ -27,6 +27,8 @@ public class ContractsTests
         new AnswerVisitor(Guid.NewGuid(), true),
         new ChooseProphetPerk(Guid.NewGuid(), "bathrobe"),
         new AssignNotable(Guid.NewGuid(), "agnes", 12),
+        new BeginTrial(Guid.NewGuid()),
+        new ClaimAlms(Guid.NewGuid()),
         new UpgradeBuilding(Guid.NewGuid(), 3),
         new UpgradeHearth(Guid.NewGuid()),
         new DemolishBuilding(Guid.NewGuid(), 4),

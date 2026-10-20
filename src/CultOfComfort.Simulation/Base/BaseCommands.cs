@@ -49,6 +49,15 @@ public sealed record AcknowledgeReport(Guid CommandId) : BaseCommand(CommandId);
 public sealed record ClaimErrand(Guid CommandId) : BaseCommand(CommandId);
 
 /// <summary>Cuts a wild tree (Timber) or clears a loose boulder (costs Timber, gives Scrap). Walls are bedrock.</summary>
+/// <summary>Sets out on the next stage of the Pilgrims' Way (spec 2026-10-20 the Pilgrims' Way): the outcome carries its plan.</summary>
+public sealed record BeginTrial(Guid CommandId) : BaseCommand(CommandId);
+
+/// <summary>A stage of the Pilgrims' Way, fought: replayed from the inputs like a Night.</summary>
+public sealed record ResolveTrial(Guid CommandId, int Stage, IReadOnlyList<CultOfComfort.Simulation.Combat.PlayerInput> Inputs) : BaseCommand(CommandId);
+
+/// <summary>Empties the Pilgrims' alms box into the stores.</summary>
+public sealed record ClaimAlms(Guid CommandId) : BaseCommand(CommandId);
+
 /// <summary>Puts a notable to work at a building (spec 2026-10-20 notables); a negative id sends them home.</summary>
 public sealed record AssignNotable(Guid CommandId, string NotableId, int BuildingId) : BaseCommand(CommandId);
 

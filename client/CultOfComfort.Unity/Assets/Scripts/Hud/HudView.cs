@@ -293,6 +293,7 @@ namespace CultOfComfort.Client
             _sideRight.name = "side-right";
             _sideLeft.Add(Shortcut(LockedFeatures.Get("map")));
             _sideLeft.Add(Shortcut(LockedFeatures.Get("research")));
+            _sideLeft.Add(Shortcut(LockedFeatures.Get("pilgrims")));
             _sideRight.Add(Shortcut(LockedFeatures.Get("missionaries")));
             _sideRight.Add(Shortcut(LockedFeatures.Get("tithes")));
             var centre = Container("centre");

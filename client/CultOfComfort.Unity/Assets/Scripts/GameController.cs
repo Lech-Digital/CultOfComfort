@@ -66,6 +66,8 @@ namespace CultOfComfort.Client
         private GridPosition? _cardTerrain;
         private bool _cardVisitor;          // the visitor's card is open (spec 2026-10-20 visitors)
         private Season? _seasonSeen;
+        private bool _trialMode;          // the fight on is a stage of the Pilgrims' Way, not a Night
+        private CommandOutcome _trialOutcome;
         private WeatherView _weather;
         private long _greetedVisitorSlot = -1;
         private NightPlan _plan;
@@ -345,7 +347,7 @@ namespace CultOfComfort.Client
                     return;
                 }
 
-                if (id == "research" || id == "shop" || id == "cult" || id == "prophet")
+                if (id == "research" || id == "shop" || id == "cult" || id == "prophet" || id == "pilgrims")
                 {
                     CloseMap();
                     _house.Show(false);
@@ -610,6 +612,7 @@ namespace CultOfComfort.Client
             "research" => FeatureSheetPresenter.Research(_snapshot, _snapshot.AsOfUtc, confirmStop: IsArmed("research-stop")),
             "shop" => FeatureSheetPresenter.Market(_snapshot, BuildingTable.Default),
             "prophet" => FeatureSheetPresenter.Prophet(_snapshot),
+            "pilgrims" => FeatureSheetPresenter.PilgrimsWay(_snapshot),
             _ => FeatureSheetPresenter.Cult(_snapshot),
         };
 
@@ -645,7 +648,21 @@ namespace CultOfComfort.Client
         private async void OnSheetAction(string action)
         {
             var parts = action.Split(':');
-            if (parts[0] == "perk" && parts.Length == 2)
+            if (action == "trial:begin")
+            {
+                _sheet.Close();
+                StartTrial();
+            }
+            else if (action == "trial:alms")
+            {
+                var outcome = await SendVillage(new ClaimAlms(Guid.NewGuid()));
+                if (outcome.Status == CommandStatus.Accepted)
+                {
+                    Announce($"The alms box: {VillagePresenter.ShortCost(outcome.Collected)}. The pilgrims are generous, if muddy.");
+                    _sheet.Show("pilgrims", SheetFor("pilgrims"));
+                }
+            }
+            else if (parts[0] == "perk" && parts.Length == 2)
             {
                 var outcome = await SendVillage(new ChooseProphetPerk(Guid.NewGuid(), parts[1]));
                 if (outcome.Status == CommandStatus.Accepted)
@@ -706,6 +723,7 @@ namespace CultOfComfort.Client
                     "missionaries" => "New: Missionaries. Send a preacher to win a village over.",
                     "tithes" => "New: Tithes. Keep the lord sweet before he sends men.",
                     "research" => "New: Research. Study better ways of doing things.",
+                    "pilgrims" => "New: the Pilgrims' Way. Challenge Nights, any time, and alms for every stage you clear.",
                     _ => $"New: {LockedFeatures.Get(id).Label}.",
                 });
             }
@@ -723,6 +741,7 @@ namespace CultOfComfort.Client
             }
 
             OpenFeature("research", _snapshot != null && _snapshot.HearthLevel >= 2);
+            OpenFeature("pilgrims", _snapshot != null && _snapshot.HearthLevel >= 2);
             _featuresSeeded |= _snapshot != null;
             WatchDemand();
             _hud.SetFeatureBadge("missionaries", _snapshot?.Domain?.Tales?.Count > 0);
@@ -2059,6 +2078,34 @@ namespace CultOfComfort.Client
             _board.ShowCursor(tile, (Shapes.ToWorld(tile) - leader).sqrMagnitude <= reach * reach);
         }
 
+        /// <summary>Sets out on the next stage of the Pilgrims' Way: fought like a Night, any time, wrecking nothing.</summary>
+        private async void StartTrial()
+        {
+            try
+            {
+                if (_phase != GamePhase.Dusk || _village == null)
+                {
+                    return;
+                }
+
+                var outcome = await SendVillage(new BeginTrial(Guid.NewGuid()));
+                if (outcome.Status == CommandStatus.Accepted)
+                {
+                    _trialMode = true;
+                    BeginFight(outcome.Plan);
+                    Announce($"The Pilgrims' Way, stage {outcome.Plan.Night}. Hold the Hearth.");
+                }
+                else
+                {
+                    Announce(outcome.Reason);
+                }
+            }
+            catch (Exception e) when (!(e is OperationCanceledException))
+            {
+                VillageFailed(e);
+            }
+        }
+
         /// <summary>Sends only the input log; the village replays the Night itself and its result must match ours.</summary>
         private async void EndNight()
         {
@@ -2073,8 +2120,11 @@ namespace CultOfComfort.Client
             try
             {
                 _serverReplay = await Task.Run(() => Battle.Simulate(replaySetup), _cts.Token); // a whole Night: off the main thread
-                var outcome = await SendVillage(new ResolveNight(Guid.NewGuid(), _plan.Night, _battle.InputLog.ToList()));
-                _lastReport = outcome.Report;
+                var outcome = _trialMode
+                    ? await SendVillage(new ResolveTrial(Guid.NewGuid(), _plan.Night, _battle.InputLog.ToList()))
+                    : await SendVillage(new ResolveNight(Guid.NewGuid(), _plan.Night, _battle.InputLog.ToList()));
+                _trialOutcome = _trialMode ? outcome : null;
+                _lastReport = _trialMode ? null : outcome.Report;
                 LastNightVerified = outcome.Report != null && outcome.Report.StateHashHex == _battle.Result.StateHashHex && _serverReplay == _battle.Result;
             }
             catch (OperationCanceledException)
@@ -2105,6 +2155,18 @@ namespace CultOfComfort.Client
             _phase = GamePhase.Dusk;
             FrameStage(); // back to the whole village
             _hud.ShowPhase(_phase);
+            if (_trialMode)
+            {
+                _trialMode = false;
+                var stars = _trialOutcome?.Report?.Stars ?? 0;
+                Announce(stars >= 1
+                    ? $"Stage {_plan.Night} cleared! The pilgrims leave {VillagePresenter.ShortCost(_trialOutcome.Collected)} and walk on."
+                    : $"The pilgrims turned back at stage {_plan.Night}. Rearrange, and try again.");
+                _trialOutcome = null;
+                RefreshVillage();
+                return;
+            }
+
             Announce(report != null && report.Salvage > 0
                 ? $"Dawn. {report.Salvage} Scrap salvaged from {Ruler.Short}'s dropped horseshoes."
                 : "Dawn. Rebuild, rearrange, prepare for tomorrow's disappointment.");
