@@ -176,6 +176,8 @@ namespace CultOfComfort.Client
             _intro.Play(_camera, _document.panelSettings);
         }
 
+        private const string GoogleSignedInKey = "google.signedIn";
+
         /// <summary>
         /// Settings → Sign in with Google (ADR 0007): the account's village comes to this phone, or this village is linked
         /// to the account so any phone signed in to it gets it back.
@@ -203,7 +205,8 @@ namespace CultOfComfort.Client
                 _hud.ShowAccountNote(ok ? "Signed in with Google. Your village follows you to any phone now." : "The server didn't accept that (or no connection).");
                 if (ok)
                 {
-                    PlayerPrefs.SetInt("google.signedIn", 1);
+                    PlayerPrefs.SetInt(GoogleSignedInKey, 1);
+                    _hud.SetGoogleSignedIn(true);
                     _snapshot = null; // it may be another village, at a lower version: don't let "newer only" keep this one up
                     _roadVersion = -1;
                     RefreshSnapshot();
@@ -2453,6 +2456,7 @@ namespace CultOfComfort.Client
             _hud.ReplayIntroClicked += () => PlayIntro(VillageComposition.CreateIntroProgress());
             SetUpMap(root);
             _hud.GoogleSignInClicked += SignInWithGoogle;
+            _hud.SetGoogleSignedIn(PlayerPrefs.GetInt(GoogleSignedInKey, 0) == 1);
             _hud.GhostCancelClicked += CancelTool;
             _hud.GhostRotateClicked += () => _tool?.Rotate();
             _hud.PaintDoneClicked += () =>

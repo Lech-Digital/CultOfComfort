@@ -566,6 +566,14 @@ namespace CultOfComfort.Client
         /// <summary>Settings → Sign in with Google.</summary>
         public event Action GoogleSignInClicked;
         private Button _google;
+        private Label _googleSignedIn;
+
+        /// <summary>Once this phone is signed in with Google, Settings says so instead of offering the button again.</summary>
+        public void SetGoogleSignedIn(bool signedIn)
+        {
+            Show(_google, GoogleAuthConfig.Enabled && !signedIn);
+            Show(_googleSignedIn, GoogleAuthConfig.Enabled && signedIn);
+        }
         public event Action SoundToggled;
         public event Action MusicToggled;
         public event Action LaserClicked;
@@ -1475,6 +1483,10 @@ namespace CultOfComfort.Client
             _google.name = "google-sign-in";
             Show(_google, GoogleAuthConfig.Enabled);
             sheet.Add(_google);
+            _googleSignedIn = Text("Signed in with Google ✓", "sheet-line", "small");
+            _googleSignedIn.name = "google-signed-in";
+            Show(_googleSignedIn, false);
+            sheet.Add(_googleSignedIn);
             _accountNote = Text(string.Empty, "sheet-line", "small", "account-note");
             _accountNote.name = "account-note";
             Show(_accountNote, false);
