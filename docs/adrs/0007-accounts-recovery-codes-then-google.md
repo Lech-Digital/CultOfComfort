@@ -79,3 +79,5 @@ To switch it on, the owner creates, in Google Cloud (Google Auth Platform):
 1. a consent screen;
 2. a **Web application** client: its id goes into both `GoogleAuthConfig.WebClientId` and the server's `Auth__GoogleClientIds__0`;
 3. an **Android** client for `com.lechdigital.cultofcomfort`, with the SHA-1 of the key the APK is signed with. The development builds use Unity's debug key, `BB:C3:BA:10:00:9F:DB:80:47:DC:D8:7C:DB:44:E9:95:3F:AA:45:6D`. A Play release key needs a second Android client.
+
+Switched on 2026-10-20 in Google Cloud project `cult-of-comfort`. The consent screen is External and in Testing, so only listed test users can sign in until the app is published. The Web client id is set in `GoogleSignIn.cs` and in `deploy/docker-compose.prod.yml`. It is public, so it is not kept in `secrets.env`.

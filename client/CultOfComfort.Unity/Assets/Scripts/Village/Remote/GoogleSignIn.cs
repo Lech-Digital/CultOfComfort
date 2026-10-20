@@ -10,7 +10,7 @@ namespace CultOfComfort.Client
     /// </summary>
     public static class GoogleAuthConfig
     {
-        public const string WebClientId = "";
+        public const string WebClientId = "306329299380-ldti7e8ln5afc69r6mm3g64ldjgfipfu.apps.googleusercontent.com";
 
         public static bool Enabled => !string.IsNullOrEmpty(WebClientId) && Application.platform == RuntimePlatform.Android;
     }

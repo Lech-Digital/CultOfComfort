@@ -29,6 +29,8 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       # Development commands (finish now, raise Tension, record a Night) stay refused in production.
       Village__AllowDevelopmentCommands: "false"
+      # Sign in with Google (ADR 0007): the Web client id from Google Cloud project cult-of-comfort. Public, not a secret.
+      Auth__GoogleClientIds__0: "306329299380-ldti7e8ln5afc69r6mm3g64ldjgfipfu.apps.googleusercontent.com"
     volumes:
       - cultofcomfort-data:/data
     networks:
