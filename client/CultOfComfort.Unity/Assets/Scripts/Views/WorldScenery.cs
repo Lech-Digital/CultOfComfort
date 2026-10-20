@@ -76,7 +76,8 @@ namespace CultOfComfort.Client
                     var far = tile.Y <= -14 || tile.X <= -14;
                     var mountainous = tile.Y <= -8 || tile.X <= -8; // well back from the land, so no peak hides the village's edge
                     var hash = (tile.X * 73856093) ^ (tile.Y * 19349663) ^ 0x2545F491;
-                    if (!mountainous || OnTheWayIn(map, tile, 4) || wet(tile))
+                    var nearWater = map.River != null && map.River(tile.X, tile.Y) < 7.0; // a mountain is wide: keep it well off the river
+                    if (!mountainous || OnTheWayIn(map, tile, 4) || nearWater)
                     {
                         continue;
                     }
@@ -91,7 +92,7 @@ namespace CultOfComfort.Client
             foreach (var (x, y, scale) in new[] { (width + 9, 4, 2.4f), (width + 13, 16, 2.0f), (width + 8, height + 9, 2.2f), (22, height + 12, 2.6f), (44, height + 10, 1.9f) })
             {
                 var tile = new GridPosition(x, y);
-                if (!wet(tile))
+                if (map.River == null || map.River(tile.X, tile.Y) > 7.0)
                 {
                     layout.Add(((x + y) % 2 == 0 ? "peak_tall" : "peak_ridge", tile, Vector3.zero, (x * 37 + y * 11) % 360, scale));
                 }

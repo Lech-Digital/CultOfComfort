@@ -316,7 +316,44 @@ namespace CultOfComfort.Client
         /// runs on as water tiles to the horizon. Plank bridges carry the raiders' roads over it, reeds grow on the banks,
         /// a few rocks break the current, and a ring of standing stones waits on the far bank.
         /// </summary>
-        private static readonly Color RiverWater = Shapes.Hex("#3d6670"); // as the painted river, between its shallows and its deeps
+        private const int BeyondMargin = 26;
+        private const int BeyondPerTile = 8;
+        private Texture2D _beyondTexture;
+        private System.Threading.Tasks.Task<Color32[]> _beyondPainting;
+
+        /// <summary>
+        /// The meadow beyond the map, painted (spec 2026-10-20 river): the river and its banks run on smooth past the
+        /// edge instead of in tile-sized squares. One textured sheet just under the map's ground, painted off the main
+        /// thread like the ground.
+        /// </summary>
+        private void BuildBeyond()
+        {
+            var map = VillageMap.Demo;
+            var width = map.Width + BeyondMargin * 2;
+            var height = map.Height + BeyondMargin * 2;
+            _beyondTexture = new Texture2D(width * BeyondPerTile, height * BeyondPerTile, TextureFormat.RGBA32, true)
+            {
+                wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Trilinear, anisoLevel = 2, name = "Beyond the map",
+            };
+            _beyondTexture.SetPixels32(Enumerable.Repeat((Color32)Palette.Grass, _beyondTexture.width * _beyondTexture.height).ToArray());
+            _beyondTexture.Apply(true, false);
+            var (x0, x1) = (-BeyondMargin - 0.5f, map.Width + BeyondMargin - 0.5f);
+            var (z0, z1) = (BeyondMargin + 0.5f, -(map.Height + BeyondMargin - 0.5f));
+            var mesh = new Mesh { name = "Beyond the map" };
+            mesh.SetVertices(new[] { new Vector3(x0, -0.12f, z0), new Vector3(x1, -0.12f, z0), new Vector3(x0, -0.12f, z1), new Vector3(x1, -0.12f, z1) });
+            mesh.SetUVs(0, new[] { new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0f, 1f), new Vector2(1f, 1f) });
+            mesh.SetTriangles(new[] { 0, 1, 2, 2, 1, 3 }, 0);
+            mesh.SetNormals(new[] { Vector3.up, Vector3.up, Vector3.up, Vector3.up });
+            mesh.RecalculateBounds();
+            var sheet = new GameObject("Beyond the map");
+            sheet.transform.SetParent(_root, false);
+            sheet.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var material = new Material(Resources.Load<Material>("BaseLit")) { mainTexture = _beyondTexture, color = Color.white };
+            material.SetFloat("_Smoothness", 0.05f);
+            sheet.AddComponent<MeshRenderer>().sharedMaterial = material;
+            GroundPainter.Warm();
+            _beyondPainting = System.Threading.Tasks.Task.Run(() => GroundPainter.Beyond(map.Width, map.Height, BeyondMargin, BeyondPerTile, map.River));
+        }
 
         /// <summary>Where the stone circle stands on the far bank (the forest leaves room round it).</summary>
         private static readonly Vector2 StoneCircle = new Vector2(63.5f, 28.5f);
@@ -327,29 +364,6 @@ namespace CultOfComfort.Client
             if (map.River == null)
             {
                 return;
-            }
-
-            // Beyond the map: water tiles with muddy banks, as far as the eye goes.
-            for (var y = -24; y < map.Height + 24; y++)
-            {
-                for (var x = -24; x < map.Width + 24; x++)
-                {
-                    var tile = new GridPosition(x, y);
-                    if (map.Contains(tile))
-                    {
-                        continue;
-                    }
-
-                    var d = map.River(x, y);
-                    if (d < 0)
-                    {
-                        _water.Add(Shapes.Create(PrimitiveType.Cube, RiverWater, Shapes.ToWorld(tile, -0.11f), new Vector3(1.02f, 0.02f, 1.02f), _root, "River").transform);
-                    }
-                    else if (d < 0.9)
-                    {
-                        Shapes.Create(PrimitiveType.Cube, Palette.Mud, Shapes.ToWorld(tile, -0.115f), new Vector3(1f, 0.01f, 1f), _root, "Bank");
-                    }
-                }
             }
 
             // Bridges: a plank span on every road tile over the water, laid along the road.
@@ -588,7 +602,7 @@ namespace CultOfComfort.Client
         private bool _paintAgain;
 
         /// <summary>Whether the painted ground is on the board and nothing is being repainted (captures wait for it).</summary>
-        public bool GroundReady => _painting == null && !_paintAgain && _groundBare != null;
+        public bool GroundReady => _painting == null && !_paintAgain && _groundBare != null && _beyondPainting == null;
 
         /// <summary>
         /// Repaints the ground: the mud and the river once, the forest floor when the Hearth opens land, the roads each
@@ -639,6 +653,17 @@ namespace CultOfComfort.Client
 
         private void Update()
         {
+            if (_beyondPainting != null && _beyondPainting.IsCompleted)
+            {
+                if (_beyondPainting.Status == System.Threading.Tasks.TaskStatus.RanToCompletion)
+                {
+                    _beyondTexture.SetPixels32(_beyondPainting.Result);
+                    _beyondTexture.Apply(true, false);
+                }
+
+                _beyondPainting = null;
+            }
+
             if (_painting == null || !_painting.IsCompleted)
             {
                 return;
@@ -919,8 +944,9 @@ namespace CultOfComfort.Client
             }
 
             // The ground runs to the horizon (the haze hides the end of it): no blackness when zooming out.
-            Shapes.Create(PrimitiveType.Cube, Palette.Grass, new Vector3((VillageMap.Demo.Width - 1) / 2f, -0.22f, -(VillageMap.Demo.Height - 1) / 2f),
+            Shapes.Create(PrimitiveType.Cube, Palette.Grass, new Vector3((VillageMap.Demo.Width - 1) / 2f, -0.32f, -(VillageMap.Demo.Height - 1) / 2f),
                 new Vector3(VillageMap.Demo.Width + 120f, 0.2f, VillageMap.Demo.Height + 120f), _root, "Apron");
+            BuildBeyond();
             BuildRiver();
             foreach (var item in WorldScenery.WorldLayout(VillageMap.Demo))
             {

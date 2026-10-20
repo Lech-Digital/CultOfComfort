@@ -122,6 +122,45 @@ namespace CultOfComfort.Client
             return pixels;
         }
 
+        private static readonly Color Meadow = Shapes.Hex("#3f4a2c");
+        private static readonly Color MeadowLight = Shapes.Hex("#4b5733");
+
+        /// <summary>
+        /// The land beyond the map (spec 2026-10-20 river): meadow with the river and its banks running on, at
+        /// <paramref name="perTile"/> pixels a tile, <paramref name="margin"/> tiles past each edge. Row 0 is tile y
+        /// -margin. Cheap: the map's own ground covers the middle.
+        /// </summary>
+        public static Color32[] Beyond(int width, int height, int margin, int perTile, Func<double, double, double> river)
+        {
+            var w = (width + margin * 2) * perTile;
+            var h = (height + margin * 2) * perTile;
+            var pixels = new Color32[w * h];
+            for (var py = 0; py < h; py++)
+            {
+                for (var px = 0; px < w; px++)
+                {
+                    var x = (px + 0.5f) / perTile - margin;
+                    var y = (py + 0.5f) / perTile - margin;
+                    var inside = x > 0.5f && y > 0.5f && x < width - 0.5f && y < height - 0.5f;
+                    var colour = inside ? Meadow : Color.Lerp(Meadow, MeadowLight, Mathf.Clamp01(Noise(x / 3f, y / 3f, 31) * 0.5f + 0.5f));
+                    if (!inside && river != null)
+                    {
+                        var d = (float)river(x - 0.5, y - 0.5);
+                        if (d < 0.9f)
+                        {
+                            colour = RiverColour(colour, d, x, y);
+                        }
+                    }
+
+                    colour *= 0.97f + Hash(px, py) * 0.05f;
+                    colour.a = 1f;
+                    pixels[py * w + px] = colour;
+                }
+            }
+
+            return pixels;
+        }
+
         private static Color RiverColour(Color ground, float d, float x, float y)
         {
             if (d >= 0.9f)
