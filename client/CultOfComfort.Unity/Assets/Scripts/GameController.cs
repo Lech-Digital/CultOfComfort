@@ -64,6 +64,8 @@ namespace CultOfComfort.Client
         private readonly List<GridPosition> _stroke = new List<GridPosition>(); // road tiles under the finger
         private int? _cardBuilding;
         private GridPosition? _cardTerrain;
+        private bool _cardVisitor;          // the visitor's card is open (spec 2026-10-20 visitors)
+        private long _greetedVisitorSlot = -1;
         private NightPlan _plan;
         private NightReport _lastReport;
         private bool _showingReport;
@@ -1447,6 +1449,15 @@ namespace CultOfComfort.Client
                     return;
                 }
 
+                _cardVisitor = VillagePresenter.VisitorTile(_snapshot, VillageMap.Demo) == tile;
+                if (_cardVisitor)
+                {
+                    _cardBuilding = null;
+                    _cardTerrain = null;
+                    RefreshVillage();
+                    return;
+                }
+
                 var building = _snapshot.BuildingAt(tile);
                 if (building == null)
                 {
@@ -1780,7 +1791,15 @@ namespace CultOfComfort.Client
             _board.SetCosmetics(_snapshot.Daily?.Cosmetics);
             var hasCard = _cardBuilding != null && _snapshot.Buildings.Any(b => b.Id == _cardBuilding.Value);
             var terrainCard = _cardTerrain != null ? VillagePresenter.TerrainCard(_snapshot, VillageMap.Demo, BuildingTable.Default, _cardTerrain.Value) : null;
-            var card = hasCard ? VillagePresenter.Card(_snapshot, BuildingTable.Default, _cardBuilding.Value) : terrainCard;
+            _cardVisitor &= _snapshot.Visitor != null; // they may have gone while the card was open
+            var card = _cardVisitor ? VillagePresenter.VisitorCard(_snapshot)
+                : hasCard ? VillagePresenter.Card(_snapshot, BuildingTable.Default, _cardBuilding.Value) : terrainCard;
+            _board.ShowVisitor(_snapshot.Visitor?.Offer.Kind, VillagePresenter.VisitorTile(_snapshot, VillageMap.Demo));
+            if (_snapshot.Visitor is { } visitor && visitor.Slot != _greetedVisitorSlot && _phase == GamePhase.Dusk)
+            {
+                _greetedVisitorSlot = visitor.Slot;
+                Say($"{visitor.Offer.Who} is at the Hearth. Tap them to see what they want.", prophet: false);
+            }
             if (card?.CancelLabel != null && IsArmed("cancel-build:" + _cardBuilding))
             {
                 card.CancelLabel = "Sure? Tap again to cancel"; // the warning on the button itself: a toast hides behind the card
@@ -2301,6 +2320,13 @@ namespace CultOfComfort.Client
             _hud.RepairAllClicked += () => SendSimple(new RepairAll(Guid.NewGuid()));
             _hud.UpgradeClicked += () =>
             {
+                if (_cardVisitor)
+                {
+                    _cardVisitor = false;
+                    SendSimple(new AnswerVisitor(Guid.NewGuid(), true));
+                    return;
+                }
+
                 if (_cardTerrain != null)
                 {
                     var tile = _cardTerrain.Value;
@@ -2317,7 +2343,17 @@ namespace CultOfComfort.Client
 
                 SendFromCard(b => b.Type == BuildingType.Hearth ? (BaseCommand)new UpgradeHearth(Guid.NewGuid()) : new UpgradeBuilding(Guid.NewGuid(), b.Id));
             };
-            _hud.DemolishClicked += () => SendFromCard(b => new DemolishBuilding(Guid.NewGuid(), b.Id), closeCard: true);
+            _hud.DemolishClicked += () =>
+            {
+                if (_cardVisitor)
+                {
+                    _cardVisitor = false;
+                    SendSimple(new AnswerVisitor(Guid.NewGuid(), false)); // sent on their way
+                    return;
+                }
+
+                SendFromCard(b => new DemolishBuilding(Guid.NewGuid(), b.Id), closeCard: true);
+            };
             _hud.FinishNowClicked += () => SendFromCard(_ => new FinishConstructionNow(Guid.NewGuid()));
             _hud.HurryClicked += () => SendFromCard(b => new SpendTowels(Guid.NewGuid(), TowelUse.Hurry, b.Id + 1)); // this building (id + 1), not just the first to finish
             _hud.DutyClicked += () => SendFromCard(b => new SetDuty(Guid.NewGuid(), b.Id, !b.Patrol));
@@ -2340,6 +2376,7 @@ namespace CultOfComfort.Client
             {
                 _cardBuilding = null;
                 _cardTerrain = null;
+                _cardVisitor = false;
             };
             _hud.StartNightClicked += () =>
             {

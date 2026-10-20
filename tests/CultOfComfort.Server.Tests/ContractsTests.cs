@@ -24,6 +24,7 @@ public class ContractsTests
         new SetDuty(Guid.NewGuid(), 9, true),
         new PackUpTower(Guid.NewGuid(), 4),
         new PackUpTowers(Guid.NewGuid()),
+        new AnswerVisitor(Guid.NewGuid(), true),
         new UpgradeBuilding(Guid.NewGuid(), 3),
         new UpgradeHearth(Guid.NewGuid()),
         new DemolishBuilding(Guid.NewGuid(), 4),

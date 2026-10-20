@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using CultOfComfort.Simulation.Balance;
 using CultOfComfort.Simulation.Base;
+using CultOfComfort.Simulation.Grid;
 
 namespace CultOfComfort.Client
 {
@@ -29,6 +30,9 @@ namespace CultOfComfort.Client
 
         /// <summary>The card is the raiders' road: its upgrade button paves it.</summary>
         public bool IsRaidersRoad;
+
+        /// <summary>The card is the visitor at the Hearth: upgrade takes up the offer, demolish sends them on.</summary>
+        public bool IsVisitor;
 
         /// <summary>A tower: it can be packed up (and every tower with it).</summary>
         public bool CanPackUp;
@@ -289,6 +293,59 @@ namespace CultOfComfort.Client
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Where a visitor stands (spec 2026-10-20 visitors): an open tile a few steps from the Hearth (a sheep strays
+        /// further), picked by the visitor's seed, never on a building, a road, a rock or the raiders' road. Null: no room.
+        /// </summary>
+        public static GridPosition? VisitorTile(BaseSnapshot s, VillageMap map)
+        {
+            if (s.Visitor == null)
+            {
+                return null;
+            }
+
+            var sheep = s.Visitor.Offer.Kind == VisitorKind.LostSheep;
+            var (near, far) = sheep ? (4, 8) : (1, 3);
+            var raiders = map.RoadTiles(s.HearthLevel);
+            var spots = new List<GridPosition>();
+            foreach (var tile in map.HearthTiles.SelectMany(h => Enumerable.Range(-far, far * 2 + 1).SelectMany(dy => Enumerable.Range(-far, far * 2 + 1)
+                         .Select(dx => new GridPosition(h.X + dx, h.Y + dy)))).Distinct())
+            {
+                var d = map.DistanceFromHearth(tile);
+                if (d >= near && d <= far && map.IsOpen(tile, s.HearthLevel) && !map.Rocks.Contains(tile) && !raiders.Contains(tile) && s.BuildingAt(tile) == null)
+                {
+                    spots.Add(tile);
+                }
+            }
+
+            return spots.Count == 0 ? null : spots.OrderBy(t => t.X).ThenBy(t => t.Y).ElementAt(s.Visitor.Seed % spots.Count);
+        }
+
+        /// <summary>The visitor's card: who, what they say, the offer and how long they'll wait.</summary>
+        public static BuildingCardModel VisitorCard(BaseSnapshot s)
+        {
+            var v = s.Visitor;
+            if (v == null)
+            {
+                return null;
+            }
+
+            var gives = new List<string>();
+            if (!v.Offer.Gives.IsZero) gives.Add(ShortCost(v.Offer.Gives));
+            if (v.Offer.Towels > 0) gives.Add($"{v.Offer.Towels} Towel{(v.Offer.Towels == 1 ? string.Empty : "s")}");
+            if (v.Offer.Villagers > 0) gives.Add(s.Population < s.Beds ? "a new villager" : "a villager, if you had a bed");
+            var get = string.Join(" · ", gives);
+            return new BuildingCardModel
+            {
+                IsTerrain = true, IsVisitor = true, Title = v.Offer.Who,
+                Output = $"{v.Offer.Says}\nLeaves in {Duration((long)(v.LeavesAtUtc - s.AsOfUtc).TotalSeconds)}.",
+                UpgradeLabel = v.Offer.Asks.IsZero ? $"Take it · {get}" : $"Give {ShortCost(v.Offer.Asks)} · get {get}",
+                CanUpgrade = v.CanPay,
+                DemolishLabel = "Send them on their way",
+                CanDemolish = true,
+            };
         }
 
         /// <summary>The raiders' road, tapped: what it is, and the next paving (spec 2026-10-20 roads and facings).</summary>

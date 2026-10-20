@@ -584,6 +584,47 @@ namespace CultOfComfort.Client
         }
 
         private GameObject _scout;
+        private GameObject _visitor;
+        private VisitorKind? _visitorKind;
+        private Transform _visitorMark;
+
+        /// <summary>The visitor at the Hearth (spec 2026-10-20 visitors), with a bobbing marker over them; null: nobody.</summary>
+        public void ShowVisitor(VisitorKind? kind, GridPosition? tile)
+        {
+            if (kind == null || tile == null)
+            {
+                if (_visitor != null)
+                {
+                    Destroy(_visitor);
+                    _visitor = null;
+                    _visitorKind = null;
+                }
+
+                return;
+            }
+
+            if (_visitor == null || _visitorKind != kind)
+            {
+                if (_visitor != null)
+                {
+                    Destroy(_visitor);
+                }
+
+                _visitorKind = kind;
+                _visitor = new GameObject("Visitor");
+                _visitor.transform.SetParent(_root, false);
+                var model = ArtLibrary.Instantiate(kind == VisitorKind.Pedlar ? "haycart" : kind == VisitorKind.LostSheep ? "sheep" : "villager_woman", _visitor.transform);
+                if (model != null)
+                {
+                    model.transform.localRotation = FaceCamera;
+                    model.transform.localScale *= kind == VisitorKind.Pedlar ? 0.8f : 1.2f;
+                }
+
+                _visitorMark = Shapes.Create(PrimitiveType.Sphere, Palette.Highlight, new Vector3(0f, 1.4f, 0f), Vector3.one * 0.22f, _visitor.transform, "Visitor marker").transform;
+            }
+
+            _visitor.transform.localPosition = Shapes.ToWorld(tile.Value);
+        }
         private GameObject _reach;
         private float _reachRadius = -1f;
 
@@ -975,6 +1016,11 @@ namespace CultOfComfort.Client
 
         private void LateUpdate()
         {
+            if (_visitorMark != null)
+            {
+                _visitorMark.localPosition = new Vector3(0f, 1.4f + Mathf.Sin(Time.time * 3f) * 0.12f, 0f); // "over here!"
+            }
+
             // A wreck smokes: each puff rises a little over a second and a half, swelling, then starts again.
             for (var i = _smoke.Count - 1; i >= 0; i--)
             {

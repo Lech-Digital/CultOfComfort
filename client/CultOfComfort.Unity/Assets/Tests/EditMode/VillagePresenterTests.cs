@@ -301,6 +301,40 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
+        public void VisitorCard_APedlar_GiveThisGetThat()
+        {
+            // Arrange
+            var offer = VisitorBook.Offers.First(o => o.Kind == VisitorKind.Pedlar && o.Towels > 0);
+            var snapshot = Fresh() with { HearthLevel = 3, Visitor = new VisitorView(offer, 0, T0.AddHours(2), 7, true, 1), AsOfUtc = T0 };
+
+            // Act
+            var card = VillagePresenter.VisitorCard(snapshot);
+
+            // Assert
+            Assert.IsTrue(card.IsVisitor);
+            StringAssert.StartsWith("Give 150 Scrap · get 2 Towels", card.UpgradeLabel);
+            StringAssert.Contains("Leaves in 2h", card.Output);
+            Assert.AreEqual("Send them on their way", card.DemolishLabel);
+        }
+
+        [Test]
+        public void VisitorTile_APilgrim_StandsCloseToTheHearthOnOpenGround()
+        {
+            // Arrange
+            var offer = VisitorBook.Offers.First(o => o.Kind == VisitorKind.Pilgrim);
+            var snapshot = Fresh() with { HearthLevel = 2, Visitor = new VisitorView(offer, 0, T0.AddHours(2), 12345, true, 1) };
+
+            // Act
+            var tile = VillagePresenter.VisitorTile(snapshot, VillageMap.Demo);
+
+            // Assert
+            Assert.IsNotNull(tile);
+            Assert.That(VillageMap.Demo.DistanceFromHearth(tile.Value), Is.InRange(1, 3));
+            Assert.IsNull(snapshot.BuildingAt(tile.Value));
+            Assert.IsFalse(VillageMap.Demo.RoadTiles(2).Contains(tile.Value));
+        }
+
+        [Test]
         public void TerrainCard_RaidersRoadAtHearthOne_SaysWhatPavingNeeds()
         {
             // Arrange

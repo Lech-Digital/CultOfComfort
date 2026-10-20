@@ -45,7 +45,8 @@ public sealed class VillageSaveDto
     public bool errandEventDone;
     public string errandId;
     public int raidersRoad; // pavings laid on the raiders' road (0: trodden mud)
-    public List<StowedDto> stowed; // towers packed up // the errand by id (errandIndex alone moved players when the book was reordered); empty: read errandIndex the old way
+    public List<StowedDto> stowed; // towers packed up
+    public long answeredVisitorSlot = -1; // the last visitor slot answered (spec 2026-10-20 visitors) // the errand by id (errandIndex alone moved players when the book was reordered); empty: read errandIndex the old way
     public bool hasDomain; // older saves: no Marchlands yet
     public DomainDto domain;
     public List<string> researched;   // older saves: none
