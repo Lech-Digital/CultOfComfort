@@ -17,7 +17,8 @@ public class BuildingTableTests
         hearth.Levels[1].Cost.Should().Be(new ResourceBag(450, 0, 50, 0)); // village-2026.10.4: the tutorial step
         hearth.Levels[1].BuildSeconds.Should().Be(600);
         hearth.Levels[2].Cost.Should().Be(new ResourceBag(1200, 150, 200, 100)); // 2026-10-16 first day: ~7 h for an errand player, not ~30
-        hearth.Levels[2].BuildSeconds.Should().Be(45 * 60);
+        hearth.Levels[2].BuildSeconds.Should().Be(6 * 60 * 60); // 2026-10-20 long builds: hours, then days
+        hearth.Levels[4].BuildSeconds.Should().Be(3 * 24 * 60 * 60);
         BuildingTable.Default.HearthStorageCaps.Should().Equal(1000, 2500, 6000, 12000, 25000);
         BuildingTable.Default.StartingStock.Should().Be(new ResourceBag(500, 60, 380, 0));
     }

@@ -21,7 +21,7 @@ public class MissionHouseTests
         for (var level = 2; level <= hearth; level++)
         {
             state.Apply(new UpgradeHearth(Guid.NewGuid()), now).Status.Should().Be(CommandStatus.Accepted);
-            now = now.AddHours(2);
+            now = now.AddHours(level == 2 ? 2 : 7); // Hearth 3 takes six hours (2026-10-20 long builds)
         }
 
         state.Apply(new DebugFillStores(Guid.NewGuid()), now);

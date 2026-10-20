@@ -46,7 +46,9 @@ public sealed record BaseSnapshot(
     DailyView? Daily = null,
     int RaidersRoad = 0,
     int NextRoad = 0,
-    IReadOnlyList<StowedTower>? Stowed = null)
+    IReadOnlyList<StowedTower>? Stowed = null,
+    int FreeBuilders = 1,
+    int Towels = 0)
 {
     public DateTimeOffset? ConstructionEndsAtUtc => Buildings.FirstOrDefault(b => b.IsUpgrading)?.UpgradeEndsAtUtc;
 

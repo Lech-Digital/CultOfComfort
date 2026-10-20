@@ -478,3 +478,89 @@ public class AcrossTheRiverTests
         altar.PerHour.Should().BeGreaterThan(0, "its crew keep the candles lit");
     }
 }
+
+/// <summary>Spec 2026-10-20 long builds: days at the top, more builders, Towels as speed-ups.</summary>
+public class LongBuildsTests
+{
+    private static readonly DateTimeOffset T0 = new(2026, 10, 20, 9, 0, 0, TimeSpan.Zero);
+
+    private static BaseState Village(int hearth)
+    {
+        var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+        for (var level = 2; level <= hearth; level++)
+        {
+            state.Apply(new DebugFillStores(Guid.NewGuid()), T0);
+            state.Apply(new UpgradeHearth(Guid.NewGuid()), T0);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+        }
+
+        state.Apply(new DebugFillStores(Guid.NewGuid()), T0);
+        return state;
+    }
+
+    [Fact]
+    public void Place_HearthThree_TwoJobsAtOnceNotThree()
+    {
+        // Arrange
+        var state = Village(3);
+
+        // Act
+        var first = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Cottage, new GridPosition(22, 15)), T0);
+        var second = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Cottage, new GridPosition(25, 15)), T0);
+        var third = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Cottage, new GridPosition(22, 18)), T0);
+
+        // Assert
+        (first.Status, second.Status).Should().Be((CommandStatus.Accepted, CommandStatus.Accepted), "two builders at Hearth 3");
+        third.Reason.Should().Contain("builders are busy");
+        state.Snapshot(T0).FreeBuilders.Should().Be(0);
+    }
+
+    [Fact]
+    public void Place_HearthOne_OneJobAtATime()
+    {
+        // Arrange
+        var state = Village(1);
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Cottage, new GridPosition(22, 15)), T0).Status.Should().Be(CommandStatus.Accepted);
+
+        // Act
+        var second = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Cottage, new GridPosition(25, 15)), T0);
+
+        // Assert
+        second.Reason.Should().Contain("builder is busy");
+    }
+
+    [Fact]
+    public void SpendTowels_HurryANamedJob_TakesAnHourOffThatOne()
+    {
+        // Arrange — two jobs; the later one is hurried by name.
+        var state = Village(3);
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Cottage, new GridPosition(22, 15)), T0);
+        state.Apply(new UpgradeHearth(Guid.NewGuid()), T0).Status.Should().Be(CommandStatus.Accepted); // a day's work
+        var hut = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Hearth);
+        var before = state.Snapshot(T0).Building(hut.Id).UpgradeEndsAtUtc!.Value;
+        var data = state.ToData();
+        state = BaseState.Restore(BuildingTable.Default, VillageMap.Demo, data with { Daily = data.Daily! with { Towels = 3 } });
+
+        // Act
+        state.Apply(new SpendTowels(Guid.NewGuid(), TowelUse.Hurry, hut.Id + 1), T0).Status.Should().Be(CommandStatus.Accepted);
+
+        // Assert
+        state.Snapshot(T0).Building(hut.Id).UpgradeEndsAtUtc.Should().Be(before.AddHours(-1));
+    }
+
+    [Fact]
+    public void ClaimErrand_Done_PaysATowel()
+    {
+        // Arrange — the first errand (a Woodcutter's Lean-to) done.
+        var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(15, 5)), T0);
+        state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+        var towels = state.Snapshot(T0).Towels;
+
+        // Act
+        state.Apply(new ClaimErrand(Guid.NewGuid()), T0).Status.Should().Be(CommandStatus.Accepted);
+
+        // Assert
+        state.Snapshot(T0).Towels.Should().Be(towels + DailyBook.ErrandTowels, "Towels show on the snapshot, daily list or not");
+    }
+}

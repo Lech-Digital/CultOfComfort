@@ -164,13 +164,13 @@ namespace CultOfComfort.Client
                 CanCrewLess = b.CrewWanted > 0,
                 CanCrewMore = b.CrewWanted < b.CrewNeeded,
                 UpgradeLabel = upgradeLabel,
-                CanUpgrade = !b.Wrecked && !maxed && !b.IsUpgrading && (next.BuildSeconds == 0 || snapshot.ConstructionEndsAtUtc == null) && snapshot.Stock.Covers(next.Cost)
+                CanUpgrade = !b.Wrecked && !maxed && !b.IsUpgrading && (next.BuildSeconds == 0 || snapshot.FreeBuilders > 0) && snapshot.Stock.Covers(next.Cost)
                              && (b.Type == BuildingType.Hearth || b.Level + 1 <= snapshot.HearthLevel),
                 CanDemolish = b.Type != BuildingType.Hearth && !b.IsUpgrading,
                 CanMove = b.Type != BuildingType.Hearth && !BuildingTable.IsRoad(b.Type),
                 IsUpgrading = b.IsUpgrading,
-                HurryLabel = b.IsUpgrading && snapshot.Daily != null ? $"Hurry {DailyBook.HurryMinutes} min · {DailyBook.HurryCost} Towel ({snapshot.Daily.Towels} left)" : null,
-                CanHurry = b.IsUpgrading && snapshot.Daily != null && snapshot.Daily.Towels >= DailyBook.HurryCost,
+                HurryLabel = b.IsUpgrading && snapshot.Towels > 0 ? $"Hurry {DailyBook.HurryMinutes / 60} h · {DailyBook.HurryCost} Towel ({snapshot.Towels} left)" : null,
+                CanHurry = b.IsUpgrading && snapshot.Towels >= DailyBook.HurryCost,
                 Remaining = b.IsUpgrading ? Duration((long)(b.UpgradeEndsAtUtc.Value - snapshot.AsOfUtc).TotalSeconds) + " left" : string.Empty,
                 CanPackUp = spec.IsTower,
                 DutyLabel = b.Type == BuildingType.Guardhouse && b.Level > 0 && !b.Wrecked

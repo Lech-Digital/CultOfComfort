@@ -241,6 +241,6 @@ public class ErrandTests
 
         // Assert
         levels.Select(l => l.PerHour).Should().Equal(10, 18, 28);
-        BuildingTable.Default.Version.Should().Be("village-2026.10.20b");
+        BuildingTable.Default.Version.Should().Be("village-2026.10.20c");
     }
 }

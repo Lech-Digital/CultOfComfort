@@ -33,7 +33,7 @@ public class BaseStateDamageTests
         fence.Levels[0].Health.Should().Be(50);
         fence.MaxCount(1).Should().Be(int.MaxValue);
         fence.IsTower.Should().BeFalse();
-        BuildingTable.Default.Version.Should().Be("village-2026.10.20b");
+        BuildingTable.Default.Version.Should().Be("village-2026.10.20c");
     }
 
     [Fact]

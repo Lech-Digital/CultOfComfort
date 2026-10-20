@@ -77,7 +77,7 @@ public sealed class BuildingTable
 
     public static BuildingTable Default { get; } = new();
 
-    public string Version { get; init; } = "village-2026.10.20b";
+    public string Version { get; init; } = "village-2026.10.20c";
 
     /// <summary>Health of a building whose first level is still being built.</summary>
     public int UnderConstructionHealth { get; init; } = 30;
@@ -136,6 +136,14 @@ public sealed class BuildingTable
     /// <summary>How many gates may stand on the raiders' road at Hearth level 1, 2, 3.</summary>
     public IReadOnlyList<int> RoadGatesByHearth { get; init; } = new[] { 1, 2, 3 };
 
+    /// <summary>
+    /// Builders at Hearth 1–5 (spec 2026-10-20 long builds): upgrades at the top take days (owner: "at higher levels,
+    /// take days even"), so a growing Hearth keeps more than one job going.
+    /// </summary>
+    public IReadOnlyList<int> BuildersByHearth { get; init; } = new[] { 1, 1, 2, 2, 3 };
+
+    public int Builders(int hearthLevel) => BuildersByHearth[Math.Min(Math.Max(hearthLevel, 1), BuildersByHearth.Count) - 1];
+
     /// <summary>How many towers (of every kind together) may stand at Hearth 1, 2, 3, 4 (spec 2026-10-20 defence).</summary>
     public IReadOnlyList<int> TowerCapByHearth { get; init; } = new[] { 8, 14, 20, 26, 32 }; // owner 2026-10-20: "4 towers is way too little"
 
@@ -179,39 +187,39 @@ public sealed class BuildingTable
         {
             new BuildingLevel(default, 0),
             new BuildingLevel(new ResourceBag(450, 0, 50, 0), 10 * 60), // 2026.10.4: the tutorial step (GDD ~20 min), was 600
-            new BuildingLevel(new ResourceBag(1200, 150, 200, 100), 45 * 60), // 2026.10.16 first day: ~5 h, not ~30 (was 2000/200/300/100, 60 min)
-            new BuildingLevel(new ResourceBag(3000, 600, 600, 300), 3 * 60 * 60), // 2026.10.16: Hearth 4, the Comfort Era
-            new BuildingLevel(new ResourceBag(8000, 1500, 1500, 800), 6 * 60 * 60), // 2026.10.20: Hearth 5, across the river
+            new BuildingLevel(new ResourceBag(1200, 150, 200, 100), 6 * 60 * 60), // 2026.10.16 first day: ~5 h, not ~30 (was 2000/200/300/100, 60 min)
+            new BuildingLevel(new ResourceBag(3000, 600, 600, 300), 24 * 60 * 60), // 2026.10.16: Hearth 4, the Comfort Era
+            new BuildingLevel(new ResourceBag(8000, 1500, 1500, 800), 3 * 24 * 60 * 60), // 2026.10.20: Hearth 5, across the river
         }),
         [BuildingType.Woodcutter] = new(BuildingType.Woodcutter, "Woodcutter's Lean-to", 1, new[] { 2, 3, 4, 5 }, new[]
         {
             new BuildingLevel(new ResourceBag(50, 0, 0, 0), 30, PerHour: 100, Health: 60),
-            new BuildingLevel(new ResourceBag(150, 0, 10, 0), 5 * 60, PerHour: 170, Health: 90, Slots: 2),
-            new BuildingLevel(new ResourceBag(400, 0, 40, 0), 20 * 60, PerHour: 260, Health: 120, Slots: 3),
+            new BuildingLevel(new ResourceBag(150, 0, 10, 0), 30 * 60, PerHour: 170, Health: 90, Slots: 2),
+            new BuildingLevel(new ResourceBag(400, 0, 40, 0), 4 * 60 * 60, PerHour: 260, Health: 120, Slots: 3),
         }, Produces: ResourceType.Timber, Width: 2, Depth: 1, Workers: 1),
         [BuildingType.PeatCut] = new(BuildingType.PeatCut, "Peat Cut", 1, new[] { 1, 2, 3, 4 }, new[]
         {
             new BuildingLevel(new ResourceBag(80, 0, 10, 0), 60, PerHour: 25, Health: 60),
-            new BuildingLevel(new ResourceBag(200, 0, 30, 0), 8 * 60, PerHour: 45, Health: 90, Slots: 3),
-            new BuildingLevel(new ResourceBag(500, 0, 80, 0), 30 * 60, PerHour: 70, Health: 120, Slots: 4),
+            new BuildingLevel(new ResourceBag(200, 0, 30, 0), 45 * 60, PerHour: 45, Health: 90, Slots: 3),
+            new BuildingLevel(new ResourceBag(500, 0, 80, 0), 6 * 60 * 60, PerHour: 70, Health: 120, Slots: 4),
         }, Produces: ResourceType.Peat, Width: 2, Depth: 4, Workers: 2),
         [BuildingType.StorageHut] = new(BuildingType.StorageHut, "Storage Hut", 1, new[] { 1, 2, 3, 4 }, new[]
         {
             new BuildingLevel(new ResourceBag(100, 0, 0, 0), 60, StorageBonus: 500, Health: 60),
-            new BuildingLevel(new ResourceBag(300, 0, 0, 0), 10 * 60, StorageBonus: 1000, Health: 90),
-            new BuildingLevel(new ResourceBag(800, 0, 50, 0), 40 * 60, StorageBonus: 2000, Health: 120),
+            new BuildingLevel(new ResourceBag(300, 0, 0, 0), 60 * 60, StorageBonus: 1000, Health: 90),
+            new BuildingLevel(new ResourceBag(800, 0, 50, 0), 8 * 60 * 60, StorageBonus: 2000, Health: 120),
         }, Width: 2, Depth: 2),
         [BuildingType.CultistHut] = new(BuildingType.CultistHut, "Cultist Hut", 1, new[] { 1, 2, 3, 4 }, new[]
         {
             // 2026.10.4: Devotion was the wall before Hearth 3 (~12 h); now ~3 h with two huts, on the GDD clock.
             new BuildingLevel(new ResourceBag(120, 0, 0, 0), 2 * 60, PerHour: 10, Health: 60, Comfort: 3),
-            new BuildingLevel(new ResourceBag(350, 50, 0, 0), 12 * 60, PerHour: 18, Health: 90, Comfort: 5, Slots: 2),
-            new BuildingLevel(new ResourceBag(900, 150, 0, 0), 45 * 60, PerHour: 28, Health: 120, Comfort: 8, Slots: 3),
+            new BuildingLevel(new ResourceBag(350, 50, 0, 0), 60 * 60, PerHour: 18, Health: 90, Comfort: 5, Slots: 2),
+            new BuildingLevel(new ResourceBag(900, 150, 0, 0), 8 * 60 * 60, PerHour: 28, Health: 120, Comfort: 8, Slots: 3),
         }, Produces: ResourceType.Devotion, Width: 3, Depth: 2, Workers: 1),
         [BuildingType.Cistern] = new(BuildingType.Cistern, "Cistern", 2, new[] { 0, 1, 2, 3 }, new[]
         {
             new BuildingLevel(new ResourceBag(150, 0, 30, 0), 2 * 60, SluiceCharges: 1, Health: 80),
-            new BuildingLevel(new ResourceBag(400, 0, 100, 0), 15 * 60, SluiceCharges: 2, Health: 120),
+            new BuildingLevel(new ResourceBag(400, 0, 100, 0), 2 * 60 * 60, SluiceCharges: 2, Health: 120),
         }, Width: 2, Depth: 2),
         // Towers (spec 2026-10-20 defence): three levels, each a tile more reach and harder hits, so a tower can stand back from the road.
         [BuildingType.SlurryChute] = new(BuildingType.SlurryChute, "Slurry Chute", 1, new[] { Unlimited, Unlimited, Unlimited }, new[]
@@ -242,18 +250,18 @@ public sealed class BuildingTable
         [BuildingType.Cottage] = new(BuildingType.Cottage, "Cottage", 1, new[] { 3, 5, 8, 10 }, new[]
         {
             new BuildingLevel(new ResourceBag(60, 0, 0, 0), 60, Health: 60, Beds: 4, Comfort: 4),
-            new BuildingLevel(new ResourceBag(150, 0, 20, 0), 8 * 60, Health: 90, Beds: 6, Comfort: 6),
+            new BuildingLevel(new ResourceBag(150, 0, 20, 0), 45 * 60, Health: 90, Beds: 6, Comfort: 6),
         }, Width: 2, Depth: 2),
         // 2026.10.16 first day: Scrap was the wall before Hearth 3 (12/h, one sorter); now 30/50 an hour, two then three.
         [BuildingType.MiddenSorter] = new(BuildingType.MiddenSorter, "Midden Sorter", 2, new[] { 0, 2, 3, 3 }, new[]
         {
             new BuildingLevel(new ResourceBag(150, 0, 0, 0), 3 * 60, PerHour: 30, Health: 70, Comfort: -10),
-            new BuildingLevel(new ResourceBag(400, 0, 40, 0), 15 * 60, PerHour: 50, Health: 100, Comfort: -15, Slots: 2),
+            new BuildingLevel(new ResourceBag(400, 0, 40, 0), 2 * 60 * 60, PerHour: 50, Health: 100, Comfort: -15, Slots: 2),
         }, Produces: ResourceType.Scrap, Width: 2, Depth: 2, Workers: 1),
         [BuildingType.Bathhouse] = new(BuildingType.Bathhouse, "Bathhouse", 3, new[] { 0, 0, 1, 2 }, new[]
         {
-            new BuildingLevel(new ResourceBag(1500, 200, 200, 50), 40 * 60, PerHour: 15, Health: 150, Comfort: 40, PeatPerHour: 10),
-            new BuildingLevel(new ResourceBag(3000, 400, 400, 150), 2 * 60 * 60, PerHour: 25, Health: 220, Comfort: 70, PeatPerHour: 15, Slots: 3),
+            new BuildingLevel(new ResourceBag(1500, 200, 200, 50), 4 * 60 * 60, PerHour: 15, Health: 150, Comfort: 40, PeatPerHour: 10),
+            new BuildingLevel(new ResourceBag(3000, 400, 400, 150), 24 * 60 * 60, PerHour: 25, Health: 220, Comfort: 70, PeatPerHour: 15, Slots: 3),
         }, Produces: ResourceType.Devotion, Width: 3, Depth: 3, Workers: 2),
         // 2026.10.16 Hearth 4 (spec 2026-10-16 hearth four): models that were made but never used.
         [BuildingType.Beehive] = new(BuildingType.Beehive, "Beehive", 2, new[] { 0, 3, 3, 5 }, new[]
@@ -262,11 +270,11 @@ public sealed class BuildingTable
         }, Produces: ResourceType.Devotion),
         [BuildingType.Sauna] = new(BuildingType.Sauna, "Sauna", 4, new[] { 0, 0, 0, 1 }, new[]
         {
-            new BuildingLevel(new ResourceBag(1200, 200, 100, 0), 60 * 60, PerHour: 12, Health: 150, Comfort: 25, PeatPerHour: 6),
+            new BuildingLevel(new ResourceBag(1200, 200, 100, 0), 8 * 60 * 60, PerHour: 12, Health: 150, Comfort: 25, PeatPerHour: 6),
         }, Produces: ResourceType.Devotion, Width: 2, Depth: 2, Workers: 1),
         [BuildingType.Blacksmith] = new(BuildingType.Blacksmith, "Blacksmith", 4, new[] { 0, 0, 0, 2 }, new[]
         {
-            new BuildingLevel(new ResourceBag(1500, 0, 300, 0), 60 * 60, PerHour: 70, Health: 150, Comfort: -5),
+            new BuildingLevel(new ResourceBag(1500, 0, 300, 0), 8 * 60 * 60, PerHour: 70, Health: 150, Comfort: -5),
         }, Produces: ResourceType.Scrap, Width: 2, Depth: 2, Workers: 2),
         [BuildingType.PressureSluice] = new(BuildingType.PressureSluice, "Pressure Sluice", 4, new[] { Unlimited, Unlimited, Unlimited, Unlimited }, new[]
         {
@@ -277,13 +285,13 @@ public sealed class BuildingTable
         // Spec 2026-10-20 across the river: the reason to cross. It goes in the middle of the stone circle and only there.
         [BuildingType.ComfyAltar] = new(BuildingType.ComfyAltar, "Comfy Altar", 5, new[] { 0, 0, 0, 0, 1 }, new[]
         {
-            new BuildingLevel(new ResourceBag(2000, 400, 400, 400), 2 * 60 * 60, PerHour: 40, Health: 300, Comfort: 30),
+            new BuildingLevel(new ResourceBag(2000, 400, 400, 400), 2 * 24 * 60 * 60, PerHour: 40, Health: 300, Comfort: 30),
         }, Produces: ResourceType.Devotion, Width: 2, Depth: 2, Workers: 2),
         [BuildingType.Guardhouse] = new(BuildingType.Guardhouse, "Guardhouse", 2, new[] { 0, 1, 2, 3 }, new[]
         {
-            new BuildingLevel(new ResourceBag(300, 0, 100, 0), 10 * 60, Health: 200, Slots: 2),
-            new BuildingLevel(new ResourceBag(700, 0, 250, 0), 30 * 60, Health: 300, Slots: 3),
-            new BuildingLevel(new ResourceBag(1500, 0, 500, 50), 60 * 60, Health: 400, Slots: 4),
+            new BuildingLevel(new ResourceBag(300, 0, 100, 0), 30 * 60, Health: 200, Slots: 2),
+            new BuildingLevel(new ResourceBag(700, 0, 250, 0), 6 * 60 * 60, Health: 300, Slots: 3),
+            new BuildingLevel(new ResourceBag(1500, 0, 500, 50), 24 * 60 * 60, Health: 400, Slots: 4),
         }, Width: 2, Depth: 2, Workers: 2),
         [BuildingType.DirtTrack] = new(BuildingType.DirtTrack, "Dirt Track", 1, new[] { Unlimited, Unlimited, Unlimited },
             new[] { new BuildingLevel(new ResourceBag(2, 0, 0, 0), 0) }, UsesBuilder: false),

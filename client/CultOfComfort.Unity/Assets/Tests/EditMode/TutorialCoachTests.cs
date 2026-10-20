@@ -104,6 +104,17 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
+        public void Step_WinARaidWhileShielded_NoArrowAtLampsThatCantBeLit()
+        {
+            // Act
+            var step = TutorialCoach.Step(Errand(Index("win-raid")), null, Nothing, Table, shielded: true);
+
+            // Assert — owner 2026-10-20: it told them to start a raid while they were shielded.
+            Assert.AreEqual(CoachTarget.None, step.Target);
+            StringAssert.Contains("Shielded", step.Line);
+        }
+
+        [Test]
         public void Step_RaiseTheHearth_PointsAtTheHearth()
         {
             // Arrange

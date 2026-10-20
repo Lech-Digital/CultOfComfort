@@ -68,7 +68,9 @@ namespace CultOfComfort.Client
     public static class TutorialCoach
     {
         /// <param name="studying">A study is under way (the study errand counts only a finished one).</param>
-        public static CoachStep Step(ErrandView errand, BuildingType? placing, IReadOnlyList<BuildingView> buildings, BuildingTable table, bool studying = false)
+        /// <param name="shielded">The village is shielded: the Lamps can't be lit yet.</param>
+        public static CoachStep Step(ErrandView errand, BuildingType? placing, IReadOnlyList<BuildingView> buildings, BuildingTable table, bool studying = false,
+            bool shielded = false)
         {
             if (errand == null)
             {
@@ -91,6 +93,10 @@ namespace CultOfComfort.Client
                 case ErrandGoal.UpgradeTo when errand.Type != null:
                 case ErrandGoal.HearthLevel:
                     return UpgradeStep(errand.Type ?? BuildingType.Hearth, errand.Target, buildings, table);
+                case ErrandGoal.SurviveNight when shielded:
+                case ErrandGoal.WinRaid when shielded:
+                    // Owner 2026-10-20: "the game tells me to start a raid, but I am shielded and I cannot".
+                    return new CoachStep(CoachTarget.None, "Shielded for now. Get the defences ready; the Lamps can be lit when the shield drops.");
                 case ErrandGoal.SurviveNight:
                 case ErrandGoal.WinRaid:
                     return new CoachStep(CoachTarget.StartNight, "When you're ready, light the Lamps. The raiders come at Night.");

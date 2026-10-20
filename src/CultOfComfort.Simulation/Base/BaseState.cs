@@ -63,6 +63,16 @@ public sealed partial class BaseState
     /// <summary>What the builder is working on (saplings grow by themselves and don't count).</summary>
     private Building? Constructing => _buildings.FirstOrDefault(b => b.IsUpgrading && _table.Spec(b.Type).UsesBuilder);
 
+    /// <summary>Jobs the builders have under way.</summary>
+    private int BuildersBusy => _buildings.Count(b => b.IsUpgrading && _table.Spec(b.Type).UsesBuilder);
+
+    /// <summary>Whether a builder is free for another job.</summary>
+    private bool BuilderFree => BuildersBusy < _table.Builders(HearthLevel);
+
+    private string BusyReason => _table.Builders(HearthLevel) == 1
+        ? "The builder is busy. One thing at a time; he's a cultist, not a crane."
+        : $"All {_table.Builders(HearthLevel)} builders are busy. Hurry one along, or wait.";
+
     public static BaseState CreateNew(BuildingTable table, VillageMap map, DateTimeOffset nowUtc)
     {
         var state = new BaseState(table, map)
@@ -475,9 +485,9 @@ public sealed partial class BaseState
             Fail("the Hearth is not where (or what) it should be");
         }
 
-        if (_buildings.Count(b => b.IsUpgrading && _table.Spec(b.Type).UsesBuilder) > 1)
+        if (BuildersBusy > _table.Builders(HearthLevel))
         {
-            Fail("two constructions at once");
+            Fail("more jobs than builders");
         }
 
         var tiles = new HashSet<GridPosition>();
@@ -631,7 +641,7 @@ public sealed partial class BaseState
         var tension = TensionValue(nowUtc);
         return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
             tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport, _cleared.Concat(_treeCuts.Keys.Where(t => !IsWildTreeStanding(t))).ToList(),
-            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts(), IdleVillagers(), DailyViewAt(nowUtc), _raidersRoad, NextRoad, _stowed.ToList());
+            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts(), IdleVillagers(), DailyViewAt(nowUtc), _raidersRoad, NextRoad, _stowed.ToList(), _table.Builders(HearthLevel) - BuildersBusy, _towels);
     }
 
     public ResourceBag Caps
@@ -735,9 +745,9 @@ public sealed partial class BaseState
         }
 
         var instant = spec.IsTower || spec.Levels[0].BuildSeconds == 0;
-        if (!instant && spec.UsesBuilder && Constructing != null)
+        if (!instant && spec.UsesBuilder && !BuilderFree)
         {
-            return CommandOutcome.Reject("The builder is busy. One thing at a time; he's a cultist, not a crane.");
+            return CommandOutcome.Reject(BusyReason);
         }
 
         var reason = FitProblem(spec, command.Position, command.Rotated, checkTrees: true);
@@ -901,9 +911,14 @@ public sealed partial class BaseState
         }
 
         var instant = spec.Levels[building.Level].BuildSeconds == 0; // a wall turned to stone needs no builder
-        if (building.IsUpgrading || (!instant && Constructing != null))
+        if (building.IsUpgrading)
         {
-            return CommandOutcome.Reject("The builder is busy. One thing at a time; he's a cultist, not a crane.");
+            return CommandOutcome.Reject("It's being worked on already.");
+        }
+
+        if (!instant && !BuilderFree)
+        {
+            return CommandOutcome.Reject(BusyReason);
         }
 
         if (building.Type != BuildingType.Hearth && building.Level + 1 > HearthLevel)

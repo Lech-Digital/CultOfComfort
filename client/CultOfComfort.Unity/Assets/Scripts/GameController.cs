@@ -2110,7 +2110,7 @@ namespace CultOfComfort.Client
             }
 
             var step = TutorialCoach.Step(_snapshot.Errand, _tool?.Type, _snapshot.Buildings, BuildingTable.Default,
-                studying: _snapshot.Research?.Any(t => t.State == TechState.Studying) == true);
+                studying: _snapshot.Research?.Any(t => t.State == TechState.Studying) == true, shielded: _snapshot.ShieldEndsAtUtc != null);
             if (_tool != null && step.Target != CoachTarget.GhostConfirm)
             {
                 return CoachStep.None; // placing something else: the ghost has the player's attention (the note steps aside too)
@@ -2319,7 +2319,7 @@ namespace CultOfComfort.Client
             };
             _hud.DemolishClicked += () => SendFromCard(b => new DemolishBuilding(Guid.NewGuid(), b.Id), closeCard: true);
             _hud.FinishNowClicked += () => SendFromCard(_ => new FinishConstructionNow(Guid.NewGuid()));
-            _hud.HurryClicked += () => SendFromCard(_ => new SpendTowels(Guid.NewGuid(), TowelUse.Hurry));
+            _hud.HurryClicked += () => SendFromCard(b => new SpendTowels(Guid.NewGuid(), TowelUse.Hurry, b.Id + 1)); // this building (id + 1), not just the first to finish
             _hud.DutyClicked += () => SendFromCard(b => new SetDuty(Guid.NewGuid(), b.Id, !b.Patrol));
             _hud.PackUpClicked += () => SendFromCard(b => new PackUpTower(Guid.NewGuid(), b.Id), closeCard: true);
             _hud.PackUpAllClicked += () => SendFromCard(_ => new PackUpTowers(Guid.NewGuid()), closeCard: true);

@@ -171,7 +171,9 @@ public sealed partial class BaseState
         {
             case TowelUse.Hurry:
             {
-                var building = _buildings.Where(b => b.IsUpgrading).OrderBy(b => b.UpgradeEndsAtUtc).FirstOrDefault();
+                // Slot names the building as its id + 1 (its card's Hurry; the Hearth is id 0); 0: whatever finishes first.
+                var building = spend.Slot > 0 ? _buildings.FirstOrDefault(b => b.Id == spend.Slot - 1 && b.IsUpgrading)
+                    : _buildings.Where(b => b.IsUpgrading).OrderBy(b => b.UpgradeEndsAtUtc).FirstOrDefault();
                 if (building == null)
                 {
                     return CommandOutcome.Reject("Nothing is being built.");

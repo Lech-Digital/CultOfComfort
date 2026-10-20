@@ -61,7 +61,10 @@ public static class DailyBook
     public const int StreakLength = 7;
     public const int StreakTowels = 10;
     public const int HurryCost = 1;
-    public const int HurryMinutes = 30;
+    public const int HurryMinutes = 60; // 2026-10-20 long builds: an hour a Towel (was half an hour)
+
+    /// <summary>Towels for claiming one of the Prophet's errands (spec 2026-10-20 long builds: speed-ups as rewards).</summary>
+    public const int ErrandTowels = 1;
     public const int RerollCost = 2;
 
     /// <summary>Cosmetics a full week brings, in order (the first one shows at once: a golden duck by the Hearth).</summary>

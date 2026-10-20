@@ -187,7 +187,7 @@ namespace CultOfComfort.Client
                 {
                     Add(HearthTab, new SheetRow
                     {
-                        Detail = snapshot.ConstructionEndsAtUtc != null ? "The builder is busy: one job at a time."
+                        Detail = snapshot.FreeBuilders <= 0 ? "Every builder is busy. Hurry one along, or wait."
                             : $"Needs {VillagePresenter.ShortCost(spec.Levels[snapshot.HearthLevel].Cost)}. You have {VillagePresenter.ShortCost(snapshot.Stock)}.",
                     });
                 }

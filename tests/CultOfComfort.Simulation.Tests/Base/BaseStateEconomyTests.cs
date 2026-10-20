@@ -122,7 +122,7 @@ public class BaseStateEconomyTests
         Send(state, new UpgradeHearth(Guid.NewGuid()), built).Status.Should().Be(CommandStatus.Accepted);
         var hearthDone = built.AddMinutes(10);
         Send(state, new UpgradeBuilding(Guid.NewGuid(), id), hearthDone).Status.Should().Be(CommandStatus.Accepted);
-        var upgradeDone = hearthDone.AddMinutes(5);
+        var upgradeDone = hearthDone.AddMinutes(30); // level 2 takes half an hour (2026-10-20 long builds)
 
         // Act — the app was closed for an hour after the upgrade finished.
         var atEnd = state.Snapshot(upgradeDone).Stock.Timber;

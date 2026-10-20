@@ -61,6 +61,7 @@ public sealed partial class BaseState
         _stock += paid;
         _errandIndex++;
         _errandEventDone = false;
+        _towels += DailyBook.ErrandTowels; // a speed-up for every errand (spec 2026-10-20 long builds)
         return CommandOutcome.Accept(paid);
     }
 

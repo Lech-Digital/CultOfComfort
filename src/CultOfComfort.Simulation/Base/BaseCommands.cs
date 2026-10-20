@@ -103,7 +103,10 @@ public sealed record ClaimDaily(Guid CommandId, int Slot) : BaseCommand(CommandI
 /// <summary>Opens the Thermos: all three of today's errands claimed. Towels, Devotion, and the streak goes on.</summary>
 public sealed record ClaimThermos(Guid CommandId) : BaseCommand(CommandId);
 
-/// <summary>Spends Towels: hurry the construction under way, or swap one of today's errands (<paramref name="Slot"/>).</summary>
+/// <summary>
+/// Spends Towels: hurry a construction (<paramref name="Slot"/>: the building's id + 1; 0: whichever finishes first), or
+/// swap one of today's errands (<paramref name="Slot"/>: its place on the list).
+/// </summary>
 public sealed record SpendTowels(Guid CommandId, TowelUse Use, int Slot = 0) : BaseCommand(CommandId);
 
 /// <summary>The player's clock (minutes from UTC): their day starts at 04:00 on it.</summary>
