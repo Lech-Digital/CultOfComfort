@@ -39,6 +39,9 @@ public enum BuildingType
 
     /// <summary>Hearth 4 tower: knocks one raider back up the road.</summary>
     PressureSluice,
+
+    /// <summary>Hearth 2: wardens who man the nearest towers (they fire faster) or go out and fight (spec 2026-10-20 defence).</summary>
+    Guardhouse,
 }
 
 public enum ResourceType

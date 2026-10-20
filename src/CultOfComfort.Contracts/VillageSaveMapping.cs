@@ -27,7 +27,7 @@ public static class VillageSaveMapping
         buildings = data.Buildings.Select(b => new BuildingDto
         {
             id = b.Id, type = b.Type.ToString(), level = b.Level, x = b.X, y = b.Y,
-            upgradeEndsAtTicks = b.UpgradeEndsAtUtcTicks ?? -1, bufferMilli = b.BufferMilli, asOfTicks = b.AsOfUtcTicks, wrecked = b.Wrecked, rotated = b.Rotated, flipped = b.Flipped, crew = b.Crew ?? -1,
+            upgradeEndsAtTicks = b.UpgradeEndsAtUtcTicks ?? -1, bufferMilli = b.BufferMilli, asOfTicks = b.AsOfUtcTicks, wrecked = b.Wrecked, rotated = b.Rotated, flipped = b.Flipped, patrol = b.Patrol, crew = b.Crew ?? -1,
         }).ToList(),
         recentCommands = data.RecentCommands.Select(g => g.ToString()).ToList(),
         tensionMilli = data.TensionMilli,
@@ -126,7 +126,7 @@ public static class VillageSaveMapping
                 throw new InvalidBaseDataException($"unknown building type '{b.type}'");
             }
 
-            buildings.Add(new BuildingData(b.id, type, b.level, b.x, b.y, b.upgradeEndsAtTicks < 0 ? null : b.upgradeEndsAtTicks, b.bufferMilli, b.asOfTicks, b.wrecked, b.rotated, b.crew < 0 ? null : b.crew, b.flipped));
+            buildings.Add(new BuildingData(b.id, type, b.level, b.x, b.y, b.upgradeEndsAtTicks < 0 ? null : b.upgradeEndsAtTicks, b.bufferMilli, b.asOfTicks, b.wrecked, b.rotated, b.crew < 0 ? null : b.crew, b.flipped, b.patrol));
         }
 
         var recent = (dto.recentCommands ?? new List<string>()).Select(s => Guid.TryParse(s, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).ToList();
@@ -184,7 +184,7 @@ public static class VillageSaveMapping
     {
         night = plan.Night, seed = plan.Seed.ToString(), budget = plan.Budget, waves = plan.Waves, extraSluice = plan.ExtraSluiceCharges, scheduled = plan.Scheduled,
         roster = plan.Roster,
-        towers = plan.Towers.Select(t => new TowerDto { type = t.Type.ToString(), x = t.Position.X, y = t.Position.Y }).ToList(),
+        towers = plan.Towers.Select(t => new TowerDto { type = t.Type.ToString(), x = t.Position.X, y = t.Position.Y, level = t.Level, manned = t.Manned }).ToList(),
         obstacles = plan.Obstacles.Select(o => new TileDto { x = o.X, y = o.Y }).ToList(),
         structures = plan.Structures.Select(st => new StructureDto
         {
@@ -195,6 +195,7 @@ public static class VillageSaveMapping
         defenders = (plan.Defenders ?? Array.Empty<GridPosition>()).Select(t => new TileDto { x = t.X, y = t.Y }).ToList(),
         towerDamage = plan.TowerDamagePercent,
         prophetHealth = plan.ProphetHealthPercent,
+        road = plan.Road,
     };
 
     /// <summary>A Night plan from its wire form (the server's answer to BeginNight).</summary>
@@ -216,7 +217,7 @@ public static class VillageSaveMapping
                 throw new InvalidBaseDataException($"unknown tower type '{t.type}'");
             }
 
-            towers.Add(new PlacedTower(type, new GridPosition(t.x, t.y)));
+            towers.Add(new PlacedTower(type, new GridPosition(t.x, t.y), Math.Max(1, t.level), t.manned));
         }
 
         return new NightPlan(d.night, ParseSeed(d.seed), d.budget, d.waves, d.extraSluice, d.scheduled, towers,
@@ -230,7 +231,7 @@ public static class VillageSaveMapping
             d.roster,
             d.autoRelics,
             (d.defenders ?? new List<TileDto>()).Select(t => new GridPosition(t.x, t.y)).ToList(),
-            Math.Max(0, d.towerDamage), Math.Max(0, d.prophetHealth));
+            Math.Max(0, d.towerDamage), Math.Max(0, d.prophetHealth), Math.Max(0, d.road));
     }
 
     internal static ReportDto ToDto(NightReport r) => new()

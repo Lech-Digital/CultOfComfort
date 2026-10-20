@@ -86,7 +86,8 @@ public class RoadGateTests
     public void Night_WithARoadGate_TheRaidHacksAtItOnTheFixedRoad()
     {
         // Arrange — regression: the Night plan built its battle without the fixed road, so raiders walked round the gate.
-        var state = NewBase(hearth: 2);
+        // Hearth 1: one road, so tonight's is the one with the gate.
+        var state = NewBase(hearth: 1);
         Gate(state, 10, 5);
         var plan = state.Apply(new BeginNight(Guid.NewGuid()), T0).Plan!;
 

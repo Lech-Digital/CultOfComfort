@@ -77,7 +77,7 @@ public sealed class BuildingTable
 
     public static BuildingTable Default { get; } = new();
 
-    public string Version { get; init; } = "village-2026.10.16";
+    public string Version { get; init; } = "village-2026.10.20";
 
     /// <summary>Health of a building whose first level is still being built.</summary>
     public int UnderConstructionHealth { get; init; } = 30;
@@ -135,6 +135,14 @@ public sealed class BuildingTable
 
     /// <summary>How many gates may stand on the raiders' road at Hearth level 1, 2, 3.</summary>
     public IReadOnlyList<int> RoadGatesByHearth { get; init; } = new[] { 1, 2, 3 };
+
+    /// <summary>How many towers (of every kind together) may stand at Hearth 1, 2, 3, 4 (spec 2026-10-20 defence).</summary>
+    public IReadOnlyList<int> TowerCapByHearth { get; init; } = new[] { 4, 7, 10, 14 };
+
+    public int TowerCap(int hearthLevel) => TowerCapByHearth[Math.Min(Math.Max(hearthLevel, 1), TowerCapByHearth.Count) - 1];
+
+    /// <summary>How far (tiles, from its walls) a Guardhouse's wardens go to man a tower.</summary>
+    public int GuardhouseReach { get; init; } = 8;
 
     public int RoadGates(int hearthLevel) => RoadGatesByHearth[Math.Min(Math.Max(hearthLevel, 1), RoadGatesByHearth.Count) - 1];
 
@@ -204,10 +212,19 @@ public sealed class BuildingTable
             new BuildingLevel(new ResourceBag(150, 0, 30, 0), 2 * 60, SluiceCharges: 1, Health: 80),
             new BuildingLevel(new ResourceBag(400, 0, 100, 0), 15 * 60, SluiceCharges: 2, Health: 120),
         }, Width: 2, Depth: 2),
-        [BuildingType.SlurryChute] = new(BuildingType.SlurryChute, "Slurry Chute", 1, new[] { Unlimited, Unlimited, Unlimited },
-            new[] { new BuildingLevel(new ResourceBag(0, 0, 50, 0), 0, Health: 80) }, Tower: TowerType.SlurryChute),
-        [BuildingType.SaplingFlinger] = new(BuildingType.SaplingFlinger, "Sapling Flinger", 2, new[] { Unlimited, Unlimited, Unlimited },
-            new[] { new BuildingLevel(new ResourceBag(0, 0, 70, 0), 0, Health: 80) }, Tower: TowerType.SaplingFlinger),
+        // Towers (spec 2026-10-20 defence): three levels, each a tile more reach and harder hits, so a tower can stand back from the road.
+        [BuildingType.SlurryChute] = new(BuildingType.SlurryChute, "Slurry Chute", 1, new[] { Unlimited, Unlimited, Unlimited }, new[]
+        {
+            new BuildingLevel(new ResourceBag(0, 0, 50, 0), 0, Health: 80),
+            new BuildingLevel(new ResourceBag(60, 0, 120, 0), 0, Health: 120),
+            new BuildingLevel(new ResourceBag(150, 0, 250, 0), 0, Health: 160),
+        }, Tower: TowerType.SlurryChute),
+        [BuildingType.SaplingFlinger] = new(BuildingType.SaplingFlinger, "Sapling Flinger", 2, new[] { Unlimited, Unlimited, Unlimited }, new[]
+        {
+            new BuildingLevel(new ResourceBag(0, 0, 70, 0), 0, Health: 80),
+            new BuildingLevel(new ResourceBag(80, 0, 150, 0), 0, Health: 120),
+            new BuildingLevel(new ResourceBag(200, 0, 300, 0), 0, Health: 160),
+        }, Tower: TowerType.SaplingFlinger),
         [BuildingType.WattleFence] = new(BuildingType.WattleFence, "Wattle Fence", 1, new[] { Unlimited, Unlimited, Unlimited },
             new[] { new BuildingLevel(new ResourceBag(15, 0, 0, 0), 0, Health: 50) }),
         [BuildingType.WoodenWall] = new(BuildingType.WoodenWall, "Wooden Wall", 1, new[] { Unlimited, Unlimited, Unlimited }, new[]
@@ -250,8 +267,18 @@ public sealed class BuildingTable
         {
             new BuildingLevel(new ResourceBag(1500, 0, 300, 0), 60 * 60, PerHour: 70, Health: 150, Comfort: -5),
         }, Produces: ResourceType.Scrap, Width: 2, Depth: 2, Workers: 2),
-        [BuildingType.PressureSluice] = new(BuildingType.PressureSluice, "Pressure Sluice", 4, new[] { Unlimited, Unlimited, Unlimited, Unlimited },
-            new[] { new BuildingLevel(new ResourceBag(150, 0, 150, 0), 0, Health: 120) }, Tower: TowerType.PressureSluice),
+        [BuildingType.PressureSluice] = new(BuildingType.PressureSluice, "Pressure Sluice", 4, new[] { Unlimited, Unlimited, Unlimited, Unlimited }, new[]
+        {
+            new BuildingLevel(new ResourceBag(150, 0, 150, 0), 0, Health: 120),
+            new BuildingLevel(new ResourceBag(300, 0, 300, 0), 0, Health: 160),
+            new BuildingLevel(new ResourceBag(500, 0, 500, 0), 0, Health: 200),
+        }, Tower: TowerType.PressureSluice),
+        [BuildingType.Guardhouse] = new(BuildingType.Guardhouse, "Guardhouse", 2, new[] { 0, 1, 2, 3 }, new[]
+        {
+            new BuildingLevel(new ResourceBag(300, 0, 100, 0), 10 * 60, Health: 200, Slots: 2),
+            new BuildingLevel(new ResourceBag(700, 0, 250, 0), 30 * 60, Health: 300, Slots: 3),
+            new BuildingLevel(new ResourceBag(1500, 0, 500, 50), 60 * 60, Health: 400, Slots: 4),
+        }, Width: 2, Depth: 2, Workers: 2),
         [BuildingType.DirtTrack] = new(BuildingType.DirtTrack, "Dirt Track", 1, new[] { Unlimited, Unlimited, Unlimited },
             new[] { new BuildingLevel(new ResourceBag(2, 0, 0, 0), 0) }, UsesBuilder: false),
         [BuildingType.PlankWalk] = new(BuildingType.PlankWalk, "Plank Walk", 2, new[] { Unlimited, Unlimited, Unlimited },

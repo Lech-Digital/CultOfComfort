@@ -73,7 +73,7 @@ public sealed class Battle
         var towerId = 1;
         foreach (var placed in setup.Layout.Towers)
         {
-            _towers.Add(new Tower(towerId++, placed.Type, placed.Position));
+            _towers.Add(new Tower(towerId++, placed.Type, placed.Position, placed.Level, placed.Manned));
         }
 
         foreach (var s in setup.Layout.Structures)
@@ -604,7 +604,7 @@ public sealed class Battle
                 continue;
             }
 
-            var stats = _balance.Towers[tower.Type];
+            var stats = _balance.TowerAt(tower.Type, tower.Level, tower.Manned);
             var target = FindTarget(tower, stats.Range);
             if (target is null)
             {

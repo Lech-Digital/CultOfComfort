@@ -201,6 +201,7 @@ public sealed class NightDto
     public List<TileDto> defenders;  // older plans lack it: nobody comes out to defend
     public int towerDamage;          // research, % (older plans lack it: 0, the default balance)
     public int prophetHealth;        // research, %
+    public int road;                 // which raiders' road (0: the first)
 }
 
 [Serializable]
@@ -209,6 +210,8 @@ public sealed class TowerDto
     public string type;
     public int x;
     public int y;
+    public int level; // 0 (older plans): level 1
+    public bool manned;
 }
 
 [Serializable]
@@ -259,6 +262,7 @@ public sealed class BuildingDto
     public bool wrecked;
     public bool rotated;
     public bool flipped;
+    public bool patrol; // a Guardhouse's wardens fight rather than man towers
     public int crew = -1; // the crew the player chose; -1: a full crew
 }
 

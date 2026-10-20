@@ -49,6 +49,9 @@ public sealed record AcknowledgeReport(Guid CommandId) : BaseCommand(CommandId);
 public sealed record ClaimErrand(Guid CommandId) : BaseCommand(CommandId);
 
 /// <summary>Cuts a wild tree (Timber) or clears a loose boulder (costs Timber, gives Scrap). Walls are bedrock.</summary>
+/// <summary>A Guardhouse's duty: its wardens man the nearest towers (false) or go out and fight (true).</summary>
+public sealed record SetDuty(Guid CommandId, int BuildingId, bool Patrol) : BaseCommand(CommandId);
+
 /// <summary>Lays the next surface on the raiders' road (gravel, then cobbles): the village looks after itself. The raiders walk it the same.</summary>
 public sealed record PaveRaidersRoad(Guid CommandId) : BaseCommand(CommandId);
 

@@ -136,6 +136,33 @@ public sealed class BalanceTable
     /// <summary>A blessed raider takes this much less damage.</summary>
     public Fix BlessingReduction { get; init; } = Fix.Ratio(1, 4);
 
+    /// <summary>Reach a tower gains with each level past the first (spec 2026-10-20 defence).</summary>
+    public Fix TowerRangePerLevel { get; init; } = Fix.One;
+
+    /// <summary>Damage a tower gains with each level past the first, in percent.</summary>
+    public int TowerDamagePercentPerLevel { get; init; } = 30;
+
+    /// <summary>A manned tower's cooldown, in percent of the unmanned one.</summary>
+    public int MannedCooldownPercent { get; init; } = 65;
+
+    /// <summary>A tower's stats at its level, manned or not. Level 1 unmanned: exactly <see cref="Towers"/> (old Nights replay as they were).</summary>
+    public TowerStats TowerAt(TowerType type, int level, bool manned)
+    {
+        var stats = Towers[type];
+        var extra = System.Math.Max(0, level - 1);
+        if (extra == 0 && !manned)
+        {
+            return stats;
+        }
+
+        return stats with
+        {
+            Range = stats.Range + TowerRangePerLevel * extra,
+            Damage = stats.Damage * (100 + TowerDamagePercentPerLevel * extra) / 100,
+            CooldownTicks = manned ? stats.CooldownTicks * MannedCooldownPercent / 100 : stats.CooldownTicks,
+        };
+    }
+
     /// <summary>A bishop's blessing reaches this far (tiles).</summary>
     public Fix BishopBlessingRadius { get; init; } = Fix.FromInt(3);
 

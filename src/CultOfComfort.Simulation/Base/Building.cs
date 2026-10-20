@@ -39,6 +39,9 @@ public sealed class Building
     /// <summary>The crew the player chose (0 to the level's slots); null: a full crew, whatever the level.</summary>
     public int? CrewWanted { get; internal set; }
 
+    /// <summary>A Guardhouse's wardens go out and fight rather than man the towers.</summary>
+    public bool Patrol { get; internal set; }
+
     /// <summary>Smashed in a Night: produces nothing and gives no bonuses until repaired. Still in the way.</summary>
     public bool Wrecked { get; internal set; }
 

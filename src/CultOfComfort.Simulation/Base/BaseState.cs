@@ -36,8 +36,7 @@ public sealed partial class BaseState
     private NightReport? _unseenReport;
     private readonly List<GridPosition> _cleared = new(); // boulders, gone for good
     private readonly Dictionary<GridPosition, DateTimeOffset> _treeCuts = new();
-    private HashSet<GridPosition> _road => _roadTiles ??= new HashSet<GridPosition>(_map.Road);
-    private HashSet<GridPosition>? _roadTiles;
+    private HashSet<GridPosition> _road => _map.RoadTiles(HearthLevel); // every raiders' road open at this Hearth
     private HashSet<GridPosition>? _network; // village road network, rebuilt after any building change
     private int _population;
     private DateTimeOffset _populationAsOf; // the next villager arrives an arrival interval after this
@@ -119,6 +118,7 @@ public sealed partial class BaseState
                 : data.LayoutVersion >= 1 ? Footprint.Tiles(spec, anchor, b.Rotated) : new[] { anchor }; // shapes arrived in layout version 1
             state._buildings.Add(new Building(b.Id, b.Type, anchor, b.Level, new DateTimeOffset(b.AsOfUtcTicks, TimeSpan.Zero), tiles, b.Rotated, b.Flipped)
             {
+                Patrol = b.Patrol,
                 BufferMilli = b.BufferMilli,
                 UpgradeEndsAtUtc = b.UpgradeEndsAtUtcTicks == null ? null : new DateTimeOffset(b.UpgradeEndsAtUtcTicks.Value, TimeSpan.Zero),
                 Wrecked = b.Wrecked,
@@ -177,6 +177,7 @@ public sealed partial class BaseState
             state.SweepOldBuffers();
         }
 
+        state.ClearRoads(); // a save from before more roads opened at its Hearth level
         state.Validate();
         return state;
     }
@@ -205,6 +206,32 @@ public sealed partial class BaseState
     {
         var hearth = new HashSet<GridPosition>(_map.HearthTiles);
         var displaced = _buildings.Where(b => b.Type != BuildingType.Hearth && b.Tiles.Any(hearth.Contains)).OrderBy(b => b.Id).ToList();
+        foreach (var b in displaced)
+        {
+            _buildings.Remove(b);
+        }
+
+        _network = null;
+        foreach (var b in displaced.Where(b => !BuildingTable.IsRoad(b.Type)))
+        {
+            Resettle(b);
+        }
+    }
+
+    /// <summary>
+    /// A raiders' road that has opened (spec 2026-10-20 defence) takes its ground: the village's own tracks on it just go
+    /// (the raiders' road carries the network), a gate may stay across it, anything else moves to the nearest spot that
+    /// fits, else comes down with everything paid for it back. Nothing to clear: nothing happens.
+    /// </summary>
+    private void ClearRoads()
+    {
+        var road = new HashSet<GridPosition>(_map.OpenRoads(HearthLevel).Where(i => i > 0).SelectMany(_map.RoadAt)); // the first road was never built on
+        var displaced = _buildings.Where(b => b.Type is not (BuildingType.Hearth or BuildingType.Gate) && b.Tiles.Any(road.Contains)).OrderBy(b => b.Id).ToList();
+        if (displaced.Count == 0)
+        {
+            return;
+        }
+
         foreach (var b in displaced)
         {
             _buildings.Remove(b);
@@ -254,6 +281,7 @@ public sealed partial class BaseState
             UpgradeEndsAtUtc = b.UpgradeEndsAtUtc,
             Wrecked = b.Wrecked,
             CrewWanted = b.CrewWanted,
+            Patrol = b.Patrol,
         });
         _network = null;
     }
@@ -456,7 +484,7 @@ public sealed partial class BaseState
             foreach (var tile in b.Tiles)
             {
                 if (!tiles.Add(tile) || (b.Type != BuildingType.Hearth
-                    && (!_map.IsOpen(tile, HearthLevel) || tile == _map.Spawn || _map.IsHearthTile(tile) || (_road.Contains(tile) && b.Type != BuildingType.Gate)
+                    && (!_map.IsOpen(tile, HearthLevel) || _map.IsSpawn(tile) || _map.IsHearthTile(tile) || (_road.Contains(tile) && b.Type != BuildingType.Gate)
                         || _map.IsBedrock(tile) || (_map.IsBoulder(tile) && !_cleared.Contains(tile)))))
                 {
                     Fail($"building {b.Id} stands somewhere it cannot");
@@ -476,7 +504,7 @@ public sealed partial class BaseState
 
     public BaseData ToData() => new(
         Version, _stock, _nextId, LastNightRecorded,
-        _buildings.Select(b => new BuildingData(b.Id, b.Type, b.Level, b.Position.X, b.Position.Y, b.UpgradeEndsAtUtc?.UtcTicks, b.BufferMilli, b.AsOfUtc.UtcTicks, b.Wrecked, b.Rotated, b.CrewWanted, b.Flipped)).ToList(),
+        _buildings.Select(b => new BuildingData(b.Id, b.Type, b.Level, b.Position.X, b.Position.Y, b.UpgradeEndsAtUtc?.UtcTicks, b.BufferMilli, b.AsOfUtc.UtcTicks, b.Wrecked, b.Rotated, b.CrewWanted, b.Flipped, b.Patrol)).ToList(),
         _recentOrder.ToList(),
         _tensionMilli,
         _tensionAsOf.UtcTicks,
@@ -515,7 +543,7 @@ public sealed partial class BaseState
         _now = nowUtc;
         MaterializeAll(nowUtc); // whatever this command changes, production up to now was earned under the old rules
         var roadsBefore = _buildings.Count(b => BuildingTable.IsRoad(b.Type));
-        if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain or SendMissionary or SendWorldMissionary or PayTithe or MeetDemand or PleadWithLord or SetCrew or CancelConstruction or PaveRaidersRoad)
+        if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain or SendMissionary or SendWorldMissionary or PayTithe or MeetDemand or PleadWithLord or SetCrew or CancelConstruction or PaveRaidersRoad or SetDuty)
         {
             return CommandOutcome.Reject("Not now — there's a Night on.") with { Version = Version };
         }
@@ -543,6 +571,7 @@ public sealed partial class BaseState
             DebugFillStores _ => FillStores(nowUtc),
             DebugEndShield _ => EndShield(nowUtc),
             SetCrew crew => ChooseCrew(crew),
+            SetDuty duty => ChooseDuty(duty),
             SendMissionary send => SendOut(send, nowUtc),
             SendWorldMissionary send => SendOutInWorld(send, nowUtc),
             JoinWorld join => Join(join, nowUtc),
@@ -585,11 +614,11 @@ public sealed partial class BaseState
         _now = nowUtc;
         var views = _buildings.Select(b => new BuildingView(
             b.Id, b.Type, b.Level, b.Position, 0, 0, Rate(b), b.UpgradeEndsAtUtc, b.Wrecked, b.Rotated, b.Tiles, IsConnected(b),
-            CrewOf(b), Slots(b), b.CrewWanted ?? Slots(b), b.Flipped)).ToList();
+            CrewOf(b), Slots(b), b.CrewWanted ?? Slots(b), b.Flipped, b.Patrol)).ToList();
         var tension = TensionValue(nowUtc);
         return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
             tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport, _cleared.Concat(_treeCuts.Keys.Where(t => !IsWildTreeStanding(t))).ToList(),
-            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts(), IdleVillagers(), DailyViewAt(nowUtc), _raidersRoad);
+            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts(), IdleVillagers(), DailyViewAt(nowUtc), _raidersRoad, NextRoad);
     }
 
     public ResourceBag Caps
@@ -613,11 +642,43 @@ public sealed partial class BaseState
     public int SluiceBonus => _buildings.Where(b => b.Level > 0 && !b.Wrecked && IsConnected(b)).Sum(b => _table.Spec(b.Type).Levels[b.Level - 1].SluiceCharges)
         + Bonus(TechEffect.SluiceCharges);
 
+    /// <summary>
+    /// Which road the raiders take on Night <paramref name="night"/> (spec 2026-10-20 defence): one of the roads open at
+    /// this Hearth, fixed by the Night's number and the raid's seed, so the scout can tell at dusk.
+    /// </summary>
+    public int TonightsRoad(int night, ulong seed)
+    {
+        var open = _map.OpenRoads(HearthLevel);
+        if (open.Count == 1)
+        {
+            return open[0];
+        }
+
+        unchecked
+        {
+            var h = (seed * 0x9E3779B97F4A7C15UL) ^ ((ulong)night * 0xBF58476D1CE4E5B9UL);
+            h ^= h >> 31;
+            return open[(int)(h % (ulong)open.Count)];
+        }
+    }
+
+    /// <summary>The road the next Night will come by, as the scout tells it.</summary>
+    public int NextRoad
+    {
+        get
+        {
+            var night = LastNightRecorded + 1;
+            return _night?.Road ?? TonightsRoad(night, _raid?.Seed ?? (ulong)(946 + night));
+        }
+    }
+
     /// <summary>The locked layout for a Night: towers fight, every other building is in the way.</summary>
-    public BattleLayout ToBattleLayout()
+    public BattleLayout ToBattleLayout() => ToBattleLayout(0);
+
+    private BattleLayout ToBattleLayout(int road)
     {
         return _map.ToBattleLayout(
-            _buildings.Where(b => _table.Spec(b.Type).IsTower).Select(b => new PlacedTower(_table.Spec(b.Type).Tower!.Value, b.Position)),
+            _buildings.Where(b => _table.Spec(b.Type).IsTower).Select(b => new PlacedTower(_table.Spec(b.Type).Tower!.Value, b.Position, b.Level)),
             _buildings.Where(b => b.Type != BuildingType.Hearth && !_table.Spec(b.Type).IsTower && !BuildingTable.IsRoad(b.Type)).SelectMany(b => b.Tiles),
             _buildings.Where(b => b.Type != BuildingType.Hearth && _table.StructureHealth(b.Type, b.Level) > 0).Select(b =>
             {
@@ -628,7 +689,8 @@ public sealed partial class BaseState
                 };
             }),
             HearthLevel,
-            _cleared);
+            _cleared,
+            road);
     }
 
     // (VillageMap.ToBattleLayout(snapshot, table) is the same rule from a snapshot, for gateways.)
@@ -651,6 +713,11 @@ public sealed partial class BaseState
         if (_buildings.Count(b => b.Type == command.Type) >= spec.MaxCount(HearthLevel))
         {
             return CommandOutcome.Reject($"No room for another {spec.Name} until the Hearth grows.");
+        }
+
+        if (spec.IsTower && TowerCount >= _table.TowerCap(HearthLevel))
+        {
+            return CommandOutcome.Reject($"{_table.TowerCap(HearthLevel)} towers is all this Hearth can keep. Upgrade one, or grow the Hearth.");
         }
 
         var instant = spec.IsTower || spec.Levels[0].BuildSeconds == 0;
@@ -766,6 +833,7 @@ public sealed partial class BaseState
             UpgradeEndsAtUtc = building.UpgradeEndsAtUtc,
             Wrecked = building.Wrecked,
             CrewWanted = building.CrewWanted,
+            Patrol = building.Patrol,
         };
         _network = null;
         return CommandOutcome.Accept();
@@ -801,7 +869,7 @@ public sealed partial class BaseState
         }
 
         var spec = _table.Spec(building.Type);
-        if (spec.IsTower || building.Level >= spec.MaxLevel)
+        if (building.Level >= spec.MaxLevel)
         {
             return CommandOutcome.Reject($"{spec.Name} is as good as it gets.");
         }
@@ -1065,7 +1133,7 @@ public sealed partial class BaseState
 
         foreach (var tile in tiles)
         {
-            if (!_map.Contains(tile) || tile == _map.Spawn || _map.IsHearthTile(tile))
+            if (!_map.Contains(tile) || _map.IsSpawn(tile) || _map.IsHearthTile(tile))
             {
                 return "Can't build there.";
             }
@@ -1093,7 +1161,7 @@ public sealed partial class BaseState
 
         foreach (var tile in tiles)
         {
-            if (!_map.Contains(tile) || tile == _map.Spawn || _map.IsHearthTile(tile) || _buildings.Any(b => b != ignore && b.Tiles.Contains(tile)) || _map.IsBedrock(tile))
+            if (!_map.Contains(tile) || _map.IsSpawn(tile) || _map.IsHearthTile(tile) || _buildings.Any(b => b != ignore && b.Tiles.Contains(tile)) || _map.IsBedrock(tile))
             {
                 return "Can't build there.";
             }
@@ -1271,10 +1339,62 @@ public sealed partial class BaseState
         }
 
         var seed = _raid?.Seed ?? (ulong)(946 + night);
-        return new NightPlan(night, seed, budget, waves, SluiceBonus, _raid != null, layout.Towers, layout.Obstacles, layout.Structures, HearthLevel,
-            AutoRelics: true, Defenders: DefenderPosts(layout),
-            TowerDamagePercent: Bonus(TechEffect.TowerDamagePercent), ProphetHealthPercent: Bonus(TechEffect.ProphetHealthPercent)); // research, frozen into the plan
+        var road = TonightsRoad(night, seed);
+        layout = road == 0 ? layout : ToBattleLayout(road);
+        var (towers, wardens) = Garrison(layout);
+        return new NightPlan(night, seed, budget, waves, SluiceBonus, _raid != null, towers, layout.Obstacles, layout.Structures, HearthLevel,
+            AutoRelics: true, Defenders: DefenderPosts(layout).Concat(wardens).ToList(),
+            TowerDamagePercent: Bonus(TechEffect.TowerDamagePercent), ProphetHealthPercent: Bonus(TechEffect.ProphetHealthPercent), // research, frozen into the plan
+            Road: road);
     }
+
+    /// <summary>
+    /// The Guardhouses' wardens (spec 2026-10-20 defence): each Guardhouse's crew mans the nearest unmanned towers within
+    /// its reach (they fire faster), oldest Guardhouse first; on patrol, or with no tower left to man, they come out and
+    /// fight from beside it, like a hut's cultists.
+    /// </summary>
+    private (IReadOnlyList<PlacedTower> Towers, List<GridPosition> Wardens) Garrison(BattleLayout layout)
+    {
+        var towers = layout.Towers.ToList();
+        var wardens = new List<GridPosition>();
+        foreach (var house in _buildings.Where(b => b.Type == BuildingType.Guardhouse && b.Level >= 1 && !b.Wrecked).OrderBy(b => b.Id))
+        {
+            var crew = CrewOf(house);
+            if (!house.Patrol)
+            {
+                var near = Enumerable.Range(0, towers.Count)
+                    .Where(i => !towers[i].Manned && Reach(house, towers[i].Position) <= _table.GuardhouseReach)
+                    .OrderBy(i => Reach(house, towers[i].Position)).ThenBy(i => i)
+                    .Take(crew).ToList();
+                foreach (var i in near)
+                {
+                    towers[i] = towers[i] with { Manned = true };
+                }
+
+                crew -= near.Count;
+            }
+
+            var post = PostBeside(house, layout);
+            if (post != null)
+            {
+                wardens.AddRange(Enumerable.Repeat(post.Value, crew));
+            }
+        }
+
+        return (towers, wardens);
+    }
+
+    /// <summary>Tiles from a building's walls to a tile (Chebyshev).</summary>
+    private static int Reach(Building b, GridPosition tile) =>
+        b.Tiles.Min(t => Math.Max(Math.Abs(t.X - tile.X), Math.Abs(t.Y - tile.Y)));
+
+    /// <summary>The open tile beside a building nearest the Hearth, where its people stand guard (null: walled in).</summary>
+    private GridPosition? PostBeside(Building b, BattleLayout layout) =>
+        b.Tiles
+            .SelectMany(t => new[] { new GridPosition(t.X + 1, t.Y), new GridPosition(t.X - 1, t.Y), new GridPosition(t.X, t.Y + 1), new GridPosition(t.X, t.Y - 1) })
+            .Where(t => !b.Tiles.Contains(t) && layout.IsWalkableForLeader(t))
+            .OrderBy(t => Math.Abs(t.X - _map.Hearth.X) + Math.Abs(t.Y - _map.Hearth.Y)).ThenBy(t => t.X).ThenBy(t => t.Y)
+            .Cast<GridPosition?>().FirstOrDefault();
 
     /// <summary>
     /// Who comes out to defend (spec 2026-10-15): each standing Cultist Hut sends out as many cultists as its level, all
@@ -1378,6 +1498,10 @@ public sealed partial class BaseState
         MaterializeEconomy(endedAt);
         building.Level++;
         building.UpgradeEndsAtUtc = null;
+        if (building.Type == BuildingType.Hearth)
+        {
+            ClearRoads(); // a new road opens: whatever stood on it moves aside
+        }
         if (endedAt > building.AsOfUtc)
         {
             building.AsOfUtc = endedAt; // never backwards: time already counted is never counted again
@@ -1661,6 +1785,21 @@ public sealed partial class BaseState
 
     /// <summary>Villagers at home with no work: what's left after every crew is filled.</summary>
     private int IdleVillagers() => Math.Max(0, _population - MissionariesAway - _buildings.Sum(CrewOf));
+
+    /// <summary>Towers standing, every kind together (the Hearth's cap counts these).</summary>
+    public int TowerCount => _buildings.Count(b => _table.Spec(b.Type).IsTower);
+
+    private CommandOutcome ChooseDuty(SetDuty command)
+    {
+        var building = Find(command.BuildingId);
+        if (building == null || building.Type != BuildingType.Guardhouse)
+        {
+            return CommandOutcome.Reject("Only a Guardhouse has wardens to send.");
+        }
+
+        building.Patrol = command.Patrol;
+        return CommandOutcome.Accept();
+    }
 
     private CommandOutcome ChooseCrew(SetCrew command)
     {

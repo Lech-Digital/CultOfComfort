@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CultOfComfort.Contracts;
 using CultOfComfort.Server.Infrastructure;
+using CultOfComfort.Simulation.Balance;
 using CultOfComfort.Simulation.Base;
 using CultOfComfort.Simulation.Combat;
 using CultOfComfort.Simulation.Grid;
@@ -20,6 +21,7 @@ public class ContractsTests
         new MoveBuilding(Guid.NewGuid(), 7, new GridPosition(9, 9), true, Flipped: true),
         new RepairAll(Guid.NewGuid()),
         new PaveRaidersRoad(Guid.NewGuid()),
+        new SetDuty(Guid.NewGuid(), 9, true),
         new UpgradeBuilding(Guid.NewGuid(), 3),
         new UpgradeHearth(Guid.NewGuid()),
         new DemolishBuilding(Guid.NewGuid(), 4),
@@ -202,6 +204,37 @@ public class ContractsTests
         // Assert
         back.TowerDamagePercent.Should().Be(40);
         back.ProphetHealthPercent.Should().Be(25);
+    }
+
+    [Fact]
+    public void NightPlan_RoadAndTowerLevels_RoundTrip()
+    {
+        // Arrange — spec 2026-10-20 defence: which road, and each tower's level and warden, are part of the Night.
+        var towers = new[] { new PlacedTower(TowerType.SaplingFlinger, new GridPosition(4, 4), 3, Manned: true), new PlacedTower(TowerType.SlurryChute, new GridPosition(6, 4)) };
+        var plan = new NightPlan(3, 99, 40, 4, 0, false, towers, [], [], 3, AutoRelics: true, Road: 2);
+
+        // Act
+        var back = VillageSaveMapping.PlanFromDto(VillageSaveMapping.PlanToDto(plan));
+
+        // Assert
+        back.Road.Should().Be(2);
+        back.Towers.Should().Equal(towers);
+    }
+
+    [Fact]
+    public void NightPlan_OldWireFormWithoutLevels_LevelOneUnmannedFirstRoad()
+    {
+        // Arrange — a plan saved before tower levels: level 0 on the wire.
+        var dto = VillageSaveMapping.PlanToDto(new NightPlan(3, 99, 40, 4, 0, false, new[] { new PlacedTower(TowerType.SlurryChute, new GridPosition(6, 4)) }, [], [], 2));
+        dto.towers[0].level = 0;
+        dto.road = 0;
+
+        // Act
+        var back = VillageSaveMapping.PlanFromDto(dto);
+
+        // Assert
+        back.Towers.Single().Should().Be(new PlacedTower(TowerType.SlurryChute, new GridPosition(6, 4), 1, false));
+        back.Road.Should().Be(0);
     }
 
     [Fact]

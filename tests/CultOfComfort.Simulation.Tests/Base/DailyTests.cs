@@ -96,7 +96,7 @@ public class DailyTests
         state.Apply(new SendMissionary(Guid.NewGuid(), 1, 4), T0);
         state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new Simulation.Grid.GridPosition(15, 5), false), T0).Status.Should().Be(CommandStatus.Accepted);
         state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
-        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.StorageHut, new Simulation.Grid.GridPosition(22, 13), false), T0).Status.Should().Be(CommandStatus.Accepted);
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.StorageHut, new Simulation.Grid.GridPosition(22, 15), false), T0).Status.Should().Be(CommandStatus.Accepted);
         state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
         var id = state.Snapshot(T0).Buildings.First(b => b.Type == BuildingType.Woodcutter).Id;
         state.Apply(new UpgradeBuilding(Guid.NewGuid(), id), T0).Status.Should().Be(CommandStatus.Accepted);
@@ -198,7 +198,7 @@ public class DailyTests
         var state = Village("preach", "upgrade", "trade");
         var data = state.ToData();
         state = BaseState.Restore(Rich(), VillageMap.Demo, data with { Daily = data.Daily! with { Towels = 1 } });
-        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.StorageHut, new Simulation.Grid.GridPosition(22, 13), false), T0).Status.Should().Be(CommandStatus.Accepted);
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.StorageHut, new Simulation.Grid.GridPosition(22, 15), false), T0).Status.Should().Be(CommandStatus.Accepted);
         var ends = state.Snapshot(T0).ConstructionEndsAtUtc!.Value;
 
         // Act

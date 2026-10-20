@@ -9,7 +9,7 @@ namespace CultOfComfort.Simulation.Base;
 /// <param name="Capacity">Most it holds before production pauses.</param>
 public sealed record BuildingView(int Id, BuildingType Type, int Level, GridPosition Position, int Ready, int Capacity, int PerHour, DateTimeOffset? UpgradeEndsAtUtc, bool Wrecked = false,
     bool Rotated = false, IReadOnlyList<GridPosition>? Footprint = null, bool Connected = true, int Crew = 0, int CrewNeeded = 0, int CrewWanted = 0,
-    bool Flipped = false)
+    bool Flipped = false, bool Patrol = false)
 {
     public bool IsUpgrading => UpgradeEndsAtUtc != null;
 
@@ -44,7 +44,8 @@ public sealed record BaseSnapshot(
     IReadOnlyList<(string Label, int Amount)>? ComfortParts = null,
     int IdleVillagers = 0,
     DailyView? Daily = null,
-    int RaidersRoad = 0)
+    int RaidersRoad = 0,
+    int NextRoad = 0)
 {
     public DateTimeOffset? ConstructionEndsAtUtc => Buildings.FirstOrDefault(b => b.IsUpgrading)?.UpgradeEndsAtUtc;
 

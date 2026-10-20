@@ -24,7 +24,8 @@ public sealed record NightPlan(
     bool AutoRelics = false,
     IReadOnlyList<GridPosition>? Defenders = null,
     int TowerDamagePercent = 0,
-    int ProphetHealthPercent = 0)
+    int ProphetHealthPercent = 0,
+    int Road = 0)
 {
     /// <summary>
     /// The balance this Night is fought with: research makes towers hit harder and the Prophet sturdier. Nothing
@@ -46,7 +47,7 @@ public sealed record NightPlan(
     }
 
     public BattleSetup ToBattleSetup(VillageMap map, IReadOnlyList<PlayerInput> inputs) =>
-        new(new BattleLayout(map.Width, map.Height, map.Spawn, map.Hearth, Towers, Obstacles, null, Structures, map.Road), Seed, Budget, Waves, inputs, Balance()) // the fixed road: a gate blocks it, nothing reroutes it
+        new(new BattleLayout(map.Width, map.Height, map.SpawnOf(Road), map.Hearth, Towers, Obstacles, null, Structures, map.RoadAt(Road)), Seed, Budget, Waves, inputs, Balance()) // the fixed road: a gate blocks it, nothing reroutes it
         {
             ExtraSluiceCharges = ExtraSluiceCharges,
             Roster = CultOfComfort.Simulation.Waves.RaidRoster.ForHearth(Roster),

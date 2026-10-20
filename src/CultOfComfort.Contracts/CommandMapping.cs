@@ -75,6 +75,9 @@ public static class CommandMapping
             case SetCrew c:
                 (dto.buildingId, dto.amount) = (c.BuildingId, c.Crew);
                 break;
+            case SetDuty c:
+                (dto.buildingId, dto.amount) = (c.BuildingId, c.Patrol ? 1 : 0);
+                break;
             case SendWorldMissionary c:
                 (dto.buildingId, dto.amount, dto.x, dto.y) = (c.NodeId, c.Hours, c.Distance, c.PreacherId);
                 break;
@@ -135,6 +138,7 @@ public static class CommandMapping
             nameof(SpendTowels) => new SpendTowels(id, Enum.TryParse<TowelUse>(dto.give, out var use) ? use : throw new ArgumentException("Towels don't do that."), dto.amount),
             nameof(SetDayClock) => new SetDayClock(id, dto.amount),
             nameof(SetCrew) => new SetCrew(id, dto.buildingId, dto.amount),
+            nameof(SetDuty) => new SetDuty(id, dto.buildingId, dto.amount != 0),
             nameof(SendWorldMissionary) => new SendWorldMissionary(id, dto.buildingId, dto.amount, dto.x, dto.y),
             nameof(CollectOfferings) => new CollectOfferings(id),
             nameof(StartResearch) => new StartResearch(id, dto.tech ?? string.Empty),

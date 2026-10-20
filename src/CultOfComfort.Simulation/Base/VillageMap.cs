@@ -12,6 +12,35 @@ public sealed record MapZone(int MinX, int MinY, int MaxX, int MaxY, int OpensAt
 }
 
 /// <summary>
+/// A raiders' road beyond the first (spec 2026-10-20 defence): it opens at a Hearth level and runs from the forest's
+/// edge to the Hearth's fire in straight runs between <paramref name="Corners"/>.
+/// </summary>
+public sealed record RaiderRoute(string Name, int OpensAtHearth, IReadOnlyList<GridPosition> Corners)
+{
+    public IReadOnlyList<GridPosition> Tiles()
+    {
+        var tiles = new List<GridPosition> { Corners[0] };
+        for (var i = 1; i < Corners.Count; i++)
+        {
+            var (from, to) = (Corners[i - 1], Corners[i]);
+            var (dx, dy) = (Math.Sign(to.X - from.X), Math.Sign(to.Y - from.Y));
+            if (dx != 0 && dy != 0)
+            {
+                throw new ArgumentException($"{Name}: corners {from} and {to} aren't in a straight line.");
+            }
+
+            for (var at = from; at != to;)
+            {
+                at = new GridPosition(at.X + dx, at.Y + dy);
+                tiles.Add(at);
+            }
+        }
+
+        return tiles;
+    }
+}
+
+/// <summary>
 /// The ground the village and the Night share: the full grid, spawn, Hearth tile, rocks, and forest zones that open as
 /// the Hearth grows (spec: Map expansion). Locked land is unbuildable and blocks raiders, so the road never changes.
 /// </summary>
@@ -46,7 +75,71 @@ public sealed record VillageMap(
         new MapZone(30, 0, 37, 19, 2),
         new MapZone(0, 26, 47, 31, 3),
         new MapZone(38, 0, 47, 25, 3),
-    }, DemoBoulders, SpawnClearance: 3) { HearthSize = 4 };
+    }, DemoBoulders, SpawnClearance: 3)
+    {
+        HearthSize = 4,
+        // Spec 2026-10-20 defence: more roads as the Hearth grows, so no one layout covers every Night. Laid over open
+        // ground and the village's own tracks, round the rock and the boulders.
+        Routes = new[]
+        {
+            new RaiderRoute("south road", 2, new GridPosition[] { new(28, 25), new(28, 13), new(19, 13), new(19, 9), new(17, 9) }),
+            new RaiderRoute("east road", 3, new GridPosition[] { new(47, 17), new(28, 17), new(28, 13), new(19, 13), new(19, 9), new(17, 9) }),
+        },
+    };
+
+    /// <summary>Roads beyond the first (<see cref="Road"/>), each opening at its Hearth level.</summary>
+    public IReadOnlyList<RaiderRoute> Routes { get; init; } = Array.Empty<RaiderRoute>();
+
+    /// <summary>What the first road is called when there are others.</summary>
+    public string FirstRoadName { get; init; } = "north road";
+
+    private IReadOnlyList<GridPosition>[]? _routeTiles;
+    private readonly Dictionary<int, HashSet<GridPosition>> _roadTilesAt = new();
+    private HashSet<GridPosition>? _allRoadTiles;
+
+    /// <summary>Every road, opened or not (0 is <see cref="Road"/>).</summary>
+    public int RoadCount => 1 + Routes.Count;
+
+    public IReadOnlyList<GridPosition> RoadAt(int index)
+    {
+        if (index <= 0 || index > Routes.Count)
+        {
+            return Road;
+        }
+
+        _routeTiles ??= Routes.Select(r => r.Tiles()).ToArray();
+        return _routeTiles[index - 1];
+    }
+
+    public string RoadName(int index) => index <= 0 || index > Routes.Count ? FirstRoadName : Routes[index - 1].Name;
+
+    public int RoadOpensAt(int index) => index <= 0 || index > Routes.Count ? 1 : Routes[index - 1].OpensAtHearth;
+
+    /// <summary>The roads raiders may come by at this Hearth level, by index.</summary>
+    public IReadOnlyList<int> OpenRoads(int hearthLevel) => Enumerable.Range(0, RoadCount).Where(i => RoadOpensAt(i) <= hearthLevel).ToList();
+
+    /// <summary>Every tile of every road open at this Hearth level: nobody builds there.</summary>
+    public HashSet<GridPosition> RoadTiles(int hearthLevel)
+    {
+        lock (_roadTilesAt)
+        {
+            if (!_roadTilesAt.TryGetValue(hearthLevel, out var tiles))
+            {
+                tiles = new HashSet<GridPosition>(OpenRoads(hearthLevel).SelectMany(RoadAt));
+                _roadTilesAt[hearthLevel] = tiles;
+            }
+
+            return tiles;
+        }
+    }
+
+    /// <summary>Every road's tiles, opened or not (no wild tree grows on them).</summary>
+    public HashSet<GridPosition> AllRoadTiles => _allRoadTiles ??= new HashSet<GridPosition>(Enumerable.Range(0, RoadCount).SelectMany(RoadAt));
+
+    /// <summary>Where a road comes out of the forest (raiders appear there).</summary>
+    public GridPosition SpawnOf(int index) => index <= 0 || index > Routes.Count ? Spawn : RoadAt(index)[0];
+
+    public bool IsSpawn(GridPosition tile) => tile == Spawn || Routes.Any(r => r.Corners[0] == tile);
 
     /// <summary>
     /// The Hearth's ground is <c>HearthSize</c> × <c>HearthSize</c> tiles: the Roman ruin and the Prophet's car (owner
@@ -78,7 +171,8 @@ public sealed record VillageMap(
 
     /// <summary>Nobody builds near where the raiders come in, so the entrance can't be walled shut.</summary>
     public bool IsInSpawnClearance(GridPosition tile) =>
-        SpawnClearance > 0 && System.Math.Max(System.Math.Abs(tile.X - Spawn.X), System.Math.Abs(tile.Y - Spawn.Y)) <= SpawnClearance;
+        SpawnClearance > 0 && Enumerable.Range(0, RoadCount).Select(SpawnOf)
+            .Any(s => System.Math.Max(System.Math.Abs(tile.X - s.X), System.Math.Abs(tile.Y - s.Y)) <= SpawnClearance);
 
     /// <summary>
     /// Wild trees on the land (about one tile in twelve), deterministic, never on the road, the entrance, a rock or
@@ -94,7 +188,7 @@ public sealed record VillageMap(
 
     private IReadOnlyList<GridPosition> ComputeWildTrees()
     {
-        var road = new HashSet<GridPosition>(Road);
+        var road = AllRoadTiles;
         var trees = new List<GridPosition>();
         for (var y = 0; y < Height; y++)
         {
@@ -103,7 +197,7 @@ public sealed record VillageMap(
                 var tile = new GridPosition(x, y);
                 var hash = (x * 73856093) ^ (y * 19349663) ^ 0x2545F491;
                 var nearHearth = DistanceFromHearth(tile) <= 1;
-                if ((hash & 0x7fffffff) % 12 == 5 && !road.Contains(tile) && !Rocks.Contains(tile) && !IsInSpawnClearance(tile) && !nearHearth && tile != Spawn)
+                if ((hash & 0x7fffffff) % 12 == 5 && !road.Contains(tile) && !Rocks.Contains(tile) && !IsInSpawnClearance(tile) && !nearHearth && !IsSpawn(tile))
                 {
                     trees.Add(tile);
                 }
@@ -136,10 +230,13 @@ public sealed record VillageMap(
     }
 
     public BattleLayout ToBattleLayout(IEnumerable<PlacedTower> towers, IEnumerable<GridPosition> obstacles, IEnumerable<PlacedStructure>? structures = null,
-        int hearthLevel = int.MaxValue, IReadOnlyCollection<GridPosition>? cleared = null)
+        int hearthLevel = int.MaxValue, IReadOnlyCollection<GridPosition>? cleared = null, int road = 0)
     {
         var rocks = cleared == null ? Rocks : Rocks.Where(r => !cleared.Contains(r)).ToList();
-        return new(Width, Height, Spawn, Hearth, towers, rocks.Concat(LockedTiles(hearthLevel).Except(Rocks)).Concat(obstacles), null, structures, Road);
+        var path = RoadAt(road);
+        // Raiders walk their road even through land the village hasn't opened: the forest is theirs.
+        var locked = LockedTiles(hearthLevel).Except(Rocks).Where(t => !path.Contains(t));
+        return new(Width, Height, SpawnOf(road), Hearth, towers, rocks.Concat(locked).Concat(obstacles), null, structures, path);
     }
 
     /// <summary>
@@ -171,7 +268,7 @@ public sealed record VillageMap(
     /// </summary>
     public bool WouldConnect(BaseSnapshot snapshot, IReadOnlyList<GridPosition> tiles)
     {
-        var carriers = new HashSet<GridPosition>(Road);
+        var carriers = new HashSet<GridPosition>(RoadTiles(snapshot.HearthLevel));
         foreach (var b in snapshot.Buildings.Where(b => BuildingTable.IsRoad(b.Type) || b.Type == BuildingType.Gate))
         {
             carriers.UnionWith(b.Tiles);
@@ -200,14 +297,14 @@ public sealed record VillageMap(
     {
         var tiles = Footprint.Tiles(spec, anchor, rotated);
         var cleared = snapshot.ClearedTerrain ?? System.Array.Empty<GridPosition>();
-        var road = new HashSet<GridPosition>(Road);
+        var road = RoadTiles(snapshot.HearthLevel);
         var locked = tiles.Where(t => Contains(t) && !IsOpen(t, snapshot.HearthLevel)).Select(t => (GridPosition?)t).FirstOrDefault();
         if (locked != null)
         {
             return $"That land opens at Hearth {OpensAt(locked.Value)}.";
         }
 
-        if (tiles.Any(t => !Contains(t) || t == Spawn || IsHearthTile(t)))
+        if (tiles.Any(t => !Contains(t) || IsSpawn(t) || IsHearthTile(t)))
         {
             return "Can't build there.";
         }
@@ -280,7 +377,7 @@ public sealed record VillageMap(
         IReadOnlyList<GridPosition> tiles)
     {
         var footprint = new HashSet<GridPosition>(tiles);
-        var raidersRoad = new HashSet<GridPosition>(Road);
+        var raidersRoad = RoadTiles(hearthLevel);
         var roads = new HashSet<GridPosition>(carrierTiles);
         roads.UnionWith(raidersRoad);
         var network = new HashSet<GridPosition>(hearthTiles);
@@ -295,7 +392,7 @@ public sealed record VillageMap(
 
         bool Paintable(GridPosition t) =>
             Contains(t) && IsOpen(t, hearthLevel) && !footprint.Contains(t) && !raidersRoad.Contains(t) && !IsBedrock(t)
-            && t != Spawn && !IsInSpawnClearance(t) && !occupied(t);
+            && !IsSpawn(t) && !IsInSpawnClearance(t) && !occupied(t);
 
         var seen = new HashSet<GridPosition>();
         var queue = new Queue<GridPosition>();
@@ -347,11 +444,11 @@ public sealed record VillageMap(
     /// The locked Night layout for a village snapshot: towers fight, every other building is in the way, locked land is
     /// forest. Pure, so a remote gateway derives it from the server's snapshot exactly as the device does.
     /// </summary>
-    public BattleLayout ToBattleLayout(BaseSnapshot snapshot, BuildingTable table)
+    public BattleLayout ToBattleLayout(BaseSnapshot snapshot, BuildingTable table, int road = 0)
     {
         var cleared = snapshot.ClearedTerrain ?? System.Array.Empty<GridPosition>();
         return ToBattleLayout(
-            snapshot.Buildings.Where(b => table.Spec(b.Type).IsTower).Select(b => new PlacedTower(table.Spec(b.Type).Tower!.Value, b.Position)),
+            snapshot.Buildings.Where(b => table.Spec(b.Type).IsTower).Select(b => new PlacedTower(table.Spec(b.Type).Tower!.Value, b.Position, b.Level)),
             snapshot.Buildings.Where(b => b.Type != BuildingType.Hearth && !table.Spec(b.Type).IsTower && !BuildingTable.IsRoad(b.Type)).SelectMany(b => b.Tiles),
             snapshot.Buildings.Where(b => b.Type != BuildingType.Hearth && table.StructureHealth(b.Type, b.Level) > 0).Select(b =>
             {
@@ -362,7 +459,8 @@ public sealed record VillageMap(
                 };
             }),
             snapshot.HearthLevel,
-            cleared);
+            cleared,
+            road);
     }
 
     private static IReadOnlyList<GridPosition> DemoRocks()

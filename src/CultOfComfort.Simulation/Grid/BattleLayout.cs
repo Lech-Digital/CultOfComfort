@@ -6,7 +6,9 @@ using CultOfComfort.Simulation.Numerics;
 
 namespace CultOfComfort.Simulation.Grid;
 
-public readonly record struct PlacedTower(TowerType Type, GridPosition Position);
+/// <param name="Level">1 to 3: each level past the first adds reach and damage (spec 2026-10-20 defence); 0 reads as 1.</param>
+/// <param name="Manned">A Guardhouse warden works it: it fires faster.</param>
+public readonly record struct PlacedTower(TowerType Type, GridPosition Position, int Level = 1, bool Manned = false);
 
 /// <summary>A village building or tower raiders can smash. It sits on tower or obstacle tiles; it adds no blocking itself.</summary>
 public readonly record struct PlacedStructure(int Id, GridPosition Position, int MaxHealth, int Health)
