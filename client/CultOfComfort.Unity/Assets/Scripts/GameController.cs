@@ -176,26 +176,6 @@ namespace CultOfComfort.Client
             _intro.Play(_camera, _document.panelSettings);
         }
 
-        private async void ShowVillageCode()
-        {
-            if (!(_village is RemoteBaseGateway remote))
-            {
-                _hud.ShowVillageCode("This village lives on this device only.");
-                return;
-            }
-
-            _hud.ShowVillageCode("Asking the server…");
-            var code = await remote.RecoveryCodeAsync(_cts.Token);
-            if (code == null)
-            {
-                _hud.ShowVillageCode("No connection. Try again when you're online.");
-                return;
-            }
-
-            GUIUtility.systemCopyBuffer = code;
-            _hud.ShowVillageCode(code, "Copied. Write it down: type it on a new phone to bring this village back. Showing a new code retires the old one.");
-        }
-
         /// <summary>
         /// Settings → Sign in with Google (ADR 0007): the account's village comes to this phone, or this village is linked
         /// to the account so any phone signed in to it gets it back.
@@ -204,23 +184,23 @@ namespace CultOfComfort.Client
         {
             if (!(_village is RemoteBaseGateway remote))
             {
-                _hud.ShowVillageCode("This village lives on this device only.");
+                _hud.ShowAccountNote("This village lives on this device only.");
                 return;
             }
 
             try
             {
-                _hud.ShowVillageCode("Asking Google…");
+                _hud.ShowAccountNote("Asking Google…");
                 var idToken = await GoogleSignIn.IdTokenAsync();
                 if (idToken == null)
                 {
-                    _hud.ShowVillageCode("Not signed in. Your village is still here.");
+                    _hud.ShowAccountNote("Not signed in. Your village is still here.");
                     return;
                 }
 
-                _hud.ShowVillageCode("Fetching your village…");
+                _hud.ShowAccountNote("Fetching your village…");
                 var ok = await remote.SignInWithGoogleAsync(idToken, _cts.Token);
-                _hud.ShowRecoverResult(ok, ok ? "Signed in with Google. Your village follows you to any phone now." : "The server didn't accept that (or no connection).");
+                _hud.ShowAccountNote(ok ? "Signed in with Google. Your village follows you to any phone now." : "The server didn't accept that (or no connection).");
                 if (ok)
                 {
                     PlayerPrefs.SetInt("google.signedIn", 1);
@@ -232,25 +212,7 @@ namespace CultOfComfort.Client
             catch (Exception e) when (!(e is OperationCanceledException))
             {
                 Debug.LogWarning("Google sign-in: " + e.Message);
-                _hud.ShowVillageCode("Google sign-in failed: " + e.Message);
-            }
-        }
-
-        private async void RecoverVillage(string code)
-        {
-            if (!(_village is RemoteBaseGateway remote) || string.IsNullOrWhiteSpace(code))
-            {
-                return;
-            }
-
-            _hud.ShowVillageCode("Looking for that village…");
-            var moved = await remote.RecoverAsync(code.Trim(), _cts.Token);
-            _hud.ShowRecoverResult(moved, moved ? "Welcome back. The village is yours again on this phone." : "No village with that code (or no connection).");
-            if (moved)
-            {
-                _snapshot = null; // the recovered village may be at a lower version: don't let "newer only" keep the old one up
-                _roadVersion = -1;
-                RefreshSnapshot();
+                _hud.ShowAccountNote("Google sign-in failed: " + e.Message);
             }
         }
 
@@ -2490,8 +2452,6 @@ namespace CultOfComfort.Client
             _hud.GhostConfirmClicked += ConfirmTool;
             _hud.ReplayIntroClicked += () => PlayIntro(VillageComposition.CreateIntroProgress());
             SetUpMap(root);
-            _hud.VillageCodeClicked += ShowVillageCode;
-            _hud.RecoverClicked += RecoverVillage;
             _hud.GoogleSignInClicked += SignInWithGoogle;
             _hud.GhostCancelClicked += CancelTool;
             _hud.GhostRotateClicked += () => _tool?.Rotate();

@@ -190,11 +190,7 @@ namespace CultOfComfort.Client
         private readonly Dictionary<string, Button> _featureButtons = new Dictionary<string, Button>();
         private VisualElement _devTools;
         private bool _devMode;
-        private Label _codeLine;
-        private Label _codeNote;
-        private VisualElement _codeRow;
-        private VisualElement _codeEntry;
-        private TextField _codeInput;
+        private Label _accountNote;
         private Button _soundToggle;
         private Button _musicToggle;
         private readonly VisualElement _coachArrow;
@@ -566,8 +562,6 @@ namespace CultOfComfort.Client
         public event Action<string> FeatureClicked;
         public event Action DevFillStoresClicked;
         public event Action DevEndShieldClicked;
-        public event Action VillageCodeClicked;
-        public event Action<string> RecoverClicked;
 
         /// <summary>Settings → Sign in with Google.</summary>
         public event Action GoogleSignInClicked;
@@ -593,12 +587,9 @@ namespace CultOfComfort.Client
         public void ShowPhase(GamePhase phase)
         {
             Show(_tensionStrip, phase == GamePhase.Dusk);
-            Show(_codeRow, phase == GamePhase.Dusk); // village codes are a daytime chore
             if (phase != GamePhase.Dusk)
             {
-                Show(_codeLine, false);
-                Show(_codeNote, false);
-                Show(_codeEntry, false);
+                Show(_accountNote, false);
             }
             Show(_waveStrip, phase == GamePhase.Night);
             Show(_pillRow, phase != GamePhase.Night); // the stores don't matter mid-fight; the board gets the room (spec 2026-10-16 one thing at a time)
@@ -1117,24 +1108,11 @@ namespace CultOfComfort.Client
             p.Stroke();
         }
 
-        /// <summary>The village code line in Settings (a code, or why there isn't one).</summary>
-        public void ShowVillageCode(string text, string note = null)
+        /// <summary>The account line in Settings: how Google sign-in is going.</summary>
+        public void ShowAccountNote(string text)
         {
-            _codeLine.text = text;
-            Show(_codeLine, !string.IsNullOrEmpty(text));
-            _codeNote.text = note ?? string.Empty;
-            Show(_codeNote, !string.IsNullOrEmpty(note));
-        }
-
-        /// <summary>After "Bring it back": closes the entry on success, says why not otherwise.</summary>
-        public void ShowRecoverResult(bool moved, string message)
-        {
-            ShowVillageCode(message);
-            if (moved)
-            {
-                _codeInput.value = string.Empty;
-                Show(_codeEntry, false);
-            }
+            _accountNote.text = text;
+            Show(_accountNote, !string.IsNullOrEmpty(text));
         }
 
         /// <summary>Opens (or locks and hides) a frame shortcut. True when that changed it.</summary>
@@ -1492,38 +1470,15 @@ namespace CultOfComfort.Client
             _cloud = Text("Cloud save: on this device only", "sheet-line", "small");
             _cloud.name = "cloud-status";
             sheet.Add(_cloud);
-            // Keeping the village on a new phone (ADR 0007): show the code here, type it there.
-            _codeRow = Container("sheet-row");
-            var codeRow = _codeRow;
-            var showCode = ButtonWith("My village code", () => VillageCodeClicked?.Invoke(), "plain");
-            showCode.name = "show-code";
-            var useCode = ButtonWith("Use a code", () => Show(_codeEntry, _codeEntry.resolvedStyle.display == DisplayStyle.None), "plain");
-            useCode.name = "use-code";
-            codeRow.Add(showCode);
-            codeRow.Add(useCode);
-            sheet.Add(codeRow);
             // Sign in with Google (ADR 0007, 2026-10-20): the village follows the account, no code to write down.
             _google = ButtonWith("Sign in with Google", () => GoogleSignInClicked?.Invoke(), "plain", "wrap");
             _google.name = "google-sign-in";
             Show(_google, GoogleAuthConfig.Enabled);
             sheet.Add(_google);
-            _codeLine = Text(string.Empty, "sheet-line", "village-code");
-            _codeLine.name = "village-code";
-            Show(_codeLine, false);
-            sheet.Add(_codeLine);
-            _codeNote = Text(string.Empty, "sheet-line", "small", "code-note");
-            Show(_codeNote, false);
-            sheet.Add(_codeNote);
-            _codeEntry = Container("sheet-row");
-            _codeInput = new TextField { name = "code-input", maxLength = 16 };
-            _codeInput.AddToClassList("code-input");
-            _codeInput.textEdition.placeholder = "ABCD-EFGH-JKLM";
-            var recover = ButtonWith("Bring it back", () => RecoverClicked?.Invoke(_codeInput.value), "plain");
-            recover.name = "recover";
-            _codeEntry.Add(_codeInput);
-            _codeEntry.Add(recover);
-            Show(_codeEntry, false);
-            sheet.Add(_codeEntry);
+            _accountNote = Text(string.Empty, "sheet-line", "small", "account-note");
+            _accountNote.name = "account-note";
+            Show(_accountNote, false);
+            sheet.Add(_accountNote);
             _soundToggle = ButtonWith("Sound: on", () => SoundToggled?.Invoke(), "plain");
             _soundToggle.name = "sound-toggle";
             _musicToggle = ButtonWith("Music: on", () => MusicToggled?.Invoke(), "plain");

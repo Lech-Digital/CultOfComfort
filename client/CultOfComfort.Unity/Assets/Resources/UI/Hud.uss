@@ -333,9 +333,7 @@
 .sheet-row { flex-direction: row; }
 .sheet-row > .btn, .sheet-row > Button { flex-grow: 1; flex-basis: 0; margin-right: 6px; }
 
-.village-code { font-size: 18px; color: #2b2215; -unity-font-definition: resource("UI/Fonts/PermanentMarker"); -unity-text-align: middle-center; white-space: normal; }
-.code-input { flex-grow: 2; font-size: 16px; margin-right: 6px; }
-.code-note { white-space: normal; -unity-text-align: middle-center; }
+.account-note { white-space: normal; -unity-text-align: middle-center; }
 .wrap { white-space: normal; }
 .sheet-row > .plain { font-size: 13px; }
 
