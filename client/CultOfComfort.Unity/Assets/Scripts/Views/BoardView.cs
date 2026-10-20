@@ -382,8 +382,85 @@ namespace CultOfComfort.Client
         /// <summary>The raiders' track across the land, painted into the ground (the village's own roads paint over it).</summary>
         public void ShowRoad(IReadOnlyList<GridPosition> path)
         {
-            _raidersPath = path?.ToList() ?? new List<GridPosition>();
+            var tiles = path?.ToList() ?? new List<GridPosition>();
+            if (tiles.SequenceEqual(_raidersPath))
+            {
+                return; // the same roads: the ground is painted already
+            }
+
+            _raidersPath = tiles;
             PaintGround();
+        }
+
+        private GameObject _scout;
+        private GameObject _reach;
+        private float _reachRadius = -1f;
+
+        /// <summary>
+        /// A tower's reach (spec 2026-10-20 defence): a ring of dots round <paramref name="centre"/>, so a tower can be
+        /// set back from the road and still hit it. Null takes it down.
+        /// </summary>
+        public void ShowReach(Vector3? centre, float radius)
+        {
+            if (centre == null)
+            {
+                if (_reach != null)
+                {
+                    _reach.SetActive(false);
+                }
+
+                return;
+            }
+
+            if (_reach == null || !Mathf.Approximately(radius, _reachRadius))
+            {
+                if (_reach != null)
+                {
+                    Destroy(_reach);
+                }
+
+                _reachRadius = radius;
+                _reach = new GameObject("Tower reach");
+                _reach.transform.SetParent(_root, false);
+                var dots = Mathf.Max(16, Mathf.RoundToInt(radius * 14f));
+                for (var i = 0; i < dots; i++)
+                {
+                    var a = i * Mathf.PI * 2f / dots;
+                    Shapes.Create(PrimitiveType.Cube, Palette.Highlight, new Vector3(Mathf.Cos(a) * radius, 0.04f, Mathf.Sin(a) * radius),
+                        new Vector3(0.09f, 0.03f, 0.09f), _reach.transform, "Dot");
+                }
+            }
+
+            _reach.SetActive(true);
+            _reach.transform.localPosition = centre.Value;
+        }
+
+        /// <summary>
+        /// The scout's flag (spec 2026-10-20 defence): a red banner where tonight's raiders will come out of the forest;
+        /// null takes it down (one road: nothing to tell).
+        /// </summary>
+        public void ShowScout(GridPosition? spawn)
+        {
+            if (spawn == null)
+            {
+                if (_scout != null)
+                {
+                    _scout.SetActive(false);
+                }
+
+                return;
+            }
+
+            if (_scout == null)
+            {
+                _scout = new GameObject("Scout's flag");
+                _scout.transform.SetParent(_root, false);
+                Shapes.Create(PrimitiveType.Cylinder, Palette.Wood, new Vector3(0f, 0.6f, 0f), new Vector3(0.06f, 0.6f, 0.06f), _scout.transform, "Pole");
+                Shapes.Create(PrimitiveType.Cube, Palette.Invalid, new Vector3(0.22f, 1.05f, 0f), new Vector3(0.4f, 0.26f, 0.03f), _scout.transform, "Banner");
+            }
+
+            _scout.SetActive(true);
+            _scout.transform.localPosition = Shapes.ToWorld(spawn.Value);
         }
 
         // ---------------- the ground (owner 2026-10-15: "make the [tiles] less visible") ----------------

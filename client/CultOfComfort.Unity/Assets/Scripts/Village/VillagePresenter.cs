@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using CultOfComfort.Simulation.Balance;
 using CultOfComfort.Simulation.Base;
 
 namespace CultOfComfort.Client
@@ -28,6 +29,9 @@ namespace CultOfComfort.Client
 
         /// <summary>The card is the raiders' road: its upgrade button paves it.</summary>
         public bool IsRaidersRoad;
+
+        /// <summary>A Guardhouse's duty button ("On duty: manning the towers · send them out"); null: not a Guardhouse.</summary>
+        public string DutyLabel;
 
         /// <summary>Who works here (spec 2026-10-14 cultist work): the line, and whether − and + do anything.</summary>
         public bool ShowCrew; public string CrewLine; public int CrewWanted; public bool CanCrewLess; public bool CanCrewMore;
@@ -60,6 +64,7 @@ namespace CultOfComfort.Client
             BuildingType.Sauna => "b_sauna",
             BuildingType.Blacksmith => "b_blacksmith",
             BuildingType.PressureSluice => "b_pressure_sluice",
+            BuildingType.Guardhouse => "b_guardhouse",
             _ => "b_sapling_flinger",
         };
 
@@ -76,7 +81,8 @@ namespace CultOfComfort.Client
         public static string Category(BuildingType type) => type switch
         {
             BuildingType.Cottage or BuildingType.CultistHut or BuildingType.Bathhouse or BuildingType.Sauna or BuildingType.StorageHut or BuildingType.Cistern => Homes,
-            BuildingType.SlurryChute or BuildingType.SaplingFlinger or BuildingType.PressureSluice or BuildingType.WattleFence or BuildingType.WoodenWall or BuildingType.Gate => Defence,
+            BuildingType.SlurryChute or BuildingType.SaplingFlinger or BuildingType.PressureSluice or BuildingType.WattleFence or BuildingType.WoodenWall or BuildingType.Gate
+                or BuildingType.Guardhouse => Defence,
             BuildingType.DirtTrack or BuildingType.PlankWalk or BuildingType.CobbledRoad => Roads,
             BuildingType.Stone or BuildingType.Tree => Land,
             _ => Work,
@@ -88,13 +94,17 @@ namespace CultOfComfort.Client
             {
                 var cost = spec.Levels[0].Cost;
                 var count = snapshot.Buildings.Count(b => b.Type == spec.Type);
-                var locked = snapshot.HearthLevel < spec.UnlockHearth || count >= spec.MaxCount(snapshot.HearthLevel);
+                var towers = snapshot.Buildings.Count(b => table.Spec(b.Type).IsTower);
+                var capped = spec.IsTower && towers >= table.TowerCap(snapshot.HearthLevel);
+                var locked = snapshot.HearthLevel < spec.UnlockHearth || count >= spec.MaxCount(snapshot.HearthLevel) || capped;
                 return new BuildCardModel
                 {
                     Type = spec.Type, Name = spec.Name, Icon = IconFor(spec.Type), Cost = ShortCost(cost),
                     Time = spec.Levels[0].BuildSeconds == 0 ? "instant" : Duration(spec.Levels[0].BuildSeconds),
                     Locked = locked,
-                    LockText = snapshot.HearthLevel < spec.UnlockHearth ? $"Hearth {spec.UnlockHearth}" : locked ? "Max built" : string.Empty,
+                    LockText = snapshot.HearthLevel < spec.UnlockHearth ? $"Hearth {spec.UnlockHearth}"
+                        : capped ? $"{towers}/{table.TowerCap(snapshot.HearthLevel)} towers"
+                        : locked ? "Max built" : string.Empty,
                     Affordable = snapshot.Stock.Covers(cost),
                     Size = spec.Width == 1 && spec.Depth == 1 ? string.Empty : $"{spec.Width}×{spec.Depth}",
                     Category = Category(spec.Type),
@@ -105,7 +115,7 @@ namespace CultOfComfort.Client
         {
             var b = snapshot.Building(buildingId);
             var spec = table.Spec(b.Type);
-            var maxed = b.Level >= spec.MaxLevel || spec.IsTower;
+            var maxed = b.Level >= spec.MaxLevel;
             var next = maxed ? null : spec.Levels[b.Level];
             var repair = table.RepairCost(b.Type, b.Level);
             var upgradeLabel = b.Wrecked ? "Wrecked — repair first" : b.IsUpgrading ? (b.Level == 0 ? "Being built" : "Upgrading") : maxed ? "Max level"
@@ -138,7 +148,9 @@ namespace CultOfComfort.Client
                     : b.Level > 0 && b.CrewNeeded > 0 && b.Crew == 0 && b.CrewWanted == 0 ? "Nobody assigned — add a worker below"
                     : b.Level > 0 && b.CrewNeeded > 0 && b.Crew == 0 ? $"Needs {b.CrewNeeded} villager{(b.CrewNeeded == 1 ? string.Empty : "s")} — build a Cottage"
                     : b.Level > 0 && spec.Produces != null && spec.Produces != ResourceType.Peat && snapshot.Cold ? "Cold — no Peat, nobody works but the peat cutters"
-                    : b.Level == 0 ? string.Empty : spec.Produces != null ? $"+{b.PerHour} {spec.Produces}/h{ComfortNote(spec, b.Level)}" : Effect(spec, b.Level) + ComfortNote(spec, b.Level),
+                    : b.Level == 0 ? string.Empty : spec.Produces != null ? $"+{b.PerHour} {spec.Produces}/h{ComfortNote(spec, b.Level)}"
+                    : b.Type == BuildingType.Guardhouse ? GuardNote(b, table)
+                    : Effect(spec, b.Level) + ComfortNote(spec, b.Level),
                 Ready = spec.Produces != null && b.Level > 0 && b.PerHour > 0 ? "Goes straight into the stores." : string.Empty,
                 ShowCrew = b.Level > 0 && b.CrewNeeded > 0 && !b.Wrecked,
                 CrewLine = CrewLine(snapshot, b),
@@ -146,7 +158,7 @@ namespace CultOfComfort.Client
                 CanCrewLess = b.CrewWanted > 0,
                 CanCrewMore = b.CrewWanted < b.CrewNeeded,
                 UpgradeLabel = upgradeLabel,
-                CanUpgrade = !b.Wrecked && !maxed && !b.IsUpgrading && snapshot.ConstructionEndsAtUtc == null && snapshot.Stock.Covers(next.Cost)
+                CanUpgrade = !b.Wrecked && !maxed && !b.IsUpgrading && (next.BuildSeconds == 0 || snapshot.ConstructionEndsAtUtc == null) && snapshot.Stock.Covers(next.Cost)
                              && (b.Type == BuildingType.Hearth || b.Level + 1 <= snapshot.HearthLevel),
                 CanDemolish = b.Type != BuildingType.Hearth && !b.IsUpgrading,
                 CanMove = b.Type != BuildingType.Hearth && !BuildingTable.IsRoad(b.Type),
@@ -154,6 +166,9 @@ namespace CultOfComfort.Client
                 HurryLabel = b.IsUpgrading && snapshot.Daily != null ? $"Hurry {DailyBook.HurryMinutes} min · {DailyBook.HurryCost} Towel ({snapshot.Daily.Towels} left)" : null,
                 CanHurry = b.IsUpgrading && snapshot.Daily != null && snapshot.Daily.Towels >= DailyBook.HurryCost,
                 Remaining = b.IsUpgrading ? Duration((long)(b.UpgradeEndsAtUtc.Value - snapshot.AsOfUtc).TotalSeconds) + " left" : string.Empty,
+                DutyLabel = b.Type == BuildingType.Guardhouse && b.Level > 0 && !b.Wrecked
+                    ? (b.Patrol ? "Man the towers instead" : "Send them out to fight instead")
+                    : null,
                 CancelLabel = b.IsUpgrading && b.Level < spec.Levels.Count
                     ? (b.Level == 0 ? "Cancel the build" : "Cancel the upgrade") + $" · {ShortCost(spec.Levels[b.Level].Cost)} back"
                     : null,
@@ -188,6 +203,13 @@ namespace CultOfComfort.Client
 
             return s.TensionState == TensionState.Calm ? "Calm" : $"Uneasy — {Ruler.Short} is muttering";
         }
+
+        /// <summary>
+        /// The scout's word on the next Night's road (spec 2026-10-20 defence): "Scouts: the south road", or null while
+        /// only one road is open.
+        /// </summary>
+        public static string ScoutNote(BaseSnapshot s, VillageMap map) =>
+            map.OpenRoads(s.HearthLevel).Count > 1 ? $"Scouts: the {map.RoadName(s.NextRoad)}" : null;
 
         /// <summary>The big Day button: face the raid that is coming, or invite a smaller one early.</summary>
         /// <summary>What a tapped resource pill says: its name, stock and net income per hour.</summary>
@@ -232,7 +254,7 @@ namespace CultOfComfort.Client
                 return null;
             }
 
-            if (map.Road.Contains(tile))
+            if (map.RoadTiles(s.HearthLevel).Contains(tile))
             {
                 return RaidersRoadCard(s, table);
             }
@@ -302,7 +324,7 @@ namespace CultOfComfort.Client
             new Reading(s.Stock.Devotion, s.Caps.Devotion, false),
             new Reading(50, 0, true),
             new Reading(s.Comfort, 0, false),
-            s.HearthLevel, s.Tension / 150f, TensionNote(s), false, new Reading(s.Population, s.Beds, false), s.Cold);
+            s.HearthLevel, s.Tension / 150f, ScoutNote(s, VillageMap.Demo) is { } scout ? $"{TensionNote(s)} · {scout}" : TensionNote(s), false, new Reading(s.Population, s.Beds, false), s.Cold);
 
         /// <summary>
         /// Whether <paramref name="candidate"/> should replace <paramref name="current"/>: a later version, or the same
@@ -345,9 +367,27 @@ namespace CultOfComfort.Client
             return l.PeatPerHour > 0 ? $"{note} · burns {l.PeatPerHour} Peat/h" : note;
         }
 
+        /// <summary>"2 wardens · man the nearest towers (within 8 tiles): they fire faster" or "… on patrol: they fight".</summary>
+        private static string GuardNote(BuildingView b, BuildingTable table)
+        {
+            var wardens = $"{b.Crew} warden{(b.Crew == 1 ? string.Empty : "s")}";
+            return b.Patrol
+                ? $"{wardens} · on patrol: they come out and fight"
+                : $"{wardens} · manning the nearest towers (within {table.GuardhouseReach} tiles): they fire faster";
+        }
+
+        /// <summary>A tower at its level: "Reach 3.5 tiles · hits 12 · every 1.5 s".</summary>
+        public static string TowerLine(TowerType tower, int level)
+        {
+            var stats = CultOfComfort.Simulation.Balance.BalanceTable.Default.TowerAt(tower, level, manned: false);
+            var seconds = stats.CooldownTicks / (double)CultOfComfort.Simulation.Balance.BalanceTable.TicksPerSecond;
+            return FormattableString.Invariant($"Reach {stats.Range.ToDouble():0.#} tiles · hits {stats.Damage.ToDouble():0} · every {seconds:0.#} s");
+        }
+
         private static string Effect(BuildingSpec spec, int level)
         {
             if (level == 0) return string.Empty;
+            if (spec.Tower is { } tower) return TowerLine(tower, level);
             var l = spec.Levels[level - 1];
             if (l.StorageBonus > 0) return $"+{l.StorageBonus} storage for everything";
             if (l.SluiceCharges > 0) return $"+{l.SluiceCharges} Open Sluice per Night";

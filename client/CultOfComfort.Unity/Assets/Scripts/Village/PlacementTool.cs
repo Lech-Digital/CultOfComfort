@@ -46,7 +46,7 @@ namespace CultOfComfort.Client
         public static PlacementTool StartNew(BuildingType type, GridPosition near, BaseSnapshot snapshot, VillageMap map, BuildingTable table)
         {
             var spec = table.Spec(type);
-            var road = new HashSet<GridPosition>(map.Road);
+            var road = map.RoadTiles(snapshot.HearthLevel);
             var needsRoad = !BuildingTable.IsRoad(type) && !BuildingTable.IsBarrier(type) && type is not (BuildingType.Tree or BuildingType.Stone) && BuildingTable.NeedsRoad(type);
             bool Good(GridPosition anchor, bool rotated)
             {

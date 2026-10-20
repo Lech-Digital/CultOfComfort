@@ -101,6 +101,28 @@ namespace CultOfComfort.Client
             {
                 _defenders[defender.Id] = CreateDefender(defender);
             }
+
+            foreach (var tower in battle.Towers.Where(t => t.Manned))
+            {
+                CreateWarden(tower);
+            }
+        }
+
+        /// <summary>A Guardhouse warden up on a manned tower (spec 2026-10-20 defence): it fires faster while they're there.</summary>
+        private void CreateWarden(Tower tower)
+        {
+            var root = new GameObject($"Warden on tower #{tower.Id}").transform;
+            root.SetParent(_root, false);
+            root.localPosition = Shapes.ToWorld(tower.Position) + new Vector3(0.28f, 0.55f, -0.28f);
+            var model = ArtLibrary.Instantiate("cultist", root);
+            if (model != null)
+            {
+                model.transform.localScale *= UnitScale * 0.75f;
+            }
+            else
+            {
+                Shapes.Create(PrimitiveType.Capsule, Shapes.Hex("#46618c"), new Vector3(0f, 0.3f, 0f), new Vector3(0.22f, 0.3f, 0.22f), root, "Warden");
+            }
         }
 
         // ---------------- the cultists out defending (spec 2026-10-15) ----------------

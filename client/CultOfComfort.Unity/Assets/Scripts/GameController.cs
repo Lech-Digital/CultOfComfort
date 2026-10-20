@@ -1200,6 +1200,9 @@ namespace CultOfComfort.Client
             var problem = _tool.Problem(_snapshot, VillageMap.Demo, table);
             var level = _tool.MovingId != null ? _snapshot.Building(_tool.MovingId.Value).Level : 1;
             _board.ShowGhost(_tool.Type, level, tiles, _tool.Rotated, problem == null, _tool.Flipped);
+            var towerType = BuildingTable.Default.Spec(_tool.Type).Tower;
+            _board.ShowReach(towerType is { } t ? Shapes.ToWorld(tiles[0]) : (Vector3?)null,
+                towerType is { } r ? (float)BalanceTable.Default.TowerAt(r, level, manned: false).Range.ToDouble() : 0f);
             var (centre, size) = BoardView.FootprintBox(tiles);
             var spec = table.Spec(_tool.Type);
             var needsRoad = problem == null && !spec.IsTower && !BuildingTable.IsRoad(spec.Type) && !BuildingTable.IsBarrier(spec.Type)
@@ -1760,7 +1763,9 @@ namespace CultOfComfort.Client
             if (_snapshot.Version != _roadVersion)
             {
                 _roadVersion = _snapshot.Version;
-                _board.ShowRoad(VillageMap.Demo.ToBattleLayout(_snapshot, BuildingTable.Default).ResolveEnemyPath());
+                var map = VillageMap.Demo;
+                _board.ShowRoad(map.OpenRoads(_snapshot.HearthLevel).SelectMany(map.RoadAt).Distinct().ToList()); // every open road, painted
+                _board.ShowScout(map.OpenRoads(_snapshot.HearthLevel).Count > 1 ? map.SpawnOf(_snapshot.NextRoad) : (GridPosition?)null);
             }
 
             _hud.SetBuildCards(VillagePresenter.BuildCards(_snapshot, BuildingTable.Default), _buildSelection);
@@ -1782,6 +1787,14 @@ namespace CultOfComfort.Client
             }
 
             _hud.ShowBuildingCard(card);
+            if (_tool == null)
+            {
+                var shown = hasCard ? _snapshot.Building(_cardBuilding.Value) : null;
+                var tower = shown != null ? BuildingTable.Default.Spec(shown.Type).Tower : null;
+                _board.ShowReach(tower != null ? Shapes.ToWorld(shown.Position) : (Vector3?)null,
+                    tower != null ? (float)BalanceTable.Default.TowerAt(tower.Value, shown.Level, manned: false).Range.ToDouble() : 0f);
+            }
+
             RefreshMap();
         }
 
@@ -2289,7 +2302,7 @@ namespace CultOfComfort.Client
                 if (_cardTerrain != null)
                 {
                     var tile = _cardTerrain.Value;
-                    if (VillageMap.Demo.Road.Contains(tile))
+                    if (VillageMap.Demo.RoadTiles(_snapshot.HearthLevel).Contains(tile))
                     {
                         SendSimple(new PaveRaidersRoad(Guid.NewGuid())); // the card stays: the next paving shows on it
                         return;
@@ -2305,6 +2318,7 @@ namespace CultOfComfort.Client
             _hud.DemolishClicked += () => SendFromCard(b => new DemolishBuilding(Guid.NewGuid(), b.Id), closeCard: true);
             _hud.FinishNowClicked += () => SendFromCard(_ => new FinishConstructionNow(Guid.NewGuid()));
             _hud.HurryClicked += () => SendFromCard(_ => new SpendTowels(Guid.NewGuid(), TowelUse.Hurry));
+            _hud.DutyClicked += () => SendFromCard(b => new SetDuty(Guid.NewGuid(), b.Id, !b.Patrol));
             _hud.CancelBuildClicked += () =>
             {
                 if (Armed("cancel-build:" + _cardBuilding, "Tap again to cancel. The cost comes back; the time doesn't."))
@@ -2483,7 +2497,7 @@ namespace CultOfComfort.Client
         /// <summary>The camera's stage: the raiders' road at Night, the village by day. Framed again on the next frames.</summary>
         private void FrameStage()
         {
-            var (min, max) = _phase == GamePhase.Night ? VillageFraming.NightBounds(VillageMap.Demo) : VillageFraming.HomeBounds(VillageMap.Demo, _openLevel);
+            var (min, max) = _phase == GamePhase.Night ? VillageFraming.NightBounds(VillageMap.Demo, _plan?.Road ?? 0) : VillageFraming.HomeBounds(VillageMap.Demo, _openLevel);
             _rig.SetBounds(min, max);
             _framePending = 2;
         }

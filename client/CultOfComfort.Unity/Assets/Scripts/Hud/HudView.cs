@@ -512,6 +512,10 @@ namespace CultOfComfort.Client
         public event Action CancelBuildClicked;
         private Button _cancelBuild;
 
+        /// <summary>A Guardhouse's duty switched: man the towers ⇄ patrol.</summary>
+        public event Action DutyClicked;
+        private Button _duty;
+
         private Button _hurry;
         public event Action RepairClicked;
 
@@ -766,6 +770,8 @@ namespace CultOfComfort.Client
             }
             Show(_cancelBuild, card.CancelLabel != null);
             _cancelBuild.text = card.CancelLabel ?? string.Empty;
+            Show(_duty, card.DutyLabel != null);
+            _duty.text = card.DutyLabel ?? string.Empty;
             Show(_demolish, card.CanDemolish);
             _demolish.text = card.DemolishLabel;
             Show(_move, card.CanMove);
@@ -1534,6 +1540,8 @@ namespace CultOfComfort.Client
             _hurry.name = "hurry";
             _cancelBuild = ButtonWith("Cancel", () => CancelBuildClicked?.Invoke(), "plain", "wrap");
             _cancelBuild.name = "cancel-build";
+            _duty = ButtonWith(string.Empty, () => DutyClicked?.Invoke(), "plain", "wrap");
+            _duty.name = "duty";
             demolish = ButtonWith("Demolish", () => DemolishClicked?.Invoke(), "plain");
             demolish.name = "demolish";
             _move = ButtonWith("Move", () => MoveClicked?.Invoke(), "plain");
@@ -1565,7 +1573,7 @@ namespace CultOfComfort.Client
                 BuildingCardClosed?.Invoke();
             }, "plain");
             close.name = "card-close";
-            foreach (var element in new VisualElement[] { title, output, ready, _crewRow, remaining, _repair, upgrade, _hurry, _cancelBuild, finishNow, _move, demolish, close })
+            foreach (var element in new VisualElement[] { title, output, ready, _crewRow, _duty, remaining, _repair, upgrade, _hurry, _cancelBuild, finishNow, _move, demolish, close })
             {
                 sheet.Add(element);
             }

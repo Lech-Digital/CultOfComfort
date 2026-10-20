@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using CultOfComfort.Simulation.Balance;
 using CultOfComfort.Simulation.Base;
 using CultOfComfort.Simulation.Grid;
 using NUnit.Framework;
@@ -241,6 +242,63 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual(75f / 150f, frame.Tension, 0.001f);
         }
     
+        [Test]
+        public void TowerLine_LevelTwo_ReachesATileFurther()
+        {
+            // Act
+            var one = VillagePresenter.TowerLine(TowerType.SaplingFlinger, 1);
+            var two = VillagePresenter.TowerLine(TowerType.SaplingFlinger, 2);
+
+            // Assert
+            StringAssert.StartsWith("Reach 3.5 tiles", one);
+            StringAssert.StartsWith("Reach 4.5 tiles", two);
+        }
+
+        [Test]
+        public void BuildCards_TowersAtTheCap_LockedWithTheCount()
+        {
+            // Arrange — four towers at Hearth 1, its cap.
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new DebugFillStores(System.Guid.NewGuid()), T0);
+            foreach (var (x, y) in new[] { (6, 2), (6, 3), (6, 4), (6, 6) })
+            {
+                state.Apply(new PlaceBuilding(System.Guid.NewGuid(), BuildingType.SlurryChute, new CultOfComfort.Simulation.Grid.GridPosition(x, y)), T0);
+            }
+
+            // Act
+            var chute = VillagePresenter.BuildCards(state.Snapshot(T0), BuildingTable.Default).Single(c => c.Type == BuildingType.SlurryChute);
+
+            // Assert
+            Assert.IsTrue(chute.Locked);
+            Assert.AreEqual("4/4 towers", chute.LockText);
+        }
+
+        [Test]
+        public void Card_Guardhouse_SaysWhatTheWardensDoAndOffersTheOther()
+        {
+            // Arrange
+            var house = new BuildingView(9, BuildingType.Guardhouse, 1, new CultOfComfort.Simulation.Grid.GridPosition(20, 8), 0, 0, 0, null, Crew: 2, CrewNeeded: 2, CrewWanted: 2);
+            var snapshot = Fresh() with { Buildings = Fresh().Buildings.Append(house).ToList(), HearthLevel = 2 };
+
+            // Act
+            var onDuty = VillagePresenter.Card(snapshot, BuildingTable.Default, 9);
+            var patrol = VillagePresenter.Card(snapshot with { Buildings = Fresh().Buildings.Append(house with { Patrol = true }).ToList() }, BuildingTable.Default, 9);
+
+            // Assert
+            StringAssert.Contains("manning the nearest towers", onDuty.Output);
+            Assert.AreEqual("Send them out to fight instead", onDuty.DutyLabel);
+            StringAssert.Contains("on patrol", patrol.Output);
+            Assert.AreEqual("Man the towers instead", patrol.DutyLabel);
+        }
+
+        [Test]
+        public void ScoutNote_OneRoadOpen_Nothing_TwoOpen_NamesIt()
+        {
+            // Act & Assert
+            Assert.IsNull(VillagePresenter.ScoutNote(Fresh(), VillageMap.Demo));
+            Assert.AreEqual("Scouts: the south road", VillagePresenter.ScoutNote(Fresh() with { HearthLevel = 2, NextRoad = 1 }, VillageMap.Demo));
+        }
+
         [Test]
         public void TerrainCard_RaidersRoadAtHearthOne_SaysWhatPavingNeeds()
         {

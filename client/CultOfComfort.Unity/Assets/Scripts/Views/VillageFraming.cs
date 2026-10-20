@@ -38,11 +38,12 @@ namespace CultOfComfort.Client
         /// The Night's stage: the Hearth's end of the raiders' road with a tile and a half round it, so the camera comes in
         /// close on the fight (owner's playtest 2026-10: "models look cheap" was mostly raiders a few pixels tall).
         /// </summary>
-        public static (Vector2 Min, Vector2 Max) NightBounds(VillageMap map)
+        public static (Vector2 Min, Vector2 Max) NightBounds(VillageMap map, int road = 0)
         {
             const float margin = 1.5f;
-            // The last three fifths of the road: where the towers stand and the Prophet fights. Raiders walk into view.
-            var tiles = map.Road.Skip(map.Road.Count * 2 / 5).Concat(map.HearthTiles).ToList();
+            // The last three fifths of tonight's road: where the towers stand and the Prophet fights. Raiders walk into view.
+            var path = map.RoadAt(road);
+            var tiles = path.Skip(path.Count * 2 / 5).Concat(map.HearthTiles).ToList();
             return (new Vector2(tiles.Min(t => t.X) - margin, -tiles.Max(t => t.Y) - margin), new Vector2(tiles.Max(t => t.X) + margin, -tiles.Min(t => t.Y) + margin));
         }
 
