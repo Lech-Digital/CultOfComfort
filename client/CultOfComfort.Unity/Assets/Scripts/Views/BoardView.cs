@@ -35,7 +35,6 @@ namespace CultOfComfort.Client
 
         /// <summary>Blender models face +Z; the board camera looks from −Z, so static buildings turn round to face it.</summary>
         private static readonly Quaternion FaceCamera = Quaternion.Euler(0f, 180f, 0f);
-        private static readonly Color Soggy = new Color(0.44f, 0.5f, 0.53f);
         private MaterialPropertyBlock _block;
 
         public Vector3 HearthPosition { get; private set; }
@@ -156,7 +155,7 @@ namespace CultOfComfort.Client
                 if (visual.Wrecked != building.Wrecked)
                 {
                     visual.Wrecked = building.Wrecked;
-                    TintBuilding(visual, building.Wrecked);
+                    SetWreck(visual, building.Wrecked);
                     visual.Health.SetActive(false);
                 }
             }
@@ -182,7 +181,7 @@ namespace CultOfComfort.Client
             if (wrecked && !visual.Wrecked)
             {
                 visual.Wrecked = true;
-                TintBuilding(visual, true);
+                SetWreck(visual, true);
             }
         }
 
@@ -433,7 +432,112 @@ namespace CultOfComfort.Client
             }
         }
 
-        /// <summary>Soggy grey-blue while wrecked; the palette's own colours otherwise.</summary>
+        /// <summary>The broken model for a type, where there is one (owner 2026-10-20: "not only greyed out").</summary>
+        private static string BrokenModel(BuildingType type) => type switch
+        {
+            BuildingType.Gate => "gate_broken",
+            BuildingType.SlurryChute => "slurry_chute_broken",
+            BuildingType.SaplingFlinger => "sapling_flinger_broken",
+            BuildingType.PressureSluice => "pressure_sluice_broken",
+            _ => null,
+        };
+
+        private static readonly Color Charred = new Color(0.36f, 0.32f, 0.3f);
+        private readonly List<Transform> _smoke = new List<Transform>();
+
+        /// <summary>
+        /// A wreck looks wrecked (owner 2026-10-20: "we should have the broken model of this, not only greyed out"):
+        /// gates and towers swap to their broken models; anything else is knocked askew and half flattened, charred,
+        /// on a heap of rubble with smoke going up. Repaired, it all stands up again.
+        /// </summary>
+        private void SetWreck(BuildingVisual visual, bool wrecked)
+        {
+            if (!wrecked)
+            {
+                if (visual.Broken != null)
+                {
+                    foreach (Transform puff in visual.Broken.transform)
+                    {
+                        _smoke.Remove(puff);
+                    }
+
+                    Destroy(visual.Broken);
+                    visual.Broken = null;
+                }
+
+                foreach (var (part, position, rotation, scale, active) in visual.Unbroken ?? new List<(Transform, Vector3, Quaternion, Vector3, bool)>())
+                {
+                    if (part != null)
+                    {
+                        part.localPosition = position;
+                        part.localRotation = rotation;
+                        part.localScale = scale;
+                        part.gameObject.SetActive(active);
+                    }
+                }
+
+                visual.Unbroken = null;
+                TintBuilding(visual, false);
+                return;
+            }
+
+            if (visual.Broken != null || visual.Type == BuildingType.Hearth)
+            {
+                return;
+            }
+
+            visual.Broken = new GameObject("Wreck");
+            visual.Broken.transform.SetParent(visual.Root, false);
+            visual.Unbroken = new List<(Transform, Vector3, Quaternion, Vector3, bool)>();
+            var keep = new HashSet<GameObject> { visual.Bar, visual.Health, visual.Broken, visual.Ready != null ? visual.Ready.gameObject : null };
+            var parts = visual.Root.Cast<Transform>().Where(t => !keep.Contains(t.gameObject)).ToList();
+            foreach (var part in parts)
+            {
+                visual.Unbroken.Add((part, part.localPosition, part.localRotation, part.localScale, part.gameObject.activeSelf));
+            }
+
+            var seed = Mathf.Abs(visual.Root.GetInstanceID());
+            var special = BrokenModel(visual.Type);
+            var broken = special != null ? ArtLibrary.Instantiate(special, visual.Broken.transform) : null;
+            if (broken != null)
+            {
+                foreach (var part in parts)
+                {
+                    part.gameObject.SetActive(false);
+                }
+
+                broken.transform.localRotation = parts.Count > 0 ? parts[0].localRotation : FaceCamera;
+                BuildingArt.Fit(broken, visual.Broken.transform, visual.Size, finished: true);
+            }
+            else
+            {
+                // Knocked askew and half flattened, charred, on its rubble.
+                foreach (var part in parts)
+                {
+                    part.localRotation = Quaternion.Euler((seed % 7) - 3f + 9f, 0f, (seed % 5) - 2f - 7f) * part.localRotation;
+                    part.localScale = Vector3.Scale(part.localScale, new Vector3(1f, 0.55f, 1f));
+                    part.localPosition += new Vector3(0f, -0.05f, 0f);
+                }
+
+                TintBuilding(visual, true);
+                var rubble = ArtLibrary.Instantiate("rubble", visual.Broken.transform);
+                if (rubble != null)
+                {
+                    rubble.transform.localRotation = Quaternion.Euler(0f, seed % 360, 0f);
+                    rubble.transform.localScale = Vector3.one * Mathf.Max(0.8f, Mathf.Min(visual.Size.x, visual.Size.y) * 0.9f);
+                }
+            }
+
+            // Smoke: a few grey puffs going up and fading, round and round.
+            for (var k = 0; k < 3; k++)
+            {
+                var puff = Shapes.Create(PrimitiveType.Sphere, Shapes.Hex("#6b6762"), new Vector3(((seed >> k) % 5 - 2) * 0.08f, 0.3f + k * 0.35f, 0f),
+                    Vector3.one * 0.18f, visual.Broken.transform, "Smoke");
+                _smoke.Add(puff.transform);
+            }
+        }
+
+        /// <summary>Charred while wrecked; the palette's own colours otherwise.</summary>
         private void TintBuilding(BuildingVisual visual, bool wrecked)
         {
             foreach (var renderer in visual.Root.GetComponentsInChildren<Renderer>())
@@ -445,7 +549,7 @@ namespace CultOfComfort.Client
 
                 if (wrecked)
                 {
-                    Shapes.Tint(renderer, Soggy, _block);
+                    Shapes.Tint(renderer, Charred, _block);
                 }
                 else
                 {
@@ -871,6 +975,22 @@ namespace CultOfComfort.Client
 
         private void LateUpdate()
         {
+            // A wreck smokes: each puff rises a little over a second and a half, swelling, then starts again.
+            for (var i = _smoke.Count - 1; i >= 0; i--)
+            {
+                var puff = _smoke[i];
+                if (puff == null)
+                {
+                    _smoke.RemoveAt(i);
+                    continue;
+                }
+
+                var t = Mathf.Repeat(Time.time * 0.6f + i * 0.33f, 1f);
+                var p = puff.localPosition;
+                puff.localPosition = new Vector3(p.x, 0.3f + t * 1.1f, p.z);
+                puff.localScale = Vector3.one * Mathf.Lerp(0.14f, 0.42f, t) * (1f - t * 0.6f);
+            }
+
             SwingGates();
             // The river ripples: a slow wave travelling downstream.
             for (var i = 0; i < _water.Count; i++)
@@ -1190,6 +1310,7 @@ namespace CultOfComfort.Client
                 }
             }
 
+            visual.Size = FootprintBox(building.Tiles).Size;
             var barHeight = building.Type == BuildingType.Hearth ? 3f : 1.5f; // over the ruin's columns
             visual.Bar = Shapes.Create(PrimitiveType.Cube, Palette.Highlight, new Vector3(0f, barHeight, 0f), new Vector3(0.7f, 0.07f, 0.07f), visual.Root, "Construction");
             visual.Bar.SetActive(false);
@@ -1224,6 +1345,13 @@ namespace CultOfComfort.Client
             public GridPosition Anchor;
             public bool Rotated;
             public bool Flipped;
+
+            /// <summary>The footprint's size in tiles (a wreck's rubble covers it).</summary>
+            public Vector2 Size;
+
+            /// <summary>The wreck on show (rubble and smoke, or a broken model), or null; and how the pieces stood before.</summary>
+            public GameObject Broken;
+            public List<(Transform Part, Vector3 Position, Quaternion Rotation, Vector3 Scale, bool Active)> Unbroken;
 
             /// <summary>A gate's moving parts (found on first use) and how open it is, 0–1.</summary>
             public Transform DoorL, DoorR, Portcullis;
