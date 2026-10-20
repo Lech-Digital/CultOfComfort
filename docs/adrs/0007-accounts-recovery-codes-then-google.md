@@ -59,3 +59,23 @@ adb shell rm /sdcard/Android/data/com.lechdigital.cultofcomfort/files/dev.key   
 ```
 
 With the file present, Settings shows Tension +50, Skip warning and Fill stores, building cards show Finish now, and every sync carries `X-Dev-Key`. The server lets development commands through only when the key matches (constant-time comparison, at least 24 characters). To rotate the key, write a new one to both places and redeploy.
+
+## Addendum (2026-10-20): the Google button on the client
+
+The owner asked for Google sign-in so a village survives without the village code.
+
+- **Native side.** `Assets/Plugins/Android/GoogleSignInBridge.java` asks Credential Manager for a Google ID token (`GetSignInWithGoogleOption` for the server's Web client id). It reports back through a Java interface, implemented in C# as an `AndroidJavaProxy` (`GoogleSignIn.IdTokenAsync`).
+- **Libraries.** A custom `mainTemplate.gradle` adds:
+  - `androidx.credentials:credentials:1.3.0`
+  - `credentials-play-services-auth:1.3.0`
+  - `com.google.android.libraries.identity.googleid:googleid:1.1.1`
+- **Settings → Sign in with Google.**
+  1. The phone first syncs what it has queued.
+  2. It sends the token to `POST /api/auth/google` with its guest token.
+  3. It takes the token it gets back: the account's village, or this guest village, now linked.
+- **Switched off by default.** The button is hidden while `GoogleAuthConfig.WebClientId` is empty. The server answers 501 while `Auth__GoogleClientIds__0` is unset.
+
+To switch it on, the owner creates, in Google Cloud (Google Auth Platform):
+1. a consent screen;
+2. a **Web application** client: its id goes into both `GoogleAuthConfig.WebClientId` and the server's `Auth__GoogleClientIds__0`;
+3. an **Android** client for `com.lechdigital.cultofcomfort`, with the SHA-1 of the key the APK is signed with. The development builds use Unity's debug key, `BB:C3:BA:10:00:9F:DB:80:47:DC:D8:7C:DB:44:E9:95:3F:AA:45:6D`. A Play release key needs a second Android client.
