@@ -341,7 +341,7 @@ namespace CultOfComfort.Client
                     return;
                 }
 
-                if (id == "research" || id == "shop" || id == "cult")
+                if (id == "research" || id == "shop" || id == "cult" || id == "prophet")
                 {
                     CloseMap();
                     _house.Show(false);
@@ -605,6 +605,7 @@ namespace CultOfComfort.Client
         {
             "research" => FeatureSheetPresenter.Research(_snapshot, _snapshot.AsOfUtc, confirmStop: IsArmed("research-stop")),
             "shop" => FeatureSheetPresenter.Market(_snapshot, BuildingTable.Default),
+            "prophet" => FeatureSheetPresenter.Prophet(_snapshot),
             _ => FeatureSheetPresenter.Cult(_snapshot),
         };
 
@@ -640,7 +641,16 @@ namespace CultOfComfort.Client
         private async void OnSheetAction(string action)
         {
             var parts = action.Split(':');
-            if (action == "hearth:upgrade")
+            if (parts[0] == "perk" && parts.Length == 2)
+            {
+                var outcome = await SendVillage(new ChooseProphetPerk(Guid.NewGuid(), parts[1]));
+                if (outcome.Status == CommandStatus.Accepted)
+                {
+                    Announce($"The Prophet takes up {ProphetBook.Perk(parts[1])?.Name.ToLowerInvariant()}. He looks pleased with himself.");
+                    _sheet.Show("prophet", SheetFor("prophet"));
+                }
+            }
+            else if (action == "hearth:upgrade")
             {
                 var outcome = await SendVillage(new UpgradeHearth(Guid.NewGuid()));
                 if (outcome.Status == CommandStatus.Accepted)
@@ -1795,6 +1805,7 @@ namespace CultOfComfort.Client
             var card = _cardVisitor ? VillagePresenter.VisitorCard(_snapshot)
                 : hasCard ? VillagePresenter.Card(_snapshot, BuildingTable.Default, _cardBuilding.Value) : terrainCard;
             _board.ShowVisitor(_snapshot.Visitor?.Offer.Kind, VillagePresenter.VisitorTile(_snapshot, VillageMap.Demo));
+            _hud.SetProphetBadge(_snapshot.Prophet?.Choice != null);
             if (_snapshot.Visitor is { } visitor && visitor.Slot != _greetedVisitorSlot && _phase == GamePhase.Dusk)
             {
                 _greetedVisitorSlot = visitor.Slot;

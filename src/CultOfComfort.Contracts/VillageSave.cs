@@ -46,7 +46,9 @@ public sealed class VillageSaveDto
     public string errandId;
     public int raidersRoad; // pavings laid on the raiders' road (0: trodden mud)
     public List<StowedDto> stowed; // towers packed up
-    public long answeredVisitorSlot = -1; // the last visitor slot answered (spec 2026-10-20 visitors) // the errand by id (errandIndex alone moved players when the book was reordered); empty: read errandIndex the old way
+    public long answeredVisitorSlot = -1; // the last visitor slot answered (spec 2026-10-20 visitors)
+    public int prophetXp;                 // spec 2026-10-20 the Prophet grows
+    public List<string> prophetPerks; // the errand by id (errandIndex alone moved players when the book was reordered); empty: read errandIndex the old way
     public bool hasDomain; // older saves: no Marchlands yet
     public DomainDto domain;
     public List<string> researched;   // older saves: none
@@ -205,6 +207,10 @@ public sealed class NightDto
     public int prophetHealth;        // research, %
     public int road;                 // which raiders' road (0: the first)
     public List<TileDto> traps;      // mud traps on the road (older plans lack it: none)
+    public int prophetDamage;        // his level and perks, % (spec 2026-10-20 the Prophet grows)
+    public int prophetSpeed;
+    public int voice;
+    public int stones;
 }
 
 [Serializable]

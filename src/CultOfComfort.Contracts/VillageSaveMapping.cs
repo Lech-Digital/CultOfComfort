@@ -55,6 +55,8 @@ public static class VillageSaveMapping
         errandId = data.ErrandId ?? string.Empty,
         raidersRoad = data.RaidersRoad,
         answeredVisitorSlot = data.AnsweredVisitorSlot,
+        prophetXp = data.ProphetXp,
+        prophetPerks = (data.ProphetPerks ?? Array.Empty<string>()).ToList(),
         stowed = (data.Stowed ?? Array.Empty<StowedTower>()).Select(t => new StowedDto { type = t.Type.ToString(), level = t.Level, wrecked = t.Wrecked }).ToList(),
         researched = data.Research?.Done.ToList() ?? new List<string>(),
         researching = data.Research?.Current ?? string.Empty,
@@ -160,7 +162,9 @@ public static class VillageSaveMapping
             dto.raidersRoad,
             (dto.stowed ?? new List<StowedDto>()).Select(t => new StowedTower(
                 Enum.TryParse<BuildingType>(t.type, out var type) ? type : throw new InvalidBaseDataException($"unknown tower type '{t.type}'"), t.level, t.wrecked)).ToList(),
-            dto.answeredVisitorSlot);
+            dto.answeredVisitorSlot,
+            dto.prophetXp,
+            dto.prophetPerks ?? new List<string>());
     }
 
     private static DomainData FromDto(DomainDto d) => new(
@@ -201,6 +205,10 @@ public static class VillageSaveMapping
         towerDamage = plan.TowerDamagePercent,
         prophetHealth = plan.ProphetHealthPercent,
         road = plan.Road,
+        prophetDamage = plan.ProphetDamagePercent,
+        prophetSpeed = plan.ProphetSpeedPercent,
+        voice = plan.VoicePercent,
+        stones = plan.StonesPercent,
         traps = (plan.Traps ?? Array.Empty<GridPosition>()).Select(t => new TileDto { x = t.X, y = t.Y }).ToList(),
     };
 
@@ -238,7 +246,8 @@ public static class VillageSaveMapping
             d.autoRelics,
             (d.defenders ?? new List<TileDto>()).Select(t => new GridPosition(t.x, t.y)).ToList(),
             Math.Max(0, d.towerDamage), Math.Max(0, d.prophetHealth), Math.Max(0, d.road),
-            (d.traps ?? new List<TileDto>()).Select(t => new GridPosition(t.x, t.y)).ToList());
+            (d.traps ?? new List<TileDto>()).Select(t => new GridPosition(t.x, t.y)).ToList(),
+            Math.Max(0, d.prophetDamage), Math.Max(0, d.prophetSpeed), Math.Max(0, d.voice), Math.Max(0, d.stones));
     }
 
     internal static ReportDto ToDto(NightReport r) => new()

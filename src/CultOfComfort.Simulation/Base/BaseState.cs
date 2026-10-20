@@ -198,6 +198,7 @@ public sealed partial class BaseState
         }
 
         state.RestoreVisitor(data);
+        state.RestoreProphet(data);
         state.ClearRoads(); // a save from before more roads opened at its Hearth level
         state.Validate();
         return state;
@@ -552,7 +553,9 @@ public sealed partial class BaseState
         CurrentErrand?.Id,
         _raidersRoad,
         _stowed.ToList(),
-        _answeredVisitorSlot);
+        _answeredVisitorSlot,
+        _prophetXp,
+        _perks.ToList());
 
     public CommandOutcome Apply(BaseCommand command, DateTimeOffset nowUtc)
     {
@@ -598,6 +601,7 @@ public sealed partial class BaseState
             PackUpTower pack => PackUp(Find(pack.BuildingId)),
             PackUpTowers _ => PackUpAll(),
             AnswerVisitor answer => Answer(answer, nowUtc),
+            ChooseProphetPerk choose => ChoosePerk(choose),
             SendMissionary send => SendOut(send, nowUtc),
             SendWorldMissionary send => SendOutInWorld(send, nowUtc),
             JoinWorld join => Join(join, nowUtc),
@@ -644,7 +648,7 @@ public sealed partial class BaseState
         var tension = TensionValue(nowUtc);
         return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
             tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport, _cleared.Concat(_treeCuts.Keys.Where(t => !IsWildTreeStanding(t))).ToList(),
-            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts(), IdleVillagers(), DailyViewAt(nowUtc), _raidersRoad, NextRoad, _stowed.ToList(), _table.Builders(HearthLevel) - BuildersBusy, _towels, VisitorViewAt(nowUtc));
+            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts(), IdleVillagers(), DailyViewAt(nowUtc), _raidersRoad, NextRoad, _stowed.ToList(), _table.Builders(HearthLevel) - BuildersBusy, _towels, VisitorViewAt(nowUtc), ProphetViewNow());
     }
 
     public ResourceBag Caps
@@ -992,6 +996,7 @@ public sealed partial class BaseState
         var salvage = Math.Min(Salvage(night.Stars), Math.Max(0, Caps.Scrap - _stock.Scrap));
         _stock += new ResourceBag(0, 0, salvage, 0);
         LastNightRecorded = night.Night;
+        GainProphetXp(night.Stars);
         _buildings.RemoveAll(b => BuildingTable.IsTrick(b.Type)); // the dusk tricks are spent
         _network = null;
         NoteNight(night.Stars, now);
@@ -1395,9 +1400,13 @@ public sealed partial class BaseState
         var (towers, wardens) = Garrison(layout);
         return new NightPlan(night, seed, budget, waves, SluiceBonus, _raid != null, towers, layout.Obstacles, layout.Structures, HearthLevel,
             AutoRelics: true, Defenders: DefenderPosts(layout).Concat(wardens).ToList(),
-            TowerDamagePercent: Bonus(TechEffect.TowerDamagePercent), ProphetHealthPercent: Bonus(TechEffect.ProphetHealthPercent), // research, frozen into the plan
+            TowerDamagePercent: Bonus(TechEffect.TowerDamagePercent), ProphetHealthPercent: Bonus(TechEffect.ProphetHealthPercent) + ProphetHealthBonus, // research and his level, frozen into the plan
             Road: road,
-            Traps: _buildings.Where(b => b.Type == BuildingType.MudTrap).OrderBy(b => b.Id).Select(b => b.Position).ToList());
+            Traps: _buildings.Where(b => b.Type == BuildingType.MudTrap).OrderBy(b => b.Id).Select(b => b.Position).ToList(),
+            ProphetDamagePercent: ProphetDamageBonus,
+            ProphetSpeedPercent: TakenPerks.Sum(p => p.SpeedPercent),
+            VoicePercent: TakenPerks.Sum(p => p.VoicePercent),
+            StonesPercent: TakenPerks.Sum(p => p.StonesPercent));
     }
 
     /// <summary>
@@ -1524,6 +1533,7 @@ public sealed partial class BaseState
         _raid = null;
         _night = null;
         LastNightRecorded = plan.Night;
+        GainProphetXp(result.Stars);
         NoteNight(result.Stars, at);
         var report = new NightReport(plan.Night, plan.Scheduled, whileAway, result.Stars, result.HearthHealth, result.HearthMaxHealth, wrecked, salvage, result.StateHashHex);
         if (whileAway)

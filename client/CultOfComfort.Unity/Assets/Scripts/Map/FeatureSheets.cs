@@ -147,6 +147,48 @@ namespace CultOfComfort.Client
         public const string RelicsTab = "Relics";
         public const string ErrandTab = "Errand";
 
+        /// <summary>
+        /// The Prophet's sheet (spec 2026-10-20 the Prophet grows): his level and experience, what it's done for him, the
+        /// pair of perks to choose from when one is due, and the perks he has.
+        /// </summary>
+        public static SheetModel Prophet(BaseSnapshot snapshot)
+        {
+            var p = snapshot.Prophet;
+            var model = new SheetModel { Title = "The Prophet", Footer = "Every Night teaches him something. Stars teach him more." };
+            if (p == null)
+            {
+                return model;
+            }
+
+            model.Rows.Add(new SheetRow { Heading = true, Text = $"Level {p.Level} of {ProphetBook.MaxLevel}" });
+            model.Rows.Add(new SheetRow
+            {
+                Text = p.Level >= ProphetBook.MaxLevel ? "He's learnt all a man in a bathrobe can." : $"Experience {p.Xp} / {p.XpForNext}",
+                Detail = $"Health +{p.HealthPercent}% · hits +{p.DamagePercent}%",
+            });
+            if (p.Choice != null)
+            {
+                model.Rows.Add(new SheetRow { Heading = true, Text = $"Choose one (level {p.Choice[0].Level})" });
+                foreach (var perk in p.Choice)
+                {
+                    model.Rows.Add(new SheetRow { Text = perk.Name, Detail = perk.Text, Button = "Choose", Enabled = true, Action = "perk:" + perk.Id });
+                }
+            }
+
+            model.Rows.Add(new SheetRow { Heading = true, Text = "His perks" });
+            if (p.Perks.Count == 0)
+            {
+                model.Rows.Add(new SheetRow { Text = "None yet. The first comes at level 3." });
+            }
+
+            foreach (var perk in p.Perks)
+            {
+                model.Rows.Add(new SheetRow { Text = perk.Name, Detail = perk.Text });
+            }
+
+            return model;
+        }
+
         public static SheetModel Cult(BaseSnapshot snapshot, BuildingTable table = null)
         {
             table = table ?? BuildingTable.Default;

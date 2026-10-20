@@ -49,6 +49,9 @@ public sealed record AcknowledgeReport(Guid CommandId) : BaseCommand(CommandId);
 public sealed record ClaimErrand(Guid CommandId) : BaseCommand(CommandId);
 
 /// <summary>Cuts a wild tree (Timber) or clears a loose boulder (costs Timber, gives Scrap). Walls are bedrock.</summary>
+/// <summary>Chooses the Prophet's perk at the level he's reached (spec 2026-10-20 the Prophet grows).</summary>
+public sealed record ChooseProphetPerk(Guid CommandId, string PerkId) : BaseCommand(CommandId);
+
 /// <summary>Answers the visitor at the Hearth (spec 2026-10-20 visitors): give what they ask, or send them on.</summary>
 public sealed record AnswerVisitor(Guid CommandId, bool Accept) : BaseCommand(CommandId);
 

@@ -26,7 +26,11 @@ public sealed record NightPlan(
     int TowerDamagePercent = 0,
     int ProphetHealthPercent = 0,
     int Road = 0,
-    IReadOnlyList<GridPosition>? Traps = null)
+    IReadOnlyList<GridPosition>? Traps = null,
+    int ProphetDamagePercent = 0,
+    int ProphetSpeedPercent = 0,
+    int VoicePercent = 0,
+    int StonesPercent = 0)
 {
     /// <summary>
     /// The balance this Night is fought with: research makes towers hit harder and the Prophet sturdier. Nothing
@@ -34,7 +38,7 @@ public sealed record NightPlan(
     /// </summary>
     public BalanceTable? Balance()
     {
-        if (TowerDamagePercent == 0 && ProphetHealthPercent == 0)
+        if (TowerDamagePercent == 0 && ProphetHealthPercent == 0 && ProphetDamagePercent == 0 && ProphetSpeedPercent == 0 && VoicePercent == 0 && StonesPercent == 0)
         {
             return null;
         }
@@ -43,7 +47,15 @@ public sealed record NightPlan(
         return new BalanceTable
         {
             Towers = d.Towers.ToDictionary(t => t.Key, t => t.Value with { Damage = t.Value.Damage * (100 + TowerDamagePercent) / 100 }),
-            Leader = d.Leader with { MaxHealth = d.Leader.MaxHealth * (100 + ProphetHealthPercent) / 100 },
+            // His level and perks (spec 2026-10-20 the Prophet grows) and research.
+            Leader = d.Leader with
+            {
+                MaxHealth = d.Leader.MaxHealth * (100 + ProphetHealthPercent) / 100,
+                AttackDamage = d.Leader.AttackDamage * (100 + ProphetDamagePercent) / 100,
+                TilesPerSecond = d.Leader.TilesPerSecond * (100 + ProphetSpeedPercent) / 100,
+                VoiceRadius = d.Leader.VoiceRadius * (100 + VoicePercent) / 100,
+            },
+            HotStones = d.HotStones with { Damage = d.HotStones.Damage * (100 + StonesPercent) / 100 },
         };
     }
 

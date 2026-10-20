@@ -25,6 +25,7 @@ public class ContractsTests
         new PackUpTower(Guid.NewGuid(), 4),
         new PackUpTowers(Guid.NewGuid()),
         new AnswerVisitor(Guid.NewGuid(), true),
+        new ChooseProphetPerk(Guid.NewGuid(), "bathrobe"),
         new UpgradeBuilding(Guid.NewGuid(), 3),
         new UpgradeHearth(Guid.NewGuid()),
         new DemolishBuilding(Guid.NewGuid(), 4),

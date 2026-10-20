@@ -180,5 +180,20 @@ namespace CultOfComfort.Client.Tests
             Assert.IsTrue(lines.Any(l => l.Contains("Bathhouse")));
             Assert.IsTrue(lines.Any(l => l.StartsWith("2 missionaries at once")));
         }
+
+        [Test]
+        public void Prophet_AtLevelThree_OffersThePairToChoose()
+        {
+            // Arrange
+            var state = BaseState.Restore(BuildingTable.Default, VillageMap.Demo,
+                BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, System.DateTimeOffset.UnixEpoch).ToData() with { ProphetXp = 150 });
+
+            // Act
+            var sheet = FeatureSheetPresenter.Prophet(state.Snapshot(System.DateTimeOffset.UnixEpoch));
+
+            // Assert
+            Assert.AreEqual("Level 3 of 10", sheet.Rows[0].Text);
+            CollectionAssert.AreEquivalent(new[] { "perk:bathrobe", "perk:slippers" }, sheet.Rows.Where(r => r.Button == "Choose").Select(r => r.Action).ToArray());
+        }
     }
 }

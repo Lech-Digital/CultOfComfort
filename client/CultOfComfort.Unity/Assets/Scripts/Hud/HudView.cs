@@ -238,6 +238,8 @@ namespace CultOfComfort.Client
             var identity = Container("identity");
             var portrait = Surface("avatar"); // not "portrait": that class is the root's orientation flag
             portrait.name = "portrait";
+            portrait.RegisterCallback<ClickEvent>(_ => FeatureClicked?.Invoke("prophet")); // his sheet: level and perks (spec 2026-10-20)
+            _portrait = portrait;
             var clip = Container("avatar-clip"); // round mask for the face only, so the badge is not clipped
             clip.Add(Icon("portrait_prophet", "portrait-face"));
             portrait.Add(clip);
@@ -1148,6 +1150,25 @@ namespace CultOfComfort.Client
             }
 
             return true;
+        }
+
+        private VisualElement _portrait;
+
+        /// <summary>A red dot on the Prophet's portrait: a perk is waiting to be chosen.</summary>
+        public void SetProphetBadge(bool on)
+        {
+            var badge = _portrait?.Q(className: "feature-badge");
+            if (badge == null && on && _portrait != null)
+            {
+                badge = new VisualElement { pickingMode = PickingMode.Ignore };
+                badge.AddToClassList("feature-badge");
+                _portrait.Add(badge);
+            }
+
+            if (badge != null)
+            {
+                badge.style.display = on ? DisplayStyle.Flex : DisplayStyle.None;
+            }
         }
 
         /// <summary>A red dot on a frame button: something wants you there (the lord's demand on Tithes).</summary>
