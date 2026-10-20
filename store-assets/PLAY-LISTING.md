@@ -102,18 +102,17 @@ Regenerate: `node store-assets/_src/build.mjs`. Screens come from real phone cap
 
 | File | Headline / subline | Capture (`_src/shots/…`) |
 |---|---|---|
-| `phone-1-village.png` | Build a spa *out of junk.* / Baths, beehives and a tavern — a medieval village that runs on comfort. | `village.png`: the village by day, drawer closed |
-| `phone-2-night.png` | When the raiders come, *hold the road.* / Live tower defense at night. | `night.png`: a Night mid-fight |
-| `phone-3-towers.png` | Place, turn and *upgrade towers.* | `towers.png`: a tower's card, or placing one |
-| `phone-4-warning.png` | Every raid *is announced.* | `warning.png`: Dusk, the raid warning on the Tension strip |
-| `phone-5-world.png` | A world shared *with other cults.* | `world.png`: the world map |
-| `phone-6-prophet.png` | A Prophet who *levels up.* | `prophet.png`: the Prophet's sheet |
+| `phone-1-village.png` | Build a spa *out of junk.* | `village.png`: Hearth 5 village by day |
+| `phone-2-night.png` | When the raiders come, *hold the Hearth.* | `night.png`: a Night, the Prophet's torch lit at the Hearth |
+| `phone-3-towers.png` | Place, turn and *upgrade towers.* | `towers.png`: placing a Sapling Flinger, range and Turn showing |
+| `phone-4-warning.png` | Every raid *is announced.* | `warning.png`: Dusk, "Punitive raid · 7h 59m" |
+| `phone-5-world.png` | A world shared *with other cults.* | `world.png`: the lands map |
+| `phone-6-people.png` | Villagers with *a talent each.* | `prophet.png`: Cult → People, the notables |
 | `phone-7-festival.png` | Seven themed days *every week.* | `festival.png`: the Comfort Festival sheet |
-| `phone-8-cloud.png` | Your village *follows you.* | `cloud.png`: Settings, signed in with Google |
+| `phone-8-verified.png` | Every raid replayed *and verified.* | `verified.png`: dawn card, 3 stars, VERIFIED |
 
-Captures are portrait, from the Pixel 10 (1080×2424), taken with
-`adb exec-out screencap -p > store-assets/_src/shots/<name>.png` in a release-like state (no "Development Build"
-watermark: install the release AAB through Play's internal sharing, or crop it out).
+Captures are portrait, 1080×2424, from the `coc-shots` emulator (Android 36, Pixel 9 profile, GPU on) running a
+non-development APK (`BuildAndroid -noDevelopment`) with the dev key, played up to Hearth 5 on 2026-10-20.
 
 ## 4. Store settings
 

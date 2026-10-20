@@ -29,7 +29,10 @@ namespace CultOfComfort.Editor
             ConfigureAndroid();
             EditorUserBuildSettings.buildAppBundle = false;
             PlayerSettings.Android.useCustomKeystore = false;
-            Build(AndroidOutput, BuildOptions.Development);
+            // -noDevelopment: a release-like APK (no watermark, no debug extras), e.g. for store screenshots.
+            Build(AndroidOutput, Argument("-noDevelopment") != null || Environment.GetCommandLineArgs().Contains("-noDevelopment")
+                ? BuildOptions.None
+                : BuildOptions.Development);
         }
 
         /// <summary>

@@ -67,14 +67,14 @@ const phone = (top, accent, sub, capture) => doc(PW, PH, `
 // Order: the hook (village and Night), then the depth (towers, warning, world, Prophet), then the come-back
 // features. Captures are 1080×2424 from the Pixel 10, portrait.
 const SCREENS = [
-  ['1-village', 'Build a spa', 'out of junk.', 'Baths, beehives and a tavern — a medieval village that runs on comfort.', 'village'],
-  ['2-night', 'When the raiders come,', 'hold the road.', 'Live tower defence at night. Your towers, your wardens, your Prophet.', 'night'],
-  ['3-towers', 'Place, turn and', 'upgrade towers.', 'Anywhere in the village, not just by the road. Pack them up and try again.', 'towers'],
+  ['1-village', 'Build a spa', 'out of junk.', 'A medieval village that runs on comfort — and grows while you are away.', 'village'],
+  ['2-night', 'When the raiders come,', 'hold the Hearth.', 'Live tower defense at night, with your Prophet in the thick of it.', 'night'],
+  ['3-towers', 'Place, turn and', 'upgrade towers.', 'Anywhere in the village, not just by the road.', 'towers'],
   ['4-warning', 'Every raid', 'is announced.', 'Tension rises, a warning goes up, and you choose when to light the lamps.', 'warning'],
-  ['5-world', 'A world shared', 'with other cults.', 'Send missionaries, pay tithes and win over the valley.', 'world'],
-  ['6-prophet', 'A Prophet who', 'levels up.', 'Ten levels, perks to pick, and named villagers with talents of their own.', 'prophet'],
+  ['5-world', 'A world shared', 'with other cults.', 'Send missionaries, win over the valley, keep the lord calm.', 'world'],
+  ['6-people', 'Villagers with', 'a talent each.', 'Agnes the Axe, Sister Ember, Wet Willy — give them the job they love.', 'prophet'],
   ['7-festival', 'Seven themed days', 'every week.', 'The Comfort Festival: three rewards a day for coming back.', 'festival'],
-  ['8-cloud', 'Your village', 'follows you.', 'Sign in with Google and pick it up on any phone. No ads.', 'cloud'],
+  ['8-verified', 'Every raid replayed', 'and verified.', 'The server checks each Night, so nobody can fake a result. No ads.', 'verified'],
 ];
 
 const jobs = [['feature', feature, 1024, 500, 'feature-1024x500.png']];
