@@ -41,7 +41,7 @@ namespace CultOfComfort.Client.Tests
             // Act
             var (min, max) = VillageFraming.RoamBounds(VillageMap.Demo);
 
-            // Assert — the river runs 4 tiles past the south edge and 5 past the east edge (WorldScenery.RiverPath).
+            // Assert — room to look past the edge, at the forest and the river running on.
             Assert.LessOrEqual(min.y, -(VillageMap.Demo.Height - 1) - 6f);
             Assert.GreaterOrEqual(max.x, VillageMap.Demo.Width - 1 + 6f);
         }

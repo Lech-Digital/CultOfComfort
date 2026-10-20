@@ -228,6 +228,12 @@ namespace CultOfComfort.Client
         public void SetOpenLevel(int hearthLevel)
         {
             var map = VillageMap.Demo;
+            if (hearthLevel != _wantedFloorLevel)
+            {
+                _wantedFloorLevel = hearthLevel; // the painter lays the forest floor for it
+                PaintGround();
+            }
+
             foreach (var zone in map.Zones ?? Array.Empty<MapZone>())
             {
                 var open = zone.OpensAtHearth <= hearthLevel;
@@ -249,17 +255,23 @@ namespace CultOfComfort.Client
             holder.transform.SetParent(_root, false);
             var w = zone.MaxX - zone.MinX + 1;
             var h = zone.MaxY - zone.MinY + 1;
-            Shapes.Create(PrimitiveType.Cube, Shapes.Hex("#2f3a22"), new Vector3(zone.MinX + (w - 1) / 2f, 0.02f, -(zone.MinY + (h - 1) / 2f)),
-                new Vector3(w, 0.04f, h), holder.transform, "Undergrowth");
+            // The undergrowth is painted into the ground (a slab hid the raiders' roads through the forest).
+            var roads = map.AllRoadTiles;
+            bool Clear(GridPosition t) =>
+                (new Vector2(t.X, t.Y) - StoneCircle).sqrMagnitude < 12f || (t.X == 9 && t.Y == 44)
+                || roads.Contains(t) || map.Rocks.Contains(t) || (map.River != null && map.River(t.X, t.Y) < 0.8)
+                || roads.Contains(new GridPosition(t.X + 1, t.Y)) || roads.Contains(new GridPosition(t.X - 1, t.Y))
+                || roads.Contains(new GridPosition(t.X, t.Y + 1)) || roads.Contains(new GridPosition(t.X, t.Y - 1));
             for (var y = zone.MinY; y <= zone.MaxY; y++)
             {
                 for (var x = zone.MinX; x <= zone.MaxX; x++)
                 {
                     var tile = new GridPosition(x, y);
                     var seed = x * 31 + y * 17;
-                    if ((x - zone.MinX) % 2 != 0 || (y - zone.MinY) % 2 != 0 || map.Rocks.Contains(tile))
+                    if ((x - zone.MinX) % 2 != 0 || (y - zone.MinY) % 2 != 0
+                        || Clear(tile) || Clear(new GridPosition(x + 1, y)) || Clear(new GridPosition(x, y + 1)) || Clear(new GridPosition(x + 1, y + 1)))
                     {
-                        continue;
+                        continue; // trees stand clear of the river, its banks and the roads
                     }
 
                     var tree = ArtLibrary.Instantiate("deep_forest", holder.transform);
@@ -272,7 +284,7 @@ namespace CultOfComfort.Client
                 }
             }
 
-            var sign = ArtLibrary.Instantiate("signpost", holder.transform);
+            var sign = zone.OpensAtHearth >= VillageMap.Wild ? null : ArtLibrary.Instantiate("signpost", holder.transform); // the wild never opens: no sign
             if (sign != null)
             {
                 sign.transform.localPosition = Shapes.ToWorld(new GridPosition(zone.MinX, zone.MinY));
@@ -291,7 +303,7 @@ namespace CultOfComfort.Client
                 for (var x = 0; x < map.Width; x++)
                 {
                     var tile = new GridPosition(x, y);
-                    if (map.IsInSpawnClearance(tile) && !map.Rocks.Contains(tile))
+                    if (map.IsInSpawnClearance(tile) && !map.Rocks.Contains(tile) && map.OpensAt(tile) < VillageMap.Wild) // in the wild nobody builds anyway
                     {
                         Shapes.Create(PrimitiveType.Cube, Palette.Mud, Shapes.ToWorld(tile, 0.004f), new Vector3(0.96f, 0.01f, 0.96f), _root, "Entrance (no building)");
                     }
@@ -299,42 +311,103 @@ namespace CultOfComfort.Client
             }
         }
 
-        /// <summary>The river past the south and east: water a hair above the grass, muddy banks, one plank bridge.</summary>
+        /// <summary>
+        /// The river (spec 2026-10-20 river). In the valley it is painted into the ground; past the edge of the map it
+        /// runs on as water tiles to the horizon. Plank bridges carry the raiders' roads over it, reeds grow on the banks,
+        /// a few rocks break the current, and a ring of standing stones waits on the far bank.
+        /// </summary>
+        private static readonly Color RiverWater = Shapes.Hex("#3d6670"); // as the painted river, between its shallows and its deeps
+
+        /// <summary>Where the stone circle stands on the far bank (the forest leaves room round it).</summary>
+        private static readonly Vector2 StoneCircle = new Vector2(63.5f, 28.5f);
+
         private void BuildRiver()
         {
-            var river = WorldScenery.RiverPath(VillageMap.Demo.Width, VillageMap.Demo.Height);
-            var water = new HashSet<GridPosition>(river);
-            var banks = new HashSet<GridPosition>();
-            foreach (var tile in river)
+            var map = VillageMap.Demo;
+            if (map.River == null)
             {
-                for (var dy = -1; dy <= 1; dy++)
+                return;
+            }
+
+            // Beyond the map: water tiles with muddy banks, as far as the eye goes.
+            for (var y = -24; y < map.Height + 24; y++)
+            {
+                for (var x = -24; x < map.Width + 24; x++)
                 {
-                    for (var dx = -1; dx <= 1; dx++)
+                    var tile = new GridPosition(x, y);
+                    if (map.Contains(tile))
                     {
-                        var bank = new GridPosition(tile.X + dx, tile.Y + dy);
-                        if (!water.Contains(bank))
-                        {
-                            banks.Add(bank);
-                        }
+                        continue;
+                    }
+
+                    var d = map.River(x, y);
+                    if (d < 0)
+                    {
+                        _water.Add(Shapes.Create(PrimitiveType.Cube, RiverWater, Shapes.ToWorld(tile, -0.11f), new Vector3(1.02f, 0.02f, 1.02f), _root, "River").transform);
+                    }
+                    else if (d < 0.9)
+                    {
+                        Shapes.Create(PrimitiveType.Cube, Palette.Mud, Shapes.ToWorld(tile, -0.115f), new Vector3(1f, 0.01f, 1f), _root, "Bank");
                     }
                 }
             }
 
-            foreach (var bank in banks)
+            // Bridges: a plank span on every road tile over the water, laid along the road.
+            var spans = new HashSet<GridPosition>();
+            for (var road = 0; road < map.RoadCount; road++)
             {
-                Shapes.Create(PrimitiveType.Cube, Palette.Mud, Shapes.ToWorld(bank, -0.115f), new Vector3(1f, 0.01f, 1f), _root, "Bank");
+                var path = map.RoadAt(road);
+                for (var k = 0; k < path.Count; k++)
+                {
+                    if (!map.Water.Contains(path[k]) || !spans.Add(path[k]))
+                    {
+                        continue;
+                    }
+
+                    var next = path[Math.Min(k + 1, path.Count - 1)];
+                    var prev = path[Math.Max(k - 1, 0)];
+                    var alongX = next.X != prev.X;
+                    Place("bridge", Shapes.ToWorld(path[k], 0.02f), alongX ? 0f : 90f, 1f);
+                }
             }
 
-            foreach (var tile in river)
+            for (var y = 0; y < map.Height; y++)
             {
-                _water.Add(Shapes.Create(PrimitiveType.Cube, Palette.Water, Shapes.ToWorld(tile, -0.11f), new Vector3(1.02f, 0.02f, 1.02f), _root, "River").transform);
+                for (var x = 0; x < map.Width; x++)
+                {
+                    var tile = new GridPosition(x, y);
+                    var d = map.River(x, y);
+                    var hash = (x * 73856093) ^ (y * 19349663) ^ 0x51ed270b;
+                    var jitter = new Vector3((hash >> 4 & 15) / 40f - 0.19f, 0f, (hash >> 8 & 15) / 40f - 0.19f);
+                    if (map.AllRoadTiles.Contains(tile))
+                    {
+                        continue;
+                    }
+
+                    if (d >= -0.2 && d < 0.6 && (hash & 3) == 0)
+                    {
+                        Place("reeds", Shapes.ToWorld(tile) + jitter, hash >> 12 & 359, 1.1f + (hash >> 20 & 3) * 0.15f);
+                    }
+                    else if (d < -0.9 && (hash & 31) == 7)
+                    {
+                        Place("rock_a", Shapes.ToWorld(tile, -0.08f) + jitter, hash >> 12 & 359, 0.55f);
+                    }
+                }
             }
 
-            var bridge = river[river.Count / 4];
-            for (var k = -1; k <= 1; k++)
+            // The stone circle on the far bank, east of the river: seven stones, one fallen.
+            var circle = new Vector3(StoneCircle.x, 0f, -StoneCircle.y);
+            for (var k = 0; k < 7; k++)
             {
-                Shapes.Create(PrimitiveType.Cube, Palette.Wood, Shapes.ToWorld(bridge, 0f) + new Vector3(k * 0.32f, 0f, 0f), new Vector3(0.28f, 0.08f, 2.6f), _root, "Bridge plank");
+                var a = k * Mathf.PI * 2f / 7f;
+                var stone = Place("standing_stone", circle + new Vector3(Mathf.Cos(a) * 2f, 0f, Mathf.Sin(a) * 2f), -a * Mathf.Rad2Deg + 90f, 1.3f);
+                if (stone != null && k == 4)
+                {
+                    stone.transform.localRotation *= Quaternion.Euler(80f, 0f, 0f); // the fallen one
+                }
             }
+
+            Place("standing_stone", Shapes.ToWorld(new GridPosition(9, 44)), 20f, 1.6f); // and a lone one on the south bank
         }
 
         /// <summary>Hides every building's health bar (the Night is over, or a new one starts at full health).</summary>
@@ -467,6 +540,9 @@ namespace CultOfComfort.Client
 
         private Texture2D _groundTexture;
         private Color32[] _groundBare;
+        private Color32[] _groundFloor; // the bare ground with the forest floor painted on what hasn't opened yet
+        private int _floorLevel = -1;       // the level _groundFloor was painted for (painter thread only)
+        private int _wantedFloorLevel = -1; // the level the board shows
         private List<GridPosition> _raidersPath = new List<GridPosition>();
         private int _raidersRoad;
         private readonly Dictionary<GridPosition, RoadSurface> _villageRoads = new Dictionary<GridPosition, RoadSurface>();
@@ -478,7 +554,7 @@ namespace CultOfComfort.Client
         {
             var width = VillageMap.Demo.Width;
             var height = VillageMap.Demo.Height;
-            _groundBare = GroundPainter.Ground(width, height);
+            GroundPainter.Warm(); // its colours are parsed here, on the main thread; the painting runs on another
             _groundTexture = new Texture2D(width * GroundPainter.PixelsPerTile, height * GroundPainter.PixelsPerTile, TextureFormat.RGBA32, true)
             {
                 wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Trilinear, anisoLevel = 4, name = "Village ground",
@@ -494,6 +570,9 @@ namespace CultOfComfort.Client
             mesh.SetTriangles(new[] { 0, 1, 2, 2, 1, 3 }, 0);
             mesh.SetNormals(new[] { Vector3.up, Vector3.up, Vector3.up, Vector3.up });
             mesh.RecalculateBounds();
+            var mud = Enumerable.Repeat((Color32)Palette.Ground, _groundTexture.width * _groundTexture.height).ToArray();
+            _groundTexture.SetPixels32(mud); // plain mud until the painted ground is ready (a moment)
+            _groundTexture.Apply(true, false);
             var ground = new GameObject("Ground");
             ground.transform.SetParent(_root, false);
             ground.AddComponent<MeshFilter>().sharedMesh = mesh;
@@ -505,6 +584,17 @@ namespace CultOfComfort.Client
             PaintGround();
         }
 
+        private System.Threading.Tasks.Task<Color32[]> _painting;
+        private bool _paintAgain;
+
+        /// <summary>Whether the painted ground is on the board and nothing is being repainted (captures wait for it).</summary>
+        public bool GroundReady => _painting == null && !_paintAgain && _groundBare != null;
+
+        /// <summary>
+        /// Repaints the ground: the mud and the river once, the forest floor when the Hearth opens land, the roads each
+        /// time. The painting runs off the main thread (a second or more on a phone); the newest request wins, and the
+        /// texture takes the result in <see cref="Update"/>.
+        /// </summary>
         private void PaintGround()
         {
             if (_groundTexture == null)
@@ -512,6 +602,13 @@ namespace CultOfComfort.Client
                 return;
             }
 
+            if (_painting != null)
+            {
+                _paintAgain = true;
+                return;
+            }
+
+            var map = VillageMap.Demo;
             var roads = new Dictionary<GridPosition, RoadSurface>();
             foreach (var tile in _raidersPath)
             {
@@ -523,10 +620,47 @@ namespace CultOfComfort.Client
                 roads[tile] = surface;
             }
 
-            var pixels = GroundPainter.WithRoads(_groundBare, VillageMap.Demo.Width, VillageMap.Demo.Height, roads, _roadJoins);
-            // Our rows run top to bottom; a texture's run bottom to top, and the mesh's UVs already account for it.
-            _groundTexture.SetPixels32(pixels);
-            _groundTexture.Apply(true, false);
+            var joins = new HashSet<GridPosition>(_roadJoins);
+            var level = _wantedFloorLevel;
+            _painting = System.Threading.Tasks.Task.Run(() =>
+            {
+                _groundBare ??= GroundPainter.Ground(map.Width, map.Height, map.River);
+                if (level != _floorLevel)
+                {
+                    var open = map.AllRoadTiles;
+                    _groundFloor = level < 0 ? null : GroundPainter.WithForestFloor(_groundBare, map.Width, map.Height,
+                        t => !map.IsOpen(t, level) && !open.Contains(t) && (map.River == null || map.River(t.X, t.Y) > 0.6));
+                    _floorLevel = level;
+                }
+
+                return GroundPainter.WithRoads(_groundFloor ?? _groundBare, map.Width, map.Height, roads, joins, map.River);
+            });
+        }
+
+        private void Update()
+        {
+            if (_painting == null || !_painting.IsCompleted)
+            {
+                return;
+            }
+
+            if (_painting.Status == System.Threading.Tasks.TaskStatus.RanToCompletion)
+            {
+                // Our rows run top to bottom; a texture's run bottom to top, and the mesh's UVs already account for it.
+                _groundTexture.SetPixels32(_painting.Result);
+                _groundTexture.Apply(true, false);
+            }
+            else
+            {
+                Debug.LogException(_painting.Exception);
+            }
+
+            _painting = null;
+            if (_paintAgain)
+            {
+                _paintAgain = false;
+                PaintGround();
+            }
         }
 
         /// <summary>The village's own roads (and what they join: the Hearth, gates) from the buildings; repaints when they change.</summary>
@@ -788,17 +922,17 @@ namespace CultOfComfort.Client
             Shapes.Create(PrimitiveType.Cube, Palette.Grass, new Vector3((VillageMap.Demo.Width - 1) / 2f, -0.22f, -(VillageMap.Demo.Height - 1) / 2f),
                 new Vector3(VillageMap.Demo.Width + 120f, 0.2f, VillageMap.Demo.Height + 120f), _root, "Apron");
             BuildRiver();
-            foreach (var item in WorldScenery.WorldLayout(VillageMap.Demo.Width, VillageMap.Demo.Height))
+            foreach (var item in WorldScenery.WorldLayout(VillageMap.Demo))
             {
                 Place(item.Model, Shapes.ToWorld(item.Tile) + item.Jitter, item.Yaw, item.Scale);
             }
 
-            foreach (var item in WorldScenery.BorderLayout(VillageMap.Demo.Width, VillageMap.Demo.Height, VillageMap.Demo.Spawn))
+            foreach (var item in WorldScenery.BorderLayout(VillageMap.Demo))
             {
                 Place(item.Model, Shapes.ToWorld(item.Tile) + item.Jitter, item.Yaw, item.Scale);
             }
 
-            foreach (var tile in WorldScenery.PassTrack(VillageMap.Demo.Spawn))
+            foreach (var tile in WorldScenery.PassTracks(VillageMap.Demo))
             {
                 Shapes.Create(PrimitiveType.Cube, Palette.Mud, Shapes.ToWorld(tile, -0.115f), new Vector3(1f, 0.01f, 0.9f), _root, "Raiders' track");
             }

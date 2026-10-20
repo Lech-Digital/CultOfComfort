@@ -43,6 +43,16 @@ namespace CultOfComfort.Client.Tests
             }
         }
 
+        /// <summary>The ground paints off the main thread: wait for it (a few seconds at most).</summary>
+        private static IEnumerator GroundPainted()
+        {
+            var board = UnityEngine.Object.FindAnyObjectByType<BoardView>();
+            for (var waited = 0f; board != null && !board.GroundReady && waited < 20f; waited += Time.unscaledDeltaTime)
+            {
+                yield return null;
+            }
+        }
+
         [SetUp]
         public void SetUp() => VillageComposition.IntroOverride = () => new SeenIntro();
 
@@ -79,6 +89,7 @@ namespace CultOfComfort.Client.Tests
             VillageComposition.Override = () => new LocalBaseGateway(store, clock, table, map, _ => { });
             yield return SceneManager.LoadSceneAsync("SampleScene");
             yield return Frames(6);
+            yield return GroundPainted();
             var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
             var document = game.GetComponent<UIDocument>();
             var ui = new RenderTexture(Short, Long, 24);
@@ -119,6 +130,7 @@ namespace CultOfComfort.Client.Tests
             VillageComposition.Override = () => new LocalBaseGateway(store, clock, table, map, _ => { });
             yield return SceneManager.LoadSceneAsync("SampleScene");
             yield return Frames(6);
+            yield return GroundPainted();
 
             var width = portrait ? Short : Long;
             var height = portrait ? Long : Short;

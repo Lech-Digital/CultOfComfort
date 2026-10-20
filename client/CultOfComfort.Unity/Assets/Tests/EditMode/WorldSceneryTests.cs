@@ -8,74 +8,50 @@ namespace CultOfComfort.Client.Tests
 {
     public class WorldSceneryTests
     {
-        private const int Width = 48;
-        private const int Height = 32;
+        private static readonly VillageMap Map = VillageMap.Demo;
+
+        private static bool OnLand(GridPosition t) => t.X >= 0 && t.Y >= 0 && t.X < Map.Width && t.Y < Map.Height;
 
         [Test]
-        public void RiverPath_DemoMap_StaysOffTheLandWithAGrassMargin()
+        public void River_PastTheMap_FlowsOnWestAndNorth()
         {
-            // Act
-            var river = WorldScenery.RiverPath(Width, Height);
-
-            // Assert
-            Assert.Greater(river.Count, 40);
-            foreach (var tile in river)
-            {
-                var nearLand = tile.X >= -1 && tile.Y >= -1 && tile.X <= Width && tile.Y <= Height;
-                Assert.IsFalse(nearLand, $"river tile {tile} is on or next to the village");
-            }
-        }
-
-        [Test]
-        public void RiverPath_DemoMap_IsOneUnbrokenStream()
-        {
-            // Act
-            var river = WorldScenery.RiverPath(Width, Height);
-
-            // Assert
-            for (var i = 1; i < river.Count; i++)
-            {
-                var step = Math.Max(Math.Abs(river[i].X - river[i - 1].X), Math.Abs(river[i].Y - river[i - 1].Y));
-                Assert.LessOrEqual(step, 1, $"gap between {river[i - 1]} and {river[i]}");
-            }
+            // Assert — spec 2026-10-20 river: it comes in from the west and leaves to the north.
+            Assert.Less(Map.River(-6, 39), 0.0, "in from the west");
+            Assert.Less(Map.River(Map.Width - 12, -6), 0.0, "off to the north");
         }
 
         [Test]
         public void WorldLayout_DemoMap_FarForestOffTheLandAndTheRiverWithinBudget()
         {
             // Act
-            var river = WorldScenery.RiverPath(Width, Height).ToHashSet();
-            var layout = WorldScenery.WorldLayout(Width, Height);
+            var layout = WorldScenery.WorldLayout(Map);
 
             // Assert
-            Assert.LessOrEqual(layout.Count, 160, "the phone keeps 60 fps");
-            var mountains = WorldScenery.BorderLayout(Width, Height, new GridPosition(0, 1)).Count(i => i.Model == "mountain");
-            Assert.GreaterOrEqual(layout.Count + mountains, 60, "no bare edges when zoomed out (mountains to the north and west)");
+            Assert.LessOrEqual(layout.Count, 220, "the phone keeps 60 fps");
+            Assert.GreaterOrEqual(layout.Count, 40, "no bare edges when zoomed out");
             foreach (var item in layout)
             {
-                Assert.IsFalse(item.Tile.X >= -3 && item.Tile.Y >= -3 && item.Tile.X < Width + 3 && item.Tile.Y < Height + 3, $"{item.Model} at {item.Tile} crowds the village");
-                Assert.IsFalse(river.Contains(item.Tile), $"{item.Model} at {item.Tile} stands in the river");
+                Assert.IsFalse(item.Tile.X >= -3 && item.Tile.Y >= -3 && item.Tile.X < Map.Width + 3 && item.Tile.Y < Map.Height + 3, $"{item.Model} at {item.Tile} crowds the village");
+                Assert.GreaterOrEqual(Map.River(item.Tile.X, item.Tile.Y), 1.0, $"{item.Model} at {item.Tile} stands in the river");
             }
         }
 
-        private static readonly GridPosition Spawn = new GridPosition(0, 1);
-
-        private static bool InPass(GridPosition tile) => tile.X < 0 && Math.Abs(tile.Y - Spawn.Y) <= 1;
-
         [Test]
-        public void BorderLayout_DemoMap_WallsTheLandOffExceptTheRaidersPass()
+        public void BorderLayout_DemoMap_WallsTheLandOffExceptWhereRoadsComeIn()
         {
             // Act
-            var layout = WorldScenery.BorderLayout(Width, Height, Spawn);
+            var layout = WorldScenery.BorderLayout(Map);
+            var tracks = WorldScenery.PassTracks(Map).ToHashSet();
 
-            // Assert — every tile just outside the land is under deep forest or a mountain, so the edge is obvious.
-            for (var y = -1; y <= Height; y++)
+            // Assert — every dry tile just outside the land is under deep forest or a mountain, so the edge is obvious.
+            for (var y = -1; y <= Map.Height; y++)
             {
-                for (var x = -1; x <= Width; x++)
+                for (var x = -1; x <= Map.Width; x++)
                 {
                     var tile = new GridPosition(x, y);
-                    var outside = x == -1 || y == -1 || x == Width || y == Height;
-                    if (!outside || InPass(tile))
+                    var outside = x == -1 || y == -1 || x == Map.Width || y == Map.Height;
+                    var open = tracks.Any(t => Math.Max(Math.Abs(t.X - x), Math.Abs(t.Y - y)) <= 1) || Map.River(x, y) < 1.5;
+                    if (!outside || open)
                     {
                         continue;
                     }
@@ -84,49 +60,52 @@ namespace CultOfComfort.Client.Tests
                 }
             }
 
-            Assert.IsTrue(layout.Any(i => i.Model == "mountain"), "mountains on the horizon");
+            Assert.IsTrue(layout.Any(i => i.Model.StartsWith("peak_")), "mountain ranges on the horizon");
             Assert.IsTrue(layout.Any(i => i.Model == "deep_forest"), "deep forest at the edge");
         }
 
         [Test]
-        public void BorderLayout_DemoMap_KeepsThePassClearAndTheLandFree()
+        public void BorderLayout_DemoMap_KeepsTheWaysInClearAndTheLandFree()
         {
             // Act
-            var layout = WorldScenery.BorderLayout(Width, Height, Spawn);
+            var layout = WorldScenery.BorderLayout(Map);
+            var tracks = WorldScenery.PassTracks(Map).ToHashSet();
 
             // Assert
-            Assert.LessOrEqual(layout.Count, 260, "the phone keeps 60 fps");
+            Assert.LessOrEqual(layout.Count, 420, "the phone keeps 60 fps");
             foreach (var item in layout)
             {
-                Assert.IsFalse(item.Tile.X >= 0 && item.Tile.Y >= 0 && item.Tile.X < Width && item.Tile.Y < Height, $"{item.Model} at {item.Tile} is on the land");
-                Assert.IsFalse(InPass(item.Tile) || item.Tile.X < 0 && Math.Abs(item.Tile.Y - Spawn.Y) <= (item.Model == "mountain" ? 3 : 1),
-                    $"{item.Model} at {item.Tile} blocks the raiders' pass");
+                Assert.IsFalse(OnLand(item.Tile), $"{item.Model} at {item.Tile} is on the land");
+                Assert.IsFalse(tracks.Contains(item.Tile), $"{item.Model} at {item.Tile} blocks a raiders' track");
             }
         }
 
         [Test]
-        public void PassTrack_DemoMap_RunsWestFromTheSpawnToTheHorizon()
+        public void PassTracks_DemoMap_OneOutOfEveryRoadsEntrance()
         {
             // Act
-            var track = WorldScenery.PassTrack(Spawn);
+            var tracks = WorldScenery.PassTracks(Map);
 
             // Assert
-            Assert.AreEqual(new GridPosition(-1, Spawn.Y), track[0]);
-            Assert.LessOrEqual(track.Last().X, -12);
-            Assert.IsTrue(track.All(t => t.Y == Spawn.Y));
+            for (var road = 0; road < Map.RoadCount; road++)
+            {
+                var spawn = Map.SpawnOf(road);
+                Assert.IsTrue(tracks.Any(t => Math.Abs(t.X - spawn.X) + Math.Abs(t.Y - spawn.Y) == 1 && !OnLand(t)), $"{Map.RoadName(road)} leads off the map");
+            }
+
+            Assert.IsTrue(tracks.All(t => !OnLand(t)));
         }
 
         [Test]
         public void RockModel_BedrockAndBoulders_LookDifferent()
         {
             // Arrange
-            var map = VillageMap.Demo;
-            var bedrock = map.Rocks.First(map.IsBedrock);
-            var boulder = map.Boulders.First();
+            var bedrock = Map.Rocks.First(Map.IsBedrock);
+            var boulder = Map.Boulders.First();
 
             // Act & Assert — bare crags can't be moved; mossy field stones can.
-            Assert.AreEqual("crag", BoardView.RockModel(map, bedrock));
-            StringAssert.StartsWith("rock_", BoardView.RockModel(map, boulder));
+            Assert.AreEqual("crag", BoardView.RockModel(Map, bedrock));
+            StringAssert.StartsWith("rock_", BoardView.RockModel(Map, boulder));
         }
     }
 }
