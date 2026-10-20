@@ -199,6 +199,7 @@ public sealed partial class BaseState
 
         state.RestoreVisitor(data);
         state.RestoreProphet(data);
+        state.RestoreNotables(data);
         state.ClearRoads(); // a save from before more roads opened at its Hearth level
         state.Validate();
         return state;
@@ -555,7 +556,8 @@ public sealed partial class BaseState
         _stowed.ToList(),
         _answeredVisitorSlot,
         _prophetXp,
-        _perks.ToList());
+        _perks.ToList(),
+        _notableAt.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => (kv.Key, kv.Value)).ToList());
 
     public CommandOutcome Apply(BaseCommand command, DateTimeOffset nowUtc)
     {
@@ -602,6 +604,7 @@ public sealed partial class BaseState
             PackUpTowers _ => PackUpAll(),
             AnswerVisitor answer => Answer(answer, nowUtc),
             ChooseProphetPerk choose => ChoosePerk(choose),
+            AssignNotable assign => Assign(assign, nowUtc),
             SendMissionary send => SendOut(send, nowUtc),
             SendWorldMissionary send => SendOutInWorld(send, nowUtc),
             JoinWorld join => Join(join, nowUtc),
@@ -648,7 +651,7 @@ public sealed partial class BaseState
         var tension = TensionValue(nowUtc);
         return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
             tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport, _cleared.Concat(_treeCuts.Keys.Where(t => !IsWildTreeStanding(t))).ToList(),
-            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts(), IdleVillagers(), DailyViewAt(nowUtc), _raidersRoad, NextRoad, _stowed.ToList(), _table.Builders(HearthLevel) - BuildersBusy, _towels, VisitorViewAt(nowUtc), ProphetViewNow());
+            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts(), IdleVillagers(), DailyViewAt(nowUtc), _raidersRoad, NextRoad, _stowed.ToList(), _table.Builders(HearthLevel) - BuildersBusy, _towels, VisitorViewAt(nowUtc), ProphetViewNow(), NotableViews());
     }
 
     public ResourceBag Caps
@@ -1418,6 +1421,16 @@ public sealed partial class BaseState
     {
         var towers = layout.Towers.ToList();
         var wardens = new List<GridPosition>();
+        // A notable on a tower works it like a warden (spec 2026-10-20 notables).
+        foreach (var tower in _buildings.Where(b => _table.Spec(b.Type).IsTower && NotableAt(b) is { Knack: NotableKnack.Tower }))
+        {
+            var i = towers.FindIndex(t => t.Position == tower.Position);
+            if (i >= 0)
+            {
+                towers[i] = towers[i] with { Manned = true };
+            }
+        }
+
         foreach (var house in _buildings.Where(b => b.Type == BuildingType.Guardhouse && b.Level >= 1 && !b.Wrecked).OrderBy(b => b.Id))
         {
             var crew = CrewOf(house);
@@ -1708,7 +1721,7 @@ public sealed partial class BaseState
             ResourceType.Scrap => TechEffect.ScrapPercent,
             _ => TechEffect.DevotionPercent,
         });
-        var rate = (int)((long)LevelRate(b) * BuildingSpec.CrewPerMille(CrewOf(b), Slots(b)) / 1000) * (100 + RoadBonus(b) + research) / 100;
+        var rate = (int)((long)LevelRate(b) * BuildingSpec.CrewPerMille(CrewOf(b), Slots(b)) / 1000) * (100 + RoadBonus(b) + research + NotableBonus(b)) / 100;
         return produces == ResourceType.Devotion ? DevotionWithComfort(rate) : rate;
     }
 

@@ -34,6 +34,9 @@ public static class CommandMapping
             case PackUpTower c:
                 dto.buildingId = c.BuildingId;
                 break;
+            case AssignNotable c:
+                (dto.building, dto.buildingId) = (c.NotableId, c.BuildingId);
+                break;
             case ChooseProphetPerk c:
                 dto.building = c.PerkId;
                 break;
@@ -129,6 +132,7 @@ public static class CommandMapping
             nameof(PackUpTowers) => new PackUpTowers(id),
             nameof(AnswerVisitor) => new AnswerVisitor(id, dto.amount != 0),
             nameof(ChooseProphetPerk) => new ChooseProphetPerk(id, dto.building ?? string.Empty),
+            nameof(AssignNotable) => new AssignNotable(id, dto.building ?? string.Empty, dto.buildingId),
             nameof(RepairBuilding) => new RepairBuilding(id, dto.buildingId),
             nameof(Collect) => new Collect(id, dto.buildingId < 0 ? null : dto.buildingId),
             nameof(ClearTerrain) => new ClearTerrain(id, new GridPosition(dto.x, dto.y)),

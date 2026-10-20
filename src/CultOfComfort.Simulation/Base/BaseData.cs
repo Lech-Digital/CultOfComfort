@@ -38,7 +38,8 @@ public sealed record BaseData(
     IReadOnlyList<StowedTower>? Stowed = null,
     long AnsweredVisitorSlot = -1,
     int ProphetXp = 0,
-    IReadOnlyList<string>? ProphetPerks = null);
+    IReadOnlyList<string>? ProphetPerks = null,
+    IReadOnlyList<(string Notable, int BuildingId)>? Notables = null);
 
 /// <summary>A tower packed up (spec 2026-10-20 river): set down again for free, at its level, wrecked or not.</summary>
 public sealed record StowedTower(BuildingType Type, int Level, bool Wrecked = false);

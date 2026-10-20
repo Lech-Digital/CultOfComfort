@@ -2368,6 +2368,11 @@ namespace CultOfComfort.Client
             _hud.FinishNowClicked += () => SendFromCard(_ => new FinishConstructionNow(Guid.NewGuid()));
             _hud.HurryClicked += () => SendFromCard(b => new SpendTowels(Guid.NewGuid(), TowelUse.Hurry, b.Id + 1)); // this building (id + 1), not just the first to finish
             _hud.DutyClicked += () => SendFromCard(b => new SetDuty(Guid.NewGuid(), b.Id, !b.Patrol));
+            _hud.NotableClicked += () => SendFromCard(b =>
+            {
+                var (_, id, target) = VillagePresenter.NotableButton(_snapshot, BuildingTable.Default, b);
+                return new AssignNotable(Guid.NewGuid(), id ?? string.Empty, target);
+            });
             _hud.PackUpClicked += () => SendFromCard(b => new PackUpTower(Guid.NewGuid(), b.Id), closeCard: true);
             _hud.PackUpAllClicked += () => SendFromCard(_ => new PackUpTowers(Guid.NewGuid()), closeCard: true);
             _hud.CancelBuildClicked += () =>

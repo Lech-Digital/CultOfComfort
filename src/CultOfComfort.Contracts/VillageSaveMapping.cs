@@ -57,6 +57,8 @@ public static class VillageSaveMapping
         answeredVisitorSlot = data.AnsweredVisitorSlot,
         prophetXp = data.ProphetXp,
         prophetPerks = (data.ProphetPerks ?? Array.Empty<string>()).ToList(),
+        notableIds = (data.Notables ?? Array.Empty<(string, int)>()).Select(n => n.Item1).ToList(),
+        notableBuildings = (data.Notables ?? Array.Empty<(string, int)>()).Select(n => n.Item2).ToList(),
         stowed = (data.Stowed ?? Array.Empty<StowedTower>()).Select(t => new StowedDto { type = t.Type.ToString(), level = t.Level, wrecked = t.Wrecked }).ToList(),
         researched = data.Research?.Done.ToList() ?? new List<string>(),
         researching = data.Research?.Current ?? string.Empty,
@@ -164,7 +166,8 @@ public static class VillageSaveMapping
                 Enum.TryParse<BuildingType>(t.type, out var type) ? type : throw new InvalidBaseDataException($"unknown tower type '{t.type}'"), t.level, t.wrecked)).ToList(),
             dto.answeredVisitorSlot,
             dto.prophetXp,
-            dto.prophetPerks ?? new List<string>());
+            dto.prophetPerks ?? new List<string>(),
+            (dto.notableIds ?? new List<string>()).Zip(dto.notableBuildings ?? new List<int>(), (n, b) => (n, b)).ToList());
     }
 
     private static DomainData FromDto(DomainDto d) => new(

@@ -518,6 +518,10 @@ namespace CultOfComfort.Client
         public event Action DutyClicked;
         private Button _duty;
 
+        /// <summary>The notable button on a card: ask one to work here, or send them home.</summary>
+        public event Action NotableClicked;
+        private Button _notable;
+
         /// <summary>Pack this tower up / pack every tower up (spec 2026-10-20 river).</summary>
         public event Action PackUpClicked;
         public event Action PackUpAllClicked;
@@ -780,6 +784,8 @@ namespace CultOfComfort.Client
             Show(_cancelBuild, card.CancelLabel != null);
             _cancelBuild.text = card.CancelLabel ?? string.Empty;
             Show(_duty, card.DutyLabel != null);
+            Show(_notable, card.NotableLabel != null);
+            _notable.text = card.NotableLabel ?? string.Empty;
             Show(_packRow, card.CanPackUp);
             _duty.text = card.DutyLabel ?? string.Empty;
             Show(_demolish, card.CanDemolish);
@@ -1571,6 +1577,8 @@ namespace CultOfComfort.Client
             _cancelBuild.name = "cancel-build";
             _duty = ButtonWith(string.Empty, () => DutyClicked?.Invoke(), "plain", "wrap");
             _duty.name = "duty";
+            _notable = ButtonWith(string.Empty, () => NotableClicked?.Invoke(), "plain", "wrap");
+            _notable.name = "notable";
             _packUp = ButtonWith("Pack up", () => PackUpClicked?.Invoke(), "plain");
             _packUp.name = "pack-up";
             _packAll = ButtonWith("Pack up all", () => PackUpAllClicked?.Invoke(), "plain");
@@ -1614,7 +1622,7 @@ namespace CultOfComfort.Client
                 BuildingCardClosed?.Invoke();
             }, "plain");
             close.name = "card-close";
-            foreach (var element in new VisualElement[] { title, output, ready, _crewRow, _duty, remaining, _repair, upgrade, _hurry, _cancelBuild, finishNow, _move, _packRow, demolish, close })
+            foreach (var element in new VisualElement[] { title, output, ready, _crewRow, _duty, _notable, remaining, _repair, upgrade, _hurry, _cancelBuild, finishNow, _move, _packRow, demolish, close })
             {
                 sheet.Add(element);
             }

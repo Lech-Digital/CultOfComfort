@@ -37,6 +37,11 @@ namespace CultOfComfort.Client
         /// <summary>A tower: it can be packed up (and every tower with it).</summary>
         public bool CanPackUp;
 
+        /// <summary>The notable button (spec 2026-10-20 notables): its label, who it asks, and where (-1: sends them home); null: none.</summary>
+        public string NotableLabel;
+        public string NotableId;
+        public int NotableTarget;
+
         /// <summary>A Guardhouse's duty button ("On duty: manning the towers · send them out"); null: not a Guardhouse.</summary>
         public string DutyLabel;
 
@@ -179,6 +184,9 @@ namespace CultOfComfort.Client
                 CanHurry = b.IsUpgrading && snapshot.Towels >= DailyBook.HurryCost,
                 Remaining = b.IsUpgrading ? Duration((long)(b.UpgradeEndsAtUtc.Value - snapshot.AsOfUtc).TotalSeconds) + " left" : string.Empty,
                 CanPackUp = spec.IsTower,
+                NotableLabel = NotableButton(snapshot, table, b).Label,
+                NotableId = NotableButton(snapshot, table, b).Id,
+                NotableTarget = NotableButton(snapshot, table, b).Target,
                 DutyLabel = b.Type == BuildingType.Guardhouse && b.Level > 0 && !b.Wrecked
                     ? (b.Patrol ? "Man the towers instead" : "Send them out to fight instead")
                     : null,
@@ -186,6 +194,35 @@ namespace CultOfComfort.Client
                     ? (b.Level == 0 ? "Cancel the build" : "Cancel the upgrade") + $" · {ShortCost(spec.Levels[b.Level].Cost)} back"
                     : null,
             };
+        }
+
+        /// <summary>
+        /// Who could work here (spec 2026-10-20 notables): the notable working it ("… works here · send them home"), else
+        /// the best idle one who suits it ("Ask … to work here (+40%)"), else nothing.
+        /// </summary>
+        public static (string Label, string Id, int Target) NotableButton(BaseSnapshot s, BuildingTable table, BuildingView b)
+        {
+            var notables = s.Notables ?? Array.Empty<NotableView>();
+            if (b.Level == 0 || b.Wrecked)
+            {
+                return (null, null, 0);
+            }
+
+            var here = notables.FirstOrDefault(n => n.BuildingId == b.Id);
+            if (here != null)
+            {
+                return ($"{here.Notable.Name} works here · send them home", here.Notable.Id, -1);
+            }
+
+            var idle = notables.Where(n => n.BuildingId == null && n.Notable.CanWork(b.Type, table))
+                .OrderByDescending(n => n.Notable.Suits != null).ThenByDescending(n => n.Notable.Percent).FirstOrDefault();
+            if (idle == null)
+            {
+                return (null, null, 0);
+            }
+
+            var what = idle.Notable.Knack == NotableKnack.Tower ? "it fires faster" : $"+{idle.Notable.Percent}%";
+            return ($"Ask {idle.Notable.Name} to work here ({what})", idle.Notable.Id, b.Id);
         }
 
         /// <summary>"Crew 1/2 · 1 idle": who works here of how many it has room for, and who's free to send.</summary>

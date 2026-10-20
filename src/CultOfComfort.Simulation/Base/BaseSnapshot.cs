@@ -50,7 +50,8 @@ public sealed record BaseSnapshot(
     int FreeBuilders = 1,
     int Towels = 0,
     VisitorView? Visitor = null,
-    ProphetView? Prophet = null)
+    ProphetView? Prophet = null,
+    IReadOnlyList<NotableView>? Notables = null)
 {
     public DateTimeOffset? ConstructionEndsAtUtc => Buildings.FirstOrDefault(b => b.IsUpgrading)?.UpgradeEndsAtUtc;
 

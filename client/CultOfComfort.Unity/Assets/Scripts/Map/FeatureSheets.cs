@@ -238,6 +238,18 @@ namespace CultOfComfort.Client
             // The people: who's home, who works, who's idle.
             var away = snapshot.Domain?.Missionaries.Count ?? 0;
             var workers = snapshot.Buildings.Sum(b => b.Crew);
+            // The notables (spec 2026-10-20 notables): who they are and where they work.
+            var notables = snapshot.Notables ?? Array.Empty<NotableView>();
+            if (notables.Count > 0)
+            {
+                Add(PeopleTab, new SheetRow { Heading = true, Text = "Notables" });
+                foreach (var n in notables)
+                {
+                    var at = n.BuildingId is { } id && snapshot.Buildings.FirstOrDefault(b => b.Id == id) is { } b ? $"works the {table.Spec(b.Type).Name}" : "idle: tap a building to ask them";
+                    Add(PeopleTab, new SheetRow { Text = $"{n.Notable.Name} · {n.Notable.Trait}", Detail = $"{n.Notable.Text} Now {at}." });
+                }
+            }
+
             Add(PeopleTab, new SheetRow { Heading = true, Text = $"{snapshot.Population} villagers in {snapshot.Beds} beds" });
             Add(PeopleTab, new SheetRow { Text = $"{workers} at work · {away} out preaching · {snapshot.IdleVillagers} idle" + (snapshot.Cold ? " · cold: the Peat ran out!" : string.Empty) });
             foreach (var b in snapshot.Buildings.Where(b => b.CrewNeeded > 0 && b.Level > 0).OrderBy(b => b.Id))

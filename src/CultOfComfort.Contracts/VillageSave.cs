@@ -48,7 +48,9 @@ public sealed class VillageSaveDto
     public List<StowedDto> stowed; // towers packed up
     public long answeredVisitorSlot = -1; // the last visitor slot answered (spec 2026-10-20 visitors)
     public int prophetXp;                 // spec 2026-10-20 the Prophet grows
-    public List<string> prophetPerks; // the errand by id (errandIndex alone moved players when the book was reordered); empty: read errandIndex the old way
+    public List<string> prophetPerks;
+    public List<string> notableIds;       // spec 2026-10-20 notables: who works where
+    public List<int> notableBuildings; // the errand by id (errandIndex alone moved players when the book was reordered); empty: read errandIndex the old way
     public bool hasDomain; // older saves: no Marchlands yet
     public DomainDto domain;
     public List<string> researched;   // older saves: none

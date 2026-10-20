@@ -335,6 +335,24 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
+        public void NotableButton_IdleAxewoman_AsksHerToTheLeanTo_ThenOffersToSendHerHome()
+        {
+            // Arrange
+            var lean = new BuildingView(9, BuildingType.Woodcutter, 1, new CultOfComfort.Simulation.Grid.GridPosition(15, 5), 0, 0, 100, null);
+            var agnes = NotableBook.Get("agnes");
+            var idle = Fresh() with { HearthLevel = 2, Notables = new[] { new NotableView(agnes, null) } };
+            var working = Fresh() with { HearthLevel = 2, Notables = new[] { new NotableView(agnes, 9) } };
+
+            // Act
+            var ask = VillagePresenter.NotableButton(idle, BuildingTable.Default, lean);
+            var home = VillagePresenter.NotableButton(working, BuildingTable.Default, lean);
+
+            // Assert
+            Assert.AreEqual(("Ask Agnes the Axe to work here (+40%)", "agnes", 9), ask);
+            Assert.AreEqual(("Agnes the Axe works here · send them home", "agnes", -1), home);
+        }
+
+        [Test]
         public void TerrainCard_RaidersRoadAtHearthOne_SaysWhatPavingNeeds()
         {
             // Arrange
