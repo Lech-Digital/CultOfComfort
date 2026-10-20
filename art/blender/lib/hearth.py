@@ -269,8 +269,23 @@ def baths(part):
     rubber_duck(part, (1.17, 1.13, 2.35), size=2.4, yaw=-20, relic=False)
 
 
+def grandeur(part):
+    """Hearth 5, across the river: a golden dome on the temple with the Duck Ascendant gilded on top, standing stones at
+    the ruin's corners (the circle came home with them), and banners on every column."""
+    part.cylinder(0.42, 0.3, (1.17, 1.13, 2.15), "roman_marble", segments=12)                        # drum
+    part.sphere(0.44, (1.17, 1.13, 2.3), "gold_trim", segments=12, rings=7, scale=(1, 1, 0.8), smooth=True)  # the dome
+    part.cylinder(0.04, 0.3, (1.17, 1.13, 2.75), "gold_trim", segments=6)
+    rubber_duck(part, (1.17, 1.13, 2.86), size=1.6, yaw=-20, relic=True)                             # gilded
+    for x, y in ((-2.05, -2.0), (2.25, -2.0), (-2.05, 2.15), (2.25, 2.15)):
+        part.box((0.24, 0.16, 0.85), (x, y, 0.42), "worn_stone", bevel=0.04, bevel_segments=2, rotation=(3, -3, 15))
+        part.box((0.05, 0.14, 0.3), (x - 0.12, y, 0.3), "foliage", bevel=0.02)                       # moss
+    for x, colour in ((-0.64, "woad"), (-0.16, "madder"), (0.32, "woad")):
+        part.box((0.22, 0.02, 0.58), (x, 1.37, 1.68), colour, bevel=0.005)
+        part.box((0.24, 0.03, 0.04), (x, 1.37, 1.99), "old_wood", bevel=0.005)
+
+
 def build_hearth(hearth_root, level):
-    """The whole Hearth at `level` (1–4) under `hearth_root`, with its animated `Fire` and `Steam`."""
+    """The whole Hearth at `level` (1–5) under `hearth_root`, with its animated `Fire` and `Steam`."""
     ruin_part = Part("Ruin", parent=hearth_root)
     ruin(ruin_part, level)
     camp(ruin_part, level)
@@ -280,6 +295,8 @@ def build_hearth(hearth_root, level):
         temple(ruin_part)
     if level >= 4:
         baths(ruin_part)
+    if level >= 5:
+        grandeur(ruin_part)
     ruin_obj = ruin_part.build()
     landed_car(ruin_obj, level)
 

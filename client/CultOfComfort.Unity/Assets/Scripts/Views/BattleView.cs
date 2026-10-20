@@ -50,6 +50,9 @@ namespace CultOfComfort.Client
         /// <summary>A village structure was hit: id, health fraction left, wrecked.</summary>
         public event Action<int, float, bool> StructureDamaged;
 
+        /// <summary>A tower fired: the board kicks its model (the Flinger's arm swings, the Chute's flap opens).</summary>
+        public event Action<CultOfComfort.Simulation.Grid.GridPosition> TowerShot;
+
         // Unity objects must not be created in field initializers or constructors — Unity owns component construction.
         private void Awake() => _block = new MaterialPropertyBlock();
 
@@ -519,6 +522,7 @@ namespace CultOfComfort.Client
                 case TowerFired fired when _enemies.TryGetValue(fired.TargetId, out var target):
                     target.Animator?.Hit();
                     var tower = _towers[fired.TowerId];
+                    TowerShot?.Invoke(tower.Position);
                     var from = Shapes.ToWorld(tower.Position);
                     var to = target.Current;
                     if (tower.Type == TowerType.SlurryChute)

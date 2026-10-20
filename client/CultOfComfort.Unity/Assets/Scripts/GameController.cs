@@ -66,6 +66,7 @@ namespace CultOfComfort.Client
         private GridPosition? _cardTerrain;
         private bool _cardVisitor;          // the visitor's card is open (spec 2026-10-20 visitors)
         private Season? _seasonSeen;
+        private WeatherView _weather;
         private long _greetedVisitorSlot = -1;
         private NightPlan _plan;
         private NightReport _lastReport;
@@ -127,6 +128,8 @@ namespace CultOfComfort.Client
             _battleView.Floater += FloatNote;
             _battleView.SkillUsed += ShowFirstUseTip;
             _battleView.StructureDamaged += (id, fraction, wrecked) => _board.ShowStructureHealth(id, fraction, wrecked);
+            _battleView.TowerShot += _board.KickTower;
+            _weather = new GameObject("Weather").AddComponent<WeatherView>();
 
             SetUpCamera();
             _mood = NightMood.Capture(_camera, NightMood.FindSun());
@@ -1808,6 +1811,7 @@ namespace CultOfComfort.Client
             _board.ShowVisitor(_snapshot.Visitor?.Offer.Kind, VillagePresenter.VisitorTile(_snapshot, VillageMap.Demo));
             _hud.SetProphetBadge(_snapshot.Prophet?.Choice != null);
             _board.SetSeason(_snapshot.Season);
+            _weather?.Set(_snapshot.Season, _phase == GamePhase.Night);
             if (_seasonSeen != null && _seasonSeen != _snapshot.Season)
             {
                 Say($"{SeasonBook.Name(_snapshot.Season)}. {SeasonBook.Note(_snapshot.Season)}", prophet: false);

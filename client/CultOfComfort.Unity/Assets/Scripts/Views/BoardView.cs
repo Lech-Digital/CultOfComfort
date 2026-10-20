@@ -615,6 +615,59 @@ namespace CultOfComfort.Client
             PaintGround();
         }
 
+        private readonly List<(Transform Part, Quaternion Resting, Vector3 Axis, float Angle, Transform Body, Vector3 Scale, float Started)> _kicks =
+            new List<(Transform, Quaternion, Vector3, float, Transform, Vector3, float)>();
+
+        /// <summary>
+        /// A tower fires (better models, 2026-10-20): its moving part kicks — the Flinger's sapling arm whips forward, the
+        /// Chute's flap drops open — and the tower jumps a little, then settles. Nothing found: just the jump.
+        /// </summary>
+        public void KickTower(GridPosition position)
+        {
+            var visual = _buildings.Values.FirstOrDefault(v => v.Anchor == position && BuildingTable.Default.Spec(v.Type).IsTower && v.Broken == null);
+            if (visual == null || _kicks.Any(k => k.Body == visual.Root))
+            {
+                return;
+            }
+
+            var part = visual.Root.GetComponentsInChildren<Transform>().FirstOrDefault(t => t.name == "Arm" || t.name == "Gate");
+            var (axis, angle) = part != null && part.name == "Arm" ? (Vector3.forward, 55f) : (Vector3.right, 70f);
+            _kicks.Add((part, part != null ? part.localRotation : Quaternion.identity, axis, angle, visual.Root, visual.Root.localScale, Time.time));
+        }
+
+        private void AnimateKicks()
+        {
+            const float length = 0.4f;
+            for (var i = _kicks.Count - 1; i >= 0; i--)
+            {
+                var k = _kicks[i];
+                var t = (Time.time - k.Started) / length;
+                if (k.Body == null || t >= 1f)
+                {
+                    if (k.Part != null)
+                    {
+                        k.Part.localRotation = k.Resting;
+                    }
+
+                    if (k.Body != null)
+                    {
+                        k.Body.localScale = k.Scale;
+                    }
+
+                    _kicks.RemoveAt(i);
+                    continue;
+                }
+
+                var swing = Mathf.Sin(Mathf.Clamp01(t) * Mathf.PI); // out and back
+                if (k.Part != null)
+                {
+                    k.Part.localRotation = k.Resting * Quaternion.AngleAxis(k.Angle * swing, k.Axis);
+                }
+
+                k.Body.localScale = k.Scale * (1f + 0.08f * swing);
+            }
+        }
+
         private GameObject _scout;
         private GameObject _visitor;
         private VisitorKind? _visitorKind;
@@ -1051,6 +1104,7 @@ namespace CultOfComfort.Client
 
         private void LateUpdate()
         {
+            AnimateKicks();
             if (_visitorMark != null)
             {
                 _visitorMark.localPosition = new Vector3(0f, 1.4f + Mathf.Sin(Time.time * 3f) * 0.12f, 0f); // "over here!"
@@ -1203,7 +1257,7 @@ namespace CultOfComfort.Client
         /// <summary>The Hearth grows by accretion: level 1 ruin, level 2 banya, level 3 upper floor.</summary>
         private bool SwapHearthModel(int level)
         {
-            var model = ArtLibrary.Instantiate($"hearth_l{Mathf.Clamp(level, 1, 4)}", _hearth);
+            var model = ArtLibrary.Instantiate($"hearth_l{Mathf.Clamp(level, 1, 5)}", _hearth);
             if (model == null)
             {
                 return false;
