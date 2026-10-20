@@ -77,7 +77,7 @@ public sealed class BuildingTable
 
     public static BuildingTable Default { get; } = new();
 
-    public string Version { get; init; } = "village-2026.10.20c";
+    public string Version { get; init; } = "village-2026.10.20d";
 
     /// <summary>Health of a building whose first level is still being built.</summary>
     public int UnderConstructionHealth { get; init; } = 30;
@@ -287,6 +287,15 @@ public sealed class BuildingTable
         {
             new BuildingLevel(new ResourceBag(2000, 400, 400, 400), 2 * 24 * 60 * 60, PerHour: 40, Health: 300, Comfort: 30),
         }, Produces: ResourceType.Devotion, Width: 2, Depth: 2, Workers: 2),
+        // Dusk tricks (spec 2026-10-20 dusk tricks): laid before a Night, gone after it.
+        [BuildingType.MudTrap] = new(BuildingType.MudTrap, "Mud Trap", 1, new[] { 2, 3, 4, 5, 6 }, new[]
+        {
+            new BuildingLevel(new ResourceBag(0, 10, 30, 0), 0),
+        }, UsesBuilder: false),
+        [BuildingType.DecoyDuck] = new(BuildingType.DecoyDuck, "Decoy Duck", 2, new[] { 0, 1, 2, 3, 3 }, new[]
+        {
+            new BuildingLevel(new ResourceBag(40, 0, 0, 20), 0, Health: 160),
+        }, UsesBuilder: false),
         [BuildingType.Guardhouse] = new(BuildingType.Guardhouse, "Guardhouse", 2, new[] { 0, 1, 2, 3 }, new[]
         {
             new BuildingLevel(new ResourceBag(300, 0, 100, 0), 30 * 60, Health: 200, Slots: 2),
@@ -341,7 +350,10 @@ public sealed class BuildingTable
 
     /// <summary>Fences, walls and gates: raiders who can't get round them hack through.</summary>
     /// <summary>Works without a road: bees fetch nothing and carry nothing (spec 2026-10-16 hearth four).</summary>
-    public static bool NeedsRoad(BuildingType type) => type != BuildingType.Beehive;
+    public static bool NeedsRoad(BuildingType type) => type != BuildingType.Beehive && !IsTrick(type);
+
+    /// <summary>Laid at dusk, gone after the Night (spec 2026-10-20 dusk tricks).</summary>
+    public static bool IsTrick(BuildingType type) => type is BuildingType.MudTrap or BuildingType.DecoyDuck;
 
     public static bool IsBarrier(BuildingType type) => type is BuildingType.WattleFence or BuildingType.WoodenWall or BuildingType.Gate;
 

@@ -224,6 +224,21 @@ public class ContractsTests
     }
 
     [Fact]
+    public void NightPlan_TrapsAndDecoys_RoundTrip()
+    {
+        // Arrange — spec 2026-10-20 dusk tricks.
+        var plan = new NightPlan(3, 99, 40, 4, 0, false, [], [], new[] { new PlacedStructure(7, new GridPosition(3, 4), 160, 160) { Decoy = true } }, 2,
+            Traps: new[] { new GridPosition(4, 5) });
+
+        // Act
+        var back = VillageSaveMapping.PlanFromDto(VillageSaveMapping.PlanToDto(plan));
+
+        // Assert
+        back.Traps.Should().Equal(new GridPosition(4, 5));
+        back.Structures.Single().Decoy.Should().BeTrue();
+    }
+
+    [Fact]
     public void NightPlan_OldWireFormWithoutLevels_LevelOneUnmannedFirstRoad()
     {
         // Arrange — a plan saved before tower levels: level 0 on the wire.

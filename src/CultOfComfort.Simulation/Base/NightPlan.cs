@@ -25,7 +25,8 @@ public sealed record NightPlan(
     IReadOnlyList<GridPosition>? Defenders = null,
     int TowerDamagePercent = 0,
     int ProphetHealthPercent = 0,
-    int Road = 0)
+    int Road = 0,
+    IReadOnlyList<GridPosition>? Traps = null)
 {
     /// <summary>
     /// The balance this Night is fought with: research makes towers hit harder and the Prophet sturdier. Nothing
@@ -54,6 +55,7 @@ public sealed record NightPlan(
             Relics = RelicBook.ForHearth(Roster), // Roster is the Hearth level the Night was planned at
             AutoRelics = AutoRelics,
             Defenders = Defenders ?? System.Array.Empty<GridPosition>(),
+            Traps = Traps ?? System.Array.Empty<GridPosition>(),
 
         };
 }

@@ -582,6 +582,16 @@ namespace CultOfComfort.Client
                     break;
                 }
 
+                case TrapSprung sprung:
+                {
+                    // Spec 2026-10-20 dusk tricks: the mud swallows a boot.
+                    var at = Shapes.ToWorld(sprung.Tile);
+                    var splat = Fx("fx_splat", at + Vector3.up * 0.02f) ?? Shapes.Create(PrimitiveType.Cylinder, Palette.Mud, at + Vector3.up * 0.02f, Vector3.zero, _root, "Trap splat");
+                    AddEffect(splat, 0.8f, (go, t) => go.transform.localScale = Vector3.one * Mathf.Sin(Mathf.Min(1f, t * 2f) * Mathf.PI * 0.5f) * 1.4f);
+                    Floater?.Invoke(at + Vector3.up * 1.2f, "STUCK!");
+                    break;
+                }
+
                 case StructureWrecked wrecked:
                 {
                     var structure = _battle.Structures.First(s => s.Id == wrecked.StructureId);

@@ -42,6 +42,8 @@ namespace CultOfComfort.Client
             BuildingType.PressureSluice => "pressure_sluice",
             BuildingType.Guardhouse => "guardhouse",
             BuildingType.ComfyAltar => "comfy_altar",
+            BuildingType.MudTrap => "mud_trap",
+            BuildingType.DecoyDuck => "decoy_duck",
             _ => null,
         };
 

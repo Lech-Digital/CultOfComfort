@@ -504,7 +504,7 @@ public sealed partial class BaseState
             foreach (var tile in b.Tiles)
             {
                 if (!tiles.Add(tile) || (b.Type != BuildingType.Hearth
-                    && (!_map.CanStand(tile, b.Type, HearthLevel) || _map.IsSpawn(tile) || _map.IsHearthTile(tile) || (_road.Contains(tile) && b.Type != BuildingType.Gate)
+                    && (!_map.CanStand(tile, b.Type, HearthLevel) || _map.IsSpawn(tile) || _map.IsHearthTile(tile) || (_road.Contains(tile) && b.Type is not (BuildingType.Gate or BuildingType.MudTrap))
                         || _map.IsBedrock(tile) || (_map.IsBoulder(tile) && !_cleared.Contains(tile)))))
                 {
                     Fail($"building {b.Id} stands somewhere it cannot");
@@ -702,13 +702,13 @@ public sealed partial class BaseState
     {
         return _map.ToBattleLayout(
             _buildings.Where(b => _table.Spec(b.Type).IsTower).Select(b => new PlacedTower(_table.Spec(b.Type).Tower!.Value, b.Position, b.Level)),
-            _buildings.Where(b => b.Type != BuildingType.Hearth && !_table.Spec(b.Type).IsTower && !BuildingTable.IsRoad(b.Type)).SelectMany(b => b.Tiles),
+            _buildings.Where(b => b.Type != BuildingType.Hearth && !_table.Spec(b.Type).IsTower && !BuildingTable.IsRoad(b.Type) && b.Type != BuildingType.MudTrap).SelectMany(b => b.Tiles),
             _buildings.Where(b => b.Type != BuildingType.Hearth && _table.StructureHealth(b.Type, b.Level) > 0).Select(b =>
             {
                 var health = _table.StructureHealth(b.Type, b.Level) * (100 + Bonus(TechEffect.HealthPercent)) / 100; // frozen into the plan
                 return new PlacedStructure(b.Id, b.Position, health, b.Wrecked ? 0 : health)
                 {
-                    Tiles = b.Tiles, Barrier = BuildingTable.IsBarrier(b.Type), Gate = b.Type == BuildingType.Gate,
+                    Tiles = b.Tiles, Barrier = BuildingTable.IsBarrier(b.Type), Gate = b.Type == BuildingType.Gate, Decoy = b.Type == BuildingType.DecoyDuck,
                 };
             }),
             HearthLevel,
@@ -989,6 +989,8 @@ public sealed partial class BaseState
         var salvage = Math.Min(Salvage(night.Stars), Math.Max(0, Caps.Scrap - _stock.Scrap));
         _stock += new ResourceBag(0, 0, salvage, 0);
         LastNightRecorded = night.Night;
+        _buildings.RemoveAll(b => BuildingTable.IsTrick(b.Type)); // the dusk tricks are spent
+        _network = null;
         NoteNight(night.Stars, now);
         foreach (var id in night.WreckedBuildingIds ?? Array.Empty<int>())
         {
@@ -1172,6 +1174,11 @@ public sealed partial class BaseState
             return altar;
         }
 
+        if (spec.Type == BuildingType.MudTrap && !tiles.All(_road.Contains))
+        {
+            return VillageMap.TrapOffRoad;
+        }
+
         foreach (var tile in tiles)
         {
             if (!_map.Contains(tile) || _map.IsSpawn(tile) || _map.IsHearthTile(tile))
@@ -1182,7 +1189,7 @@ public sealed partial class BaseState
 
         foreach (var tile in tiles)
         {
-            if (_road.Contains(tile) && spec.Type != BuildingType.Gate) // a gate may stand across the road; nothing else may
+            if (_road.Contains(tile) && spec.Type is not (BuildingType.Gate or BuildingType.MudTrap)) // a gate or a mud trap may go on the road
             {
                 return "That's the raiders' road. Build beside it.";
             }
@@ -1386,7 +1393,8 @@ public sealed partial class BaseState
         return new NightPlan(night, seed, budget, waves, SluiceBonus, _raid != null, towers, layout.Obstacles, layout.Structures, HearthLevel,
             AutoRelics: true, Defenders: DefenderPosts(layout).Concat(wardens).ToList(),
             TowerDamagePercent: Bonus(TechEffect.TowerDamagePercent), ProphetHealthPercent: Bonus(TechEffect.ProphetHealthPercent), // research, frozen into the plan
-            Road: road);
+            Road: road,
+            Traps: _buildings.Where(b => b.Type == BuildingType.MudTrap).OrderBy(b => b.Id).Select(b => b.Position).ToList());
     }
 
     /// <summary>
@@ -1505,6 +1513,8 @@ public sealed partial class BaseState
             }
         }
 
+        _buildings.RemoveAll(b => BuildingTable.IsTrick(b.Type)); // the dusk tricks are spent (spec 2026-10-20 dusk tricks)
+        _network = null;
         MaterializeTension(at);
         _tensionMilli = 0;
         _shieldEndsAt = at.AddHours(_table.Tension.ShieldHours);

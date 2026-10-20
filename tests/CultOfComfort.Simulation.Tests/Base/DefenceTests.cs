@@ -564,3 +564,108 @@ public class LongBuildsTests
         state.Snapshot(T0).Towels.Should().Be(towels + DailyBook.ErrandTowels, "Towels show on the snapshot, daily list or not");
     }
 }
+
+/// <summary>Spec 2026-10-20 dusk tricks: mud traps and decoy ducks, laid at dusk and spent by the Night.</summary>
+public class DuskTricksTests
+{
+    private static readonly DateTimeOffset T0 = new(2026, 10, 20, 9, 0, 0, TimeSpan.Zero);
+    private static readonly VillageMap Map = VillageMap.Demo;
+
+    private static BaseState Village(int hearth)
+    {
+        var state = BaseState.CreateNew(BuildingTable.Default, Map, T0);
+        for (var level = 2; level <= hearth; level++)
+        {
+            state.Apply(new DebugFillStores(Guid.NewGuid()), T0);
+            state.Apply(new UpgradeHearth(Guid.NewGuid()), T0);
+            state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+        }
+
+        state.Apply(new DebugFillStores(Guid.NewGuid()), T0);
+        return state;
+    }
+
+    private static GridPosition RoadTile(int k) => Map.Road[Map.Road.Count - k];
+
+    [Fact]
+    public void Place_MudTrap_OnTheRoadOnly()
+    {
+        // Arrange
+        var state = Village(1);
+
+        // Act
+        var onRoad = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.MudTrap, RoadTile(8)), T0);
+        var inField = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.MudTrap, new GridPosition(22, 15)), T0);
+
+        // Assert
+        onRoad.Status.Should().Be(CommandStatus.Accepted);
+        inField.Reason.Should().Be(VillageMap.TrapOffRoad);
+    }
+
+    private static int Trapped(NightPlan plan)
+    {
+        var battle = new Battle(plan.ToBattleSetup(Map, Array.Empty<PlayerInput>()));
+        var sprung = 0;
+        while (!battle.IsFinished)
+        {
+            battle.Step();
+            sprung += battle.LastTickEvents.OfType<TrapSprung>().Count();
+        }
+
+        return sprung;
+    }
+
+    [Fact]
+    public void Night_MudTrapOnTheRoad_CatchesThreeRaidersThenItsSpent()
+    {
+        // Arrange
+        var state = Village(1);
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.MudTrap, RoadTile(8)), T0).Status.Should().Be(CommandStatus.Accepted);
+
+        // Act
+        var plan = state.Apply(new BeginNight(Guid.NewGuid()), T0).Plan!;
+
+        // Assert
+        plan.Traps.Should().Equal(RoadTile(8));
+        Trapped(plan).Should().Be(BalanceTable.Default.TrapCharges);
+    }
+
+    [Fact]
+    public void Night_DecoyBesideTheRoad_RaidersGoForIt()
+    {
+        // Arrange — a duck two tiles off the road near the Hearth end, at Hearth 2 (the levy smashes things).
+        var state = Village(2);
+        var tonight = Map.RoadAt(state.Snapshot(T0).NextRoad); // by the road the scout names
+        var spot = tonight.Skip(tonight.Count / 2).SelectMany(t => new[] { new GridPosition(t.X + 2, t.Y), new GridPosition(t.X - 2, t.Y), new GridPosition(t.X, t.Y + 2), new GridPosition(t.X, t.Y - 2) })
+            .First(t => state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.DecoyDuck, t), T0).Status == CommandStatus.Accepted);
+        var duck = state.Snapshot(T0).BuildingAt(spot)!.Id;
+        var plan = state.Apply(new BeginNight(Guid.NewGuid()), T0).Plan!;
+
+        // Act
+        var battle = new Battle(plan.ToBattleSetup(Map, Array.Empty<PlayerInput>()));
+        var hits = 0;
+        while (!battle.IsFinished)
+        {
+            battle.Step();
+            hits += battle.LastTickEvents.OfType<StructureHit>().Count(h => h.StructureId == duck);
+        }
+
+        // Assert
+        plan.Structures.Single(s => s.Id == duck).Decoy.Should().BeTrue();
+        hits.Should().BeGreaterThan(0, "a giant duck by the road is irresistible");
+    }
+
+    [Fact]
+    public void RecordNight_Tricks_AreSpent()
+    {
+        // Arrange
+        var state = Village(2);
+        state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.MudTrap, RoadTile(8)), T0).Status.Should().Be(CommandStatus.Accepted);
+
+        // Act
+        state.Apply(new RecordNightResult(Guid.NewGuid(), 1, 3), T0).Status.Should().Be(CommandStatus.Accepted);
+
+        // Assert
+        state.Snapshot(T0).Buildings.Should().NotContain(b => BuildingTable.IsTrick(b.Type));
+    }
+}

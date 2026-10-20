@@ -85,6 +85,9 @@ public sealed record BattleSetup(
 
     /// <summary>Cultists out defending: one post each (beside their hut). None for Nights planned before.</summary>
     public IReadOnlyList<GridPosition> Defenders { get; init; } = System.Array.Empty<GridPosition>();
+
+    /// <summary>Mud traps on the road (spec 2026-10-20 dusk tricks). None for Nights planned before.</summary>
+    public IReadOnlyList<GridPosition> Traps { get; init; } = System.Array.Empty<GridPosition>();
 }
 
 public sealed record BattleResult(
@@ -143,5 +146,8 @@ public sealed record DefenderHit(int Tick, int DefenderId, int EnemyId, int Dama
 public sealed record DefenderDowned(int Tick, int DefenderId) : BattleEvent(Tick);
 
 public sealed record DefenderBack(int Tick, int DefenderId) : BattleEvent(Tick);
+
+/// <summary>A raider stepped in a mud trap: stuck and slowed; <paramref name="ChargesLeft"/> more before it's trodden flat.</summary>
+public sealed record TrapSprung(int Tick, GridPosition Tile, int EnemyId, int ChargesLeft) : BattleEvent(Tick);
 
 public sealed record BattleEnded(int Tick, BattleOutcome Outcome, int Stars) : BattleEvent(Tick);

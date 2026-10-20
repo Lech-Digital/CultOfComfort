@@ -5,8 +5,10 @@ namespace CultOfComfort.Simulation.Combat;
 /// <summary>A village building or tower that raiders can smash during the Night.</summary>
 public sealed class Structure
 {
-    internal Structure(int id, GridPosition position, int maxHealth, int health, System.Collections.Generic.IReadOnlyList<GridPosition>? tiles = null, bool barrier = false)
+    internal Structure(int id, GridPosition position, int maxHealth, int health, System.Collections.Generic.IReadOnlyList<GridPosition>? tiles = null, bool barrier = false,
+        bool decoy = false)
     {
+        IsDecoy = decoy;
         IsBarrier = barrier;
         Id = id;
         Position = position;
@@ -26,6 +28,9 @@ public sealed class Structure
 
     /// <summary>A fence, wall or gate: hacked through when it's in the way; a gap once wrecked.</summary>
     public bool IsBarrier { get; }
+
+    /// <summary>A decoy duck: irresistible to anyone who smashes things.</summary>
+    public bool IsDecoy { get; }
 
     /// <returns>True when this hit wrecked it.</returns>
     internal bool TakeHit(int damage)

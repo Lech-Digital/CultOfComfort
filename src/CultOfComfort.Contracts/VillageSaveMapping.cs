@@ -191,7 +191,7 @@ public static class VillageSaveMapping
         obstacles = plan.Obstacles.Select(o => new TileDto { x = o.X, y = o.Y }).ToList(),
         structures = plan.Structures.Select(st => new StructureDto
         {
-            id = st.Id, x = st.Position.X, y = st.Position.Y, max = st.MaxHealth, health = st.Health, barrier = st.Barrier, gate = st.Gate,
+            id = st.Id, x = st.Position.X, y = st.Position.Y, max = st.MaxHealth, health = st.Health, barrier = st.Barrier, gate = st.Gate, decoy = st.Decoy,
             tiles = st.Tiles?.Select(t => new TileDto { x = t.X, y = t.Y }).ToList() ?? new List<TileDto>(),
         }).ToList(),
         autoRelics = plan.AutoRelics,
@@ -199,6 +199,7 @@ public static class VillageSaveMapping
         towerDamage = plan.TowerDamagePercent,
         prophetHealth = plan.ProphetHealthPercent,
         road = plan.Road,
+        traps = (plan.Traps ?? Array.Empty<GridPosition>()).Select(t => new TileDto { x = t.X, y = t.Y }).ToList(),
     };
 
     /// <summary>A Night plan from its wire form (the server's answer to BeginNight).</summary>
@@ -229,12 +230,13 @@ public static class VillageSaveMapping
             {
                 // An empty list means "no footprint"; the plan means that as null (just Position).
                 Tiles = st.tiles == null || st.tiles.Count == 0 ? null : st.tiles.Select(t => new GridPosition(t.x, t.y)).ToList(),
-                Barrier = st.barrier, Gate = st.gate,
+                Barrier = st.barrier, Gate = st.gate, Decoy = st.decoy,
             }).ToList(),
             d.roster,
             d.autoRelics,
             (d.defenders ?? new List<TileDto>()).Select(t => new GridPosition(t.x, t.y)).ToList(),
-            Math.Max(0, d.towerDamage), Math.Max(0, d.prophetHealth), Math.Max(0, d.road));
+            Math.Max(0, d.towerDamage), Math.Max(0, d.prophetHealth), Math.Max(0, d.road),
+            (d.traps ?? new List<TileDto>()).Select(t => new GridPosition(t.x, t.y)).ToList());
     }
 
     internal static ReportDto ToDto(NightReport r) => new()

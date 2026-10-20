@@ -21,6 +21,9 @@ public readonly record struct PlacedStructure(int Id, GridPosition Position, int
 
     /// <summary>A gate: a barrier to raiders, a door to the Prophet.</summary>
     public bool Gate { get; init; }
+
+    /// <summary>A decoy duck: every smashing raider in reach goes for it first (spec 2026-10-20 dusk tricks).</summary>
+    public bool Decoy { get; init; }
 }
 
 /// <summary>Immutable snapshot of a base as it stands when the Night starts (the "locked layout").</summary>

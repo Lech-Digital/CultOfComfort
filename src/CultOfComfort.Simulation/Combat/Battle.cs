@@ -76,9 +76,14 @@ public sealed class Battle
             _towers.Add(new Tower(towerId++, placed.Type, placed.Position, placed.Level, placed.Manned));
         }
 
+        foreach (var trap in setup.Traps)
+        {
+            _traps[trap] = _balance.TrapCharges;
+        }
+
         foreach (var s in setup.Layout.Structures)
         {
-            _structures.Add(new Structure(s.Id, s.Position, s.MaxHealth, s.Health, s.Tiles, s.Barrier));
+            _structures.Add(new Structure(s.Id, s.Position, s.MaxHealth, s.Health, s.Tiles, s.Barrier, s.Decoy));
         }
 
         for (var i = 1; i < Path.Count; i++)
@@ -186,6 +191,7 @@ public sealed class Battle
         LeaderAttack();
         DefendersAct();
         MoveEnemies();
+        SpringTraps();
         if (!Leader.IsSwooning(Tick))
         {
             Leader.Walk(_balance.Leader.TilesPerSecond / BalanceTable.TicksPerSecond);
@@ -896,6 +902,40 @@ public sealed class Battle
         return true;
     }
 
+    private readonly Dictionary<GridPosition, int> _traps = new();
+    private readonly HashSet<(int Enemy, GridPosition Tile)> _trapped = new();
+
+    /// <summary>
+    /// Mud traps (spec 2026-10-20 dusk tricks): a raider on the road stepping onto one is stuck (slowed hard and
+    /// muddied, so towers crit) for a few seconds; each trap catches a few raiders, each raider once.
+    /// </summary>
+    private void SpringTraps()
+    {
+        if (_traps.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var enemy in _enemies)
+        {
+            if (!enemy.IsActive || enemy.IsOffRoad)
+            {
+                continue;
+            }
+
+            var tile = RoadTileOf(enemy);
+            if (!_traps.TryGetValue(tile, out var charges) || charges <= 0 || !_trapped.Add((enemy.Id, tile)))
+            {
+                continue;
+            }
+
+            enemy.ApplySlow(_balance.TrapSlow, Tick + _balance.TrapTicks);
+            enemy.ApplyMud(Tick + _balance.TrapTicks);
+            _traps[tile] = charges - 1;
+            _tickEvents.Add(new TrapSprung(Tick, tile, enemy.Id, charges - 1));
+        }
+    }
+
     /// <summary>
     /// From the road, a raider eyes the nearest intact structure it hasn't hit within <see cref="BalanceTable.RaidRange"/>
     /// and walks round whatever is in the way to stand beside it. If only barriers stand in the way, it goes for the first
@@ -912,7 +952,18 @@ public sealed class Battle
         var range = _balance.RaidRange;
         Structure? best = null;
         var bestDistance = int.MaxValue;
-        foreach (var structure in _structures)
+        // A decoy duck in reach comes first (spec 2026-10-20 dusk tricks): nobody can leave a giant duck alone.
+        foreach (var decoy in _structures.Where(st => st.IsDecoy && !st.IsWrecked && !enemy.StructuresHit.Contains(st.Id)))
+        {
+            var distance = DistanceTo(from, decoy);
+            if (distance <= _balance.DecoyRange && (distance < bestDistance || (distance == bestDistance && decoy.Id < best!.Id)))
+            {
+                best = decoy;
+                bestDistance = distance;
+            }
+        }
+
+        foreach (var structure in best != null ? Enumerable.Empty<Structure>() : _structures)
         {
             if (structure.IsWrecked || enemy.StructuresHit.Contains(structure.Id) || (structure.IsBarrier && !enemy.WallBreaker))
             {

@@ -136,6 +136,18 @@ public sealed class BalanceTable
     /// <summary>A blessed raider takes this much less damage.</summary>
     public Fix BlessingReduction { get; init; } = Fix.Ratio(1, 4);
 
+    /// <summary>A mud trap catches this many raiders before it's trodden flat (spec 2026-10-20 dusk tricks).</summary>
+    public int TrapCharges { get; init; } = 3;
+
+    /// <summary>How long a trapped raider is stuck (slowed and muddied).</summary>
+    public int TrapTicks { get; init; } = 4 * TicksPerSecond;
+
+    /// <summary>A trapped raider's speed, as a fraction of its own.</summary>
+    public Fix TrapSlow { get; init; } = Fix.Ratio(3, 10);
+
+    /// <summary>How far (tiles) a decoy duck draws a smashing raider off the road.</summary>
+    public int DecoyRange { get; init; } = 3;
+
     /// <summary>Reach a tower gains with each level past the first (spec 2026-10-20 defence).</summary>
     public Fix TowerRangePerLevel { get; init; } = Fix.One;
 

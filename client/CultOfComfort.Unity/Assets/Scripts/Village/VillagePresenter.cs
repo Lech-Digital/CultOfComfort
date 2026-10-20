@@ -69,6 +69,8 @@ namespace CultOfComfort.Client
             BuildingType.PressureSluice => "b_pressure_sluice",
             BuildingType.Guardhouse => "b_guardhouse",
             BuildingType.ComfyAltar => "b_comfy_altar",
+            BuildingType.MudTrap => "b_mud_trap",
+            BuildingType.DecoyDuck => "b_decoy_duck",
             _ => "b_sapling_flinger",
         };
 
@@ -86,7 +88,7 @@ namespace CultOfComfort.Client
         {
             BuildingType.Cottage or BuildingType.CultistHut or BuildingType.Bathhouse or BuildingType.Sauna or BuildingType.StorageHut or BuildingType.Cistern => Homes,
             BuildingType.SlurryChute or BuildingType.SaplingFlinger or BuildingType.PressureSluice or BuildingType.WattleFence or BuildingType.WoodenWall or BuildingType.Gate
-                or BuildingType.Guardhouse => Defence,
+                or BuildingType.Guardhouse or BuildingType.MudTrap or BuildingType.DecoyDuck => Defence,
             BuildingType.DirtTrack or BuildingType.PlankWalk or BuildingType.CobbledRoad => Roads,
             BuildingType.Stone or BuildingType.Tree => Land,
             _ => Work,
@@ -396,6 +398,8 @@ namespace CultOfComfort.Client
         private static string Effect(BuildingSpec spec, int level)
         {
             if (level == 0) return string.Empty;
+            if (spec.Type == BuildingType.MudTrap) return "Sticks the first three raiders who step in it. Used up by the Night.";
+            if (spec.Type == BuildingType.DecoyDuck) return "Raiders within three tiles go for it first. Used up by the Night.";
             if (spec.Tower is { } tower) return TowerLine(tower, level);
             var l = spec.Levels[level - 1];
             if (l.StorageBonus > 0) return $"+{l.StorageBonus} storage for everything";

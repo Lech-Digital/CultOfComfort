@@ -203,6 +203,7 @@ public sealed class NightDto
     public int towerDamage;          // research, % (older plans lack it: 0, the default balance)
     public int prophetHealth;        // research, %
     public int road;                 // which raiders' road (0: the first)
+    public List<TileDto> traps;      // mud traps on the road (older plans lack it: none)
 }
 
 [Serializable]
@@ -232,6 +233,7 @@ public sealed class StructureDto
     public int health;
     public bool barrier;
     public bool gate;
+    public bool decoy;
     public List<TileDto> tiles;
 }
 

@@ -45,6 +45,12 @@ public enum BuildingType
 
     /// <summary>Hearth 5: a flat stone, a cushion and a candle in the middle of the stone circle. Devotion and Comfort.</summary>
     ComfyAltar,
+
+    /// <summary>A dusk trick (spec 2026-10-20 dusk tricks): a pit of mud on the raiders' road; used up by the Night.</summary>
+    MudTrap,
+
+    /// <summary>A dusk trick: a giant wooden duck beside the road that raiders can't resist smashing; used up by the Night.</summary>
+    DecoyDuck,
 }
 
 public enum ResourceType

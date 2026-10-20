@@ -322,6 +322,8 @@ public sealed record VillageMap(
     /// the village applies, for a cursor hint before the command is sent. Costs, limits and the builder aren't checked.
     /// </summary>
     /// <param name="moving">The building being moved, which doesn't stand in its own way.</param>
+    public const string TrapOffRoad = "A mud trap goes on the raiders' road, where their boots will find it.";
+
     public const string GateMisplaced = "A gate goes across the raiders' road, or into a wall, fence or road. Not in a field.";
 
     /// <summary>
@@ -392,7 +394,12 @@ public sealed record VillageMap(
             return "Can't build there.";
         }
 
-        if (tiles.Any(road.Contains) && spec.Type != BuildingType.Gate)
+        if (spec.Type == BuildingType.MudTrap && !tiles.All(road.Contains))
+        {
+            return TrapOffRoad;
+        }
+
+        if (tiles.Any(road.Contains) && spec.Type is not (BuildingType.Gate or BuildingType.MudTrap))
         {
             return "That's the raiders' road. Build beside it.";
         }
