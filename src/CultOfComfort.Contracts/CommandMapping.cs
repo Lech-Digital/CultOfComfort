@@ -31,6 +31,9 @@ public static class CommandMapping
             case DemolishBuilding c:
                 dto.buildingId = c.BuildingId;
                 break;
+            case PackUpTower c:
+                dto.buildingId = c.BuildingId;
+                break;
             case RepairBuilding c:
                 dto.buildingId = c.BuildingId;
                 break;
@@ -116,6 +119,8 @@ public static class CommandMapping
             nameof(UpgradeBuilding) => new UpgradeBuilding(id, dto.buildingId),
             nameof(UpgradeHearth) => new UpgradeHearth(id),
             nameof(DemolishBuilding) => new DemolishBuilding(id, dto.buildingId),
+            nameof(PackUpTower) => new PackUpTower(id, dto.buildingId),
+            nameof(PackUpTowers) => new PackUpTowers(id),
             nameof(RepairBuilding) => new RepairBuilding(id, dto.buildingId),
             nameof(Collect) => new Collect(id, dto.buildingId < 0 ? null : dto.buildingId),
             nameof(ClearTerrain) => new ClearTerrain(id, new GridPosition(dto.x, dto.y)),

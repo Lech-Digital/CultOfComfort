@@ -257,11 +257,11 @@ namespace CultOfComfort.Client.Tests
         [Test]
         public void BuildCards_TowersAtTheCap_LockedWithTheCount()
         {
-            // Arrange — four towers at Hearth 1, its cap.
+            // Arrange — eight towers at Hearth 1, its cap.
             var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
-            state.Apply(new DebugFillStores(System.Guid.NewGuid()), T0);
-            foreach (var (x, y) in new[] { (6, 2), (6, 3), (6, 4), (6, 6) })
+            foreach (var (x, y) in new[] { (6, 2), (6, 3), (6, 4), (6, 6), (7, 2), (7, 3), (7, 4), (7, 6) })
             {
+                state.Apply(new DebugFillStores(System.Guid.NewGuid()), T0);
                 state.Apply(new PlaceBuilding(System.Guid.NewGuid(), BuildingType.SlurryChute, new CultOfComfort.Simulation.Grid.GridPosition(x, y)), T0);
             }
 
@@ -270,7 +270,7 @@ namespace CultOfComfort.Client.Tests
 
             // Assert
             Assert.IsTrue(chute.Locked);
-            Assert.AreEqual("4/4 towers", chute.LockText);
+            Assert.AreEqual("8/8 towers", chute.LockText);
         }
 
         [Test]

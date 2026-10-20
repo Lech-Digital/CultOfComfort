@@ -17,7 +17,10 @@ public class MapExpansionTests
         var map = VillageMap.Demo;
 
         // Assert
-        (map.Width, map.Height).Should().Be((48, 32));
+        (map.Width, map.Height).Should().Be((68, 48));
+        map.IsOpen(new GridPosition(30, 34), 3).Should().BeFalse("the near bank opens at Hearth 4");
+        map.IsOpen(new GridPosition(30, 34), 4).Should().BeTrue();
+        map.IsOpen(new GridPosition(30, 45), 10).Should().BeFalse("the far bank never opens");
         map.IsOpen(new GridPosition(29, 19), 1).Should().BeTrue();
         map.IsOpen(new GridPosition(5, 22), 1).Should().BeFalse();
         map.IsOpen(new GridPosition(5, 22), 2).Should().BeTrue();

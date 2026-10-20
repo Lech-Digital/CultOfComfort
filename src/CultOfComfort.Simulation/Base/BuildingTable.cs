@@ -137,7 +137,7 @@ public sealed class BuildingTable
     public IReadOnlyList<int> RoadGatesByHearth { get; init; } = new[] { 1, 2, 3 };
 
     /// <summary>How many towers (of every kind together) may stand at Hearth 1, 2, 3, 4 (spec 2026-10-20 defence).</summary>
-    public IReadOnlyList<int> TowerCapByHearth { get; init; } = new[] { 4, 7, 10, 14 };
+    public IReadOnlyList<int> TowerCapByHearth { get; init; } = new[] { 8, 14, 20, 26 }; // owner 2026-10-20: "4 towers is way too little"
 
     public int TowerCap(int hearthLevel) => TowerCapByHearth[Math.Min(Math.Max(hearthLevel, 1), TowerCapByHearth.Count) - 1];
 

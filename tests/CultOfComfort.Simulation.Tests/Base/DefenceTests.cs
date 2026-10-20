@@ -84,22 +84,99 @@ public class DefenceTests
         outcome.Reason.Should().Contain("Hearth to level 3");
     }
 
+    private static readonly (int X, int Y)[] EightSpots = { (6, 2), (6, 3), (6, 4), (6, 6), (7, 2), (7, 3), (7, 4), (7, 6) };
+
     [Fact]
     public void Place_TowerPastTheCap_Rejected()
     {
-        // Arrange — four towers at Hearth 1.
+        // Arrange — eight towers at Hearth 1, its cap.
         var state = Village(1);
-        foreach (var (x, y) in new[] { (6, 2), (6, 3), (6, 4), (6, 6) })
+        foreach (var (x, y) in EightSpots)
         {
             Place(state, BuildingType.SlurryChute, x, y).Status.Should().Be(CommandStatus.Accepted);
+            state.Apply(new DebugFillStores(Guid.NewGuid()), T0);
         }
 
         // Act
-        var outcome = Place(state, BuildingType.SlurryChute, 7, 2);
+        var outcome = Place(state, BuildingType.SlurryChute, 9, 2);
 
         // Assert
         outcome.Status.Should().Be(CommandStatus.Rejected);
-        outcome.Reason.Should().Contain("4 towers");
+        outcome.Reason.Should().Contain("8 towers");
+    }
+
+    // ---------------- packing up (spec 2026-10-20 river) ----------------
+
+    [Fact]
+    public void PackUpTower_ThenSetDown_FreeAndAtItsLevel()
+    {
+        // Arrange — a level 2 chute, packed up.
+        var state = Village(2);
+        Place(state, BuildingType.SlurryChute, 16, 6);
+        var id = IdAt(state, 16, 6);
+        state.Apply(new UpgradeBuilding(Guid.NewGuid(), id), T0);
+        state.Apply(new PackUpTower(Guid.NewGuid(), id), T0).Status.Should().Be(CommandStatus.Accepted);
+        var stock = state.Snapshot(T0).Stock;
+
+        // Act
+        var outcome = Place(state, BuildingType.SlurryChute, 6, 3);
+
+        // Assert
+        outcome.Status.Should().Be(CommandStatus.Accepted);
+        var snapshot = state.Snapshot(T0);
+        snapshot.BuildingAt(new GridPosition(6, 3))!.Level.Should().Be(2);
+        snapshot.Stock.Should().Be(stock, "a packed-up tower costs nothing to set down");
+        snapshot.Stowed.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void PackUpTowers_All_NoneStandingAllKeptAndSaved()
+    {
+        // Arrange
+        var state = Village(2);
+        Place(state, BuildingType.SlurryChute, 16, 6);
+        Place(state, BuildingType.SaplingFlinger, 6, 3);
+
+        // Act
+        state.Apply(new PackUpTowers(Guid.NewGuid()), T0).Status.Should().Be(CommandStatus.Accepted);
+
+        // Assert
+        var restored = BaseState.Restore(BuildingTable.Default, Map, state.ToData()).Snapshot(T0);
+        restored.Buildings.Should().NotContain(b => BuildingTable.Default.Spec(b.Type).IsTower);
+        restored.Stowed!.Select(t => t.Type).Should().BeEquivalentTo(new[] { BuildingType.SlurryChute, BuildingType.SaplingFlinger });
+        state.Apply(new BeginNight(Guid.NewGuid()), T0).Plan!.Towers.Should().BeEmpty("packed-up towers don't fight");
+    }
+
+    [Fact]
+    public void Place_PackedUpTowersCountTowardsTheCap()
+    {
+        // Arrange — eight towers at Hearth 1, all packed up.
+        var state = Village(1);
+        foreach (var (x, y) in EightSpots)
+        {
+            Place(state, BuildingType.SlurryChute, x, y);
+            state.Apply(new DebugFillStores(Guid.NewGuid()), T0);
+        }
+
+        state.Apply(new PackUpTowers(Guid.NewGuid()), T0);
+
+        // Act & Assert — a packed-up one may go back; a ninth may not be bought.
+        Place(state, BuildingType.SlurryChute, 9, 2).Status.Should().Be(CommandStatus.Accepted);
+        state.Apply(new PackUpTowers(Guid.NewGuid()), T0);
+        state.Apply(new DebugFillStores(Guid.NewGuid()), T0);
+        state.Snapshot(T0).Stowed.Should().HaveCount(8);
+    }
+
+    [Fact]
+    public void PackUpTower_NotATower_Rejected()
+    {
+        // Arrange
+        var state = Village(2);
+        var hearth = state.Snapshot(T0).Buildings.Single(b => b.Type == BuildingType.Hearth).Id;
+
+        // Act & Assert
+        state.Apply(new PackUpTower(Guid.NewGuid(), hearth), T0).Status.Should().Be(CommandStatus.Rejected);
+        state.Apply(new PackUpTowers(Guid.NewGuid()), T0).Status.Should().Be(CommandStatus.Rejected, "nothing to pack");
     }
 
     // ---------------- the Guardhouse ----------------
@@ -203,6 +280,31 @@ public class DefenceTests
         {
             route.Tiles().Should().NotContain(t => Map.Rocks.Contains(t), route.Name);
         }
+    }
+
+    [Fact]
+    public void River_OnlyInTheWild_AndEveryNewRoadCrossesItByABridge()
+    {
+        // Assert — spec 2026-10-20 river: the south and east roads start on the far bank.
+        Map.Water.Should().NotBeEmpty();
+        Map.Water.Should().OnlyContain(t => Map.OpensAt(t) == VillageMap.Wild, "nobody builds in the river");
+        foreach (var road in new[] { 1, 2 })
+        {
+            var path = Map.RoadAt(road);
+            path.Should().Contain(t => Map.IsBridge(t), Map.RoadName(road));
+            Map.OpensAt(path[0]).Should().Be(VillageMap.Wild, "it comes out of the raiders' country");
+        }
+
+        Map.Road.Should().NotContain(t => Map.Water.Contains(t), "the north road stays dry");
+    }
+
+    [Fact]
+    public void River_WideEnoughToMatter()
+    {
+        // Assert — three or more tiles of water across, nearly everywhere along the south reach.
+        var widths = Enumerable.Range(0, 50).Select(x => Enumerable.Range(0, Map.Height).Count(y => Map.Water.Contains(new GridPosition(x, y)))).ToList();
+        widths.Average().Should().BeGreaterThan(3.0);
+        widths.Should().OnlyContain(w => w >= 2);
     }
 
     [Fact]

@@ -54,6 +54,7 @@ public static class VillageSaveMapping
         errandEventDone = data.ErrandEventDone,
         errandId = data.ErrandId ?? string.Empty,
         raidersRoad = data.RaidersRoad,
+        stowed = (data.Stowed ?? Array.Empty<StowedTower>()).Select(t => new StowedDto { type = t.Type.ToString(), level = t.Level, wrecked = t.Wrecked }).ToList(),
         researched = data.Research?.Done.ToList() ?? new List<string>(),
         researching = data.Research?.Current ?? string.Empty,
         researchEndsTicks = data.Research?.EndsAtUtcTicks ?? 0,
@@ -155,7 +156,9 @@ public static class VillageSaveMapping
                     dto.daily.claimed ?? new List<bool>(), dto.daily.thermos, dto.daily.streak, dto.daily.lastThermosDay, dto.daily.towels, dto.daily.cosmetics ?? new List<string>())
                 : null,
             string.IsNullOrEmpty(dto.errandId) ? null : dto.errandId,
-            dto.raidersRoad);
+            dto.raidersRoad,
+            (dto.stowed ?? new List<StowedDto>()).Select(t => new StowedTower(
+                Enum.TryParse<BuildingType>(t.type, out var type) ? type : throw new InvalidBaseDataException($"unknown tower type '{t.type}'"), t.level, t.wrecked)).ToList());
     }
 
     private static DomainData FromDto(DomainDto d) => new(

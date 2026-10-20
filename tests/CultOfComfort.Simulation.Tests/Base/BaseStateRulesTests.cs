@@ -14,7 +14,7 @@ public class BaseStateRulesTests
     [InlineData(17, 9)]  // Hearth
     [InlineData(5, 3)]   // rock
     [InlineData(-1, 0)]  // outside
-    [InlineData(48, 0)]  // outside (the full map is 48 wide)
+    [InlineData(68, 0)]  // outside (the full map is 68 wide)
     public void Apply_PlaceOnSpawnOrHearth_Rejected(int x, int y)
     {
         // Act

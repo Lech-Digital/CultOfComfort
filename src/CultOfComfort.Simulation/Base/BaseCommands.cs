@@ -49,6 +49,12 @@ public sealed record AcknowledgeReport(Guid CommandId) : BaseCommand(CommandId);
 public sealed record ClaimErrand(Guid CommandId) : BaseCommand(CommandId);
 
 /// <summary>Cuts a wild tree (Timber) or clears a loose boulder (costs Timber, gives Scrap). Walls are bedrock.</summary>
+/// <summary>Packs one tower up: off the ground, kept with its level, set down again for free from the build drawer.</summary>
+public sealed record PackUpTower(Guid CommandId, int BuildingId) : BaseCommand(CommandId);
+
+/// <summary>Packs every tower up at once, to lay the defence out afresh for the scout's road.</summary>
+public sealed record PackUpTowers(Guid CommandId) : BaseCommand(CommandId);
+
 /// <summary>A Guardhouse's duty: its wardens man the nearest towers (false) or go out and fight (true).</summary>
 public sealed record SetDuty(Guid CommandId, int BuildingId, bool Patrol) : BaseCommand(CommandId);
 

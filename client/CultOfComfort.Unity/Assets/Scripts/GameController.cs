@@ -2319,6 +2319,8 @@ namespace CultOfComfort.Client
             _hud.FinishNowClicked += () => SendFromCard(_ => new FinishConstructionNow(Guid.NewGuid()));
             _hud.HurryClicked += () => SendFromCard(_ => new SpendTowels(Guid.NewGuid(), TowelUse.Hurry));
             _hud.DutyClicked += () => SendFromCard(b => new SetDuty(Guid.NewGuid(), b.Id, !b.Patrol));
+            _hud.PackUpClicked += () => SendFromCard(b => new PackUpTower(Guid.NewGuid(), b.Id), closeCard: true);
+            _hud.PackUpAllClicked += () => SendFromCard(_ => new PackUpTowers(Guid.NewGuid()), closeCard: true);
             _hud.CancelBuildClicked += () =>
             {
                 if (Armed("cancel-build:" + _cardBuilding, "Tap again to cancel. The cost comes back; the time doesn't."))

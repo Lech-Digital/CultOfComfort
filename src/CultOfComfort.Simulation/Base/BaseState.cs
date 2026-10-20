@@ -32,6 +32,7 @@ public sealed partial class BaseState
     private int _nextRaidId = 1;
     private NightPlan? _night;
     private int _raidersRoad; // 0: trodden mud; else how many of the table's pavings are laid
+    private readonly List<StowedTower> _stowed = new(); // towers packed up, waiting to be set down again
     private DateTimeOffset _nightStartedAt;
     private NightReport? _unseenReport;
     private readonly List<GridPosition> _cleared = new(); // boulders, gone for good
@@ -106,6 +107,15 @@ public sealed partial class BaseState
             _errandEventDone = data.ErrandEventDone,
             _raidersRoad = Math.Clamp(data.RaidersRoad, 0, table.RaidersRoadPavings.Count),
         };
+        foreach (var t in data.Stowed ?? Array.Empty<StowedTower>())
+        {
+            if (!table.Specs.TryGetValue(t.Type, out var stowedSpec) || !stowedSpec.IsTower || t.Level < 1 || t.Level > stowedSpec.MaxLevel)
+            {
+                throw new InvalidBaseDataException($"A packed-up {t.Type} at level {t.Level} isn't a tower.");
+            }
+
+            state._stowed.Add(t);
+        }
         foreach (var b in data.Buildings.OrderBy(b => b.Type == BuildingType.Hearth ? -1 : b.Id))
         {
             if (!table.Specs.TryGetValue(b.Type, out var spec) || b.Level < 0 || b.Level > spec.MaxLevel)
@@ -529,7 +539,8 @@ public sealed partial class BaseState
         _fractions.ToList(),
         DailyToData(),
         CurrentErrand?.Id,
-        _raidersRoad);
+        _raidersRoad,
+        _stowed.ToList());
 
     public CommandOutcome Apply(BaseCommand command, DateTimeOffset nowUtc)
     {
@@ -543,7 +554,7 @@ public sealed partial class BaseState
         _now = nowUtc;
         MaterializeAll(nowUtc); // whatever this command changes, production up to now was earned under the old rules
         var roadsBefore = _buildings.Count(b => BuildingTable.IsRoad(b.Type));
-        if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain or SendMissionary or SendWorldMissionary or PayTithe or MeetDemand or PleadWithLord or SetCrew or CancelConstruction or PaveRaidersRoad or SetDuty)
+        if (_night != null && command is PlaceBuilding or PaintTiles or MoveBuilding or RepairAll or UpgradeBuilding or UpgradeHearth or DemolishBuilding or RepairBuilding or FinishConstructionNow or RecordNightResult or ClearTerrain or SendMissionary or SendWorldMissionary or PayTithe or MeetDemand or PleadWithLord or SetCrew or CancelConstruction or PaveRaidersRoad or SetDuty or PackUpTower or PackUpTowers)
         {
             return CommandOutcome.Reject("Not now — there's a Night on.") with { Version = Version };
         }
@@ -572,6 +583,8 @@ public sealed partial class BaseState
             DebugEndShield _ => EndShield(nowUtc),
             SetCrew crew => ChooseCrew(crew),
             SetDuty duty => ChooseDuty(duty),
+            PackUpTower pack => PackUp(Find(pack.BuildingId)),
+            PackUpTowers _ => PackUpAll(),
             SendMissionary send => SendOut(send, nowUtc),
             SendWorldMissionary send => SendOutInWorld(send, nowUtc),
             JoinWorld join => Join(join, nowUtc),
@@ -618,7 +631,7 @@ public sealed partial class BaseState
         var tension = TensionValue(nowUtc);
         return new BaseSnapshot(Version, nowUtc, HearthLevel, _stock, Caps, views, SluiceBonus, LastNightRecorded,
             tension, _table.Tension.StateOf(tension), _raid?.WarningEndsAtUtc, _shieldEndsAt > nowUtc ? _shieldEndsAt : null, _night, _unseenReport, _cleared.Concat(_treeCuts.Keys.Where(t => !IsWildTreeStanding(t))).ToList(),
-            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts(), IdleVillagers(), DailyViewAt(nowUtc), _raidersRoad, NextRoad);
+            _population, Beds(), _cold, ErrandNow(), Comfort(), DomainViewAt(nowUtc), ResearchViews(), ComfortParts(), IdleVillagers(), DailyViewAt(nowUtc), _raidersRoad, NextRoad, _stowed.ToList());
     }
 
     public ResourceBag Caps
@@ -715,7 +728,8 @@ public sealed partial class BaseState
             return CommandOutcome.Reject($"No room for another {spec.Name} until the Hearth grows.");
         }
 
-        if (spec.IsTower && TowerCount >= _table.TowerCap(HearthLevel))
+        var unpacked = spec.IsTower ? Unpack(command.Type) : null;
+        if (spec.IsTower && unpacked == null && TowerCount >= _table.TowerCap(HearthLevel))
         {
             return CommandOutcome.Reject($"{_table.TowerCap(HearthLevel)} towers is all this Hearth can keep. Upgrade one, or grow the Hearth.");
         }
@@ -732,15 +746,22 @@ public sealed partial class BaseState
             return CommandOutcome.Reject(reason);
         }
 
-        var cost = spec.Levels[0].Cost;
+        var cost = unpacked != null ? default : spec.Levels[0].Cost; // a packed-up tower is set down for free
         if (!_stock.Covers(cost))
         {
             return CommandOutcome.Reject($"Need {_stock.Missing(cost)} more.");
         }
 
         _stock -= cost;
-        var building = new Building(_nextId++, command.Type, command.Position, instant ? 1 : 0, now,
-            Footprint.Tiles(spec, command.Position, command.Rotated), command.Rotated, command.Flipped);
+        var building = new Building(_nextId++, command.Type, command.Position, unpacked?.Level ?? (instant ? 1 : 0), now,
+            Footprint.Tiles(spec, command.Position, command.Rotated), command.Rotated, command.Flipped)
+        {
+            Wrecked = unpacked?.Wrecked ?? false,
+        };
+        if (unpacked != null)
+        {
+            _stowed.Remove(unpacked);
+        }
         if (!instant)
         {
             building.UpgradeEndsAtUtc = now.AddSeconds(BuildSeconds(spec.Levels[0].BuildSeconds));
@@ -1786,8 +1807,40 @@ public sealed partial class BaseState
     /// <summary>Villagers at home with no work: what's left after every crew is filled.</summary>
     private int IdleVillagers() => Math.Max(0, _population - MissionariesAway - _buildings.Sum(CrewOf));
 
-    /// <summary>Towers standing, every kind together (the Hearth's cap counts these).</summary>
-    public int TowerCount => _buildings.Count(b => _table.Spec(b.Type).IsTower);
+    /// <summary>Towers standing or packed up, every kind together (the Hearth's cap counts these).</summary>
+    public int TowerCount => _buildings.Count(b => _table.Spec(b.Type).IsTower) + _stowed.Count;
+
+    private CommandOutcome PackUp(Building? tower)
+    {
+        if (tower == null || !_table.Spec(tower.Type).IsTower)
+        {
+            return CommandOutcome.Reject("Only towers fold up.");
+        }
+
+        _stowed.Add(new StowedTower(tower.Type, tower.Level, tower.Wrecked));
+        _buildings.Remove(tower);
+        return CommandOutcome.Accept();
+    }
+
+    private CommandOutcome PackUpAll()
+    {
+        var towers = _buildings.Where(b => _table.Spec(b.Type).IsTower).OrderBy(b => b.Id).ToList();
+        if (towers.Count == 0)
+        {
+            return CommandOutcome.Reject("No towers standing to pack up.");
+        }
+
+        foreach (var tower in towers)
+        {
+            PackUp(tower);
+        }
+
+        return CommandOutcome.Accept();
+    }
+
+    /// <summary>The packed-up tower of this kind to set down: the best level, a sound one before a wreck.</summary>
+    private StowedTower? Unpack(BuildingType type) =>
+        _stowed.Where(t => t.Type == type).OrderBy(t => t.Wrecked).ThenByDescending(t => t.Level).FirstOrDefault();
 
     private CommandOutcome ChooseDuty(SetDuty command)
     {

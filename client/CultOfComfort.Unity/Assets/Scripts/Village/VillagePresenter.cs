@@ -30,6 +30,9 @@ namespace CultOfComfort.Client
         /// <summary>The card is the raiders' road: its upgrade button paves it.</summary>
         public bool IsRaidersRoad;
 
+        /// <summary>A tower: it can be packed up (and every tower with it).</summary>
+        public bool CanPackUp;
+
         /// <summary>A Guardhouse's duty button ("On duty: manning the towers · send them out"); null: not a Guardhouse.</summary>
         public string DutyLabel;
 
@@ -95,17 +98,19 @@ namespace CultOfComfort.Client
                 var cost = spec.Levels[0].Cost;
                 var count = snapshot.Buildings.Count(b => b.Type == spec.Type);
                 var towers = snapshot.Buildings.Count(b => table.Spec(b.Type).IsTower);
-                var capped = spec.IsTower && towers >= table.TowerCap(snapshot.HearthLevel);
+                var packed = (snapshot.Stowed ?? Array.Empty<StowedTower>()).Count(t => t.Type == spec.Type);
+                towers += (snapshot.Stowed ?? Array.Empty<StowedTower>()).Count;
+                var capped = spec.IsTower && packed == 0 && towers >= table.TowerCap(snapshot.HearthLevel);
                 var locked = snapshot.HearthLevel < spec.UnlockHearth || count >= spec.MaxCount(snapshot.HearthLevel) || capped;
                 return new BuildCardModel
                 {
-                    Type = spec.Type, Name = spec.Name, Icon = IconFor(spec.Type), Cost = ShortCost(cost),
+                    Type = spec.Type, Name = spec.Name, Icon = IconFor(spec.Type), Cost = packed > 0 ? $"free · {packed} packed" : ShortCost(cost),
                     Time = spec.Levels[0].BuildSeconds == 0 ? "instant" : Duration(spec.Levels[0].BuildSeconds),
                     Locked = locked,
                     LockText = snapshot.HearthLevel < spec.UnlockHearth ? $"Hearth {spec.UnlockHearth}"
                         : capped ? $"{towers}/{table.TowerCap(snapshot.HearthLevel)} towers"
                         : locked ? "Max built" : string.Empty,
-                    Affordable = snapshot.Stock.Covers(cost),
+                    Affordable = packed > 0 || snapshot.Stock.Covers(cost),
                     Size = spec.Width == 1 && spec.Depth == 1 ? string.Empty : $"{spec.Width}×{spec.Depth}",
                     Category = Category(spec.Type),
                 };
@@ -166,6 +171,7 @@ namespace CultOfComfort.Client
                 HurryLabel = b.IsUpgrading && snapshot.Daily != null ? $"Hurry {DailyBook.HurryMinutes} min · {DailyBook.HurryCost} Towel ({snapshot.Daily.Towels} left)" : null,
                 CanHurry = b.IsUpgrading && snapshot.Daily != null && snapshot.Daily.Towels >= DailyBook.HurryCost,
                 Remaining = b.IsUpgrading ? Duration((long)(b.UpgradeEndsAtUtc.Value - snapshot.AsOfUtc).TotalSeconds) + " left" : string.Empty,
+                CanPackUp = spec.IsTower,
                 DutyLabel = b.Type == BuildingType.Guardhouse && b.Level > 0 && !b.Wrecked
                     ? (b.Patrol ? "Man the towers instead" : "Send them out to fight instead")
                     : null,

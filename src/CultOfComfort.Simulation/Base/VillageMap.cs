@@ -69,23 +69,67 @@ public sealed record VillageMap(
     /// The muddy valley. Building the village is the heart of the game, so there is room: 30×20 open at Hearth 1,
     /// 38×26 at Hearth 2, the whole 48×32 at Hearth 3. The road between spawn and Hearth never changes.
     /// </summary>
-    public static VillageMap Demo { get; } = new(48, 32, new GridPosition(0, 1), new GridPosition(17, 9), DemoRocks(), new[]
+    public static VillageMap Demo { get; } = new(68, 48, new GridPosition(0, 1), new GridPosition(17, 9), DemoRocks(), new[]
     {
         new MapZone(0, 20, 37, 25, 2),
         new MapZone(30, 0, 37, 19, 2),
         new MapZone(0, 26, 47, 31, 3),
         new MapZone(38, 0, 47, 25, 3),
+        // Spec 2026-10-20 river: the near bank opens at Hearth 4, down to the water; the river and the far bank are
+        // the raiders' country and never open.
+        new MapZone(0, 32, 52, 35, 4),
+        new MapZone(48, 0, 52, 31, 4),
+        new MapZone(0, 36, 67, 47, Wild),
+        new MapZone(53, 0, 67, 35, Wild),
     }, DemoBoulders, SpawnClearance: 3)
     {
         HearthSize = 4,
+        River = DemoRiver,
         // Spec 2026-10-20 defence: more roads as the Hearth grows, so no one layout covers every Night. Laid over open
         // ground and the village's own tracks, round the rock and the boulders.
         Routes = new[]
         {
-            new RaiderRoute("south road", 2, new GridPosition[] { new(28, 25), new(28, 13), new(19, 13), new(19, 9), new(17, 9) }),
-            new RaiderRoute("east road", 3, new GridPosition[] { new(47, 17), new(28, 17), new(28, 13), new(19, 13), new(19, 9), new(17, 9) }),
+            // From the far bank, over a bridge, through the forest to the village (owner 2026-10-20: "the south and east
+            // roads should actually start on the other sides of our river").
+            new RaiderRoute("south road", 2, new GridPosition[] { new(28, 47), new(28, 13), new(19, 13), new(19, 9), new(17, 9) }),
+            new RaiderRoute("east road", 3, new GridPosition[] { new(67, 17), new(28, 17), new(28, 13), new(19, 13), new(19, 9), new(17, 9) }),
         },
     };
+
+    /// <summary>A zone's Hearth level for land that never opens: the river and the far bank.</summary>
+    public const int Wild = 99;
+
+    /// <summary>
+    /// The river (spec 2026-10-20 river): how far a point (tile units, tile centres on whole numbers) is from the water's
+    /// edge; negative in the water. Null: no river on this map.
+    /// </summary>
+    public Func<double, double, double>? River { get; init; }
+
+    private HashSet<GridPosition>? _water;
+
+    /// <summary>Tiles whose middle is in the river. Bridges are the road tiles among them.</summary>
+    public HashSet<GridPosition> Water => _water ??= River == null ? new HashSet<GridPosition>()
+        : new HashSet<GridPosition>(Enumerable.Range(0, Width * Height).Select(i => new GridPosition(i % Width, i / Width)).Where(t => River(t.X, t.Y) < 0));
+
+    public bool IsBridge(GridPosition tile) => Water.Contains(tile) && AllRoadTiles.Contains(tile);
+
+    /// <summary>
+    /// The demo valley's river: in from the west below the village, a band three to four tiles wide winding east along
+    /// rows 36–42, round a bend and north up columns 53–59 to the top. Pure maths, so the ground painter draws its banks
+    /// smooth and the simulation knows its tiles.
+    /// </summary>
+    private static double DemoRiver(double x, double y)
+    {
+        double South(double px) => 39.0 + Math.Sin(px * 0.21) * 0.9 + Math.Sin(px * 0.07 + 1.0) * 0.4;
+        double East(double py) => 56.0 + Math.Sin(py * 0.24 + 0.5) * 0.9 + Math.Sin(py * 0.09 + 2.0) * 0.4;
+        double HalfWidth(double t) => 1.6 + Math.Sin(t * 0.15 + 2.0) * 0.35;
+        // The bend: where the east reach's line meets the south reach's; each reach runs to it, and a disc rounds it off.
+        var (cornerX, cornerY) = (East(39.0), South(56.0));
+        var south = x <= cornerX ? Math.Abs(y - South(x)) - HalfWidth(x) : double.MaxValue;
+        var east = y <= cornerY ? Math.Abs(x - East(y)) - HalfWidth(y + 40.0) : double.MaxValue;
+        var bend = Math.Sqrt((x - cornerX) * (x - cornerX) + (y - cornerY) * (y - cornerY)) - HalfWidth(cornerX);
+        return Math.Min(south, Math.Min(east, bend));
+    }
 
     /// <summary>Roads beyond the first (<see cref="Road"/>), each opening at its Hearth level.</summary>
     public IReadOnlyList<RaiderRoute> Routes { get; init; } = Array.Empty<RaiderRoute>();
@@ -189,6 +233,7 @@ public sealed record VillageMap(
     private IReadOnlyList<GridPosition> ComputeWildTrees()
     {
         var road = AllRoadTiles;
+        var water = Water;
         var trees = new List<GridPosition>();
         for (var y = 0; y < Height; y++)
         {
@@ -197,7 +242,7 @@ public sealed record VillageMap(
                 var tile = new GridPosition(x, y);
                 var hash = (x * 73856093) ^ (y * 19349663) ^ 0x2545F491;
                 var nearHearth = DistanceFromHearth(tile) <= 1;
-                if ((hash & 0x7fffffff) % 12 == 5 && !road.Contains(tile) && !Rocks.Contains(tile) && !IsInSpawnClearance(tile) && !nearHearth && !IsSpawn(tile))
+                if ((hash & 0x7fffffff) % 12 == 5 && !road.Contains(tile) && !water.Contains(tile) && OpensAt(tile) < Wild && !Rocks.Contains(tile) && !IsInSpawnClearance(tile) && !nearHearth && !IsSpawn(tile))
                 {
                     trees.Add(tile);
                 }
@@ -472,7 +517,7 @@ public sealed record VillageMap(
         }
 
         // The eastern wall runs to the southern edge, so the land that opens at Hearth 2 is no shortcut for raiders.
-        for (var y = 3; y <= 31; y++)
+        for (var y = 3; y <= 35; y++) // down to the river (spec 2026-10-20 river)
         {
             rocks.Add(new GridPosition(11, y));
         }
@@ -486,6 +531,9 @@ public sealed record VillageMap(
             new GridPosition(20, 5), new GridPosition(14, 16), new GridPosition(26, 12), new GridPosition(7, 18),
             new GridPosition(34, 8), new GridPosition(20, 23), new GridPosition(42, 18), new GridPosition(31, 28),
             new GridPosition(8, 27), new GridPosition(45, 4),
+
+            // The river country (Hearth 4): crags on the near bank.
+            new GridPosition(40, 33), new GridPosition(41, 33), new GridPosition(41, 34), new GridPosition(17, 34), new GridPosition(50, 8), new GridPosition(50, 9),
         });
         return rocks;
     }

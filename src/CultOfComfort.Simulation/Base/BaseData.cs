@@ -34,7 +34,11 @@ public sealed record BaseData(
     IReadOnlyList<long>? StockFractions = null,
     DailyData? Daily = null,
     string? ErrandId = null,
-    int RaidersRoad = 0);
+    int RaidersRoad = 0,
+    IReadOnlyList<StowedTower>? Stowed = null);
+
+/// <summary>A tower packed up (spec 2026-10-20 river): set down again for free, at its level, wrecked or not.</summary>
+public sealed record StowedTower(BuildingType Type, int Level, bool Wrecked = false);
 
 /// <summary>A wild tree cut at <see cref="CutAtUtcTicks"/>; it grows back after the regrow time.</summary>
 public sealed record TreeCutData(int X, int Y, long CutAtUtcTicks);

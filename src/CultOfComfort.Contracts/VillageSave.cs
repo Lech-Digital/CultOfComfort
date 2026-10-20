@@ -44,7 +44,8 @@ public sealed class VillageSaveDto
     public int errandIndex; // older saves lack it: 0, so they start the errands (already-true ones are claimable at once)
     public bool errandEventDone;
     public string errandId;
-    public int raidersRoad; // pavings laid on the raiders' road (0: trodden mud) // the errand by id (errandIndex alone moved players when the book was reordered); empty: read errandIndex the old way
+    public int raidersRoad; // pavings laid on the raiders' road (0: trodden mud)
+    public List<StowedDto> stowed; // towers packed up // the errand by id (errandIndex alone moved players when the book was reordered); empty: read errandIndex the old way
     public bool hasDomain; // older saves: no Marchlands yet
     public DomainDto domain;
     public List<string> researched;   // older saves: none
@@ -264,6 +265,14 @@ public sealed class BuildingDto
     public bool flipped;
     public bool patrol; // a Guardhouse's wardens fight rather than man towers
     public int crew = -1; // the crew the player chose; -1: a full crew
+}
+
+[Serializable]
+public sealed class StowedDto
+{
+    public string type;
+    public int level;
+    public bool wrecked;
 }
 
 #pragma warning restore SA1307, SA1401, CS8618

@@ -516,6 +516,13 @@ namespace CultOfComfort.Client
         public event Action DutyClicked;
         private Button _duty;
 
+        /// <summary>Pack this tower up / pack every tower up (spec 2026-10-20 river).</summary>
+        public event Action PackUpClicked;
+        public event Action PackUpAllClicked;
+        private Button _packUp;
+        private Button _packAll;
+        private VisualElement _packRow;
+
         private Button _hurry;
         public event Action RepairClicked;
 
@@ -771,6 +778,7 @@ namespace CultOfComfort.Client
             Show(_cancelBuild, card.CancelLabel != null);
             _cancelBuild.text = card.CancelLabel ?? string.Empty;
             Show(_duty, card.DutyLabel != null);
+            Show(_packRow, card.CanPackUp);
             _duty.text = card.DutyLabel ?? string.Empty;
             Show(_demolish, card.CanDemolish);
             _demolish.text = card.DemolishLabel;
@@ -1542,6 +1550,18 @@ namespace CultOfComfort.Client
             _cancelBuild.name = "cancel-build";
             _duty = ButtonWith(string.Empty, () => DutyClicked?.Invoke(), "plain", "wrap");
             _duty.name = "duty";
+            _packUp = ButtonWith("Pack up", () => PackUpClicked?.Invoke(), "plain");
+            _packUp.name = "pack-up";
+            _packAll = ButtonWith("Pack up all", () => PackUpAllClicked?.Invoke(), "plain");
+            _packAll.name = "pack-all";
+            _packRow = new VisualElement { name = "pack-row" };
+            _packRow.style.flexDirection = FlexDirection.Row;
+            foreach (var b in new[] { _packUp, _packAll })
+            {
+                b.style.flexGrow = 1;
+                b.style.flexBasis = 0;
+                _packRow.Add(b);
+            }
             demolish = ButtonWith("Demolish", () => DemolishClicked?.Invoke(), "plain");
             demolish.name = "demolish";
             _move = ButtonWith("Move", () => MoveClicked?.Invoke(), "plain");
@@ -1573,7 +1593,7 @@ namespace CultOfComfort.Client
                 BuildingCardClosed?.Invoke();
             }, "plain");
             close.name = "card-close";
-            foreach (var element in new VisualElement[] { title, output, ready, _crewRow, _duty, remaining, _repair, upgrade, _hurry, _cancelBuild, finishNow, _move, demolish, close })
+            foreach (var element in new VisualElement[] { title, output, ready, _crewRow, _duty, remaining, _repair, upgrade, _hurry, _cancelBuild, finishNow, _move, _packRow, demolish, close })
             {
                 sheet.Add(element);
             }
