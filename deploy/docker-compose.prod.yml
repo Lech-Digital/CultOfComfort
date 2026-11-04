@@ -1,7 +1,7 @@
 # Cult of Comfort game server — production stack.
 #
-# Runs beside Coldstart, PurePrep, CoreChoice and Coo on the shared Hetzner host, behind Coldstart's Caddy (the
-# `coldstart_default` network), which does TLS and routing:
+# Runs beside Coldstart, PurePrep, CoreChoice and Coo on the shared Hetzner host, behind the edge Caddy (Lech-Digital/lechdigital-infra) (the
+# `lechdigital_edge` network), which does TLS and routing:
 #   api.cultofcomfort.lechdigital.nl { reverse_proxy cultofcomfort-api:8080 }
 #
 # The service and container are called "cultofcomfort-api" on purpose: Compose publishes the service name as a DNS
@@ -18,7 +18,8 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
-    image: cultofcomfort-api
+    # Tagged with the commit by the deploy workflow (lechdigital-infra); a build on the server makes :latest.
+    image: cultofcomfort-api:${IMAGE_TAG:-latest}
     container_name: cultofcomfort-api
     restart: unless-stopped
     # Secrets that never go through git or the deploy rsync (Village__DevKey: the owner's testing gate, ADR 0007).
@@ -34,12 +35,12 @@ services:
     volumes:
       - cultofcomfort-data:/data
     networks:
-      - coldstart_default
+      - lechdigital_edge
     expose:
       - "8080"
 
 networks:
-  coldstart_default:
+  lechdigital_edge:
     external: true
 
 volumes:

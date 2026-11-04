@@ -11,7 +11,7 @@
 #
 set -euo pipefail
 
-HOST="${COC_HOST:-coldstart-prod}"
+HOST="${COC_HOST:-lechdigital-prod}"
 PUBLIC_URL="${COC_PUBLIC_URL:-https://api.cultofcomfort.lechdigital.nl}"
 REMOTE_DIR="${COC_REMOTE_DIR:-/opt/cultofcomfort}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -48,7 +48,7 @@ ssh "$HOST" "cd $REMOTE_DIR && docker compose -f deploy/docker-compose.prod.yml 
 echo "==> Waiting for health (inside the Docker network)"
 for _ in $(seq 1 30); do
   sleep 2
-  if ssh "$HOST" "docker run --rm --network coldstart_default curlimages/curl:8.10.1 -sf -m 5 http://cultofcomfort-api:8080/health" >/dev/null 2>&1; then
+  if ssh "$HOST" "docker run --rm --network lechdigital_edge curlimages/curl:8.10.1 -sf -m 5 http://cultofcomfort-api:8080/health" >/dev/null 2>&1; then
     echo "    Healthy inside the network."
     if curl -sf -m 10 "$PUBLIC_URL/health" >/dev/null 2>&1; then
       echo "    Healthy at $PUBLIC_URL: $(curl -s -m 10 "$PUBLIC_URL/health")"

@@ -1,0 +1,22 @@
+# Deploys CultOfComfort to lechdigital-prod on every push to main (work happens on branches; merging is the approval) and on
+# "Run workflow": (this repository has no CI yet, so no tests run first), then Lech-Digital/lechdigital-infra's deploy-app builds the image on GitHub, streams it to the
+# server and waits for https://api.cultofcomfort.lechdigital.nl/health. Its /health does not report the commit yet, so an HTTP 200 is enough.
+name: Deploy (production)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    uses: Lech-Digital/lechdigital-infra/.github/workflows/deploy-app.yml@main
+    with:
+      app: cultofcomfort
+      image: cultofcomfort-api
+      health-url: https://api.cultofcomfort.lechdigital.nl/health
+      health-reports-commit: false
+    secrets: inherit
