@@ -91,8 +91,14 @@ namespace CultOfComfort.Editor
             ProjectSetup.EnsureAssets();
             var android = NamedBuildTarget.Android;
             PlayerSettings.SetApplicationIdentifier(android, "com.lechdigital.cultofcomfort");
-            PlayerSettings.SetScriptingBackend(android, ScriptingImplementation.IL2CPP); // Required for ARM64.
-            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+            PlayerSettings.SetScriptingBackend(android, ScriptingImplementation.IL2CPP); // Required for ARM64 and x86_64.
+            // -emulator: x86_64 only, for an x86_64 emulator on a Linux/Intel host (never shipped).
+            var emulator = Environment.GetCommandLineArgs().Contains("-emulator");
+            PlayerSettings.Android.targetArchitectures = emulator ? AndroidArchitecture.X86_64 : AndroidArchitecture.ARM64;
+            // The emulator build also keeps IL2CPP light (less generated C++, an unoptimised compile): it must fit in RAM
+            // beside the emulator on a 16 GB machine.
+            PlayerSettings.SetIl2CppCodeGeneration(android, emulator ? Il2CppCodeGeneration.OptimizeSize : Il2CppCodeGeneration.OptimizeSpeed);
+            PlayerSettings.SetIl2CppCompilerConfiguration(android, emulator ? Il2CppCompilerConfiguration.Debug : Il2CppCompilerConfiguration.Release);
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel26;
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.AutoRotation;
             PlayerSettings.allowedAutorotateToPortrait = true;

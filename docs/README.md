@@ -34,3 +34,8 @@ Mobile F2P base-building / tower-defense. A cynical time traveler stuck in the D
 
 ### Planning
 - [Backlog & Open Questions](backlog.md)
+
+### Playtests
+| Date | Notes |
+|---|---|
+| 2026-11-17 | [Emulator playtest of 0.1.0](playtests/2026-11-17-emulator-playtest.md), fresh install to Hearth 2, and its [design review](playtests/2026-11-17-design-review.md) (HUD, overlapping screens, the Night) |
