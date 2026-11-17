@@ -115,6 +115,26 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
+        public void Step_BuildErrandAtHearthThree_CoachIsOver()
+        {
+            // Act — playtest 2026-11-17: "Tap the Cottage card" still pointed at Hearth 5.
+            var step = TutorialCoach.Step(Errand(Index("cottage")), null, Nothing, Table, hearthLevel: TutorialCoach.QuietFromHearth);
+
+            // Assert
+            Assert.AreSame(CoachStep.None, step);
+        }
+
+        [Test]
+        public void Step_BuildErrandAtHearthTwo_StillPoints()
+        {
+            // Act
+            var step = TutorialCoach.Step(Errand(Index("cottage")), null, Nothing, Table, hearthLevel: 2);
+
+            // Assert
+            Assert.AreEqual(CoachTarget.BuildCard, step.Target);
+        }
+
+        [Test]
         public void Step_RaiseTheHearth_PointsAtTheHearth()
         {
             // Arrange

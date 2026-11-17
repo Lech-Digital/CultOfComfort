@@ -7,6 +7,33 @@ using CultOfComfort.Simulation.Grid;
 
 namespace CultOfComfort.Client
 {
+    /// <summary>What the big button does when tapped.</summary>
+    public enum StartAction
+    {
+        /// <summary>Light the Lamps: a real Night.</summary>
+        Lamps,
+
+        /// <summary>The next stage of the Pilgrims' Way.</summary>
+        Trial,
+
+        /// <summary>Nothing yet (build first, or shielded before the Pilgrims' Way opens): the button is muted.</summary>
+        Wait,
+    }
+
+    /// <summary>The big button at the bottom: its words and what it does.</summary>
+    public sealed class StartButtonModel
+    {
+        public StartButtonModel(string label, StartAction action)
+        {
+            Label = label;
+            Action = action;
+        }
+
+        public string Label { get; }
+
+        public StartAction Action { get; }
+    }
+
     public sealed class BuildCardModel
     {
         public BuildingType Type; public string Name; public string Icon; public string Cost; public string Time;
@@ -295,11 +322,37 @@ namespace CultOfComfort.Client
             return burned > 0 ? $"{line} ({s.Population} villagers keep warm)" : resource == ResourceType.Scrap && made == 0 ? $"{line} (salvage from Nights)" : line;
         }
 
-        public static string StartLabel(BaseSnapshot s) => s.RaidWarningEndsAtUtc != null
-            ? $"Face the raid · {Duration((long)(s.RaidWarningEndsAtUtc.Value - s.AsOfUtc).TotalSeconds)} left"
-            : s.ShieldEndsAtUtc != null
-                ? $"Shielded · {Duration((long)(s.ShieldEndsAtUtc.Value - s.AsOfUtc).TotalSeconds)}"
-                : "Light the Lamps (early)";
+        /// <summary>
+        /// The Pilgrims' Way opens with the first Night seen through (spec 2026-11-17 fun first, A1): it's the fight you can
+        /// have while the shield is up. A village already at Hearth 2 had it before, and keeps it.
+        /// </summary>
+        public static bool TrialsOpen(BaseSnapshot s) => s.LastNightRecorded >= 1 || s.HearthLevel >= 2;
+
+        /// <summary>
+        /// The big button says what you can do now (spec 2026-11-17 fun first, A1): face the raid; build first (muted);
+        /// walk the Pilgrims' Way while shielded; or light the Lamps early. The shield's clock is on the Tension strip.
+        /// </summary>
+        public static StartButtonModel Start(BaseSnapshot s, bool lampsWait)
+        {
+            if (s.RaidWarningEndsAtUtc != null)
+            {
+                return new StartButtonModel($"Face the raid · {Duration((long)(s.RaidWarningEndsAtUtc.Value - s.AsOfUtc).TotalSeconds)} left", StartAction.Lamps);
+            }
+
+            if (lampsWait)
+            {
+                return new StartButtonModel("Lamps can wait · build first", StartAction.Wait);
+            }
+
+            if (s.ShieldEndsAtUtc != null)
+            {
+                return TrialsOpen(s) && s.Trial != null
+                    ? new StartButtonModel($"Pilgrims' Way · stage {s.Trial.NextStage}", StartAction.Trial)
+                    : new StartButtonModel($"Shielded · {Duration((long)(s.ShieldEndsAtUtc.Value - s.AsOfUtc).TotalSeconds)}", StartAction.Wait);
+            }
+
+            return new StartButtonModel("Light the Lamps (early)", StartAction.Lamps);
+        }
 
         /// <summary>The card for a wild tree or loose boulder on the tile, or null (nothing there, or bedrock).</summary>
         public static BuildingCardModel TerrainCard(BaseSnapshot s, VillageMap map, BuildingTable table, CultOfComfort.Simulation.Grid.GridPosition tile)

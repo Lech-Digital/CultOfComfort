@@ -217,6 +217,43 @@ namespace CultOfComfort.Client.Tests
         }
     
         [Test]
+        public void Start_ShieldedAfterTheFirstNight_OffersThePilgrimsWay()
+        {
+            // Arrange — playtest 2026-11-17: the big button was a dead 12-hour clock after the first Night.
+            var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
+            state.Apply(new BeginNight(Guid.NewGuid()), T0);
+            state.Apply(new ResolveNight(Guid.NewGuid(), 1, Array.Empty<CultOfComfort.Simulation.Combat.PlayerInput>()), T0);
+
+            // Act
+            var start = VillagePresenter.Start(state.Snapshot(T0.AddHours(1)), false);
+
+            // Assert
+            Assert.AreEqual(StartAction.Trial, start.Action);
+            Assert.AreEqual("Pilgrims' Way · stage 1", start.Label);
+        }
+
+        [Test]
+        public void Start_BeforeTheFirstNightErrand_WaitsMuted()
+        {
+            // Act
+            var start = VillagePresenter.Start(Fresh(), lampsWait: true);
+
+            // Assert
+            Assert.AreEqual(StartAction.Wait, start.Action);
+            Assert.AreEqual("Lamps can wait · build first", start.Label);
+        }
+
+        [Test]
+        public void Start_CalmAndUnshielded_LightsTheLamps()
+        {
+            // Act
+            var start = VillagePresenter.Start(Fresh(), false);
+
+            // Assert
+            Assert.AreEqual(StartAction.Lamps, start.Action);
+        }
+
+        [Test]
         public void TensionNote_States_ReadLikeTheSpec()
         {
             // Arrange
@@ -234,9 +271,8 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("Wulfric's men are coming · 7h 12m", VillagePresenter.TensionNote(raided.Snapshot(T0.AddMinutes(48))));
             Assert.AreEqual("Punitive raid · 8h 00m", VillagePresenter.TensionNote(punitive.Snapshot(T0)));
             Assert.AreEqual("Shielded · 11h 00m", VillagePresenter.TensionNote(shielded.Snapshot(T0.AddHours(1))));
-            Assert.AreEqual("Face the raid · 7h 12m left", VillagePresenter.StartLabel(raided.Snapshot(T0.AddMinutes(48))));
-            Assert.AreEqual("Light the Lamps (early)", VillagePresenter.StartLabel(calm.Snapshot(T0)));
-            Assert.AreEqual("Shielded · 11h 00m", VillagePresenter.StartLabel(shielded.Snapshot(T0.AddHours(1))), "no early Night during the shield");
+            Assert.AreEqual("Face the raid · 7h 12m left", VillagePresenter.Start(raided.Snapshot(T0.AddMinutes(48)), false).Label);
+            Assert.AreEqual("Light the Lamps (early)", VillagePresenter.Start(calm.Snapshot(T0), false).Label);
             var frame = VillagePresenter.Frame(raided.Snapshot(T0));
             Assert.IsFalse(frame.TensionIsDemo);
             Assert.AreEqual(75f / 150f, frame.Tension, 0.001f);

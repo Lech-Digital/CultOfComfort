@@ -13,7 +13,8 @@ KIT_DIR = os.path.join(UI_DIR, "Kit")
 STAMP_FONT = os.path.join(UI_DIR, "Fonts", "ImFellEnglishSC.ttf")
 
 NAMES = ("parchment", "parchment_dark", "note_yellow", "note_pink", "note_green", "note_blue", "tape_a", "tape_b",
-         "hazard", "scribble_underline", "scribble_circle", "padlock", "stamp_verified", "stamp_mismatch")
+         "hazard", "scribble_underline", "scribble_circle", "padlock", "stamp_verified", "stamp_mismatch",
+         "star_on", "star_off")
 
 
 def _rounded_mask(size, radius):
@@ -150,6 +151,29 @@ def _stamp(text, colour, seed):
     return im.rotate(-7, resample=Image.BICUBIC, expand=True)
 
 
+def _star(filled, size=128):
+    """A chunky five-pointed star with a dark ink outline: gold when earned, a pale hollow when not (the Dawn card)."""
+    scale = 4  # drawn large, then scaled down for smooth edges
+    big = size * scale
+    im = Image.new("RGBA", (big, big), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(im)
+    cx = cy = big / 2
+    outer, inner = big * 0.46, big * 0.21
+    points = []
+    for i in range(10):
+        r = outer if i % 2 == 0 else inner
+        a = -math.pi / 2 + i * math.pi / 5
+        points.append((cx + r * math.cos(a), cy + 0.04 * big + r * math.sin(a)))
+    fill = (232, 186, 74, 255) if filled else (241, 226, 191, 140)
+    ink = (74, 44, 20, 255) if filled else (138, 106, 58, 200)
+    draw.polygon(points, fill=fill)
+    draw.line(points + [points[0]], fill=ink, width=int(big * 0.05), joint="curve")
+    if filled:  # a soft highlight on the upper left arms
+        glint = [(cx - big * 0.13, cy - big * 0.12), (cx - big * 0.03, cy - big * 0.28), (cx + big * 0.01, cy - big * 0.13)]
+        draw.polygon(glint, fill=(255, 236, 170, 200))
+    return im.resize((size, size), Image.LANCZOS)
+
+
 def _build():
     return {
         "parchment": _sheet(1, (241, 226, 191), (205, 175, 120), (138, 59, 34)),
@@ -166,6 +190,8 @@ def _build():
         "padlock": _padlock(),
         "stamp_verified": _stamp("VERIFIED", (47, 122, 58), 11),
         "stamp_mismatch": _stamp("MISMATCH", (168, 50, 42), 12),
+        "star_on": _star(True),
+        "star_off": _star(False),
     }
 
 

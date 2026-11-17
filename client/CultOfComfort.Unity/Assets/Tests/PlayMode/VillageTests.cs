@@ -29,12 +29,24 @@ namespace CultOfComfort.Client.Tests
         public void SetUp()
         {
             _clock = new Clock();
+            ForgetShortcuts();
             var store = new Store();
             VillageComposition.Override = () => new LocalBaseGateway(store, _clock, BuildingTable.Default, VillageMap.Demo, _ => { });
         }
 
         [TearDown]
-        public void TearDown() => VillageComposition.Override = null;
+        public void TearDown()
+        {
+            VillageComposition.Override = null;
+            ForgetShortcuts();
+        }
+
+        /// <summary>Which side shortcuts were shown and tried lives on the device: each test starts without it.</summary>
+        private static void ForgetShortcuts()
+        {
+            PlayerPrefs.DeleteKey(GameController.ShownFeaturesKey);
+            PlayerPrefs.DeleteKey(GameController.TriedFeaturesKey);
+        }
 
         private static IEnumerator Frames(int n) { for (var i = 0; i < n; i++) yield return null; }
 
@@ -318,6 +330,7 @@ namespace CultOfComfort.Client.Tests
             state.Apply(new DebugFillStores(Guid.NewGuid()), _clock.UtcNow.AddHours(1));
             var store = new Store { Saved = state.ToData() };
             _clock.UtcNow = _clock.UtcNow.AddHours(1);
+            PlayerPrefs.SetString(GameController.TriedFeaturesKey, "pilgrims"); // the Map comes after the Pilgrims' Way (spec 2026-11-17 A3)
             VillageComposition.Override = () => new LocalBaseGateway(store, _clock, BuildingTable.Default, VillageMap.Demo, _ => { });
             yield return SceneManager.LoadSceneAsync("SampleScene");
             yield return Frames(4);

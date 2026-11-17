@@ -48,14 +48,15 @@ namespace CultOfComfort.Client
         }
 
         /// <param name="pointers">Positions of every pressed pointer this frame, in screen pixels.</param>
-        /// <param name="isOverUi">Gestures that start on UI are ignored entirely.</param>
+        /// <param name="isOverUi">Gestures that start on UI are ignored entirely, and a tap that ends on UI is dropped.</param>
         public GestureFrame Update(IReadOnlyList<Vector2> pointers, Func<Vector2, bool> isOverUi)
         {
             var frame = default(GestureFrame);
 
             if (pointers.Count == 0)
             {
-                if (_active && !_ignored && !_tapCancelled && _last.Count > 0)
+                // A card that opened under the finger while it was down takes the tap: it never falls through to the world.
+                if (_active && !_ignored && !_tapCancelled && _last.Count > 0 && !isOverUi(_last[0]))
                 {
                     frame.Tapped = true;
                     frame.TapPosition = _last[0];

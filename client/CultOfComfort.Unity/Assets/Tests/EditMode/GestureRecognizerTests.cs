@@ -101,6 +101,20 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
+        public void Update_CardOpensUnderTheFingerBeforeRelease_DropsTheTap()
+        {
+            // Arrange — the press lands on the world; a card opens under the finger while it's still down.
+            var recognizer = new GestureRecognizer(Slop);
+            recognizer.Update(new List<Vector2> { new Vector2(100, 100) }, _ => false);
+
+            // Act
+            var release = recognizer.Update(new List<Vector2>(), _ => true);
+
+            // Assert
+            Assert.IsFalse(release.Tapped);
+        }
+
+        [Test]
         public void Update_DragCrossesSlopAfterWobble_PansFromPressPosition()
         {
             // Arrange — finger wobbles within the slop first, then drags.

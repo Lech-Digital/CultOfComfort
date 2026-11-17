@@ -131,6 +131,8 @@ namespace CultOfComfort.Client
         private readonly Label _cardSummary;
         private readonly Label _cardFlavour;
         private readonly Label _cardStats;
+        private readonly VisualElement _cardStars;
+        private readonly Button _cardNext;
         private readonly VisualElement _stamp;
         private readonly VisualElement _bar;
         private readonly VisualElement _duskBar;
@@ -301,7 +303,7 @@ namespace CultOfComfort.Client
             _lockedNote.name = "locked-note";
             _settings = BuildSettings(out _probe);
             _buildingCard = BuildBuildingCard(out _buildingTitle, out _buildingOutput, out _buildingReady, out _buildingRemaining, out _upgrade, out _finishNow, out _demolish);
-            _card = BuildCard(out _cardTitle, out _cardSummary, out _cardFlavour, out _cardStats, out _stamp);
+            _card = BuildCard(out _cardTitle, out _cardSummary, out _cardFlavour, out _cardStats, out _stamp, out _cardStars, out _cardNext);
             _paintDone = ButtonWith("Done", () => PaintDoneClicked?.Invoke(), "plain", "rotate-button");
             _paintDone.name = "paint-done";
             Show(_paintDone, false);
@@ -555,6 +557,9 @@ namespace CultOfComfort.Client
         public event Action MoveClicked;
         public event Action RepairAllClicked;
         public event Action BackToDuskClicked;
+
+        /// <summary>The Dawn card's second button: straight on to the next Pilgrims' stage.</summary>
+        public event Action NextStageClicked;
         public event Action ResetTipsClicked;
         public event Action ReplayIntroClicked;
         public event Action DrawerToggleClicked;
@@ -1279,27 +1284,41 @@ namespace CultOfComfort.Client
             _cardFlavour.text = won
                 ? "The towers did the work. The cult slept through it and calls that faith."
                 : $"{Ruler.Cap(Ruler.Short)}'s men came, saw nobody in charge, and helped themselves.";
-            _cardStats.text = $"Played out by the village · hash {report.StateHashHex}";
+            SetStars(report.Stars);
+            _cardStats.text = _devMode ? $"Played out by the village · hash {report.StateHashHex}" : "Played out by the village";
+            Show(_stamp, _devMode); // the server's check is for us, not the player (spec 2026-11-17 fun first, A2)
             _stamp.EnableInClassList("verified", true);
             _stamp.EnableInClassList("mismatch", false);
+            Show(_cardNext, false);
         }
 
-        public void ShowDawn(BattleResult result, BattleResult serverReplay, int commands)
+        /// <summary>Lights one gold star per star earned (spec 2026-11-17 fun first, A2).</summary>
+        private void SetStars(int stars)
         {
-            var won = result.Outcome == BattleOutcome.Won;
+            for (var i = 0; i < _cardStars.childCount; i++)
+            {
+                _cardStars[i].EnableInClassList("on", i < stars);
+            }
+        }
+
+        public void ShowDawn(DawnCardModel model, BattleResult result, BattleResult serverReplay, int commands)
+        {
             var match = serverReplay == result;
             SetMeter(_hearthValue, _hearthFill, result.HearthHealth, result.HearthMaxHealth);
             _waveLabel.text = "Dawn";
-            _cardTitle.text = won ? "The Hearth stands" : "The Hearth went cold";
-            _cardSummary.text = $"Stars {result.Stars}/3 · Hearth {result.HearthHealth}/{result.HearthMaxHealth}";
-            _cardFlavour.text = won
-                ? "The attackers left damp, confused and noticeably cleaner."
-                : $"{Ruler.Cap(Ruler.Short)}'s men warmed their hands on the embers and left. Tomorrow: repairs, and a strongly worded diary entry.";
-            // The hashes are for us, not the player: the stamp says it all (spec 2026-10-16 one thing at a time).
-            _cardStats.text = $"{result.EnemiesDefeated} defeated · {result.EnemiesLeaked} reached the Hearth";
-            Debug.Log($"[CoC] Dawn: {commands} commands · client hash {result.StateHashHex} · server replay {serverReplay.StateHashHex}");
+            _cardTitle.text = model.Title;
+            SetStars(model.Stars);
+            _cardSummary.text = model.Summary;
+            _cardStats.text = string.Join("\n", model.Earned);
+            Show(_cardStats, model.Earned.Count > 0);
+            _cardFlavour.text = model.Flavour;
+            Debug.Log($"[CoC] Dawn: {commands} commands · client hash {result.StateHashHex} · server replay {serverReplay.StateHashHex} · {(match ? "verified" : "MISMATCH")}");
+            // The server's replay check is for us, not the player: the stamp shows in development builds only (spec 2026-11-17 fun first, A2).
+            Show(_stamp, _devMode);
             _stamp.EnableInClassList("verified", match);
             _stamp.EnableInClassList("mismatch", !match);
+            _cardNext.text = model.Next ?? string.Empty;
+            Show(_cardNext, model.Next != null);
         }
 
         /// <summary>The world speaks on a parchment ribbon; the Prophet (<paramref name="prophet"/>) scribbles on a sticky note.</summary>
@@ -1610,22 +1629,35 @@ namespace CultOfComfort.Client
             return sheet;
         }
 
-        private VisualElement BuildCard(out Label title, out Label summary, out Label flavour, out Label stats, out VisualElement stamp)
+        private VisualElement BuildCard(out Label title, out Label summary, out Label flavour, out Label stats, out VisualElement stamp, out VisualElement stars,
+            out Button next)
         {
             var card = Panel("card");
             card.name = "card";
             title = Text(string.Empty, "card-title");
+            stars = Container("card-stars");
+            for (var i = 0; i < 3; i++)
+            {
+                var star = Container("card-star");
+                star.EnableInClassList("middle", i == 1); // the middle one stands taller
+                stars.Add(star);
+            }
+
             summary = Text(string.Empty, "card-line");
             flavour = Text(string.Empty, "card-line");
-            stats = Text(string.Empty, "card-line", "small");
+            stats = Text(string.Empty, "card-line", "card-earned");
             stamp = Container("stamp");
             stamp.name = "stamp";
             card.Add(title);
+            card.Add(stars);
             card.Add(summary);
-            card.Add(flavour);
             card.Add(stats);
+            card.Add(flavour);
             card.Add(stamp);
             card.Add(ButtonWith("Back to Dusk", () => BackToDuskClicked?.Invoke(), "primary"));
+            next = ButtonWith(string.Empty, () => NextStageClicked?.Invoke(), "plain");
+            next.name = "card-next";
+            card.Add(next);
             return card;
         }
 

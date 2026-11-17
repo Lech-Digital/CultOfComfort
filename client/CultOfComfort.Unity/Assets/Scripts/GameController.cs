@@ -354,6 +354,7 @@ namespace CultOfComfort.Client
                     return;
                 }
 
+                MarkTried(id);
                 if (id == "research" || id == "shop" || id == "cult" || id == "prophet" || id == "pilgrims" || id == "festival")
                 {
                     CloseMap();
@@ -732,16 +733,16 @@ namespace CultOfComfort.Client
         /// </summary>
         private void OpenFeature(string id, bool open)
         {
-            if (_hud.SetFeatureOpen(id, open) && open && _featuresSeeded)
+            if (_hud.SetFeatureOpen(id, open) && open && _featuresSeeded && id != "missionaries")
             {
                 Announce(id switch
                 {
-                    "map" => "New: the Map. See the lands around you and who rules them.",
-                    "missionaries" => "New: Missionaries. Send a preacher to win a village over.",
+                    "map" => "New: the Map, and the Missionaries. See the lands around you, and send a preacher to win them over.",
+                    "missionaries" => null, // arrives with the Map, which says so
                     "tithes" => "New: Tithes. Keep the lord sweet before he sends men.",
                     "research" => "New: Research. Study better ways of doing things.",
                     "festival" => "New: the Comfort Festival. A theme a day, and rewards for joining in.",
-                    "pilgrims" => "New: the Pilgrims' Way. Challenge Nights, any time, and alms for every stage you clear.",
+                    "pilgrims" => "New: the Pilgrims' Way. Fight any time, even while shielded, and nothing gets broken.",
                     _ => $"New: {LockedFeatures.Get(id).Label}.",
                 });
             }
@@ -749,20 +750,55 @@ namespace CultOfComfort.Client
 
         private bool _featuresSeeded;
 
+        private static readonly string[] SideShortcuts = { "pilgrims", "map", "missionaries", "research", "tithes", "festival" };
+        public const string ShownFeaturesKey = "features.shown";
+        public const string TriedFeaturesKey = "features.tried";
+        private HashSet<string> _shown;
+        private HashSet<string> _tried;
+
+        /// <summary>Side shortcuts shown before: they stay (spec 2026-11-17 fun first, A3).</summary>
+        private HashSet<string> Shown => _shown ??= PrefSet(ShownFeaturesKey);
+
+        /// <summary>Side shortcuts the player has opened: the next one in the queue may come.</summary>
+        private HashSet<string> Tried => _tried ??= PrefSet(TriedFeaturesKey);
+
+        private void MarkTried(string id)
+        {
+            if (Tried.Add(id))
+            {
+                SavePrefSet(TriedFeaturesKey, Tried);
+                RefreshMap();
+            }
+        }
+
+        private static HashSet<string> PrefSet(string key) =>
+            new HashSet<string>(PlayerPrefs.GetString(key, string.Empty).Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries));
+
+        private static void SavePrefSet(string key, IEnumerable<string> values)
+        {
+            PlayerPrefs.SetString(key, string.Join(",", values));
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>What the big button says and does now (refreshed with the village).</summary>
+        private StartButtonModel _start;
+
         /// <summary>Keeps the map and sheets current while open; opens the shortcuts as the village earns them.</summary>
         private void RefreshMap()
         {
-            var open = _snapshot?.Domain?.Unlocked == true;
-            foreach (var id in new[] { "map", "missionaries", "tithes" })
-            {
-                OpenFeature(id, open);
-            }
-
-            OpenFeature("research", _snapshot != null && _snapshot.HearthLevel >= 2);
-            OpenFeature("pilgrims", _snapshot != null && _snapshot.HearthLevel >= 2);
-            OpenFeature("festival", _snapshot != null && _snapshot.HearthLevel >= 2);
             if (_snapshot != null)
             {
+                var open = FeatureUnlocks.Open(_snapshot, Shown, Tried);
+                foreach (var id in SideShortcuts)
+                {
+                    var on = open.Contains(id);
+                    OpenFeature(id, on);
+                    if (on && Shown.Add(id))
+                    {
+                        SavePrefSet(ShownFeaturesKey, Shown);
+                    }
+                }
+
                 _hud.SetFeatureBadge("festival", FeatureSheetPresenter.FestivalReady(_snapshot));
             }
             _featuresSeeded |= _snapshot != null;
@@ -1840,9 +1876,9 @@ namespace CultOfComfort.Client
             var dusk = _phase == GamePhase.Dusk;
             _hud.ShowPaintDone(dusk && _buildSelection != null && BuildingTable.IsPaintable(_buildSelection.Value));
             _hud.ShowRepairAll(dusk && _tool == null ? VillagePresenter.RepairAllLabel(_snapshot, BuildingTable.Default) : null);
-            var lampsWait = LampsWait();
-            _hud.SetStartLabel(lampsWait ? "Lamps can wait · build first" : VillagePresenter.StartLabel(_snapshot));
-            _hud.SetStartWaiting(lampsWait);
+            _start = VillagePresenter.Start(_snapshot, LampsWait());
+            _hud.SetStartLabel(_start.Label);
+            _hud.SetStartWaiting(_start.Action == StartAction.Wait);
             _hud.ShowErrand(dusk && _tool == null ? ErrandNote.From(_snapshot.Errand) : null); // placing: the note steps aside for the ghost
             _hud.ShowDaily(dusk && _tool == null && _snapshot.Errand == null ? DailyNote.From(_snapshot.Daily, _snapshot.AsOfUtc) : null);
             _board.SetCosmetics(_snapshot.Daily?.Cosmetics);
@@ -1876,7 +1912,7 @@ namespace CultOfComfort.Client
                 card.CancelLabel = "Sure? Tap again to cancel"; // the warning on the button itself: a toast hides behind the card
             }
 
-            _hud.ShowBuildingCard(card);
+            _hud.ShowBuildingCard(_phase == GamePhase.Dusk ? card : null); // a card never rides over a Night or the Dawn card
             if (_tool == null)
             {
                 var shown = hasCard ? _snapshot.Building(_cardBuilding.Value) : null;
@@ -1923,6 +1959,8 @@ namespace CultOfComfort.Client
             _hud.ShowDaily(null);
             _hud.ShowRepairAll(null);
             _cardBuilding = null;
+            _cardTerrain = null; // playtest 2026-11-17: a tree's card left open came back over the Dawn card
+            _cardVisitor = false;
             _hud.ShowBuildingCard(null);
             _board.ClearStructureHealth();
             FrameRateLogger.Mark("BeginFight");
@@ -2117,6 +2155,7 @@ namespace CultOfComfort.Client
                     return;
                 }
 
+                MarkTried("pilgrims"); // walked from the big button counts too: the next shortcut may come
                 var outcome = await SendVillage(new BeginTrial(Guid.NewGuid()));
                 if (outcome.Status == CommandStatus.Accepted)
                 {
@@ -2166,10 +2205,34 @@ namespace CultOfComfort.Client
                 VillageFailed(e);
             }
 
-            _hud.ShowDawn(_battle.Result, LastNightVerified == true ? _battle.Result : (_serverReplay ?? _battle.Result) with { StateHash = 0 }, _battle.InputLog.Count);
+            var dawn = DawnCard.Build(_battle.Result, _lastReport, _trialMode ? _plan.Night : (int?)null, _trialOutcome?.Collected ?? default, NextStageAfterDawn(),
+                Ruler.Cap(Ruler.Short));
+            _hud.ShowDawn(dawn, _battle.Result, LastNightVerified == true ? _battle.Result : (_serverReplay ?? _battle.Result) with { StateHash = 0 }, _battle.InputLog.Count);
         }
 
-        private async void BackToDusk()
+        /// <summary>The Pilgrims' stage the Dawn card offers next, or null (spec 2026-11-17 fun first, A2).</summary>
+        private int? NextStageAfterDawn()
+        {
+            if (_trialMode)
+            {
+                var cleared = (_trialOutcome?.Report?.Stars ?? 0) >= 1;
+                return cleared ? _plan.Night + 1 : _plan.Night;
+            }
+
+            // After a real Night the village is shielded, and the Pilgrims' Way is open from the first one on.
+            return _battle?.Result.Outcome == BattleOutcome.Won ? _snapshot?.Trial?.NextStage ?? 1 : (int?)null;
+        }
+
+        private async void BackToDusk() => await BackToDuskAsync();
+
+        /// <summary>The Dawn card's Next: back to the village, then straight on to the next Pilgrims' stage.</summary>
+        private async void OnNextStage()
+        {
+            await BackToDuskAsync();
+            StartTrial();
+        }
+
+        private async Task BackToDuskAsync()
         {
             var report = _lastReport;
             var acknowledge = _showingReport;
@@ -2290,7 +2353,8 @@ namespace CultOfComfort.Client
             }
 
             var step = TutorialCoach.Step(_snapshot.Errand, _tool?.Type, _snapshot.Buildings, BuildingTable.Default,
-                studying: _snapshot.Research?.Any(t => t.State == TechState.Studying) == true, shielded: _snapshot.ShieldEndsAtUtc != null);
+                studying: _snapshot.Research?.Any(t => t.State == TechState.Studying) == true, shielded: _snapshot.ShieldEndsAtUtc != null,
+                hearthLevel: _snapshot.HearthLevel);
             if (_tool != null && step.Target != CoachTarget.GhostConfirm)
             {
                 return CoachStep.None; // placing something else: the ghost has the player's attention (the note steps aside too)
@@ -2546,6 +2610,12 @@ namespace CultOfComfort.Client
             };
             _hud.StartNightClicked += () =>
             {
+                if (_start?.Action == StartAction.Trial)
+                {
+                    StartTrial(); // shielded: the Pilgrims' Way is the fight on offer (spec 2026-11-17 fun first, A1)
+                    return;
+                }
+
                 if (LampsWait() && !_devTools)
                 {
                     Announce("The lamps can wait. Build first: follow the errand note.");
@@ -2615,6 +2685,7 @@ namespace CultOfComfort.Client
             _hud.SpeedClicked += () => _speed = _speed == 1 ? 2 : _speed == 2 ? 4 : 1;
             _hud.RecenterClicked += () => _rig.Reset();
             _hud.BackToDuskClicked += BackToDusk;
+            _hud.NextStageClicked += OnNextStage;
             _hud.ResetTipsClicked += () =>
             {
                 _tips.Reset();
@@ -2663,7 +2734,7 @@ namespace CultOfComfort.Client
                     false => $"Determinism: MISMATCH · {DeterminismProbe.LastHash}",
                     _ => string.Empty,
                 };
-                _hud.UpdateDusk(_night, probe);
+                _hud.UpdateDusk(_night, _devTools ? probe : string.Empty); // the determinism probe is for us, not the player
             }
             else if (_phase == GamePhase.Night)
             {

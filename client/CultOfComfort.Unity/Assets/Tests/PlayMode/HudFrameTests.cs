@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using CultOfComfort.Simulation.Balance;
+using CultOfComfort.Simulation.Base;
 using CultOfComfort.Simulation.Combat;
 using NUnit.Framework;
 using UnityEngine;
@@ -82,17 +83,21 @@ namespace CultOfComfort.Client.Tests
             // Arrange
             var (hud, root) = PhoneHud(portrait: false);
             hud.UpdateFrame(DemoEconomy.Frame(380, 1));
-            var result = new BattleResult(BattleOutcome.Lost, 0, 0, 100, 2000, 3, 10, 0x0123456789abcdefUL);
+            var result = new BattleResult(BattleOutcome.Won, 2, 60, 100, 2000, 3, 10, 0x0123456789abcdefUL);
+            var report = new NightReport(1, false, false, 2, 60, 100, new[] { 1, 2 }, 40, result.StateHashHex);
+            var model = DawnCard.Build(result, report, null, default, 1, "Wulfric"); // the tallest card: every line and Next
 
             // Act
             hud.ShowPhase(GamePhase.Dawn);
-            hud.ShowDawn(result, result, 10);
+            hud.ShowDawn(model, result, result, 10);
             yield return null;
             yield return null;
 
             // Assert
             var button = root.Q("card").Q<Button>(className: "primary");
             Assert.LessOrEqual(button.worldBound.yMax, root.worldBound.yMax + 0.5f, "Back to Dusk must be reachable in landscape.");
+            var next = root.Q("card").Q<Button>("card-next");
+            Assert.LessOrEqual(next.worldBound.yMax, root.worldBound.yMax + 0.5f, "Next must be reachable in landscape.");
         }
 
         [UnityTest]

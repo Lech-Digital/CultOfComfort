@@ -67,14 +67,18 @@ namespace CultOfComfort.Client
     /// </summary>
     public static class TutorialCoach
     {
+        /// <summary>The Hearth level from which the coach stops pointing (spec 2026-11-17 fun first, A5).</summary>
+        public const int QuietFromHearth = 3;
+
         /// <param name="studying">A study is under way (the study errand counts only a finished one).</param>
         /// <param name="shielded">The village is shielded: the Lamps can't be lit yet.</param>
+        /// <param name="hearthLevel">From <see cref="QuietFromHearth"/> on, the coach is over: the errand note alone carries on.</param>
         public static CoachStep Step(ErrandView errand, BuildingType? placing, IReadOnlyList<BuildingView> buildings, BuildingTable table, bool studying = false,
-            bool shielded = false)
+            bool shielded = false, int hearthLevel = 1)
         {
-            if (errand == null)
+            if (errand == null || hearthLevel >= QuietFromHearth)
             {
-                return CoachStep.None;
+                return CoachStep.None; // playtest 2026-11-17: "Tap the Cottage card" was still pointing at Hearth 5
             }
 
             if (errand.Done)
