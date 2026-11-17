@@ -290,8 +290,10 @@ new errand-book version. Old saves read through the old order, as on 2026-10-16.
      glowing pool, its coil and taped cables, the tarp on poles, the worshippers, the cargo-cult copies (a clay cone, a
      carved duck, woad banners), and the Prophet's personality (arms open, beaming). Its flat 2D rendering is not the
      target.
-   - [`night-final-v1.jpg`](../../../art/concepts/night-final-v1.jpg): the Night's light and readability. The torch-lined
-     road, crimson raiders against the mud, the clean ground around the Prophet, the warm pool of light.
+   - [`night-final.jpg`](../../../art/concepts/night-final.jpg): the Night. The torch-lined road; crimson raiders
+     against the mud; the pool and the car as the brightest thing on the board; fire baskets throwing warm light; the
+     clean ground and the teal ring round the Prophet; the cargo-cult rule kept (one real cone, vest and speaker; clay
+     cones, a carved duck and woad banners as copies).
 
    Where they disagree, the GDD wins: the car is nose-down (as in `hearth-final`, not flat as in `day-final`), and there
    is only one of each real relic (`day-final` has four cones, two trolleys and two tarps).
