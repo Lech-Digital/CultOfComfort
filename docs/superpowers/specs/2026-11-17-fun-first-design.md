@@ -1,7 +1,7 @@
 # Fun first: a Night that needs you, one thing at a time, a village you can see
 
 - **Date:** 2026-11-17
-- **Status:** Proposed, for the owner's review
+- **Status:** Approved with changes (owner, 2026-11-17): decisions below; phase F widened to a remodel
 - **From:** the [emulator playtest](../../playtests/2026-11-17-emulator-playtest.md) and its
   [design review](../../playtests/2026-11-17-design-review.md)
 
@@ -26,7 +26,7 @@ DeadWeight went through the same thing (its playtest of 2.2.9 and ADRs 0004–00
 Each phase ships on its own, is played on the emulator before the next one starts, and can be stopped after. Phases
 A–B change only the client. C changes the simulation (a new balance version, see "Determinism" below). The order is:
 the quick wins, then make the Night readable, then make it need you, then tidy the meta, then the first session, then
-the look.
+the remodel. All of it ships as one release.
 
 ### A. Quick wins (about 2 days, client only)
 
@@ -163,29 +163,75 @@ After D the frame has eight entry points instead of twelve:
    9. Hearth 2;
    10. the Pilgrims' Way.
 
-### F. The look (about 5 days, client and art)
+### F. The remodel: a game that looks good and reads at a glance (about 3 weeks, art and client)
 
-1. **Frame the village, not the field.** Day framing follows the built area plus two tiles and grows with the Hearth.
-   Today `VillageFraming` fixes it at 22 × 16 tiles. Beyond it, forest and fog instead of empty brown ground.
-2. **Golden Mud, as the art spec says.**
-   - Day: a warm, low key light, long soft shadows, a cool fill from the sky.
-   - Night: warm lights at doors and torches, a big warm pool round the Hearth, the raiders' torches, a moon rim on
-     units. At Night, light is how you read the board.
-3. **Post-processing (a URP Volume).** Tonemapping, a little more warmth, bloom on fire and lamps only, a soft vignette,
-   ambient occlusion for contact shadows.
-4. **Ground with something on it.**
-   - Mud, grass and gravel blended.
-   - Stones along the road edges, tufts, puddles.
-   - Junk round every building (crates, cones, the duck), like the intro scene, which is the best-looking shot in the
-     playtest.
-5. **Units at 1.5–2× their size** next to the buildings, with an outline per side.
-6. **A compact HUD.**
-   - One row of resource chips: a compact number, with the cap as a thin fill line that turns red when full.
-   - Villagers and Comfort as badges on the Cult button.
-   - Text at least 13 pt everywhere (cards are 9–10 px today).
-   - Build cards with 56 pt icons and colour that means a category.
-   - Sheets as bottom sheets with icons in every cost and a button that says why it's disabled ("Need 287 Timber").
-7. **New store screenshots** of a close Night with effects and the Prophet mid-skill.
+The owner, 2026-11-17: "the game should look way better than it does now, it's almost unreadable … and it's ugly".
+This is no longer a polish pass. Phase B already fixes the half of "unreadable" that comes from the camera and the
+scale. F remakes the look itself, and it starts with a target, not with models.
+
+**F0. A target the owner picks (2–3 days).**
+- Three concept frames of the same moment: a Night at Hearth 2, with the Prophet luring two Levies past a Flinger and
+  the Hearth glowing. Painted (AI image generation, as for DeadWeight), in three directions:
+  1. **chunky toy diorama:** the current chibi proportions, but bevelled, hand-painted textures, strong rim light;
+  2. **storybook painterly:** soft gradients, ink outlines, warm and cold light;
+  3. **crisp stylised low-poly:** the Kingshot/Clash look, flat colours, big silhouettes.
+- Plus a Day frame of the village in the chosen direction, and the HUD laid over both.
+- The owner picks one. It becomes the art spec, replacing the "Muddy Satire" style guide of
+  2026-10-10 where they differ. The palette, the 2024 junk in neon and the Prophet's design stay.
+
+**F1. A look slice (about 4 days): one scene, all the way.** Before any asset is remade, one Night at Hearth 2 is
+built to the target in Unity:
+- the camera and the scale from phase B;
+- the lighting: a warm, low key light by day; by Night, warm lights at doors and torches, a big warm pool round the
+  Hearth, the raiders' torches and a moon rim on units;
+- a URP post-processing Volume: tonemapping, warmth, bloom on fire and lamps only, a soft vignette, ambient occlusion;
+- the ground: mud, grass and gravel blended, stones along the road, tufts, puddles, junk round the buildings;
+- the Prophet, a Levy, a Zealot, the Hearth, a Flinger and a Cottage remade to the target.
+
+The owner compares before and after on the phone. Only then are the rest of the assets remade.
+
+**F2. Assets, remade to the target (about 2 weeks).**
+- Characters first: they carry readability. Bigger heads and hands, one strong colour per side, an outline, and
+  animation poses that read from above (the walk, the swing, the hit, the swoon).
+- Then the buildings in the order you meet them: Hearth 1–5, the first six buildings, the towers, the wrecks.
+- Then nature and props.
+
+The 126 Blender scripts stay the pipeline: a remade asset is a better script, and the build stays one command. Two
+helpers, if the slice shows they're worth it:
+- AI-generated hero models (the Prophet, the Hearth, the lords), cleaned up and decimated in Blender;
+- textures painted from the concept frames.
+
+**F3. Frame the village, not the field.** Day framing follows the built area plus two tiles and grows with the Hearth.
+Today `VillageFraming` fixes it at 22 × 16 tiles. Beyond it, forest and fog instead of empty brown ground.
+
+**F4. The HUD in the same style.**
+- One row of resource chips: a compact number, with the cap as a thin fill line that turns red when full.
+- Villagers and Comfort as badges on the Cult button.
+- Text at least 13 pt everywhere (cards are 9–10 px today).
+- Build cards with 56 pt icons and a colour per category.
+- Sheets as bottom sheets with icons in every cost, and a button that says why it's disabled ("Need 287 Timber").
+- Icons re-rendered from the remade models.
+
+**F5. New store screenshots and a new feature graphic,** taken from a close Night with effects and the Prophet
+mid-skill.
+
+#### Unreal Engine?
+
+Staying on Unity is recommended:
+
+- **The game's rules are C#.** The deterministic simulation (`CultOfComfort.Simulation`, netstandard 2.1) is the same
+  DLL on the phone and on the server, and the server replays every Night to check it (ADR 0002). Unreal is C++: the
+  simulation would have to be rewritten and kept bit-identical on both sides, or the server rewritten too.
+- **What makes it ugly isn't the engine.** It's the camera, the scale, flat lighting, no post-processing, bare ground,
+  and simple models. Unity's URP does all of what F needs on a phone: lights, bloom, ambient occlusion, colour grading,
+  outlines.
+- **Size and reach.** An Unreal mobile game starts at several hundred MB and favours high-end phones. URP runs at 60 fps
+  on the Pixel 10 today, and the APK is 63 MB.
+- **The cost.** Porting is months; F is about three weeks. The client's 27,000 lines of Unity code (HUD, views, map,
+  intro) would be redone, not improved.
+
+If the look slice (F1) fails to reach the target in Unity, the question comes back with evidence: the same scene
+rebuilt in Unreal for comparison. Not before.
 
 ## Determinism
 
@@ -208,15 +254,20 @@ new errand-book version. Old saves read through the old order, as on 2026-10-16.
 - After B, C and F: an emulator playtest written up in `docs/playtests/`, like today's.
 - On the Pixel 10 before any Play release.
 
-## Decisions for the owner
+## Decisions (owner, 2026-11-17)
 
-1. **Stars you earn:** should idle play cap at 1★ (proposed), or 2★?
-2. **The first Night:** one building wrecked at most (proposed), or none?
-3. **Towels:** from stars and the Pilgrims' Way instead of every errand (proposed), or keep a Towel per errand?
-4. **Lands:** merge the Mission House into the Map (proposed), or keep a list screen and drop the Map's own sending?
-5. **The micro-raid:** in the first three minutes (proposed), or keep the first fight at the end of the errands?
-6. **Order of phases:** A → B → C → D → E → F (proposed). Should the look (F) come earlier, for the store listing?
-7. **The release:** ship A–B as an update to the open test while C is built, or hold everything for one release?
+1. **Stars you earn:** idle play caps at 1★.
+2. **The first Night:** one building wrecked at most.
+3. **Towels:** from the Night's stars and the Pilgrims' Way, not every errand (the owner left it to this spec).
+4. **Lands:** the Mission House merges into the Map (the owner left it to this spec). The Map already shows the places,
+   their distance and the lord's seat, and a list of twenty empty rows adds nothing.
+5. **The micro-raid:** in the first three minutes.
+6. **Order:** A → B → C → D → E → F.
+7. **Release:** one release when all of it is done. The open test stays on 0.1.0 until then.
+8. **The look:** a full remodel (phase F), starting from a target the owner picks (F0) and a look slice (F1). Staying
+   on Unity unless the slice fails.
+
+Still open: **the art direction** of F0, chosen from the three concept frames.
 
 ## Not in this plan
 
