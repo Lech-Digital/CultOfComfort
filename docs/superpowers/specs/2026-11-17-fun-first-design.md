@@ -267,7 +267,7 @@ new errand-book version. Old saves read through the old order, as on 2026-10-16.
 8. **The look:** a full remodel (phase F), starting from a target the owner picks (F0) and a look slice (F1). Staying
    on Unity unless the slice fails.
 
-9. **The art direction: A, the chunky toy diorama** ([`art/concepts/night-a-toy.jpg`](../../../art/concepts/night-a-toy.jpg)),
+9. **The art direction: A, the chunky toy diorama, with B's ink outlines** ([`art/concepts/night-a-toy.jpg`](../../../art/concepts/night-a-toy.jpg)),
    with C's readability rules ([`night-c-lowpoly.jpg`](../../../art/concepts/night-c-lowpoly.jpg)):
    - **From A:** bevelled chunky shapes; materials that read (wet mud, worn marble, logs, thatch); soft contact shadows;
      a warm rim light on every character; the big warm pool round the fire.
@@ -276,7 +276,12 @@ new errand-book version. Old saves read through the old order, as on 2026-10-16.
    - **Both frames agree on scale:** characters about twice as big next to the buildings as in the game today, and
      the Prophet's ring.
 
-   B (storybook) is out: ink outlines on 3D are hard to keep crisp on a phone, and the frame is the busiest of the three.
+   - **From B:** a dark cartoon outline round every character, building and prop (the owner: "it looks cartoony because
+     of the black frames"). In Unity, an inverted-hull outline: each mesh drawn a second time, slightly larger and
+     back-facing, in dark brown. It's cheap on a phone and stays crisp at any zoom. The width is tuned on the device.
+     It's thicker for characters than for props, so the fight reads first.
+
+   The final prompts are in [`art/concepts/PROMPTS.md`](../../../art/concepts/PROMPTS.md) (Night and Day).
 
 ## Not in this plan
 

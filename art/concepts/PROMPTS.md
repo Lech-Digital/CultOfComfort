@@ -63,3 +63,67 @@ Same style block as the chosen direction, with this scene instead:
 > Villagers in linen at work, a cat, chickens, mud puddles, grass tufts, stones along the road edges, traffic cones and
 > crates of junk around the buildings. The village fills most of the frame; pine forest and fog at the edges. Inviting,
 > cosy, alive, every building clearly distinct.
+
+## The chosen direction: toy diorama with ink outlines (owner, 2026-11-17)
+
+A (the chunky toy diorama) as the base, with B's dark cartoon outlines and C's readability: saturated team colours, a
+clean ground where the fight is, torches along the road. Two full prompts, self-contained: a Night and a Day.
+Results: `night-final.png`, `day-final.png`.
+
+### Night
+
+> A mobile tower-defence game screenshot, portrait 9:16, camera high above at a 55° angle looking down. Stylised 3D toy
+> diorama with a cartoon look: chunky rounded shapes with soft bevelled edges, hand-painted textures on wood, stone,
+> thatch and mud, and a clean, dark brown-black ink outline around every character, building and prop (thicker on the
+> outer silhouette, thinner on inner edges), like a cel-shaded cartoon. Soft ambient occlusion, a strong warm rim light
+> on every character, soft contact shadows. Rich, warm and cosy, high-end mobile game key art. Characters are big and
+> instantly readable on a phone screen.
+>
+> Night in a muddy medieval borderland valley around the year 950. Cool teal moonlight against warm orange firelight.
+>
+> In the centre, a small comfy spa-cult village built from junk: a ruined Roman bath with white marble columns and a
+> steaming, softly glowing warm pool; a Slavic log sauna bolted onto it with a stone chimney and a bright blue plastic
+> tarp roof, a yellow rubber duck statue on the roof; a stone campfire hearth throwing a big warm orange pool of light on
+> the ground. Around it: a thatched cottage, a wooden woodcutter's lean-to with stacked logs, a wattle basket hopper on a
+> plank ramp, and a wooden catapult tower that flings saplings. A wattle fence.
+>
+> A muddy dirt road winds in from the top of the frame to the village, with wooden torches on posts along both sides
+> lighting it. On the road, raiders in saturated crimson red tunics with gold trim, clearly red against the brown mud:
+> hooded peasant levies with pitchforks and torches, a soldier with a pointed nasal helmet and a red-and-gold kite
+> shield, and a bald tonsured monk in a brown habit throwing a hymn book.
+>
+> In front of the village, on a clean patch of ground, the hero: a tired, slightly chubby man from 2024, a head taller
+> than the locals, in a bright white bathrobe over a teal t-shirt, neon-pink flip-flops, pink sunglasses pushed up on
+> his head, a purple belt bag, swinging a black umbrella at two levies who have left the road to chase him. A glowing
+> teal ring on the ground under his feet. Big friendly chibi proportions, head about half the body height, round smooth
+> faces, small round eyes, expressive eyebrows, deadpan humour. Characters about twice as big relative to the buildings
+> as in a realistic scale.
+>
+> 2024 junk in loud neon scattered around the village edges: orange traffic cones, a hi-vis vest drying on the fence, a
+> Bluetooth speaker on a crate, a car seat. Earthy, slightly desaturated browns and greens for the medieval world; the
+> 2024 junk always neon. Pine forest and low fog at the edges, mountains beyond. No UI, no text.
+
+### Day
+
+> A mobile base-building game screenshot, portrait 9:16, camera high above at a 55° angle looking down. Stylised 3D toy
+> diorama with a cartoon look: chunky rounded shapes with soft bevelled edges, hand-painted textures on wood, stone,
+> thatch and mud, and a clean, dark brown-black ink outline around every character, building and prop (thicker on the
+> outer silhouette, thinner on inner edges), like a cel-shaded cartoon. Soft ambient occlusion, soft contact shadows.
+> Rich, warm and cosy, high-end mobile game key art.
+>
+> Warm late-afternoon golden sunlight from a low angle with long soft shadows, a cool blue sky fill. A muddy medieval
+> borderland valley around the year 950.
+>
+> The village fills most of the frame: a comfy spa-cult village built from junk. A ruined Roman bath with white marble
+> columns and a steaming warm pool; a Slavic log sauna bolted onto it with a stone chimney and a bright blue plastic
+> tarp roof, a yellow rubber duck statue on the roof; a stone campfire hearth in a little square. Around it, each
+> building clearly distinct: three thatched cottages, a woodcutter's lean-to with stacked logs and a chopping block, a
+> peat cut with dark stacked peat bricks, a storage hut with crates and sacks, a round stone cistern, a wattle basket
+> hopper on a plank ramp, and a wooden catapult tower beside a muddy road with stones along its edges.
+>
+> Villagers in cream linen at work, carrying logs and buckets, one in a towel; the hero, a slightly chubby man in a
+> white bathrobe, neon-pink flip-flops and pink sunglasses, standing by the pool with a teal ring under his feet. A cat,
+> chickens, a goat. Mud puddles, grass tufts, wildflowers. 2024 junk in loud neon round the buildings: orange traffic
+> cones, a hi-vis vest on a fence, a blue tarp, crates. Big friendly chibi proportions, characters about twice as big
+> relative to the buildings as in a realistic scale. Pine forest and fog at the edges, mountains beyond. Inviting, cosy,
+> alive. No UI, no text.
