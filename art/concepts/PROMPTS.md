@@ -127,3 +127,84 @@ Results: `night-final.png`, `day-final.png`.
 > cones, a hi-vis vest on a fence, a blue tarp, crates. Big friendly chibi proportions, characters about twice as big
 > relative to the buildings as in a realistic scale. Pine forest and fog at the edges, mountains beyond. Inviting, cosy,
 > alive. No UI, no text.
+
+## Round 2 (owner, 2026-11-17): the car, the cargo-cult rule, one style
+
+Round 1 (`night-final-v1.jpg`, `day-final-v1.jpg`) left out the heart of the setting: the teal hatchback time machine,
+nose-down in the Roman pool (GDD 05). It also broke the cargo-cult rule (cones and tarps everywhere, plastic crates),
+put a campfire where the Hearth should be, and drew the Night as a flat 2D cartoon and the Day as a 3D diorama. Round 2
+fixes all four. Results: `night-final.png`, `day-final.png`.
+
+### Night (round 2)
+
+> A mobile tower-defence game screenshot, portrait 9:16, camera high above at a 55° angle looking down. A 3D-rendered
+> toy diorama, not a flat drawing: chunky rounded shapes with soft bevelled edges, hand-painted textures on wood, stone,
+> thatch and mud, soft ambient occlusion and contact shadows, a strong warm rim light on every character, and a clean
+> dark brown-black cel-shaded outline around every character, building and prop (thicker on the outer silhouette,
+> thinner on inner edges). Rich, warm, cosy, high-end mobile game key art. Characters big and instantly readable on a
+> phone screen.
+>
+> Night in a muddy medieval borderland valley, the year 947. Cool teal moonlight against warm orange firelight.
+>
+> The heart of the village, in the centre of the frame: a ruined Roman bath of white marble columns around a steaming,
+> glowing turquoise pool, and crashed nose-down in the pool, rear end sticking up at an angle, a small teal hatchback
+> car (colour #2fa39a) turned into a homemade time machine: a big copper coil bolted to its roof, cables taped across
+> the bonnet with silver gaffer tape, chrome trim, a cracked windscreen, a faint red glow from the tail lights. Steam
+> rises around the car. Over part of the bath, a single bright blue plastic tarp is stretched on poles as the first
+> roof. A single yellow rubber duck sits on the car's roof like an idol. A log sauna with a stone chimney is bolted onto
+> the bath. Iron fire baskets beside the pool throw a big warm orange pool of light on the ground.
+>
+> Around the heart: a thatched cottage, a woodcutter's lean-to with stacked logs, a wattle basket hopper on a plank ramp
+> beside the road, and a wooden catapult tower that flings saplings. A wattle fence. The villagers' homemade copies of
+> the holy relics: crooked cones of fired ochre clay along the fence, woad-blue cloth banners, a carved wooden duck on a
+> post.
+>
+> A muddy dirt road winds in from the top of the frame to the village, wooden torches on posts along both sides. On the
+> road, raiders in saturated crimson red tunics with gold trim, clearly red against the brown mud: hooded peasant levies
+> with pitchforks and torches, a soldier with a pointed nasal helmet and a red-and-gold kite shield, and a bald tonsured
+> monk in a brown habit throwing a hymn book.
+>
+> In front of the village, on a clean patch of ground, the hero: a tired, slightly chubby Dutch man from 2024, a head
+> taller than the locals, in a bright white bathrobe over a teal t-shirt, neon-pink flip-flops, sunglasses pushed up on
+> his head, an orange belt bag, a smartwatch, swinging a black umbrella at two levies who have left the road to chase
+> him. A glowing teal ring on the ground under his feet. Big friendly chibi proportions, head about half the body
+> height, round smooth faces, small round eyes, expressive eyebrows, deadpan humour. Characters about twice as big
+> relative to the buildings as in a realistic scale.
+>
+> The only real 2024 things, each appearing once and in crisp neon: one orange traffic cone, one hi-vis vest on the
+> fence, one Bluetooth speaker. Everything else medieval, earthy and slightly desaturated. Pine forest and low fog at the
+> edges, mountains beyond. No UI, no text.
+
+### Day (round 2)
+
+> A mobile base-building game screenshot, portrait 9:16, camera high above at a 55° angle looking down. A 3D-rendered
+> toy diorama, not a flat drawing: chunky rounded shapes with soft bevelled edges, hand-painted textures on wood, stone,
+> thatch and mud, soft ambient occlusion and contact shadows, and a clean dark brown-black cel-shaded outline around
+> every character, building and prop (thicker on the outer silhouette, thinner on inner edges). Rich, warm, cosy,
+> high-end mobile game key art.
+>
+> Warm late-afternoon golden sunlight from a low angle, long soft shadows, a cool blue sky fill. A muddy medieval
+> borderland valley, the year 947.
+>
+> The heart of the village, in the centre of the frame: a ruined Roman bath of white marble columns around a steaming
+> turquoise pool, and crashed nose-down in the pool, rear end sticking up at an angle, a small teal hatchback car
+> (colour #2fa39a) turned into a homemade time machine: a big copper coil bolted to its roof, cables taped across the
+> bonnet with silver gaffer tape, chrome trim, a cracked windscreen. Steam rises around the car. A single bright blue
+> plastic tarp stretched on poles over part of the bath as its first roof; a single yellow rubber duck on the car's roof
+> like an idol; a log sauna with a stone chimney bolted onto the bath. Villagers kneel at the pool's edge.
+>
+> Around it, the village fills most of the frame, each building clearly distinct: three thatched cottages, a
+> woodcutter's lean-to with stacked logs and a chopping block, a peat cut with dark stacked peat bricks, a storage hut
+> with sacks and wooden crates, a round stone cistern, a wattle basket hopper on a plank ramp, and a wooden catapult
+> tower beside a muddy road with stones along its edges. The villagers' homemade copies of the holy relics: crooked
+> cones of fired ochre clay, woad-blue cloth awnings and banners, carved wooden ducks, wicker chairs.
+>
+> Villagers in cream linen at work, carrying logs and buckets, one wearing a towel like a robe. The hero by the pool: a
+> slightly chubby Dutch man from 2024 in a bright white bathrobe over a teal t-shirt, neon-pink flip-flops, sunglasses
+> pushed up on his head, an orange belt bag, a black umbrella, a glowing teal ring under his feet. A cat, chickens, a
+> goat. Mud puddles, grass tufts, wildflowers. Big friendly chibi proportions, head about half the body height,
+> characters about twice as big relative to the buildings as in a realistic scale.
+>
+> The only real 2024 things, each appearing once and in crisp neon: one orange traffic cone, one hi-vis vest on a fence,
+> one shopping trolley. Everything else medieval, earthy and warm. Pine forest and fog at the edges, mountains beyond.
+> Inviting, cosy, alive. No UI, no text.
