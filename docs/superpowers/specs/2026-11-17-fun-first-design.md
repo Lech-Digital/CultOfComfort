@@ -283,6 +283,19 @@ new errand-book version. Old saves read through the old order, as on 2026-10-16.
 
    The final prompts are in [`art/concepts/PROMPTS.md`](../../../art/concepts/PROMPTS.md) (Night and Day).
 
+   **The reference frames** (round 2, `art/concepts/`):
+   - [`day-final.jpg`](../../../art/concepts/day-final.jpg): the look. It's the target for the 3D models, materials,
+     scale and village layout: a toy diorama, bevelled, readable, alive.
+   - [`hearth-final.jpg`](../../../art/concepts/hearth-final.jpg): the Hearth and the people. The car nose-down in the
+     glowing pool, its coil and taped cables, the tarp on poles, the worshippers, the cargo-cult copies (a clay cone, a
+     carved duck, woad banners), and the Prophet's personality (arms open, beaming). Its flat 2D rendering is not the
+     target.
+   - [`night-final-v1.jpg`](../../../art/concepts/night-final-v1.jpg): the Night's light and readability. The torch-lined
+     road, crimson raiders against the mud, the clean ground around the Prophet, the warm pool of light.
+
+   Where they disagree, the GDD wins: the car is nose-down (as in `hearth-final`, not flat as in `day-final`), and there
+   is only one of each real relic (`day-final` has four cones, two trolleys and two tarps).
+
 ## Not in this plan
 
 - Bosses with weak points (after C, once the boon and objective rules are proven).
