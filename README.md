@@ -106,6 +106,12 @@ Install Blender 4.5 LTS without sudo (same pattern as Unity):
     hdiutil attach -nobrowse -mountpoint ./mnt blender-4.5.14-macos-arm64.dmg
     cp -R ./mnt/Blender.app ~/Applications/ && hdiutil detach ./mnt
 
+On Linux:
+
+    curl -fLO https://download.blender.org/release/Blender4.5/blender-4.5.16-linux-x64.tar.xz
+    tar -xf blender-4.5.16-linux-x64.tar.xz -C ~/Applications
+    export BLENDER=~/Applications/blender-4.5.16-linux-x64/blender
+
 Then:
 
     ./art/build.sh --test        # pipeline tests (inside Blender)

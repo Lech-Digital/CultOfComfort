@@ -64,8 +64,8 @@ HEAD_SCALE = (1.05, 0.95, 0.97)
 
 def dims_for(look):
     s = look.height  # body proportions scale with height ...
-    r = 0.2 * math.sqrt(s)  # ... but heads shrink slower: chibi
-    neck = 0.60 * s
+    r = 0.22 * math.sqrt(s)  # ... but heads shrink slower: chibi (0.2 before the remodel: bigger heads read from above)
+    neck = 0.60 * s - (r - 0.2 * math.sqrt(s)) * 1.95  # the bigger head sits lower: the same height, a chibi-er body
     return Dims(s=s, r=r, hip=0.26 * s, shoulder=0.56 * s, neck=neck, hand=0.35 * s,
                 arm_x=0.215 * s * (0.6 + 0.4 * look.girth), leg_x=0.08 * s * look.girth,
                 head_z=neck + r * 0.95, girth=look.girth)
@@ -105,7 +105,7 @@ def build_person(name, look):
         x = d.arm_x if side == "ArmL" else -d.arm_x
         lean = -4 if x > 0 else 4
         part.box((0.09 * s, 0.10 * s, 0.20 * s), (x, 0, 0.47 * s), sleeves, bevel=0.025 * s, rotation=(0, lean, 0))
-        part.sphere(0.05 * s * (0.8 + 0.2 * g), (x, 0, d.hand), look.skin, segments=8, rings=6, smooth=True)
+        part.sphere(0.062 * s * (0.8 + 0.2 * g), (x, 0, d.hand), look.skin, segments=8, rings=6, smooth=True)  # bigger hands (remodel F)
 
     for extra in look.extras:
         extra(parts, d)

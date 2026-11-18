@@ -9,14 +9,14 @@ REQUIRED_PARTS = PERSON_PARTS + ("Weapon",)
 def _hood(parts, d):
     r, c = d.r, d.head_z
     head = parts["Head"]
-    head.sphere(r * 1.12, (0, 0.07 * r / 0.2, c + 0.03), "levy_wool", segments=16, rings=10, scale=(1.05, 0.95, 0.95), smooth=True)
-    head.cylinder(r * 0.35, r * 0.9, (0, 0.17 * r / 0.2, c + r * 0.75), "levy_wool", segments=8, radius_top=0.02,
+    head.sphere(r * 1.12, (0, 0.07 * r / 0.2, c + 0.03), "wulfric_red", segments=16, rings=10, scale=(1.05, 0.95, 0.95), smooth=True)
+    head.cylinder(r * 0.35, r * 0.9, (0, 0.17 * r / 0.2, c + r * 0.75), "wulfric_red", segments=8, radius_top=0.02,
                   rotation=(-35, 0, 0), smooth=True)                                          # floppy hood tip
-    parts["Body"].box((0.42 * d.s, 0.3 * d.s, 0.07 * d.s), (0, 0.01, 0.55 * d.s), "levy_wool", bevel=0.03 * d.s)  # hood drape
+    parts["Body"].box((0.42 * d.s, 0.3 * d.s, 0.07 * d.s), (0, 0.01, 0.55 * d.s), "gold_trim", bevel=0.03 * d.s)  # hood drape: the gold trim
 
 
 def _armband(parts, d):
-    parts["ArmL"].box((0.1 * d.s, 0.11 * d.s, 0.04 * d.s), (d.arm_x, 0, 0.5 * d.s), "wulfric_red", bevel=0.006)
+    parts["ArmL"].box((0.1 * d.s, 0.11 * d.s, 0.04 * d.s), (d.arm_x, 0, 0.5 * d.s), "gold_trim", bevel=0.006)
 
 
 def _pitchfork(parts, d):
@@ -36,10 +36,10 @@ LOOK = Look(
     brow_colour="old_wood",
     brows=16,          # worried
     mouth=-0.008,      # frown: he did not sign up for this
-    torso="levy_wool",
+    torso="wulfric_red",   # the lord's colours: raiders read as one team (remodel F, the C frame's rule)
     legs="old_wood",
     feet="tarred_wood",
-    belt="thatch",     # rope
+    belt="gold_trim",  # gold trim on red
     extras=[_hood, _armband, _pitchfork],
 )
 

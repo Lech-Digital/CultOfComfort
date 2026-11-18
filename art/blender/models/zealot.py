@@ -30,7 +30,7 @@ LOOK = Look(
     robe=True,
     legs="zealot_red",
     feet="fresh_log",  # bare-ish sandals
-    belt="thatch",
+    belt="gold_trim",  # gold trim on red: one team (remodel F)
     extras=[_hymnal, _cord],
 )
 

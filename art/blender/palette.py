@@ -18,7 +18,7 @@ SWATCHES = [
     ("old_wood", "#6d4c2f"), ("tarred_wood", "#4a321e"), ("thatch", "#a08450"), ("daub", "#bfa98a"),
     # People
     ("prophet_skin", "#e7b590"), ("local_skin", "#d9a37f"), ("linen", "#ece6d6"), ("levy_wool", "#9c8460"),
-    ("mail", "#8e9399"), ("zealot_red", "#a8432c"), ("wulfric_red", "#8a2f24"), ("gold_trim", "#d9b45a"),
+    ("mail", "#8e9399"), ("zealot_red", "#a8432c"), ("wulfric_red", "#b3352a"), ("gold_trim", "#d9b45a"),
     # 2024 junk
     ("cone_orange", "#ff5a00"), ("tarp_blue", "#1f6dff"), ("hivis_yellow", "#e8ff3a"), ("flipflop_pink", "#ff4fa3"),
     ("umbrella_black", "#2b2b2e"),
