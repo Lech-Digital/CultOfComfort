@@ -148,26 +148,27 @@ namespace CultOfComfort.Client.Tests
             var sheet = FeatureSheetPresenter.Cult(state.Snapshot(now));
 
             // Assert
-            CollectionAssert.AreEqual(new[] { "Hearth", "People", "Comfort", "Relics", "Errand" }, sheet.Tabs);
+            CollectionAssert.AreEqual(new[] { "People", "Comfort", "Relics" }, sheet.Tabs); // the Hearth is on its card, the errand on the note (spec 2026-11-17 fun first, D6)
             Assert.IsTrue(sheet.Rows.All(r => sheet.Tabs.Contains(r.Tab)));
             Assert.IsTrue(sheet.Rows.Any(r => r.Tab == FeatureSheetPresenter.RelicsTab && r.Text == "✓ The laser pointer"));
         }
 
         [Test]
-        public void Cult_HearthTabAtLevelOne_OffersTheRaiseAndSaysWhatComesNext()
+        public void HearthCard_AtLevelOne_SaysWhatLevelTwoBrings()
         {
             // Arrange — a rich level 1 village.
             var (state, now) = Village(1);
+            var snapshot = state.Snapshot(now);
+            var hearth = snapshot.Buildings.First(b => b.Type == BuildingType.Hearth);
 
-            // Act
-            var hearth = FeatureSheetPresenter.Cult(state.Snapshot(now)).Rows.Where(r => r.Tab == FeatureSheetPresenter.HearthTab).ToList();
+            // Act — the Cult sheet's Hearth tab moved to the Hearth's own card (spec 2026-11-17 fun first, D6).
+            var card = VillagePresenter.Card(snapshot, BuildingTable.Default, hearth.Id);
 
             // Assert
-            var raise = hearth.Single(r => r.Action == "hearth:upgrade");
-            Assert.AreEqual("Raise", raise.Button);
-            Assert.IsTrue(raise.Enabled);
-            Assert.IsTrue(hearth.Any(r => r.Text != null && r.Text.Contains("The Lands open")), "Hearth 2 opens the Lands");
-            Assert.IsTrue(hearth.Any(r => r.Text != null && r.Text.StartsWith("· New: ") && r.Text.Contains("Cistern")));
+            Assert.IsTrue(card.CanUpgrade);
+            StringAssert.StartsWith("At level 2: ", card.Ready);
+            StringAssert.Contains("The Lands open", card.Ready);
+            StringAssert.Contains("Cistern", card.Ready);
         }
 
         [Test]

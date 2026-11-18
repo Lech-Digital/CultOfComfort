@@ -199,7 +199,10 @@ namespace CultOfComfort.Client
                     : b.Type == BuildingType.Guardhouse ? GuardNote(b, table)
                     : b.Type == BuildingType.Watchtower ? ForecastNote(snapshot)
                     : Effect(spec, b.Level) + ComfortNote(spec, b.Level),
-                Ready = spec.Produces != null && b.Level > 0 && b.PerHour > 0 ? "Goes straight into the stores." : string.Empty,
+                // The Hearth's card says what the next level brings (it was the Cult sheet's Hearth tab: spec 2026-11-17 fun first, D6).
+                Ready = b.Type == BuildingType.Hearth
+                    ? (maxed ? "As big as a fire gets in this century." : $"At level {b.Level + 1}: " + string.Join(" · ", FeatureSheetPresenter.Unlocks(b.Level, b.Level + 1, table)) + ".")
+                    : spec.Produces != null && b.Level > 0 && b.PerHour > 0 ? "Goes straight into the stores." : string.Empty,
                 ShowCrew = b.Level > 0 && b.CrewNeeded > 0 && !b.Wrecked,
                 CrewLine = CrewLine(snapshot, b),
                 CrewWanted = b.CrewWanted,

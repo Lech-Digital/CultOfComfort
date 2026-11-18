@@ -246,10 +246,22 @@ namespace CultOfComfort.Client
                 }
             }
 
+            // The Night (spec 2026-11-17 fun first, D6): what he can do, how far it reaches, how soon it's back.
+            var b = CultOfComfort.Simulation.Balance.BalanceTable.Default;
+            string Tiles(CultOfComfort.Simulation.Numerics.Fix f, int percent = 0) => $"{f.ToDouble() * (100 + percent) / 100:0.#}";
+            string Secs(int ticks) => $"{ticks / CultOfComfort.Simulation.Balance.BalanceTable.TicksPerSecond}s";
+            var voice = p.Perks.Sum(k => k.VoicePercent);
+            var stones = p.Perks.Sum(k => k.StonesPercent);
+            model.Rows.Add(new SheetRow { Heading = true, Text = "At Night" });
+            model.Rows.Add(new SheetRow { Text = "The Sluice gate", Detail = $"Washes the road back {Tiles(b.SluiceGate.PushbackTiles)} tiles · {b.SluiceGate.Charges} a Night · {Secs(b.SluiceGate.CooldownTicks)} to refill" });
+            model.Rows.Add(new SheetRow { Text = "The Voice from the Box", Detail = $"Raiders within {Tiles(b.Leader.VoiceRadius, voice)} tiles of him flee · back in {Secs(b.Leader.VoiceCooldownTicks)}" });
+            model.Rows.Add(new SheetRow { Text = "Hot Stones", Detail = $"Thrown up to {Tiles(b.HotStones.Reach)} tiles, {Tiles(b.HotStones.Radius)} across" + (stones > 0 ? $", {stones}% hotter" : string.Empty) + $" · back in {Secs(b.HotStones.CooldownTicks)}" });
+            model.Rows.Add(new SheetRow { Text = "Walking out", Detail = "Raiders who see him stop to fight him: lead them past the towers. The umbrella is solid, the lure dashed." });
+
             model.Rows.Add(new SheetRow { Heading = true, Text = "His perks" });
             if (p.Perks.Count == 0)
             {
-                model.Rows.Add(new SheetRow { Text = "None yet. The first comes at level 3." });
+                model.Rows.Add(new SheetRow { Text = "None yet. The first comes at level 2." });
             }
 
             foreach (var perk in p.Perks)
@@ -266,44 +278,13 @@ namespace CultOfComfort.Client
             var model = new SheetModel
             {
                 Title = "The Cult of Comfort", Footer = "Five people and a duck, to begin with. Look at it now.",
-                Tabs = { HearthTab, PeopleTab, ComfortTab, RelicsTab, ErrandTab },
+                // People, Comfort and Relics (spec 2026-11-17 fun first, D6): the Hearth's card has the Hearth, the note the errand.
+                Tabs = { PeopleTab, ComfortTab, RelicsTab },
             };
             void Add(string tab, SheetRow row)
             {
                 row.Tab = tab;
                 model.Rows.Add(row);
-            }
-
-            // The Hearth: what it is, what the next level costs and brings.
-            var hearth = snapshot.Buildings.First(b => b.Type == BuildingType.Hearth);
-            var card = VillagePresenter.Card(snapshot, table, hearth.Id);
-            var spec = table.Spec(BuildingType.Hearth);
-            Add(HearthTab, new SheetRow { Heading = true, Text = $"The Hearth · level {snapshot.HearthLevel} of {spec.MaxLevel}" });
-            Add(HearthTab, new SheetRow
-            {
-                Text = card.IsUpgrading ? $"Growing · {card.Remaining}" : card.UpgradeLabel,
-                Detail = snapshot.HearthLevel >= spec.MaxLevel ? "As big as a fire gets in this century." : "You can also tap the Hearth itself.",
-                Button = snapshot.HearthLevel < spec.MaxLevel && !card.IsUpgrading ? "Raise" : null,
-                Enabled = card.CanUpgrade,
-                Action = "hearth:upgrade",
-            });
-            if (snapshot.HearthLevel < spec.MaxLevel)
-            {
-                var next = snapshot.HearthLevel + 1;
-                Add(HearthTab, new SheetRow { Heading = true, Text = $"At level {next}" });
-                foreach (var line in Unlocks(snapshot.HearthLevel, next, table))
-                {
-                    Add(HearthTab, new SheetRow { Text = "· " + line });
-                }
-
-                if (!card.CanUpgrade && !card.IsUpgrading)
-                {
-                    Add(HearthTab, new SheetRow
-                    {
-                        Detail = snapshot.FreeBuilders <= 0 ? "Every builder is busy. Hurry one along, or wait."
-                            : $"Needs {VillagePresenter.ShortCost(spec.Levels[snapshot.HearthLevel].Cost)}. You have {VillagePresenter.ShortCost(snapshot.Stock)}.",
-                    });
-                }
             }
 
             // The people: who's home, who works, who's idle.
@@ -346,17 +327,6 @@ namespace CultOfComfort.Client
             Relic("The laser pointer", "The Finger of God: blinds one raider.", found.HasFlag(CultOfComfort.Simulation.Combat.Relic.LaserPointer));
             Relic("The dynamo torch", "Light without fire: raiders near him are dazzled.", found.HasFlag(CultOfComfort.Simulation.Combat.Relic.DynamoTorch));
             Relic("The magnifying glass", "Sun-fire, while the sun is up.", found.HasFlag(CultOfComfort.Simulation.Combat.Relic.Magnifier));
-
-            // The errand.
-            if (snapshot.Errand != null)
-            {
-                Add(ErrandTab, new SheetRow { Heading = true, Text = $"Errand {snapshot.Errand.Index + 1} of {snapshot.Errand.Count}" });
-                Add(ErrandTab, new SheetRow { Text = snapshot.Errand.Text, Detail = snapshot.Errand.Done ? "Done: claim it from the note." : $"{snapshot.Errand.Progress}/{snapshot.Errand.Target}" });
-            }
-            else
-            {
-                Add(ErrandTab, new SheetRow { Text = "No errands left. The Prophet is improvising." });
-            }
 
             return model;
         }
