@@ -289,10 +289,11 @@ namespace CultOfComfort.Client
         /// The scout's word on the next Night (specs 2026-10-20 defence and across the river): who and which road, "Next:
         /// Odo's flock, south road", or null while only one road is open.
         /// </summary>
+        /// <remarks>Always said since one world screen (spec 2026-11-17 fun first, D5): the strip leads with what matters.</remarks>
         public static string ScoutNote(BaseSnapshot s, VillageMap map) =>
             map.OpenRoads(s.HearthLevel).Count > 1
-                ? $"Next: {CultOfComfort.Simulation.Waves.RaidRoster.Who(s.HearthLevel, s.NextRoad)}, {map.RoadName(s.NextRoad)}"
-                : null;
+                ? $"next: {CultOfComfort.Simulation.Waves.RaidRoster.Who(s.HearthLevel, s.NextRoad)}, {map.RoadName(s.NextRoad)}"
+                : $"next: {CultOfComfort.Simulation.Waves.RaidRoster.Who(s.HearthLevel, s.NextRoad)}";
 
         /// <summary>The big Day button: face the raid that is coming, or invite a smaller one early.</summary>
         /// <summary>What a tapped resource pill says: its name, stock and net income per hour.</summary>

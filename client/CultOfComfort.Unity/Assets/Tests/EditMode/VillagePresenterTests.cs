@@ -328,12 +328,12 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
-        public void ScoutNote_OneRoadOpen_Nothing_TwoOpen_NamesIt()
+        public void ScoutNote_OneRoadOpen_Who_TwoOpen_WhoAndWhichRoad()
         {
             // Act & Assert
-            Assert.IsNull(VillagePresenter.ScoutNote(Fresh(), VillageMap.Demo));
-            Assert.AreEqual("Next: Odo's flock, south road", VillagePresenter.ScoutNote(Fresh() with { HearthLevel = 2, NextRoad = 1 }, VillageMap.Demo));
-            Assert.AreEqual("Next: wild beasts, east road", VillagePresenter.ScoutNote(Fresh() with { HearthLevel = 3, NextRoad = 2 }, VillageMap.Demo));
+            Assert.AreEqual("next: locals", VillagePresenter.ScoutNote(Fresh(), VillageMap.Demo), "one road: who, always (spec 2026-11-17 fun first, D5)");
+            Assert.AreEqual("next: Odo's flock, south road", VillagePresenter.ScoutNote(Fresh() with { HearthLevel = 2, NextRoad = 1 }, VillageMap.Demo));
+            Assert.AreEqual("next: wild beasts, east road", VillagePresenter.ScoutNote(Fresh() with { HearthLevel = 3, NextRoad = 2 }, VillageMap.Demo));
         }
 
         [Test]

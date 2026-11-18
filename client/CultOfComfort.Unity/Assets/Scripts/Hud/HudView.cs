@@ -147,6 +147,8 @@ namespace CultOfComfort.Client
         private readonly Dictionary<string, (VisualElement Pill, Label Value)> _pills = new Dictionary<string, (VisualElement, Label)>();
         private readonly Label _hearthBadge;
         private readonly Label _hearthLine;
+        private readonly VisualElement _lordFace;
+        private readonly Label _seasonLine;
         private readonly Label _comfort;
         private readonly VisualElement _tensionStrip;
         private readonly VisualElement _tensionCover;
@@ -289,6 +291,10 @@ namespace CultOfComfort.Client
             _hearthBadge.name = "hearth-badge";
             portrait.Add(_hearthBadge);
             identity.Add(portrait);
+            _seasonLine = Text(string.Empty, "season-line");
+            _seasonLine.name = "season-line";
+            _seasonLine.pickingMode = PickingMode.Ignore;
+            portrait.Add(_seasonLine);
             var label = Surface("id-label");
             label.Add(Container("tape"));
             _hearthLine = Text("Hearth Lv 1", "id-title");
@@ -310,9 +316,14 @@ namespace CultOfComfort.Client
 
             _tensionStrip = Container("strip");
             _tensionStrip.name = "tension-strip";
-            var tape = Surface("hazard-track");
-            _tensionCover = Container("hazard-cover");
+            // A real meter (spec 2026-11-17 fun first, D5): an empty track the lord's tape fills, his face at its edge.
+            var tape = Container("tension-track");
+            _tensionCover = Surface("hazard-fill");
+            _tensionCover.name = "tension-fill";
             tape.Add(_tensionCover);
+            _lordFace = Icon("portrait_lord", "lord-face");
+            _lordFace.pickingMode = PickingMode.Ignore;
+            tape.Add(_lordFace);
             _tensionStrip.Add(tape);
             _tensionNote = Text(string.Empty, "marker-note");
             _tensionStrip.Add(_tensionNote);
@@ -834,10 +845,14 @@ namespace CultOfComfort.Client
             _pills["comfort"].Value.text = frame.Comfort.Value.ToString();
             Show(_pills["comfort"].Pill, !frame.Comfort.IsDemo);
             Show(_pills["pennies"].Pill, !frame.Pennies.IsDemo);
-            _tensionCover.style.width = Length.Percent((1f - Mathf.Clamp01(frame.Tension)) * 100f);
-            // The season leads the strip (spec 2026-10-20 seasons): the label under the portrait is hidden in portrait.
-            var lead = frame.Season == null ? "TENSION" : frame.Season.ToUpperInvariant();
-            _tensionNote.text = frame.TensionIsDemo ? $"{lead} — {frame.TensionNote} (demo)" : $"{lead} — {frame.TensionNote}";
+            var tension = Mathf.Clamp01(frame.Tension);
+            _tensionCover.style.width = Length.Percent(tension * 100f);
+            // His face rides the tape's edge (USS pulls it back by half), kept on screen: the strip runs past the screen's sides.
+            _lordFace.style.left = Length.Percent(Mathf.Lerp(8f, 94f, tension));
+            // What matters leads ("Shielded · 11h · next: the levy"); the season sits under the portrait (D5).
+            _tensionNote.text = frame.TensionIsDemo ? $"{frame.TensionNote} (demo)" : frame.TensionNote;
+            _seasonLine.text = frame.Season ?? string.Empty;
+            Show(_seasonLine, frame.Season != null);
         }
 
         public void UpdateDusk(int night, string probe)

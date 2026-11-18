@@ -114,7 +114,14 @@
     background-image: resource("UI/Kit/hazard"); background-repeat: repeat; background-size: 32px 32px;
     border-color: #222; border-top-width: 2px; border-bottom-width: 2px;
 }
-.hazard-cover { position: absolute; right: 0; top: 0; bottom: 0; background-color: rgba(30, 26, 20, 0.72); }
+/* the Tension meter (spec 2026-11-17 fun first, D5): an empty track, the tape filling it, the lord's face at its edge */
+.tension-track { height: 20px; background-color: rgba(30, 26, 20, 0.8); border-color: #222; border-top-width: 2px; border-bottom-width: 2px; }
+.hazard-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+    background-image: resource("UI/Kit/hazard"); background-repeat: repeat; background-size: 32px 32px; }
+.lord-face { position: absolute; top: -9px; width: 34px; height: 34px; translate: -17px 0; border-radius: 17px;
+    border-color: #2b2215; border-width: 2px; background-color: #f1e3c0; }
+.season-line { position: absolute; bottom: -16px; left: -10px; right: -10px; font-size: 10px; color: #f6e7c4; padding: 0;
+    -unity-text-align: middle-center; text-shadow: 0 1px 2px rgba(0,0,0,0.95); }
 .marker-note, .wave-label {
     -unity-font-definition: resource("UI/Fonts/PermanentMarker");
     color: #ffe066; font-size: 14px; margin: 2px 24px 0 24px; padding: 0;
@@ -453,7 +460,8 @@
 .avatar { width: 52px; height: 52px; border-radius: 26px; }
 .avatar-clip { border-radius: 23px; }
 .strip { margin-top: 4px; }
-.hazard-track { height: 12px; }
+.tension-track { height: 12px; }
+.lord-face { top: -11px; }
 .marker-note { font-size: 12px; }
 .middle { margin-top: 6px; }
 .shortcut { margin-bottom: 6px; }
