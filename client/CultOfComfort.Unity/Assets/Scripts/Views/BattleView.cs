@@ -16,6 +16,12 @@ namespace CultOfComfort.Client
         /// <summary>Raiders, the Prophet and his cultists stand this much bigger at Night than a tile would make them.</summary>
         public const float UnitScale = 1.6f;
 
+        /// <summary>The Prophet stands a little taller at Night than the raiders round him (spec 2026-11-17 fun first, B2).</summary>
+        public const float ProphetNightScale = 1.15f;
+
+        /// <summary>How thick the Prophet's dark outline is, world units: thicker than a prop's would be, so he reads first.</summary>
+        public const float ProphetOutline = 0.035f;
+
         private readonly Dictionary<int, EnemyVisual> _enemies = new Dictionary<int, EnemyVisual>();
         private readonly List<Effect> _effects = new List<Effect>();
         private MaterialPropertyBlock _block;
@@ -90,7 +96,8 @@ namespace CultOfComfort.Client
             var model = ArtLibrary.Instantiate("prophet", _leader);
             if (model != null)
             {
-                model.transform.localScale *= UnitScale;
+                model.transform.localScale *= UnitScale * ProphetNightScale;
+                Shapes.Outline(model, ProphetOutline); // found at a glance among the raiders (spec 2026-11-17 fun first, B2)
                 _prophet = model.AddComponent<PartAnimator>();
                 _prophet.Bind();
             }

@@ -126,7 +126,7 @@
 .meter-fill { height: 100%; background-image: resource("UI/Kit/hazard"); background-repeat: repeat; background-size: 24px 24px; }
 /* The Hearth's tape burns orange, the Prophet's is his teal: two meters you can tell apart (spec 2026-11-17 fun first, B4). */
 #hearth-fill { -unity-background-image-tint-color: #ff9a3c; }
-#prophet-fill { -unity-background-image-tint-color: #3fe8d4; }
+#prophet-fill { background-image: none; background-color: #3fe8d4; } /* solid: teal over the yellow stripes came out green */
 .meter-value { width: 36px; color: #f6e7c4; font-size: 12px; -unity-text-align: middle-right; padding: 0; }
 
 /* ---------- middle ---------- */

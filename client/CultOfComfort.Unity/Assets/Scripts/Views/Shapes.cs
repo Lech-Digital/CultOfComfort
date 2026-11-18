@@ -80,6 +80,57 @@ namespace CultOfComfort.Client
 
         private static Material _glowMaterial;
 
+        private static Material _outlineMaterial;
+
+        /// <summary>
+        /// A dark cartoon outline round a model (spec 2026-11-17 fun first, B2; the look of decision 9): each mesh is drawn a
+        /// second time, slightly larger and back faces only, in dark brown (Resources/OutlineHull.mat, URP Unlit with
+        /// front faces culled). The hull is a child of its part, so it moves with the part's animation.
+        /// </summary>
+        /// <param name="width">How thick the line is, world units.</param>
+        public static void Outline(GameObject model, float width)
+        {
+            if (_outlineMaterial == null)
+            {
+                _outlineMaterial = Resources.Load<Material>("OutlineHull");
+                if (_outlineMaterial == null)
+                {
+                    return;
+                }
+            }
+
+            foreach (var filter in model.GetComponentsInChildren<MeshFilter>())
+            {
+                if (filter.sharedMesh == null || filter.name.EndsWith(" outline"))
+                {
+                    continue;
+                }
+
+                var bounds = filter.sharedMesh.bounds;
+                var lossy = filter.transform.lossyScale;
+                var scale = HullScale(Vector3.Scale(bounds.size, new Vector3(Mathf.Abs(lossy.x), Mathf.Abs(lossy.y), Mathf.Abs(lossy.z))), width);
+                var hull = new GameObject(filter.name + " outline");
+                hull.transform.SetParent(filter.transform, false);
+                hull.transform.localScale = scale;
+                hull.transform.localPosition = bounds.center - Vector3.Scale(bounds.center, scale); // grown round its middle
+                hull.AddComponent<MeshFilter>().sharedMesh = filter.sharedMesh;
+                var renderer = hull.AddComponent<MeshRenderer>();
+                renderer.sharedMaterial = _outlineMaterial;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+            }
+        }
+
+        /// <summary>
+        /// How much to grow a part of <paramref name="worldSize"/> so its hull shows <paramref name="width"/> all round:
+        /// per axis, (size + 2 width) / size. Thin axes are capped, so a flat part doesn't balloon.
+        /// </summary>
+        public static Vector3 HullScale(Vector3 worldSize, float width)
+        {
+            float Axis(float size) => Mathf.Min(1.5f, (Mathf.Max(size, 0.05f) + 2f * width) / Mathf.Max(size, 0.05f));
+            return new Vector3(Axis(worldSize.x), Axis(worldSize.y), Axis(worldSize.z));
+        }
+
         /// <summary>Per-instance tint without allocating a new material per enemy.</summary>
         public static void Tint(Renderer renderer, Color color, MaterialPropertyBlock block)
         {
