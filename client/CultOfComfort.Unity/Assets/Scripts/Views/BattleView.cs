@@ -22,6 +22,9 @@ namespace CultOfComfort.Client
         /// <summary>How thick the Prophet's dark outline is, world units: thicker than a prop's would be, so he reads first.</summary>
         public const float ProphetOutline = 0.035f;
 
+        /// <summary>The raiders' ink line: as thick as his, they're the fight (spec 2026-11-17 fun first, decision 9).</summary>
+        public const float RaiderOutline = 0.03f;
+
         private readonly Dictionary<int, EnemyVisual> _enemies = new Dictionary<int, EnemyVisual>();
         private readonly List<Effect> _effects = new List<Effect>();
         private MaterialPropertyBlock _block;
@@ -87,6 +90,7 @@ namespace CultOfComfort.Client
 
             _root = new GameObject("Battle").transform;
             _root.SetParent(transform, false);
+            NightLights.Build(_root, battle); // the warm pool, the baskets, the torches up the road (F1)
 
             _leader = new GameObject("The Prophet").transform;
             _leader.SetParent(_root, false);
@@ -781,6 +785,7 @@ namespace CultOfComfort.Client
                 model.transform.SetParent(modelRoot, false);
                 var lord = enemy.Type == EnemyType.Lord;
                 model.transform.localScale *= UnitScale; // chunkier than the village's people: they're the show tonight
+                Shapes.Outline(model, RaiderOutline); // the ink line of the target look (decision 9): characters thickest
                 if (lord)
                 {
                     model.transform.localScale *= 1.35f; // the boss should look like one

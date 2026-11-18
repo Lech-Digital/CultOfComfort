@@ -1206,6 +1206,9 @@ namespace CultOfComfort.Client
             }
         }
 
+        /// <summary>The buildings' and towers' ink line, world units (spec 2026-11-17 fun first, decision 9).</summary>
+        public const float BuildingOutline = 0.02f;
+
         /// <summary>Instantiates a pipeline model on the board, or returns null so the caller can fall back.</summary>
         private GameObject Place(string model, Vector3 position, float yaw, float scale = 1f)
         {
@@ -1459,6 +1462,10 @@ namespace CultOfComfort.Client
                     : building.Type == BuildingType.Gate ? GateModel(building.Level)
                     : BuildingArt.ModelName(building.Type, building.Level, ArtLibrary.Exists);
                 var model = Joins(building.Type) ? null : ArtLibrary.Instantiate(modelName, visual.Root);
+                if (model != null && building.Type != BuildingType.Tree && building.Type != BuildingType.Stone)
+                {
+                    Shapes.Outline(model, BuildingOutline); // the ink line (decision 9): thinner than the characters', so the fight reads first
+                }
                 var scale = (building.Level == 0 ? BuildingArt.ShellScalePerTile : BuildingArt.ScalePerTile) * Mathf.Min(size.x, size.y);
                 if (model != null)
                 {
@@ -1560,6 +1567,7 @@ namespace CultOfComfort.Client
             if (model != null)
             {
                 model.transform.localRotation = Quaternion.Euler(0f, yaw, 0f) * FaceCamera;
+                Shapes.Outline(model, BuildingOutline);
                 return root.gameObject;
             }
 
