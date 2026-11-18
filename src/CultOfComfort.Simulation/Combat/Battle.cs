@@ -12,7 +12,7 @@ namespace CultOfComfort.Simulation.Combat;
 /// Deterministic Night simulation: f(layout, seed, budget, inputs) → result + state hash.
 /// The client steps it live; the server replays the recorded input log and compares hashes (ADR 0002).
 /// </summary>
-public sealed class Battle
+public sealed partial class Battle
 {
     private readonly BalanceTable _balance;
     private readonly Relic _relics;
@@ -94,6 +94,8 @@ public sealed class Battle
                 _roadBlockers.Add((i, gate));
             }
         }
+
+        InitRules(setup);
     }
 
     /// <summary>The relics fire themselves tonight (Nights planned since 2026-10-15).</summary>
@@ -198,6 +200,7 @@ public sealed class Battle
         }
 
         Leader.Regenerate(Tick, _balance.Leader.RegenDelayTicks, _balance.Leader.RegenIntervalTicks);
+        TrackRules();
         HashState();
         CheckForEnd();
         Tick++;
@@ -226,6 +229,12 @@ public sealed class Battle
 
     private void SpawnEnemies()
     {
+        if (_rules >= FunFirstRules)
+        {
+            SpawnByRules();
+            return;
+        }
+
         while (_nextSpawnIndex < _spawns.Count && _spawns[_nextSpawnIndex].Tick <= Tick)
         {
             var spawn = _spawns[_nextSpawnIndex++];
@@ -235,11 +244,16 @@ public sealed class Battle
                 _tickEvents.Add(new WaveStarted(Tick, spawn.Wave));
             }
 
-            var enemy = new Enemy(_nextEnemyId++, spawn.Type, spawn.Wave, _balance.Enemies[spawn.Type].MaxHealth);
-            enemy.WallBreaker = Roll(enemy.Id) < _balance.Enemies[spawn.Type].WallBreakerPercent;
-            _enemies.Add(enemy);
-            _tickEvents.Add(new EnemySpawned(Tick, enemy.Id, enemy.Type, spawn.Wave));
+            SpawnOne(spawn);
         }
+    }
+
+    private void SpawnOne(SpawnEntry spawn)
+    {
+        var enemy = new Enemy(_nextEnemyId++, spawn.Type, spawn.Wave, _balance.Enemies[spawn.Type].MaxHealth);
+        enemy.WallBreaker = Roll(enemy.Id) < _balance.Enemies[spawn.Type].WallBreakerPercent;
+        _enemies.Add(enemy);
+        _tickEvents.Add(new EnemySpawned(Tick, enemy.Id, enemy.Type, spawn.Wave));
     }
 
     private void ApplyInputs()
@@ -272,6 +286,12 @@ public sealed class Battle
                     break;
                 case PlayerActionType.SunFire:
                     FocusSunFire(input.Target);
+                    break;
+                case PlayerActionType.CallWave:
+                    CallWave();
+                    break;
+                case PlayerActionType.PickBoon:
+                    PickBoon(input.Target.X);
                     break;
                 default:
                     _tickEvents.Add(new InputRejected(Tick, input.Type, "Unknown intervention."));
@@ -356,7 +376,7 @@ public sealed class Battle
             return;
         }
 
-        Leader.VoiceReadyAtTick = Tick + stats.VoiceCooldownTicks;
+        Leader.VoiceReadyAtTick = Tick + VoiceCooldown(stats.VoiceCooldownTicks);
         var radiusSquared = stats.VoiceRadius * stats.VoiceRadius;
         var affected = 0;
         foreach (var enemy in _enemies)
@@ -395,7 +415,7 @@ public sealed class Battle
             return;
         }
 
-        Leader.HotStonesReadyAtTick = Tick + stats.CooldownTicks;
+        Leader.HotStonesReadyAtTick = Tick + StonesCooldown(stats.CooldownTicks);
         var center = target.ToVector();
         var radiusSquared = stats.Radius * stats.Radius;
         var affected = 0;
@@ -617,7 +637,7 @@ public sealed class Battle
                 continue;
             }
 
-            tower.CooldownTicksRemaining = stats.CooldownTicks;
+            tower.CooldownTicksRemaining = TowerCooldown(stats.CooldownTicks);
             if (stats.SplashRadius > Fix.Zero)
             {
                 FireSplash(tower, stats, target);
@@ -892,7 +912,7 @@ public sealed class Battle
 
         enemy.StructuresHit.Add(target.Id);
         enemy.CancelSwing();
-        var wrecked = target.TakeHit(stats.StructureDamage);
+        var wrecked = target.TakeHit(stats.StructureDamage, MayWreck(target));
         _tickEvents.Add(new StructureHit(Tick, target.Id, enemy.Id, stats.StructureDamage, target.Health));
         if (wrecked)
         {
@@ -1101,7 +1121,7 @@ public sealed class Battle
 
             enemy.StructuresHit.Add(target.Id);
             enemy.CancelSwing();
-            var wrecked = target.TakeHit(stats.StructureDamage);
+            var wrecked = target.TakeHit(stats.StructureDamage, MayWreck(target));
             _tickEvents.Add(new StructureHit(Tick, target.Id, enemy.Id, stats.StructureDamage, target.Health));
             if (wrecked)
             {
@@ -1664,6 +1684,8 @@ public sealed class Battle
         {
             _hasher.Add(structure.Health);
         }
+
+        HashRules();
     }
 
     private void CheckForEnd()
@@ -1691,13 +1713,20 @@ public sealed class Battle
             TicksElapsed: Tick + 1,
             EnemiesDefeated: _enemies.Count(e => e.State == EnemyState.Defeated),
             EnemiesLeaked: _enemies.Count(e => e.State == EnemyState.ReachedHearth),
-            _hasher.Value);
+            _hasher.Value,
+            ObjectiveMet: _rules >= FunFirstRules && ObjectiveMet,
+            EarlyCalls: EarlyCalls);
         _tickEvents.Add(new BattleEnded(Tick, outcome, stars));
     }
 
     /// <summary>GDD 01: 3★ ≥ 80% Hearth, 2★ ≥ 40%, 1★ survived. Morale is not simulated yet.</summary>
     private int CalculateStars(BattleOutcome outcome)
     {
+        if (_rules >= FunFirstRules)
+        {
+            return StarsByRules(outcome);
+        }
+
         if (outcome == BattleOutcome.Lost)
         {
             return 0;

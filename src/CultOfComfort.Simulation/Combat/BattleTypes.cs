@@ -20,6 +20,12 @@ public enum PlayerActionType
 
     /// <summary>Relic: sun-fire. Target: a tile; raiders there catch fire. Only while the sun is up (the first wave).</summary>
     SunFire,
+
+    /// <summary>Between waves: bring the next one on now, for more salvage (spec 2026-11-17 fun first, C3). Rules 1+.</summary>
+    CallWave,
+
+    /// <summary>Between waves: take one of the three boons on offer; Target.X is its index (C2). Rules 1+.</summary>
+    PickBoon,
 }
 
 /// <summary>The relics from the boot the Prophet has worked out how to use (GDD 05: The Boot).</summary>
@@ -88,6 +94,43 @@ public sealed record BattleSetup(
 
     /// <summary>Mud traps on the road (spec 2026-10-20 dusk tricks). None for Nights planned before.</summary>
     public IReadOnlyList<GridPosition> Traps { get; init; } = System.Array.Empty<GridPosition>();
+
+    /// <summary>
+    /// Which rules the Night is fought by: 0 as before; 1 (balance 2026.11.1, spec 2026-11-17 fun first, C) waves wait for
+    /// the last to be cleared, with a gap for a boon and a call, stars are earned, and there's an objective.
+    /// </summary>
+    public int Rules { get; init; }
+
+    /// <summary>The third star's condition (rules 1+).</summary>
+    public NightObjective Objective { get; init; }
+
+    /// <summary>How many buildings the raiders may wreck (0: no limit). The first Night teaches: one (decision 2).</summary>
+    public int MaxWrecks { get; init; }
+}
+
+/// <summary>What the third star asks for (spec 2026-11-17 fun first, C1), shown at Dusk.</summary>
+public enum NightObjective
+{
+    None,
+    NothingWrecked,
+    ProphetNeverSwoons,
+    ThreeInOneStone,
+}
+
+/// <summary>What a boon does for the next wave (C2).</summary>
+public enum Boon
+{
+    /// <summary>"Duct-tape the chute": towers fire half as fast again.</summary>
+    ChuteTape,
+
+    /// <summary>"Bluetooth at full volume": the Voice cools down in half the time.</summary>
+    FullVolume,
+
+    /// <summary>"Hand out umbrellas": cultists patch the buildings as the wave comes.</summary>
+    Umbrellas,
+
+    /// <summary>"Hotter stones": Hot Stones heat up in half the time.</summary>
+    HotterStones,
 }
 
 public sealed record BattleResult(
@@ -98,7 +141,9 @@ public sealed record BattleResult(
     int TicksElapsed,
     int EnemiesDefeated,
     int EnemiesLeaked,
-    ulong StateHash)
+    ulong StateHash,
+    bool ObjectiveMet = false,
+    int EarlyCalls = 0)
 {
     public string StateHashHex => StateHash.ToString("x16");
 }
@@ -135,6 +180,17 @@ public sealed record LeaderSwooned(int Tick) : BattleEvent(Tick);
 public sealed record LeaderRevived(int Tick, int Health) : BattleEvent(Tick);
 
 public sealed record HotStonesThrown(int Tick, GridPosition Target, int EnemiesAffected) : BattleEvent(Tick);
+
+/// <summary>A wave is cleared and the next waits (rules 1+): the three boons on offer, and when it comes if not called.</summary>
+public sealed record WaveGap(int Tick, int NextWave, IReadOnlyList<Boon> Offer, int NextWaveAtTick) : BattleEvent(Tick);
+
+public sealed record BoonPicked(int Tick, Boon Boon) : BattleEvent(Tick);
+
+/// <summary>The umbrellas patched a building (rules 1+).</summary>
+public sealed record StructureMended(int Tick, int StructureId, int Health) : BattleEvent(Tick);
+
+/// <summary>The player called the next wave early (rules 1+).</summary>
+public sealed record WaveCalled(int Tick, int Wave) : BattleEvent(Tick);
 
 /// <summary>A relic went off: the laser at <paramref name="TargetId"/> (−1: none), the torch lit, the glass focused on <paramref name="Target"/>.</summary>
 public sealed record RelicUsed(int Tick, PlayerActionType Type, GridPosition Target, int TargetId, int EnemiesAffected) : BattleEvent(Tick);

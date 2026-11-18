@@ -52,4 +52,5 @@ internal static class RandomStreams
     public const ulong World = 3;
     public const ulong Placement = 4;
     public const ulong Bots = 5;
+    public const ulong Boons = 6;
 }
