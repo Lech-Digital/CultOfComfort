@@ -479,3 +479,47 @@
 
 /* ---------- one thing at a time (spec 2026-10-16): the coach speaks, the errand note waits ---------- */
 .errand-note.hushed { visibility: hidden; }
+
+/* ---------- the skill panel at Night (spec 2026-11-17 fun first, B6) ----------
+   No parchment band across the board: round notes in an arc, bottom right, under the thumb; relics as small round chips
+   at the left with the hint over them. The whole panel stays under 18% of the screen's height. */
+.night-phase .bar { background-image: none; padding: 0 8px 6px 10px; }
+.night-bar, .landscape .night-bar { flex-direction: row; align-items: flex-end; justify-content: space-between; flex-wrap: nowrap; }
+.night-side { flex-grow: 1; flex-shrink: 1; min-width: 0; justify-content: flex-end; padding-bottom: 4px; }
+.night-side > .hint { margin: 0 8px 6px 0; font-size: 12px; text-shadow: 0 1px 2px rgba(0,0,0,0.95); }
+.landscape .night-side > .hint { display: flex; font-size: 11px; }
+.night-side > .relics, .landscape .night-side > .relics { flex-direction: row; flex-wrap: wrap; margin: 0; }
+
+.night-bar .skill-arc, .landscape .night-bar .skill-arc { flex-grow: 0; flex-shrink: 0; width: 176px; height: 142px; }
+.night-bar .skill-arc > .skill {
+    position: absolute; flex-grow: 0; flex-shrink: 0; flex-basis: auto; min-width: 0; max-width: none; margin: 0;
+    padding: 6px 4px 8px 4px; border-radius: 50%; justify-content: center; align-items: center;
+    -unity-slice-left: 0; -unity-slice-right: 0; -unity-slice-top: 0; -unity-slice-bottom: 0;
+}
+.night-bar .skill-arc > .arc-corner { width: 76px; height: 76px; right: 0; bottom: 0; }
+.night-bar .skill-arc > .arc-left { width: 60px; height: 60px; left: 4px; bottom: 6px; }
+.night-bar .skill-arc > .arc-high { width: 60px; height: 60px; left: 34px; top: 0; }
+.night-bar .skill-arc .skill-icon { width: 26px; height: 26px; }
+.night-bar .skill-arc > .arc-corner .skill-icon { width: 32px; height: 32px; }
+.night-bar .skill-arc .skill-text { font-size: 9px; white-space: nowrap; }
+.night-bar .skill-arc > .arc-corner .skill-text { font-size: 10px; }
+
+.night-bar .relics > .relic, .landscape .night-bar .relics > .relic {
+    width: 50px; min-width: 50px; max-width: 50px; height: 50px; margin: 0 6px 0 0; padding: 4px 2px 6px 2px;
+    border-radius: 50%; flex-direction: column; justify-content: center; align-items: center;
+    -unity-slice-left: 0; -unity-slice-right: 0; -unity-slice-top: 0; -unity-slice-bottom: 0;
+}
+.night-bar .relics > .relic .skill-icon { width: 22px; height: 22px; margin: 0; }
+.night-bar .relics > .relic .skill-text { font-size: 9px; -unity-text-align: middle-center; white-space: nowrap; }
+
+.skill-ring { position: absolute; left: -3px; top: -3px; right: -3px; bottom: -3px; }
+/* landscape: the height is short, so the notes sit in one low row in the corner instead of an arc (still under 18%) */
+.landscape .night-bar .skill-arc { width: 196px; height: 62px; }
+.landscape .night-bar .skill-arc > .skill { top: auto; bottom: 0; left: auto; }
+.landscape .night-bar .skill-arc > .arc-corner { width: 62px; height: 62px; right: 0; }
+.landscape .night-bar .skill-arc > .arc-left { width: 56px; height: 56px; right: 134px; }
+.landscape .night-bar .skill-arc > .arc-high { width: 56px; height: 56px; right: 70px; }
+.landscape .night-bar .skill-arc .skill-icon, .landscape .night-bar .skill-arc > .arc-corner .skill-icon { width: 22px; height: 22px; }
+.landscape .night-bar .relics > .relic { width: 44px; min-width: 44px; max-width: 44px; height: 44px; }
+.landscape .night-side { flex-direction: row-reverse; justify-content: flex-end; align-items: center; }
+.landscape .night-side > .hint { margin: 0 0 0 4px; flex-shrink: 1; max-width: 300px; }

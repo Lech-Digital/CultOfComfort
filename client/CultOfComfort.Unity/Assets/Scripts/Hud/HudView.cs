@@ -12,8 +12,9 @@ namespace CultOfComfort.Client
     /// <summary>One relic button on the Night bar: hidden until the relic is found.</summary>
     public readonly struct RelicButtonState
     {
-        public RelicButtonState(bool shown, string text, bool ready, bool aiming = false)
+        public RelicButtonState(bool shown, string text, bool ready, bool aiming = false, float cooldown = 0f)
         {
+            Cooldown = cooldown;
             Shown = shown;
             Text = text;
             Ready = ready;
@@ -24,6 +25,9 @@ namespace CultOfComfort.Client
         public string Text { get; }
         public bool Ready { get; }
         public bool Aiming { get; }
+
+        /// <summary>How much of its cooldown is left (0: ready, 1: just used), for the chip's ring.</summary>
+        public float Cooldown { get; }
     }
 
     /// <summary>What the Night bar shows. Built by the controller each frame from the live battle.</summary>
@@ -457,11 +461,14 @@ namespace CultOfComfort.Client
             _nightBar = Container("night-bar");
             _nightBar.name = "night-bar";
             var skills = Container("skills");
+            skills.AddToClassList("skill-arc"); // round notes in an arc, bottom right (spec 2026-11-17 fun first, B6)
             _sluice = SkillButton("sluice", "note-blue", () => SluiceClicked?.Invoke());
             _voice = SkillButton("voice", "note-pink", () => VoiceClicked?.Invoke());
             _stones = SkillButton("stones", "note-yellow", () => StonesClicked?.Invoke());
             _speed = SkillButton("speed", "note-green", () => SpeedClicked?.Invoke());
             _speed.AddToClassList("speed");
+            _speed.Remove(_skillRing[_speed]); // a setting, not a skill: no cooldown ring
+            _skillRing.Remove(_speed);
             _relicRow = Container("relics");
             _relicRow.name = "relics";
             _laser = SkillButton("laser", "note-pink", () => LaserClicked?.Invoke());
@@ -469,18 +476,23 @@ namespace CultOfComfort.Client
             _sunFire = SkillButton("magnifier", "note-blue", () => SunFireClicked?.Invoke());
             foreach (var relic in new[] { _laser, _torch, _sunFire })
             {
-                relic.AddToClassList("relic");
+                relic.AddToClassList("relic"); // a small round chip with a ring timer (B6)
                 _relicRow.Add(relic);
             }
 
-            _nightBar.Add(_relicRow);
+            _sluice.AddToClassList("arc-high");
+            _voice.AddToClassList("arc-left");
+            _stones.AddToClassList("arc-corner"); // the aimed one, biggest, under the thumb
             skills.Add(_sluice);
             skills.Add(_voice);
             skills.Add(_stones);
             _waveRow.Add(_speed); // the speed is a setting, not a skill: up with the wave (spec 2026-11-17 fun first, B6)
             _nightStatus = Text(string.Empty, "hint");
+            var side = Container("night-side"); // the hint over the relic chips, left of the arc
+            side.Add(_nightStatus);
+            side.Add(_relicRow);
+            _nightBar.Add(side);
             _nightBar.Add(skills);
-            _nightBar.Add(_nightStatus);
             _bar.Add(_duskBar);
             _bar.Add(_nightBar);
 
@@ -1897,10 +1909,11 @@ namespace CultOfComfort.Client
             button.AddToClassList("btn");
             button.AddToClassList("skill");
             button.AddToClassList(note);
-            var shade = new VisualElement { pickingMode = PickingMode.Ignore };
-            shade.AddToClassList("skill-cooldown"); // drains away as the skill cools down (spec 2026-11-17 fun first, B6)
-            button.Add(shade);
-            _skillShade[button] = shade;
+            var ring = new VisualElement { pickingMode = PickingMode.Ignore, userData = 0f };
+            ring.AddToClassList("skill-ring"); // fills round as the skill cools down (spec 2026-11-17 fun first, B6)
+            ring.generateVisualContent += DrawCooldownRing;
+            button.Add(ring);
+            _skillRing[button] = ring;
             button.Add(Icon(icon, "skill-icon"));
             var text = Text(string.Empty, "skill-text");
             text.pickingMode = PickingMode.Ignore;
@@ -1914,14 +1927,53 @@ namespace CultOfComfort.Client
             Show(button, state.Shown);
             if (state.Shown)
             {
-                SetSkill(button, state.Text, state.Ready || state.Aiming);
+                SetSkill(button, state.Text, state.Ready || state.Aiming, state.Cooldown);
                 button.EnableInClassList("aiming", state.Aiming);
             }
         }
 
         private readonly VisualElement _waveRow;
 
-        private readonly Dictionary<Button, VisualElement> _skillShade = new Dictionary<Button, VisualElement>();
+        private readonly Dictionary<Button, VisualElement> _skillRing = new Dictionary<Button, VisualElement>();
+
+        /// <summary>
+        /// The radial cooldown (B6): a dark track round the note, and the part already cooled in gold, filling clockwise
+        /// from the top. Ready: one full gold ring. <c>userData</c> holds how much is left (0..1).
+        /// </summary>
+        private static void DrawCooldownRing(MeshGenerationContext context)
+        {
+            var ring = context.visualElement;
+            var left = ring.userData is float f ? Mathf.Clamp01(f) : 0f;
+            var rect = ring.contentRect;
+            var radius = Mathf.Min(rect.width, rect.height) * 0.5f - 3f;
+            if (radius <= 2f)
+            {
+                return;
+            }
+
+            var centre = rect.center;
+            var p = context.painter2D;
+            p.lineWidth = 4f;
+            p.lineCap = LineCap.Round;
+            if (left > 0f)
+            {
+                p.strokeColor = new Color(0.12f, 0.08f, 0.05f, 0.7f);
+                p.BeginPath();
+                p.Arc(centre, radius, 0f, 360f);
+                p.Stroke();
+            }
+
+            var done = 1f - left;
+            if (done <= 0.001f)
+            {
+                return;
+            }
+
+            p.strokeColor = new Color(1f, 0.83f, 0.3f);
+            p.BeginPath();
+            p.Arc(centre, radius, -90f, -90f + 360f * done);
+            p.Stroke();
+        }
         private readonly Dictionary<Button, float> _readyPopAt = new Dictionary<Button, float>();
 
         /// <summary>Per frame, so no queries: the label was remembered when the button was built.</summary>
@@ -1934,9 +1986,14 @@ namespace CultOfComfort.Client
             }
 
             button.SetEnabled(ready);
-            if (_skillShade.TryGetValue(button, out var shade))
+            if (_skillRing.TryGetValue(button, out var ring))
             {
-                shade.style.height = Length.Percent(Mathf.Clamp01(cooldown) * 100f);
+                var left = ready ? 0f : Mathf.Clamp01(cooldown);
+                if (!(ring.userData is float was) || Mathf.Abs(was - left) > 0.004f)
+                {
+                    ring.userData = left;
+                    ring.MarkDirtyRepaint();
+                }
             }
 
             var popping = _readyPopAt.TryGetValue(button, out var at) && Time.unscaledTime - at < 0.35f;

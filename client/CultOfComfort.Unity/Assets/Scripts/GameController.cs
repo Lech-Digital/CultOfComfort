@@ -2216,8 +2216,9 @@ namespace CultOfComfort.Client
             }
 
             var aiming = aimed != null && _aim == aimed;
-            var text = swooning ? "Fainted" : aiming ? "Pick" : ready ? (_battle.AutoRelics ? $"{name} · auto" : name) : $"{name} {Seconds(readyAtTick)}s";
-            return new RelicButtonState(true, text, ready, aiming);
+            // A chip (spec 2026-11-17 fun first, B6): the icon says which relic, the word under it what it's doing.
+            var text = swooning ? "Fainted" : aiming ? "Pick" : ready ? (_battle.AutoRelics ? "auto" : name) : $"{Seconds(readyAtTick)}s";
+            return new RelicButtonState(true, text, ready, aiming, ready ? 0f : Cooldown(name, readyAtTick));
         }
 
         private bool AimReady(PlayerActionType skill) => skill switch
