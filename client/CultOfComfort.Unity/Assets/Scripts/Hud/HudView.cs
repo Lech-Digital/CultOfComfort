@@ -287,6 +287,11 @@ namespace CultOfComfort.Client
             _tensionStrip.Add(tape);
             _tensionNote = Text(string.Empty, "marker-note");
             _tensionStrip.Add(_tensionNote);
+            // Who's coming tonight (spec 2026-11-17 fun first, B5): the scouting lines live on a card at Dusk, not in the fight.
+            _rosterLink = Text("Who's coming ›", "roster-link");
+            _rosterLink.name = "roster-link";
+            _rosterLink.RegisterCallback<ClickEvent>(_ => RosterClicked?.Invoke());
+            _tensionStrip.Add(_rosterLink);
             _top.Add(_tensionStrip);
 
             _waveStrip = Container("strip");
@@ -486,6 +491,11 @@ namespace CultOfComfort.Client
             _root.Add(_settings);
             _howTo = BuildHowTo();
             _root.Add(_howTo);
+            _roster = Panel("sheet");
+            _roster.AddToClassList("roster");
+            _roster.name = "roster";
+            Show(_roster, false);
+            _root.Add(_roster);
             _root.Add(_buildingCard);
             Show(_buildingCard, false);
             // The tutorial coach (GDD 05): a hi-vis arrow at the next tap and the Prophet's line beside it.
@@ -669,6 +679,7 @@ namespace CultOfComfort.Client
             if (phase != GamePhase.Dusk)
             {
                 Show(_settings, false);
+                Show(_roster, false);
                 _noteUntil = 0f;
             }
         }
@@ -781,7 +792,7 @@ namespace CultOfComfort.Client
         public void ShowGhostActions(Rect? ghost, string problem, bool canRotate, string warning = null)
         {
             // A sheet on screen (settings, how to play) has the finger: the ghost's buttons wait behind it.
-            var sheetOpen = Visible(_settings) || Visible(_howTo);
+            var sheetOpen = Visible(_settings) || Visible(_howTo) || Visible(_roster);
             Show(_ghostActions, ghost != null && !sheetOpen);
             if (ghost == null || sheetOpen)
             {
@@ -1583,6 +1594,56 @@ namespace CultOfComfort.Client
         }
 
         public bool HowToShown => Visible(_howTo);
+
+        /// <summary>"Who's coming ›" on the Tension strip was tapped.</summary>
+        public event Action RosterClicked;
+
+        private readonly Label _rosterLink;
+        private readonly VisualElement _roster;
+
+        public bool RosterShown => Visible(_roster);
+
+        /// <summary>The link on the strip: louder while the card has a raider the player hasn't read about.</summary>
+        public void SetRosterLink(bool visible, bool hasNew)
+        {
+            Show(_rosterLink, visible);
+            _rosterLink.text = hasNew ? "New raiders! ›" : "Who's coming ›";
+            _rosterLink.EnableInClassList("new", hasNew);
+        }
+
+        /// <summary>The roster card (spec 2026-11-17 fun first, B5): who may come tonight, with the scout's line for each. Null closes it.</summary>
+        public void ShowRoster(string title, IReadOnlyList<RaiderRow> rows)
+        {
+            _roster.Clear();
+            if (rows == null)
+            {
+                Show(_roster, false);
+                return;
+            }
+
+            _roster.Add(Text(title, "sheet-title"));
+            foreach (var row in rows)
+            {
+                var line = Container("roster-row");
+                var head = Container("roster-head");
+                head.Add(Text(row.Leads ? $"{row.Name} · leads the last wave" : row.Name, "roster-name"));
+                if (row.IsNew)
+                {
+                    head.Add(Text("New", "roster-new"));
+                }
+
+                line.Add(head);
+                line.Add(Text(row.Line, "sheet-line", "small", "wrap"));
+                _roster.Add(line);
+            }
+
+            var close = ButtonWith("Let them come", () => Show(_roster, false), "plain");
+            close.name = "roster-close";
+            _roster.Add(close);
+            Show(_roster, true);
+            Show(_settings, false);
+            Show(_howTo, false);
+        }
 
         private VisualElement BuildHowTo()
         {

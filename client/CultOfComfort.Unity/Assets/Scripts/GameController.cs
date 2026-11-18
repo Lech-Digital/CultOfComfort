@@ -345,6 +345,7 @@ namespace CultOfComfort.Client
             _sheet = new FeatureSheetView(root);
             _sheet.ActionClicked += OnSheetAction;
             _hud.FeatureClicked += OpenFeature;
+            _hud.RosterClicked += OpenRoster;
         }
 
         /// <summary>Opens a frame feature: the map (Map, Missionaries, Tithes) or a sheet (Research, Shop, Cult).</summary>
@@ -754,6 +755,48 @@ namespace CultOfComfort.Client
         private static readonly string[] SideShortcuts = { "pilgrims", "map", "missionaries", "research", "tithes", "festival" };
         public const string ShownFeaturesKey = "features.shown";
         public const string TriedFeaturesKey = "features.tried";
+
+        /// <summary>Raider types the player has read about on the roster card (spec 2026-11-17 fun first, B5).</summary>
+        public const string RosterSeenKey = "roster.seen";
+
+        private (int Hearth, int Road, int Seen, bool Dusk) _rosterLinkKey = (-1, -1, -1, false);
+        private HashSet<string> _rosterSeen;
+
+        private HashSet<string> RosterSeen => _rosterSeen ??= PrefSet(RosterSeenKey);
+
+        /// <summary>"Who's coming ›" on the strip at Dusk, or "New raiders! ›" while the card has one not read about yet.</summary>
+        private void UpdateRosterLink()
+        {
+            var dusk = _phase == GamePhase.Dusk && _snapshot != null;
+            var seen = RosterSeen;
+            var key = dusk ? (_snapshot.HearthLevel, _snapshot.NextRoad, seen.Count, true) : (-1, -1, -1, false);
+            if (key == _rosterLinkKey)
+            {
+                return;
+            }
+
+            _rosterLinkKey = key;
+            var any = dusk && RosterCard.Rows(_snapshot.HearthLevel, _snapshot.NextRoad, seen).Count > 0;
+            _hud.SetRosterLink(any, any && RosterCard.HasNew(_snapshot.HearthLevel, _snapshot.NextRoad, seen));
+        }
+
+        private void OpenRoster()
+        {
+            if (_phase != GamePhase.Dusk || _snapshot == null)
+            {
+                return;
+            }
+
+            var seen = RosterSeen;
+            var rows = RosterCard.Rows(_snapshot.HearthLevel, _snapshot.NextRoad, seen);
+            _hud.ShowRoster(RosterCard.Title(_snapshot.HearthLevel, _snapshot.NextRoad), rows);
+            foreach (var row in rows)
+            {
+                seen.Add(row.Type.ToString());
+            }
+
+            SavePrefSet(RosterSeenKey, seen); // read now: "New" shows this once
+        }
         private HashSet<string> _shown;
         private HashSet<string> _tried;
 
@@ -2806,6 +2849,7 @@ namespace CultOfComfort.Client
             _hud.ShowCoach(coach, coachPoint);
             _hud.Tick(Time.time);
             _hud.UpdateFrame(_snapshot != null ? VillagePresenter.Frame(_snapshot) : DemoEconomy.Frame(0, 1));
+            UpdateRosterLink();
             if (_phase == GamePhase.Dusk)
             {
                 var probe = DeterminismProbe.Matches switch

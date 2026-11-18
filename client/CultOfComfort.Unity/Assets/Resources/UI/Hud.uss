@@ -353,6 +353,15 @@
 .relic .skill-text { font-size: 11px; }
 
 .sheet-row { flex-direction: row; }
+/* Who's coming tonight (spec 2026-11-17 fun first, B5). */
+.roster-link { align-self: flex-end; color: #f6e7c4; font-size: 13px; padding: 8px 10px; margin: -6px 18px -6px 0; min-height: 36px; -unity-text-align: middle-right; text-shadow: 0 1px 2px rgba(0,0,0,0.9); flex-shrink: 0; }
+.roster-link.new { color: #ffe14d; -unity-font-style: bold; }
+.roster { width: 300px; }
+.roster-row { margin: 4px 0 2px 0; }
+.roster-head { flex-direction: row; align-items: center; }
+.roster-name { -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC"); color: #7a1f1a; font-size: 15px; padding: 0; margin: 0; }
+.roster-new { background-color: #ffe14d; color: #2b2215; font-size: 10px; -unity-font-style: bold; padding: 0 4px; margin: 0 0 0 6px; border-radius: 3px; }
+.landscape .roster .roster-name { font-size: 13px; }
 .sheet-row > .btn, .sheet-row > Button { flex-grow: 1; flex-basis: 0; margin-right: 6px; }
 
 .account-note { white-space: normal; -unity-text-align: middle-center; }

@@ -40,7 +40,6 @@ namespace CultOfComfort.Client
         private Vector3 _leaderCurrent;
         private float _umbrellaSwing;
         private float _shake;
-        private readonly HashSet<EnemyType> _announced = new HashSet<EnemyType>();
         private Dictionary<int, Tower> _towers;
 
         private Camera _camera;
@@ -666,9 +665,6 @@ namespace CultOfComfort.Client
                         : $"Hot Stone Therapy for {thrown.EnemiesAffected}. Unrequested, unrefundable.");
                     SkillUsed?.Invoke(PlayerActionType.HotStones); // after the announcement, so a first-use tip wins the toast
                     break;
-                case EnemySpawned spawned when FirstSighting(spawned.Type) is string sighting && _announced.Add(spawned.Type):
-                    Announcement?.Invoke(sighting);
-                    break;
                 case InterventionUsed { Type: PlayerActionType.OpenSluiceGate } used:
                     SpawnFlood();
                     FloatOver(_ => true, "washed back!");
@@ -757,20 +753,6 @@ namespace CultOfComfort.Client
             EnemyType.Bishop => "bishop",
             EnemyType.Lord => "lord_wulfric",
             _ => "levy",
-        };
-
-        /// <summary>The toast the first time a raider type shows up in a Night; levies are too ordinary to mention.</summary>
-        private static string FirstSighting(EnemyType type) => type switch
-        {
-            EnemyType.Zealot => "Zealots. Friar Odo's lot. They throw hymnals, and they aim for the heretic.",
-            EnemyType.Goose => "A goose. It has chosen violence. Mind the Prophet's ankles.",
-            EnemyType.Goat => "Goats. They butt fences and walls on principle.",
-            EnemyType.Boar => "A wild boar. Tough, quick, and nobody invited it.",
-            EnemyType.Peasant => "Nosy locals. They won't fight; they just poke your buildings to see what happens.",
-            EnemyType.Priest => "Priests. Their blessing makes the soldiers around them harder to hurt. Get them first.",
-            EnemyType.Lord => "LORD WULFRIC. In person. He is not amused.",
-            EnemyType.Bishop => "A Bishop. Slow, sure, and blessing everyone near him. Point the laser at him: he'll take it for a miracle.",
-            _ => null,
         };
 
         private EnemyVisual CreateEnemy(Enemy enemy)

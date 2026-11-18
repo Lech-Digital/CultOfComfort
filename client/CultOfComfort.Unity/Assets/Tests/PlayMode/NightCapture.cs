@@ -107,6 +107,43 @@ namespace CultOfComfort.Client.Tests
             Save(world, ui, Path.Combine(output, "daily_portrait.png"));
         }
 
+        /// <summary>The roster card at Dusk (spec 2026-11-17 fun first, B5): who may come tonight, all new.</summary>
+        [UnityTest]
+        public IEnumerator NightCapture_Roster_WritesPng()
+        {
+            PlayerPrefs.DeleteKey(GameController.RosterSeenKey);
+            var clock = new Clock();
+            var table = CultOfComfort.Simulation.Base.BuildingTable.Default;
+            var map = CultOfComfort.Simulation.Base.VillageMap.Demo;
+            var state = CultOfComfort.Simulation.Base.BaseState.CreateNew(table, map, clock.UtcNow);
+            state.Apply(new CultOfComfort.Simulation.Base.UpgradeHearth(Guid.NewGuid()), clock.UtcNow);
+            state.Apply(new CultOfComfort.Simulation.Base.FinishConstructionNow(Guid.NewGuid()), clock.UtcNow);
+            var store = new Store { Saved = state.ToData() };
+            VillageComposition.Override = () => new LocalBaseGateway(store, clock, table, map, _ => { });
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(6);
+            yield return GroundPainted();
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var document = game.GetComponent<UIDocument>();
+            var ui = new RenderTexture(Short, Long, 24);
+            document.panelSettings.targetTexture = ui;
+            document.panelSettings.scaleMode = PanelScaleMode.ConstantPixelSize;
+            document.panelSettings.scale = Scale;
+            document.panelSettings.clearColor = true;
+            document.panelSettings.colorClearValue = new Color(0f, 0f, 0f, 0f);
+            var world = new RenderTexture(Short, Long, 24) { antiAliasing = 4 };
+            Camera.main.aspect = Short / (float)Long;
+            game.ScreenOverride = new Vector2Int(Short, Long);
+            yield return Frames(8);
+            var output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "..", "art", "previews", "night"));
+            Directory.CreateDirectory(output);
+            Save(world, ui, Path.Combine(output, "dusk_roster_link_portrait.png"));
+            typeof(GameController).GetMethod("OpenRoster", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Invoke(game, null);
+            yield return Frames(4);
+            Save(world, ui, Path.Combine(output, "dusk_roster_portrait.png"));
+            PlayerPrefs.DeleteKey(GameController.RosterSeenKey);
+        }
+
         private static IEnumerator Capture(bool portrait)
         {
             var clock = new Clock();
