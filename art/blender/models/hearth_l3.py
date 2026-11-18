@@ -5,7 +5,7 @@ from lib.hearth import build_hearth
 from lib.mesh import root
 
 TRIANGLE_BUDGET = 10000
-REQUIRED_PARTS = ("Ruin", "Fire", "Steam")
+REQUIRED_PARTS = ("Ruin", "Fire", "Steam", "PoolWater")
 
 
 def build():

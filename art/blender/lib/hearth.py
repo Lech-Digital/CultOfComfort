@@ -80,9 +80,7 @@ def ruin(part, level):
     part.box((x1 - x0, 0.16, 0.12), ((x0 + x1) / 2, y1, 0.2), "roman_marble", bevel=0.02)
     part.box((0.16, y1 - y0, 0.12), (x0, (y0 + y1) / 2, 0.2), "roman_marble", bevel=0.02)
     part.box((0.16, y1 - y0, 0.12), (x1, (y0 + y1) / 2, 0.2), "roman_marble", bevel=0.02)
-    part.box((x1 - x0 - 0.16, y1 - y0 - 0.16, 0.04), ((x0 + x1) / 2, (y0 + y1) / 2, 0.15), "water" if level >= 3 else "wet_mud", bevel=0)
-    if level < 3:
-        part.box((0.4, 0.3, 0.012), (1.35, -0.7, 0.175), "water", bevel=0)  # a puddle, all that is left of the bath
+    # The water is its own part, `PoolWater` (build_hearth): the car's glow fills the old bath (remodel F, hearth-final).
     for k in range(2):
         part.box((0.36, 0.14, 0.05), (0.62, y1 - 0.15 - k * 0.14, 0.2 - k * 0.04), "worn_stone", bevel=0.01)
 
@@ -299,6 +297,12 @@ def build_hearth(hearth_root, level):
         grandeur(ruin_part)
     ruin_obj = ruin_part.build()
     landed_car(ruin_obj, level)
+
+    # The pool round the car glows teal (the target frame hearth-final; remodel F): the game lights this part itself.
+    x0, y0, x1, y1 = POOL
+    (Part("PoolWater", parent=ruin_obj)
+     .box((x1 - x0 - 0.16, y1 - y0 - 0.16, 0.04), ((x0 + x1) / 2, (y0 + y1) / 2, 0.17), "moon_rim", bevel=0)
+     .build())
 
     fx, fy = FIRE
     base = 0.32 if level >= 2 else 0.22

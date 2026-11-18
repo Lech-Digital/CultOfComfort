@@ -1311,7 +1311,33 @@ namespace CultOfComfort.Client
             model.transform.localScale = Vector3.one; // authored 1 unit = 1 tile, to fill its 4×4 plot
             _hearthFire = ArtLibrary.FindPart(model.transform, "Fire");
             _hearthSteam = ArtLibrary.FindPart(model.transform, "Steam");
+            LightThePool(model.transform);
             return true;
+        }
+
+        /// <summary>
+        /// The pool round the car glows teal (the target frame hearth-final; remodel F): the brightest thing on the board at
+        /// Night, with a light of its own. Models built before the remodel have no `PoolWater`, and stay as they were.
+        /// </summary>
+        private static void LightThePool(Transform hearth)
+        {
+            var pool = ArtLibrary.FindPart(hearth, "PoolWater");
+            if (pool == null || !pool.TryGetComponent<Renderer>(out var renderer))
+            {
+                return;
+            }
+
+            var teal = Shapes.Hex("#14b8a8");
+            renderer.sharedMaterial = Shapes.Glow(teal, 0.9f); // saturated: pushed past 1 it washed out to white
+            var glow = new GameObject("Pool glow");
+            glow.transform.SetParent(pool, false);
+            glow.transform.position = renderer.bounds.center + Vector3.up * 0.6f;
+            var light = glow.AddComponent<Light>();
+            light.type = LightType.Point;
+            light.color = teal;
+            light.range = 3.2f;
+            light.intensity = 2.2f;
+            light.shadows = LightShadows.None;
         }
 
         private static string ResourceIcon(BuildingType type) => type switch
