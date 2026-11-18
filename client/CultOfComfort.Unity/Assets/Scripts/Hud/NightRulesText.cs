@@ -30,12 +30,17 @@ namespace CultOfComfort.Client
             _ => null,
         };
 
-        /// <summary>The line under the meters at Night: "Third star: no building wrecked ✓", or null.</summary>
+        /// <summary>
+        /// The line under the meters at Night: "Third star: no building wrecked ✓", or "… (missed)", or null. Words, not ✗:
+        /// the HUD's font has no ✗, and it showed as an empty box on the phone (playtest 2026-11-18).
+        /// </summary>
         public static string ObjectiveLine(NightObjective objective, bool met)
         {
             var text = Objective(objective);
-            return text == null ? null : $"Third star: {text} {(met ? "✓" : "✗")}";
+            return text == null ? null : $"Third star: {text} {Mark(met)}";
         }
+
+        public static string Mark(bool met) => met ? "✓" : "(missed)";
 
         /// <summary>The wave line in a gap: "Wave 2/3 in 8s", with the tally if any were driven off.</summary>
         public static string GapLine(int nextWave, int waveCount, int secondsLeft, int defeated)

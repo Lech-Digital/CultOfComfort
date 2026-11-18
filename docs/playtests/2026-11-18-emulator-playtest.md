@@ -75,3 +75,23 @@ As on [2026-11-17](2026-11-17-emulator-playtest.md#setting-up-the-playtest-linux
   `adb exec-out screencap`. Close it with `adb emu kill` when done.
 - The emulator build rewrites `ProjectSettings.asset` (x86_64, IL2CPP settings): revert it before committing.
 - A launch right after boot can be closed by the system: launch again once the home screen has settled.
+
+## Phase C on the emulator (evening, at 7fa12e9)
+
+A second fresh install, played to the first Night and stage 1 of the Pilgrims' Way.
+
+- **Against the production server a Night is still planned by the old rules**
+  ([17](2026-11-18/17-c-night1-dawn-perk.jpg)): the server plans it, and it runs the old simulation (spec: the server
+  gets the new one in the same release). Wave 3 of 3 was on the road twenty seconds in, and there was no objective line.
+  With the network off, the device plans the stage itself, by the new rules
+  ([14](2026-11-18/14-c-stage-objective-line.jpg)). **For the release:** this client offers the level-2 perk while the
+  live server still says level 3. Client and server must go out together.
+- **The gap reads** ([15](2026-11-18/15-c-gap.jpg)): "Wave 2/3 in 7s · 2 driven off", three boon notes, and *Call now*
+  with its ring filling. But 10 seconds is short for reading three notes: by the time I'd read them, the wave came and my
+  tap landed on the board. **Open:** a longer first gap, or the gap waits for a pick on the first Nights.
+- **The objective** stands on the Dusk card ([13](2026-11-18/13-c-dusk-objective.jpg)) and under the meters. Its ✗ was
+  an empty box (the font has no ✗). **Fixed:** "(missed)".
+- **Dawn** says how the stars came and that a perk waits ([16](2026-11-18/16-c-stage-dawn.jpg),
+  [17](2026-11-18/17-c-night1-dawn-perk.jpg)). The village is behind the card, and there are no barks over it (this
+  morning's fixes, seen on the device).
+- **The ✓ ✗ Turn buttons** stayed off the Hearth for every building in the tutorial.

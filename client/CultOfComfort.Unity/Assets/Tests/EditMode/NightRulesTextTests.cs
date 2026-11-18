@@ -45,7 +45,7 @@ namespace CultOfComfort.Client.Tests
             var model = DawnCard.Build(result, report, null, default, 1, "Wulfric", NightObjective.ThreeInOneStone, played: true, perkLevel: 2);
 
             // Assert
-            CollectionAssert.Contains(model.Earned, "Third star: three raiders in one Hot Stone ✗");
+            CollectionAssert.Contains(model.Earned, "Third star: three raiders in one Hot Stone (missed)");
             CollectionAssert.Contains(model.Earned, "+96 Scrap salvaged (2 waves called early)");
             CollectionAssert.Contains(model.Earned, "The Prophet is level 2: a perk to choose. Tap his portrait.");
         }

@@ -49,7 +49,7 @@ namespace CultOfComfort.Client
             if (won && objective != NightObjective.None)
             {
                 model.Earned.Add(played
-                    ? $"Third star: {NightRulesText.Objective(objective)} {(result.ObjectiveMet ? "✓" : "✗")}"
+                    ? $"Third star: {NightRulesText.Objective(objective)} {NightRulesText.Mark(result.ObjectiveMet)}"
                     : "Left to the towers: one star. Play the Night to earn more.");
             }
 
