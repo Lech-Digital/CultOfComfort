@@ -88,6 +88,27 @@ namespace CultOfComfort.Client
 
             switch (errand.Goal)
             {
+                case ErrandGoal.MicroRaid:
+                    return new CoachStep(CoachTarget.StartNight, "Four nosy locals are poking at your Lean-to. Tap the big button and go and meet them.");
+                case ErrandGoal.Build when errand.Type != null && errand.Or is { } or:
+                {
+                    // A choice (spec 2026-11-17 fun first, E2): either card will do, the same reward.
+                    var first = errand.Type.Value;
+                    var picked = placing == or ? or : placing == first ? first : (BuildingType?)null;
+                    if (picked != null)
+                    {
+                        return BuildStep(picked.Value, placing, buildings, table, "Drag it somewhere next to a road, then tap ✓.");
+                    }
+
+                    var going = buildings.FirstOrDefault(b => (b.Type == first || b.Type == or) && (b.Level == 0 || b.IsUpgrading));
+                    if (going != null)
+                    {
+                        return new CoachStep(CoachTarget.None, "The faithful are on it. Building takes a moment.", going.Type, going.Id);
+                    }
+
+                    return new CoachStep(CoachTarget.BuildCard, $"Your call: the {table.Spec(first).Name} or the {table.Spec(or).Name}.", first);
+                }
+
                 case ErrandGoal.Build when errand.Type != null:
                     return BuildStep(errand.Type.Value, placing, buildings, table, table.Spec(errand.Type.Value).IsTower
                         ? "Drag it right beside the raiders' road, then tap ✓." // away from it, a tower stands unconnected

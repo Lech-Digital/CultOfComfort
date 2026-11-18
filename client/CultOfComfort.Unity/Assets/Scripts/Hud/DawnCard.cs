@@ -36,7 +36,8 @@ namespace CultOfComfort.Client
             var model = new DawnCardModel
             {
                 Stars = result.Stars,
-                Title = trialStage != null
+                Title = trialStage == 0 ? "The nosy locals went home" // the micro-raid of the first minutes (E1)
+                    : trialStage != null
                     ? won ? $"Stage {trialStage} cleared" : $"The pilgrims turned back at stage {trialStage}"
                     : won ? "The Hearth stands" : "The Hearth went cold",
                 Summary = $"Hearth {result.HearthHealth}/{result.HearthMaxHealth} · {result.EnemiesDefeated} driven off",
@@ -75,6 +76,10 @@ namespace CultOfComfort.Client
                 }
 
                 model.Earned.Add($"The Prophet: +{ProphetBook.XpForNight(result.Stars)} experience");
+                if (DailyBook.NightTowels(result.Stars) is var towels && towels > 0)
+                {
+                    model.Earned.Add($"+{towels} {(towels == 1 ? "Towel" : "Towels")}: a builder's shortcut"); // the fight pays for it (E4)
+                }
             }
 
             if (perkLevel != null)

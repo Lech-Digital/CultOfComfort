@@ -338,6 +338,12 @@ namespace CultOfComfort.Client
         /// </summary>
         public static StartButtonModel Start(BaseSnapshot s, bool lampsWait)
         {
+            if (s.Errand is { Goal: ErrandGoal.MicroRaid, Done: false })
+            {
+                // The fight inside three minutes (spec 2026-11-17 fun first, E1): the big button takes him out to the locals.
+                return new StartButtonModel("Meet the nosy locals", StartAction.Trial);
+            }
+
             if (s.RaidWarningEndsAtUtc != null)
             {
                 return new StartButtonModel($"Face the raid · {Duration((long)(s.RaidWarningEndsAtUtc.Value - s.AsOfUtc).TotalSeconds)} left", StartAction.Lamps);

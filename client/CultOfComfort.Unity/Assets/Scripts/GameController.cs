@@ -1493,6 +1493,53 @@ namespace CultOfComfort.Client
             _snapshot != null && _snapshot.RaidWarningEndsAtUtc == null && ErrandNote.LampsWait(_snapshot.Errand, BuildingTable.Default.Errands.Errands);
 
         /// <summary>The errand note: claim a done errand, otherwise point at what to do next.</summary>
+        private int _autoClaimed = -1;
+
+        /// <summary>
+        /// A done errand claims itself (spec 2026-11-17 fun first, E2): the reward flies to the bar with a word, no extra tap.
+        /// Once per errand, at Dusk.
+        /// </summary>
+        private async void AutoClaimErrand()
+        {
+            var errand = _snapshot?.Errand;
+            if (errand == null || !errand.Done || _phase != GamePhase.Dusk || _autoClaimed == errand.Index)
+            {
+                return;
+            }
+
+            _autoClaimed = errand.Index;
+            try
+            {
+                var reward = ErrandNote.Rewards(errand.Reward);
+                var outcome = await SendVillage(new ClaimErrand(Guid.NewGuid()));
+                if (outcome.Status == CommandStatus.Accepted)
+                {
+                    Announce($"Errand done! {reward}".TrimEnd());
+                    Bark(BarkKind.CultistErrandDone, "errand", At(Shapes.ToWorld(VillageMap.Demo.Hearth, 1.8f)));
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception e)
+            {
+                VillageFailed(e);
+            }
+        }
+
+        public const string BriefedKey = "first-night.briefed";
+
+        /// <summary>The Dusk briefing (E5): before the first Night, the roster card opens once by itself.</summary>
+        private void BriefBeforeTheFirstNight()
+        {
+            if (_phase == GamePhase.Dusk && _snapshot.Errand?.Goal == ErrandGoal.SurviveNight && _snapshot.LastNightRecorded == 0
+                && !Pref(BriefedKey) && !_hud.RosterShown && _tool == null)
+            {
+                SetPref(BriefedKey, true);
+                OpenRoster();
+            }
+        }
+
         private async void OnErrandClicked()
         {
             var note = ErrandNote.From(_snapshot?.Errand);
@@ -1978,6 +2025,9 @@ namespace CultOfComfort.Client
                 return;
             }
 
+            AutoClaimErrand();
+            BriefBeforeTheFirstNight();
+
             if (_snapshot.HearthLevel != _openLevel)
             {
                 var found = RelicNews.Found(_openLevel, _snapshot.HearthLevel);
@@ -2334,13 +2384,20 @@ namespace CultOfComfort.Client
                     return;
                 }
 
-                MarkTried("pilgrims"); // walked from the big button counts too: the next shortcut may come
+                var microRaid = _snapshot?.Errand?.Goal == ErrandGoal.MicroRaid;
+                if (!microRaid)
+                {
+                    MarkTried("pilgrims"); // walked from the big button counts too: the next shortcut may come
+                }
+
                 var outcome = await SendVillage(new BeginTrial(Guid.NewGuid()));
                 if (outcome.Status == CommandStatus.Accepted)
                 {
                     _trialMode = true;
                     BeginFight(outcome.Plan);
-                    Announce($"The Pilgrims' Way, stage {outcome.Plan.Night}. Hold the Hearth.");
+                    Announce(outcome.Plan.Night == 0
+                        ? "Four nosy locals. Tap the ground to walk the Prophet out to them, then give them the Voice."
+                        : $"The Pilgrims' Way, stage {outcome.Plan.Night}. Hold the Hearth.");
                 }
                 else
                 {
@@ -2401,6 +2458,11 @@ namespace CultOfComfort.Client
         {
             if (_trialMode)
             {
+                if (_plan.Night == 0)
+                {
+                    return null; // the nosy locals: back to the village, the errand is done
+                }
+
                 var cleared = (_trialOutcome?.Report?.Stars ?? 0) >= 1;
                 return cleared ? _plan.Night + 1 : _plan.Night;
             }
@@ -2437,7 +2499,8 @@ namespace CultOfComfort.Client
             {
                 _trialMode = false;
                 var stars = _trialOutcome?.Report?.Stars ?? 0;
-                Announce(stars >= 1
+                Announce(_plan.Night == 0 ? "The locals went home to tell everyone. Word gets round."
+                    : stars >= 1
                     ? $"Stage {_plan.Night} cleared! The pilgrims leave {VillagePresenter.ShortCost(_trialOutcome.Collected)} and walk on."
                     : $"The pilgrims turned back at stage {_plan.Night}. Rearrange, and try again.");
                 _trialOutcome = null;

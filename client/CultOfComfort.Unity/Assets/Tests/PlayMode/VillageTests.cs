@@ -71,7 +71,7 @@ namespace CultOfComfort.Client.Tests
             (BaseSnapshot)typeof(GameController).GetField("_snapshot", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(game);
 
         [UnityTest]
-        public IEnumerator ErrandNote_BuildTheWoodcutterThenClaim_PaysAndShowsTheNextErrand()
+        public IEnumerator ErrandNote_BuildTheWoodcutter_ClaimsItselfAndShowsTheNextErrand()
         {
             // Arrange — a fresh village: errand 1 is on the note and the lamps wait.
             yield return SceneManager.LoadSceneAsync("SampleScene");
@@ -88,19 +88,17 @@ namespace CultOfComfort.Client.Tests
             yield return Frames(2);
             GhostTo(game, new GridPosition(3, 9));
             Click(root.Q<Button>("ghost-confirm"));
-            _clock.UtcNow = _clock.UtcNow.AddMinutes(1); // the Lean-to takes 30 s
-            yield return new WaitForSecondsRealtime(1.2f); // the village is re-read twice a second
-            StringAssert.Contains("claim", note.Q<Label>(className: "errand-text").text, "done: the note (one line, folded) asks to claim");
             var timber = Snapshot(game).Stock.Timber;
 
-            // Act
-            Click(note);
-            yield return Frames(3);
+            // Act — the Lean-to takes 30 s; the village is re-read twice a second.
+            _clock.UtcNow = _clock.UtcNow.AddMinutes(1);
+            yield return new WaitForSecondsRealtime(1.2f);
+            yield return Frames(4);
 
-            // Assert
+            // Assert — done errands claim themselves (spec 2026-11-17 fun first, E2): paid, and the next one is up.
             Assert.AreEqual(1, Snapshot(game).Errand.Index);
-            Assert.AreEqual(timber + 50, Snapshot(game).Stock.Timber);
-            StringAssert.Contains("Storage Hut", note.Q<Label>(className: "errand-text").text);
+            Assert.GreaterOrEqual(Snapshot(game).Stock.Timber, timber + 50, "the reward (and a minute's output)");
+            StringAssert.Contains("nosy locals", note.Q<Label>(className: "errand-text").text);
         }
 
         [UnityTest]
@@ -233,7 +231,7 @@ namespace CultOfComfort.Client.Tests
         }
 
         [UnityTest]
-        public IEnumerator Coach_FirstErrand_PointsAtCardThenConfirmThenNote()
+        public IEnumerator Coach_FirstErrand_PointsAtCardThenConfirmThenTheLocals()
         {
             // Arrange — a fresh village.
             yield return SceneManager.LoadSceneAsync("SampleScene");
@@ -266,16 +264,14 @@ namespace CultOfComfort.Client.Tests
             Assert.IsFalse(Hud(game).CoachShown.Arrow, "while it is being built there is nothing to tap");
             _clock.UtcNow = _clock.UtcNow.AddMinutes(1);
             yield return new WaitForSecondsRealtime(1.2f);
-            shown = Hud(game).CoachShown;
-            Assert.IsTrue(Near(shown.ArrowBounds, root.Q<Button>("errand-note")), "arrow at the note: claim it");
-            Assert.IsFalse(shown.Line, "the note says it already: the arrow alone");
-
-            // Act: claim it — the next card is on the Homes tab, which opens for it.
-            Click(root.Q<Button>("errand-note"));
             yield return Frames(4);
+
+            // Assert: it claimed itself (spec 2026-11-17 fun first, E2), and the coach sends him out to the nosy locals.
             shown = Hud(game).CoachShown;
-            StringAssert.Contains("Storage Hut", shown.Text);
-            Assert.IsTrue(Near(shown.ArrowBounds, root.Q<Button>("card-StorageHut")), $"arrow {shown.ArrowBounds} over the hut {root.Q<Button>("card-StorageHut").worldBound}");
+            Assert.AreEqual(1, Snapshot(game).Errand.Index, "claimed without a tap");
+            StringAssert.Contains("nosy locals", shown.Text);
+            Assert.IsTrue(Near(shown.ArrowBounds, root.Q<Button>("start-night")), $"arrow {shown.ArrowBounds} over the big button {root.Q<Button>("start-night").worldBound}");
+            StringAssert.Contains("nosy locals", root.Q<Button>("start-night").text);
         }
 
         [UnityTest]
@@ -432,7 +428,7 @@ namespace CultOfComfort.Client.Tests
             yield return Frames(2);
 
             // Assert
-            Assert.AreEqual(575, Snapshot(game).Stock.Timber); // 450 + an hour (100) + the 25 starter pile
+            Assert.AreEqual(625, Snapshot(game).Stock.Timber); // 450 + an hour (100) + the 25 starter pile + the errand's 50, claimed by itself (E2)
         }
 
         [UnityTest]
@@ -551,7 +547,7 @@ namespace CultOfComfort.Client.Tests
             // Assert
             var snapshot = Snapshot(game);
             Assert.IsFalse(snapshot.Building(id).Wrecked);
-            Assert.AreEqual(450 + 25 - 5, snapshot.Stock.Timber, "the starter pile went into the stores; the repair charged 5 Timber (10% of 50)");
+            Assert.AreEqual(450 + 25 + 50 - 5, snapshot.Stock.Timber, "the starter pile and the errand (claimed by itself) went into the stores; the repair charged 5 Timber (10% of 50)");
         }
     
         [UnityTest]
@@ -675,6 +671,56 @@ namespace CultOfComfort.Client.Tests
             StringAssert.StartsWith("Pilgrims' Way", label);
             Assert.AreEqual(GamePhase.Dawn, game.Phase);
             Assert.IsTrue(title.StartsWith("Stage 1") || title.StartsWith("The pilgrims"), $"the stage's own card, got \"{title}\"");
+        }
+
+        /// <summary>The fight inside three minutes (spec 2026-11-17 fun first, E1): the big button, four locals, Dawn, the errand claimed.</summary>
+        [UnityTest]
+        public IEnumerator MicroRaid_TheBigButton_FourLocalsThenTheErrandClaimsItself()
+        {
+            // Arrange — the Woodcutter errand behind us: the locals are next.
+            var store = new Store { Saved = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, _clock.UtcNow).ToData() with { ErrandIndex = 1, ErrandId = "micro-raid" } };
+            VillageComposition.Override = () => new LocalBaseGateway(store, _clock, BuildingTable.Default, VillageMap.Demo, _ => { });
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(4);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            var label = root.Q<Button>("start-night").text;
+
+            // Act
+            Time.timeScale = 20f;
+            Click(root.Q<Button>("start-night"));
+            for (var wait = Time.realtimeSinceStartup + 10f; game.Phase != GamePhase.Night && Time.realtimeSinceStartup < wait;)
+            {
+                yield return null;
+            }
+
+            var phaseAfterTap = game.Phase;
+            for (var wait = Time.realtimeSinceStartup + 120f; game.Phase != GamePhase.Dawn && Time.realtimeSinceStartup < wait;)
+            {
+                yield return null;
+            }
+
+            for (var wait = Time.realtimeSinceStartup + 15f; game.LastNightVerified == null && Time.realtimeSinceStartup < wait;)
+            {
+                yield return null;
+            }
+
+            yield return Frames(3);
+            Time.timeScale = 1f;
+            var title = root.Q("card").Q<Label>(className: "card-title").text;
+            Click(root.Q("card").Q<Button>(className: "primary")); // back to Dusk
+            for (var wait = Time.realtimeSinceStartup + 10f; Snapshot(game).Errand.Index < 2 && Time.realtimeSinceStartup < wait;)
+            {
+                yield return null;
+            }
+
+            // Assert
+            StringAssert.Contains("nosy locals", label);
+            Assert.AreEqual(GamePhase.Night, phaseAfterTap);
+            Assert.AreEqual("The nosy locals went home", title);
+            Assert.AreEqual(2, Snapshot(game).Errand.Index, "met them: the errand claimed itself, the Chute is next");
+            Assert.AreEqual(0, Snapshot(game).LastNightRecorded, "not a Night");
+            Assert.IsNull(Snapshot(game).ShieldEndsAtUtc, "no shield");
         }
 
         [UnityTest]
