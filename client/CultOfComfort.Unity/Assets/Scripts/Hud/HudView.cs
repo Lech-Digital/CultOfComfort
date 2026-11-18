@@ -32,8 +32,12 @@ namespace CultOfComfort.Client
         public NightHudState(
             int night, int hearth, int hearthMax, int prophet, int prophetMax, string sluice, bool sluiceReady, string voice, bool voiceReady,
             string stones, bool stonesReady, bool aiming, int speed, int wave, int waveCount, int alive, string status,
-            RelicButtonState laser = default, RelicButtonState torch = default, RelicButtonState sunFire = default)
+            RelicButtonState laser = default, RelicButtonState torch = default, RelicButtonState sunFire = default,
+            float sluiceCooldown = 0f, float voiceCooldown = 0f, float stonesCooldown = 0f)
         {
+            SluiceCooldown = sluiceCooldown;
+            VoiceCooldown = voiceCooldown;
+            StonesCooldown = stonesCooldown;
             Laser = laser;
             Torch = torch;
             SunFire = sunFire;
@@ -55,6 +59,13 @@ namespace CultOfComfort.Client
             Alive = alive;
             Status = status;
         }
+
+        /// <summary>How much of each skill's cooldown is left (0: ready, 1: just used), for the shade that drains away.</summary>
+        public float SluiceCooldown { get; }
+
+        public float VoiceCooldown { get; }
+
+        public float StonesCooldown { get; }
 
         public int Night { get; }
         public int Hearth { get; }
@@ -278,7 +289,9 @@ namespace CultOfComfort.Client
             _waveStrip.name = "wave-strip";
             _waveLabel = Text(string.Empty, "wave-label");
             _waveLabel.name = "wave-label";
-            _waveStrip.Add(_waveLabel);
+            _waveRow = Container("wave-row");
+            _waveRow.Add(_waveLabel);
+            _waveStrip.Add(_waveRow);
             (_hearthFill, _hearthValue) = Meter(_waveStrip, "Hearth", "hearth-fill");
             (_prophetFill, _prophetValue) = Meter(_waveStrip, "Prophet", "prophet-fill");
             _top.Add(_waveStrip);
@@ -455,7 +468,7 @@ namespace CultOfComfort.Client
             skills.Add(_sluice);
             skills.Add(_voice);
             skills.Add(_stones);
-            skills.Add(_speed);
+            _waveRow.Add(_speed); // the speed is a setting, not a skill: up with the wave (spec 2026-11-17 fun first, B6)
             _nightStatus = Text(string.Empty, "hint");
             _nightBar.Add(skills);
             _nightBar.Add(_nightStatus);
@@ -490,6 +503,19 @@ namespace CultOfComfort.Client
                 _floaters[i].pickingMode = PickingMode.Ignore;
                 _floatStart[i] = float.NegativeInfinity;
                 _root.Add(_floaters[i]);
+            }
+
+            for (var i = 0; i < _edgeMarkers.Length; i++)
+            {
+                var marker = new VisualElement { pickingMode = PickingMode.Ignore };
+                marker.AddToClassList("edge-marker");
+                marker.generateVisualContent += DrawEdgeChevron;
+                var count = Text(string.Empty, "edge-count");
+                count.pickingMode = PickingMode.Ignore;
+                marker.Add(count);
+                Show(marker, false);
+                _edgeMarkers[i] = marker;
+                _root.Add(marker);
             }
 
             _root.Add(_ghostActions); // above the board, beside the ghost
@@ -599,6 +625,8 @@ namespace CultOfComfort.Client
 
         public void ShowPhase(GamePhase phase)
         {
+            // At Night the notes and tips sit at the bottom, above the skills, never over the fight (spec 2026-11-17 fun first, B5).
+            _root.EnableInClassList("night-phase", phase == GamePhase.Night);
             Show(_tensionStrip, phase == GamePhase.Dusk);
             if (phase != GamePhase.Dusk)
             {
@@ -830,9 +858,9 @@ namespace CultOfComfort.Client
             _waveLabel.text = $"Wave {Mathf.Max(1, state.Wave)}/{state.WaveCount} · {state.Alive} on the road";
             SetMeter(_hearthValue, _hearthFill, state.Hearth, state.HearthMax);
             SetMeter(_prophetValue, _prophetFill, state.Prophet, state.ProphetMax);
-            SetSkill(_sluice, state.Sluice, state.SluiceReady);
-            SetSkill(_voice, state.Voice, state.VoiceReady);
-            SetSkill(_stones, state.Stones, state.StonesReady);
+            SetSkill(_sluice, state.Sluice, state.SluiceReady, state.SluiceCooldown);
+            SetSkill(_voice, state.Voice, state.VoiceReady, state.VoiceCooldown);
+            SetSkill(_stones, state.Stones, state.StonesReady, state.StonesCooldown);
             _stones.EnableInClassList("aiming", state.Aiming);
             SetRelic(_laser, state.Laser);
             SetRelic(_torch, state.Torch);
@@ -840,6 +868,7 @@ namespace CultOfComfort.Client
             Show(_relicRow, state.Laser.Shown || state.Torch.Shown || state.SunFire.Shown);
             SetSkill(_speed, $"{state.Speed}×", true);
             _nightStatus.text = state.Status;
+            Show(_nightStatus, !string.IsNullOrEmpty(state.Status));
         }
 
         public void SetStartLabel(string text)
@@ -1098,6 +1127,53 @@ namespace CultOfComfort.Client
             var lineH = _coachLine.resolvedStyle.height;
             _coachLine.style.left = Mathf.Clamp(lineX - lineW / 2f, 12f, Mathf.Max(12f, width - lineW - 12f));
             _coachLine.style.top = _coachLine.ClassListContains("coach-line-above") ? lineY - (float.IsNaN(lineH) ? 0f : lineH) : lineY;
+        }
+
+        private readonly VisualElement[] _edgeMarkers = new VisualElement[4];
+
+        /// <summary>
+        /// Raiders out of sight (spec 2026-11-17 fun first, B4): a red chevron on the board's edge, pointing their way,
+        /// with how many. Positions are in viewport coordinates (0..1, bottom-left origin).
+        /// </summary>
+        public void ShowEdgeMarkers(IReadOnlyList<EdgeMarker> markers)
+        {
+            var size = _root.worldBound;
+            for (var i = 0; i < _edgeMarkers.Length; i++)
+            {
+                var on = markers != null && i < markers.Count && !float.IsNaN(size.width);
+                Show(_edgeMarkers[i], on);
+                if (!on)
+                {
+                    continue;
+                }
+
+                var m = markers[i];
+                var marker = _edgeMarkers[i];
+                marker.style.left = m.At.x * size.width - 22f;
+                marker.style.top = (1f - m.At.y) * size.height - 22f;
+                marker.style.rotate = new Rotate(Angle.Degrees(m.AngleDegrees));
+                var label = (Label)marker[0];
+                label.text = m.Count.ToString();
+                label.style.rotate = new Rotate(Angle.Degrees(-m.AngleDegrees)); // the number stays upright
+            }
+        }
+
+        private static void DrawEdgeChevron(MeshGenerationContext context)
+        {
+            const float s = 44f;
+            var p = context.painter2D;
+            p.fillColor = new Color(0.78f, 0.16f, 0.12f, 0.92f);
+            p.strokeColor = new Color(0.17f, 0.08f, 0.05f);
+            p.lineWidth = 3f;
+            p.lineJoin = LineJoin.Round;
+            p.BeginPath();
+            p.MoveTo(new Vector2(s * 0.5f, 2f)); // the point, towards the raiders
+            p.LineTo(new Vector2(s - 3f, s * 0.62f));
+            p.LineTo(new Vector2(s * 0.5f, s * 0.48f));
+            p.LineTo(new Vector2(3f, s * 0.62f));
+            p.ClosePath();
+            p.Fill();
+            p.Stroke();
         }
 
         private static void DrawCoachArrow(MeshGenerationContext context)
@@ -1696,6 +1772,10 @@ namespace CultOfComfort.Client
             button.AddToClassList("btn");
             button.AddToClassList("skill");
             button.AddToClassList(note);
+            var shade = new VisualElement { pickingMode = PickingMode.Ignore };
+            shade.AddToClassList("skill-cooldown"); // drains away as the skill cools down (spec 2026-11-17 fun first, B6)
+            button.Add(shade);
+            _skillShade[button] = shade;
             button.Add(Icon(icon, "skill-icon"));
             var text = Text(string.Empty, "skill-text");
             text.pickingMode = PickingMode.Ignore;
@@ -1714,11 +1794,28 @@ namespace CultOfComfort.Client
             }
         }
 
+        private readonly VisualElement _waveRow;
+
+        private readonly Dictionary<Button, VisualElement> _skillShade = new Dictionary<Button, VisualElement>();
+        private readonly Dictionary<Button, float> _readyPopAt = new Dictionary<Button, float>();
+
         /// <summary>Per frame, so no queries: the label was remembered when the button was built.</summary>
-        private void SetSkill(Button button, string text, bool ready)
+        private void SetSkill(Button button, string text, bool ready, float cooldown = 0f)
         {
             _skillText[button].text = text;
+            if (ready && !button.enabledSelf)
+            {
+                _readyPopAt[button] = Time.unscaledTime; // ready again: a little pop says so
+            }
+
             button.SetEnabled(ready);
+            if (_skillShade.TryGetValue(button, out var shade))
+            {
+                shade.style.height = Length.Percent(Mathf.Clamp01(cooldown) * 100f);
+            }
+
+            var popping = _readyPopAt.TryGetValue(button, out var at) && Time.unscaledTime - at < 0.35f;
+            button.style.scale = popping ? new Scale(Vector3.one * (1f + 0.14f * Mathf.Sin((Time.unscaledTime - at) / 0.35f * Mathf.PI))) : StyleKeyword.Null;
         }
 
         private void SetPill(string key, Reading reading)

@@ -122,8 +122,11 @@
 }
 .meter { flex-direction: row; align-items: center; margin: 3px 24px 0 24px; }
 .meter-label { width: 60px; color: #f6e7c4; -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC"); font-size: 13px; padding: 0; text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
-.meter-track { flex-grow: 1; height: 14px; background-color: rgba(30, 26, 20, 0.8); border-color: #222; border-width: 2px; }
+.meter-track { flex-grow: 1; height: 18px; background-color: rgba(30, 26, 20, 0.8); border-color: #222; border-width: 2px; }
 .meter-fill { height: 100%; background-image: resource("UI/Kit/hazard"); background-repeat: repeat; background-size: 24px 24px; }
+/* The Hearth's tape burns orange, the Prophet's is his teal: two meters you can tell apart (spec 2026-11-17 fun first, B4). */
+#hearth-fill { -unity-background-image-tint-color: #ff9a3c; }
+#prophet-fill { -unity-background-image-tint-color: #3fe8d4; }
 .meter-value { width: 36px; color: #f6e7c4; font-size: 12px; -unity-text-align: middle-right; padding: 0; }
 
 /* ---------- middle ---------- */
@@ -141,6 +144,8 @@
     background-image: resource("UI/Kit/parchment");
     -unity-slice-left: 32; -unity-slice-right: 32; -unity-slice-top: 32; -unity-slice-bottom: 32; -unity-slice-scale: 0.5px;
 }
+.night-phase .centre { justify-content: flex-end; padding-bottom: 6px; }
+.night-phase .toast { width: 92%; font-size: 15px; }
 .toast.prophet, .locked-note {
     background-image: resource("UI/Kit/note_yellow");
     -unity-slice-left: 16; -unity-slice-right: 16; -unity-slice-top: 16; -unity-slice-bottom: 16;
@@ -218,6 +223,10 @@
 .skill:disabled { opacity: 0.55; }
 .skill.aiming { scale: 1.08 1.08; border-color: #ff5a00; border-width: 3px; }
 .skill-icon { width: 30px; height: 30px; }
+.skill-cooldown { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background-color: rgba(30, 22, 12, 0.45); }
+.wave-row { flex-direction: row; align-items: center; justify-content: space-between; }
+.wave-row > .speed { flex-grow: 0; flex-shrink: 0; width: 52px; height: 34px; margin: 0 16px 0 0; padding: 1px; }
+.wave-row > .speed .skill-icon { width: 18px; height: 18px; }
 .skill-text { font-size: 12px; padding: 0; -unity-text-align: middle-center; white-space: normal; }
 .speed { flex-grow: 0; width: 64px; margin-right: 0; }
 .hint { color: #f6e7c4; font-size: 12px; white-space: normal; margin-top: 6px; padding: 0; }
@@ -326,6 +335,9 @@
 .primary.waiting { opacity: 0.55; font-size: 14px; }
 
 /* ---------- the tutorial coach (GDD 05) ---------- */
+/* Raiders out of sight (spec 2026-11-17 fun first, B4). */
+.edge-marker { position: absolute; width: 44px; height: 44px; transform-origin: center; align-items: center; justify-content: flex-end; }
+.edge-count { color: #fff4dc; font-size: 15px; -unity-font-style: bold; padding: 0; margin-bottom: 2px; text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
 .coach-arrow { position: absolute; width: 34px; height: 40px; transform-origin: center; }
 .coach-line {
     position: absolute; max-width: 230px; padding: 6px 10px 8px 10px; font-size: 13px; color: #2b2215; white-space: normal;

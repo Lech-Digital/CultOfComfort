@@ -53,6 +53,33 @@ namespace CultOfComfort.Client
             return material;
         }
 
+        /// <summary>
+        /// A material that lights itself (spec 2026-11-17 fun first, B2): reads in the dark at Night. Made from
+        /// Resources/GlowLit.mat, which has emission on, so the build keeps that shader variant.
+        /// </summary>
+        public static Material Glow(Color color, float intensity = 1.6f)
+        {
+            var key = new Color(color.r, color.g, color.b, -intensity); // apart from the lit materials of the same colour
+            if (Materials.TryGetValue(key, out var material) && material != null)
+            {
+                return material;
+            }
+
+            if (_glowMaterial == null)
+            {
+                _glowMaterial = Resources.Load<Material>("GlowLit");
+            }
+
+            material = new Material(_glowMaterial != null ? _glowMaterial : Material(color));
+            material.color = color;
+            material.EnableKeyword("_EMISSION");
+            material.SetColor("_EmissionColor", color * intensity);
+            Materials[key] = material;
+            return material;
+        }
+
+        private static Material _glowMaterial;
+
         /// <summary>Per-instance tint without allocating a new material per enemy.</summary>
         public static void Tint(Renderer renderer, Color color, MaterialPropertyBlock block)
         {

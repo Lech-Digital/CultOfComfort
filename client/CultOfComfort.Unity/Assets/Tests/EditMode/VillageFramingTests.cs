@@ -36,6 +36,26 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
+        public void NightBounds_EveryRoad_FramesASmallStageWithTheHearth()
+        {
+            // Arrange — playtest 2026-11-17: on a long road the Night framed the valley and the village was a speck.
+            var map = VillageMap.Demo;
+            var hearth = map.HearthTiles[0];
+
+            for (var road = 0; road < map.RoadCount; road++)
+            {
+                // Act
+                var (min, max) = VillageFraming.NightBounds(map, road);
+
+                // Assert
+                Assert.LessOrEqual(max.x - min.x, VillageFraming.NightRoadTiles + 6f, $"road {road} is too wide a stage");
+                Assert.LessOrEqual(max.y - min.y, VillageFraming.NightRoadTiles + 6f, $"road {road} is too tall a stage");
+                Assert.That(hearth.X, Is.InRange(min.x, max.x));
+                Assert.That(-hearth.Y, Is.InRange(min.y, max.y));
+            }
+        }
+
+        [Test]
         public void RoamBounds_DemoMap_ReachesPastTheEdgeToTheRiver()
         {
             // Act

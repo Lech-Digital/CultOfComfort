@@ -182,6 +182,21 @@ namespace CultOfComfort.Client
             }
         }
 
+        /// <summary>
+        /// Keeps <paramref name="target"/> in view without chasing every step (spec 2026-11-17 fun first, B1): inside
+        /// <paramref name="deadZone"/> world units of the home focus nothing moves; beyond it the focus eases towards him.
+        /// The distance eases back to the home view too, so a pinch out returns on its own.
+        /// </summary>
+        public void Follow(Vector3 target, float deadZone, float deltaTime)
+        {
+            var k = 1f - Mathf.Exp(-3f * deltaTime);
+            var offset = new Vector3(target.x - _homeFocus.x, 0f, target.z - _homeFocus.z);
+            var wanted = offset.magnitude > deadZone ? _homeFocus + offset.normalized * (offset.magnitude - deadZone) : _homeFocus;
+            _focus = Vector3.Lerp(_focus, wanted, k);
+            _distance = Mathf.Lerp(_distance, _homeDistance, k);
+            ClampAndApply();
+        }
+
         public void Reset()
         {
             _focus = _homeFocus;

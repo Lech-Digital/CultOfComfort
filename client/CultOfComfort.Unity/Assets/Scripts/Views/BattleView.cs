@@ -61,6 +61,11 @@ namespace CultOfComfort.Client
 
         public float CameraShake => _shake;
 
+        /// <summary>Until when (unscaled time) the fight pauses for a heartbeat after a big hit (spec 2026-11-17 fun first, B7).</summary>
+        public float HitStopUntil { get; private set; }
+
+        private static string Damage(CultOfComfort.Simulation.Numerics.Fix damage) => $"−{Mathf.Max(1, Mathf.RoundToInt((float)damage.ToDouble()))}";
+
         public void Begin(Battle battle)
         {
             Clear();
@@ -77,7 +82,7 @@ namespace CultOfComfort.Client
 
             _leader = new GameObject("The Prophet").transform;
             _leader.SetParent(_root, false);
-            Shapes.Create(PrimitiveType.Cylinder, Palette.Highlight, new Vector3(0f, 0.01f, 0f), new Vector3(0.75f, 0.01f, 0.75f), _leader, "Halo (ironic)");
+            CreateProphetRings();
 
             var model = ArtLibrary.Instantiate("prophet", _leader);
             if (model != null)
@@ -91,7 +96,7 @@ namespace CultOfComfort.Client
                 BuildPlaceholderProphet();
             }
 
-            var bar = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, 1.3f, 0f), new Vector3(0.7f, 0.07f, 0.07f), _leader, "Prophet Health");
+            var bar = Shapes.Create(PrimitiveType.Cube, ProphetTeal, new Vector3(0f, 1.3f, 0f), new Vector3(0.7f, 0.1f, 0.1f), _leader, "Prophet Health");
             _leaderHealth = bar.transform;
             _leaderHealthRenderer = bar.GetComponent<Renderer>();
             _reachRing = CreateReachRing((float)BalanceTable.Default.HotStones.Reach.ToDouble());
@@ -232,15 +237,22 @@ namespace CultOfComfort.Client
             _umbrella = umbrellaPivot;
         }
 
-        /// <summary>While aiming Hot Stones: a ring of pebbles around the Prophet marking how far he can throw.</summary>
-        /// <summary>The pebble ring round the Prophet: how far an aimed skill reaches (tiles; default Hot Stones).</summary>
-        public void ShowReach(bool visible, float reach = 0f)
+        /// <summary>
+        /// The pebble ring round the Prophet: how far an aimed skill reaches (tiles; default Hot Stones). Shown whenever the
+        /// stones are hot (spec 2026-11-17 fun first, B3): small and quiet while ready, full size while aiming.
+        /// </summary>
+        public void ShowReach(bool visible, float reach = 0f, bool aiming = true)
         {
             if (_reachRing != null)
             {
-                _reachRing.gameObject.SetActive(visible);
+                if (_reachRing.gameObject.activeSelf != visible)
+                {
+                    _reachRing.gameObject.SetActive(visible);
+                }
+
                 var stones = (float)BalanceTable.Default.HotStones.Reach.ToDouble();
-                _reachRing.localScale = Vector3.one * (reach > 0f ? reach / stones : 1f);
+                var scale = reach > 0f ? reach / stones : 1f;
+                _reachRing.localScale = new Vector3(scale, aiming ? 1f : 0.4f, scale); // flatter pebbles when only ready
             }
         }
 
@@ -455,7 +467,7 @@ namespace CultOfComfort.Client
                     }
                 }
 
-                visual.HealthBar.localScale = new Vector3(0.6f * visual.Health, 0.06f, 0.06f);
+                visual.HealthBar.localScale = new Vector3(EnemyBarWidth * visual.Health, EnemyBarThickness, EnemyBarThickness);
                 visual.HealthBar.gameObject.SetActive(visual.Health < 0.999f);
                 Shapes.Tint(visual.HealthBarRenderer, visual.Health > 0.4f ? Palette.HealthGood : Palette.HealthBad, _block);
             }
@@ -485,10 +497,10 @@ namespace CultOfComfort.Client
                 _leaderBody.localRotation = Quaternion.Euler(_leaderTilt * 88f, 0f, 0f);
             }
             var health = leader.Health / (float)leader.MaxHealth;
-            _leaderHealth.localScale = new Vector3(0.7f * health, 0.07f, 0.07f);
+            _leaderHealth.localScale = new Vector3(0.7f * health, 0.1f, 0.1f);
             _leaderHealth.gameObject.SetActive(!swooning && health < 0.999f);
             _leaderFlash = Mathf.MoveTowards(_leaderFlash, 0f, Time.deltaTime * 5f);
-            Shapes.Tint(_leaderHealthRenderer, Color.Lerp(health > 0.4f ? Palette.HealthGood : Palette.HealthBad, Color.white, _leaderFlash), _block);
+            Shapes.Tint(_leaderHealthRenderer, Color.Lerp(health > 0.4f ? ProphetTeal : Palette.HealthBad, Color.white, _leaderFlash), _block);
 
             if (_umbrella != null)
             {
@@ -538,6 +550,8 @@ namespace CultOfComfort.Client
                         SpawnRock(from, to, fired.Critical);
                     }
 
+                    // What the shot did, over the raider (spec 2026-11-17 fun first, B7): a muddied raider takes a critical.
+                    Floater?.Invoke(to + Vector3.up * 1.1f, fired.Critical ? $"CRIT! {Damage(fired.Damage)}" : Damage(fired.Damage));
                     break;
                 case DefenderAttacked hit:
                     if (_defenders.TryGetValue(hit.DefenderId, out var striker))
@@ -553,7 +567,12 @@ namespace CultOfComfort.Client
                     }
 
                     break;
-                case LeaderAttacked _:
+                case LeaderAttacked swing:
+                    if (_enemies.TryGetValue(swing.TargetId, out var struck))
+                    {
+                        Floater?.Invoke(struck.Current + Vector3.up * 1.1f, Damage(swing.Damage));
+                    }
+
                     if (_prophet != null)
                     {
                         _prophet.Attack();
@@ -603,6 +622,7 @@ namespace CultOfComfort.Client
                     var poof = Fx("fx_poof", at) ?? Shapes.Create(PrimitiveType.Sphere, Palette.Linen, at, Vector3.zero, _root, "Wreck");
                     AddEffect(poof, 0.6f, (go, t) => go.transform.localScale = Vector3.one * (1f - t) * 3f * Mathf.Sqrt(t));
                     StructureDamaged?.Invoke(structure.Id, 0f, true);
+                    _shake = Mathf.Max(_shake, 0.22f); // a building goes down: you feel it (B7)
                     break;
                 }
 
@@ -620,6 +640,12 @@ namespace CultOfComfort.Client
                     }
 
                     SpawnHotStones(_leaderCurrent, Shapes.ToWorld(thrown.Target));
+                    if (thrown.EnemiesAffected > 0)
+                    {
+                        HitStopUntil = Time.unscaledTime + 0.07f; // the world holds its breath as the stones land (B7)
+                        _shake = Mathf.Max(_shake, 0.12f);
+                    }
+
                     var stones = BalanceTable.Default.HotStones.Radius;
                     var centre = thrown.Target.ToVector();
                     FloatOver(e => _battle.PositionOf(e).DistanceSquaredTo(centre) <= stones * stones, "ouch!");
@@ -699,6 +725,7 @@ namespace CultOfComfort.Client
                     break;
                 case EnemyDefeated defeated when _enemies.TryGetValue(defeated.EnemyId, out var dead):
                     SpawnPoof(dead.Current);
+                    _shake = Mathf.Max(_shake, 0.05f);
                     break;
             }
         }
@@ -754,7 +781,7 @@ namespace CultOfComfort.Client
                 var animator = model.AddComponent<PartAnimator>();
                 animator.Bind();
                 var barHeight = (lord ? 1.5f : 1.1f) * UnitScale;
-                var modelBar = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, barHeight, 0f), new Vector3(0.6f, 0.06f, 0.06f), modelRoot, "Health");
+                var modelBar = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, barHeight, 0f), new Vector3(EnemyBarWidth, EnemyBarThickness, EnemyBarThickness), modelRoot, "Health");
                 var start = Shapes.ToWorld(_battle.PositionOf(enemy));
                 modelRoot.localPosition = start;
                 return WithStatus(new EnemyVisual
@@ -794,7 +821,7 @@ namespace CultOfComfort.Client
                 fork.transform.localRotation = Quaternion.Euler(20f, 0f, 0f);
             }
 
-            var bar = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, size * 2f + 0.45f, 0f), new Vector3(0.6f, 0.06f, 0.06f), root, "Health");
+            var bar = Shapes.Create(PrimitiveType.Cube, Palette.HealthGood, new Vector3(0f, size * 2f + 0.45f, 0f), new Vector3(EnemyBarWidth, EnemyBarThickness, EnemyBarThickness), root, "Health");
             var position = Shapes.ToWorld(_battle.PositionOf(enemy));
             root.localPosition = position;
 
@@ -1065,6 +1092,47 @@ namespace CultOfComfort.Client
             });
         }
 
+        /// <summary>His teal ring, so he's found at a glance at Night (concept art 2026-11-17).</summary>
+        public static readonly Color ProphetTeal = Shapes.Hex("#3fe8d4");
+
+        /// <summary>
+        /// The Prophet's rings (spec 2026-11-17 fun first, B2–B3): a glowing teal ring at his feet, so he's found at a
+        /// glance, and a dashed one where raiders on the road notice him and come for him.
+        /// </summary>
+        private void CreateProphetRings()
+        {
+            Ring("Prophet Ring", 0.55f, 32, 1f, 0.08f, Shapes.Glow(ProphetTeal, 2.2f));
+            var notice = (float)BalanceTable.Default.Enemies[EnemyType.Levy].NoticeRange.ToDouble(); // the levies are most of every raid
+            Ring("Lure Reach", notice, 36, 0.5f, 0.04f, Shapes.Glow(ProphetTeal * 0.8f, 0.9f)); // dashed: every other segment
+        }
+
+        /// <summary>A flat ring of <paramref name="segments"/> pieces round the Prophet (<paramref name="fill"/> 1: closed, 0.5: dashed).</summary>
+        private void Ring(string name, float radius, int segments, float fill, float width, Material material)
+        {
+            var ring = new GameObject(name).transform;
+            ring.SetParent(_leader, false);
+            var arc = 2f * Mathf.PI * radius / segments;
+            for (var i = 0; i < segments; i++)
+            {
+                if (fill < 1f && i % 2 == 1)
+                {
+                    continue;
+                }
+
+                var angle = (i + 0.5f) * Mathf.PI * 2f / segments;
+                var piece = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                Destroy(piece.GetComponent<Collider>());
+                piece.name = "Segment";
+                piece.transform.SetParent(ring, false);
+                piece.transform.localPosition = new Vector3(Mathf.Cos(angle) * radius, 0.03f, Mathf.Sin(angle) * radius);
+                piece.transform.localRotation = Quaternion.Euler(0f, -angle * Mathf.Rad2Deg, 0f);
+                piece.transform.localScale = new Vector3(width, 0.02f, arc * (fill < 1f ? 0.9f : 1.05f));
+                var renderer = piece.GetComponent<Renderer>();
+                renderer.sharedMaterial = material;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+        }
+
         private Transform CreateReachRing(float radius)
         {
             var ring = new GameObject("Hot Stones Reach").transform;
@@ -1102,6 +1170,10 @@ namespace CultOfComfort.Client
 
         private void AddEffect(GameObject target, float lifetime, Action<GameObject, float> update) =>
             _effects.Add(new Effect { Target = target, Lifetime = lifetime, Update = update });
+
+        /// <summary>Raiders' health bars: wide and thick enough to read on a phone (spec 2026-11-17 fun first, B4; were 0.6 × 0.06).</summary>
+        private const float EnemyBarWidth = 0.85f;
+        private const float EnemyBarThickness = 0.11f;
 
         private sealed class EnemyVisual
         {

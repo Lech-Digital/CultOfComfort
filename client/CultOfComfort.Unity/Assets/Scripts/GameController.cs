@@ -1206,6 +1206,7 @@ namespace CultOfComfort.Client
                 else if (_dragMode == DragMode.Pan || _pointers.Count > 1)
                 {
                     _rig.Pan(_gesture.PanFrom, _gesture.PanTo);
+                    _cameraTouchedAt = Time.time;
                 }
             }
 
@@ -1220,14 +1221,58 @@ namespace CultOfComfort.Client
             if (_gesture.Pinched)
             {
                 _rig.Zoom(_gesture.PinchRatio, _gesture.PinchCenter);
+                _cameraTouchedAt = Time.time;
             }
 
             var scroll = PointerInput.ScrollDelta();
             if (Mathf.Abs(scroll) > 0.01f && PointerInput.TryGetHover(out var mouse) && !IsOverUi(mouse))
             {
                 _rig.Zoom(Mathf.Pow(1.0015f, scroll), mouse);
+                _cameraTouchedAt = Time.time;
             }
         }
+
+        private readonly List<Vector3> _raiderViewport = new List<Vector3>();
+
+        /// <summary>Red chevrons on the board's edge for raiders out of sight (spec 2026-11-17 fun first, B4).</summary>
+        private void ShowRaidersOutOfSight()
+        {
+            _raiderViewport.Clear();
+            foreach (var enemy in _battle.Enemies)
+            {
+                if (enemy.IsActive)
+                {
+                    _raiderViewport.Add(_camera.WorldToViewportPoint(Shapes.ToWorld(_battle.PositionOf(enemy), 0.5f)));
+                }
+            }
+
+            var clear = _hud.ClearViewport();
+            _hud.ShowEdgeMarkers(clear != null ? EdgeMarkers.Compute(_raiderViewport, clear.Value) : null);
+        }
+
+        private readonly Dictionary<string, (int ReadyAt, int From)> _cooldowns = new Dictionary<string, (int, int)>();
+
+        /// <summary>How much of a skill's cooldown is left (1 just used, 0 ready), from the tick it was last set going.</summary>
+        private float Cooldown(string skill, int readyAt)
+        {
+            var tick = _battle.Tick;
+            if (!_cooldowns.TryGetValue(skill, out var c) || c.ReadyAt != readyAt)
+            {
+                c = (readyAt, tick);
+                _cooldowns[skill] = c;
+            }
+
+            return readyAt <= tick || readyAt <= c.From ? 0f : (readyAt - tick) / (float)(readyAt - c.From);
+        }
+
+        /// <summary>When the player last panned or zoomed: the Night camera leaves them be for a few seconds.</summary>
+        private float _cameraTouchedAt = float.NegativeInfinity;
+
+        /// <summary>How long the Night camera waits after a pan or pinch before it follows the Prophet again.</summary>
+        private const float FollowAfterTouchSeconds = 3f;
+
+        /// <summary>World units the Prophet may stray from the stage's middle before the camera eases after him.</summary>
+        private const float FollowDeadZone = 2.5f;
 
         // ---------------- Day: the village ----------------
 
@@ -1960,6 +2005,8 @@ namespace CultOfComfort.Client
             _hud.ShowRepairAll(null);
             _cardBuilding = null;
             _cardTerrain = null; // playtest 2026-11-17: a tree's card left open came back over the Dawn card
+            _cooldowns.Clear(); // a new Battle counts its ticks from zero
+            _cameraTouchedAt = float.NegativeInfinity;
             _cardVisitor = false;
             _hud.ShowBuildingCard(null);
             _board.ClearStructureHealth();
@@ -2020,21 +2067,29 @@ namespace CultOfComfort.Client
 
             if (_gesture.Tapped && TryScreenToTile(_gesture.TapPosition, out var tile))
             {
+                // A near miss becomes the order meant (spec 2026-11-17 fun first, B3): the edge of the reach, the tile beside the wall.
+                var leader = _battle.Leader.Position;
                 if (_aim != null)
                 {
-                    _battle.Intervene(_aim.Value, tile);
+                    _battle.Intervene(_aim.Value, OrderSnap.InReach(tile, leader.X.ToDouble(), leader.Y.ToDouble(), AimReach(_aim.Value), _setup.Layout.IsInBounds));
                     SetAim(null);
                 }
                 else
                 {
-                    _battle.Intervene(PlayerActionType.MoveLeader, tile);
+                    _battle.Intervene(PlayerActionType.MoveLeader, OrderSnap.Walkable(tile, _setup.Layout.IsWalkableForLeader) ?? tile);
                 }
             }
 
+            // The throw's reach is on the ground whenever the stones are hot, not only while aiming (B3).
+            _battleView.ShowReach(_aim != null || _battle.IsHotStonesReady, _aim != null ? AimReach(_aim.Value) : AimReach(PlayerActionType.HotStones),
+                aiming: _aim != null);
             ShowStonesTarget();
             OpenGatesForFriends();
 
-            _accumulator += Time.deltaTime * _speed;
+            if (Time.unscaledTime >= _battleView.HitStopUntil)
+            {
+                _accumulator += Time.deltaTime * _speed; // a hit-stop holds the fight for a heartbeat
+            }
             var steps = 0;
             while (_accumulator >= TickSeconds && !_battle.IsFinished && steps++ < MaxStepsPerFrame)
             {
@@ -2051,6 +2106,12 @@ namespace CultOfComfort.Client
 
             _board.ShowLeaderDestination(_battle.Leader.IsMoving ? _battle.Leader.Destination : (GridPosition?)null);
             _battleView.Render(Mathf.Clamp01(_accumulator / TickSeconds));
+            if (Time.time - _cameraTouchedAt > FollowAfterTouchSeconds && _framePending == 0)
+            {
+                _rig.Follow(Shapes.ToWorld(_battle.Leader.Position), FollowDeadZone, Time.deltaTime); // spec 2026-11-17 fun first, B1
+            }
+
+            ShowRaidersOutOfSight();
 
             if (_battle.IsFinished)
             {
@@ -2118,7 +2179,7 @@ namespace CultOfComfort.Client
         private void SetAim(PlayerActionType? skill)
         {
             _aim = skill;
-            _battleView.ShowReach(skill != null, skill != null ? AimReach(skill.Value) : 0f);
+            _battleView.ShowReach(skill != null, skill != null ? AimReach(skill.Value) : 0f, aiming: skill != null);
             if (skill == null)
             {
                 _board.ShowCursor(null, false);
@@ -2179,6 +2240,7 @@ namespace CultOfComfort.Client
         {
             SetAim(null);
             _board.ShowLeaderDestination(null);
+            _hud.ShowEdgeMarkers(null);
             _phase = GamePhase.Dawn;
             _hud.ShowPhase(_phase);
             _hud.Announce(string.Empty, Time.time, 0f);
@@ -2750,6 +2812,7 @@ namespace CultOfComfort.Client
                     : aimingStones ? "Tap a tile inside the pebble ring, or Hot Stones again to cancel."
                     : _aim == PlayerActionType.LaserPointer ? "Tap a raider inside the ring: the red dot blinds it. Tap the pointer again to cancel."
                     : _aim == PlayerActionType.SunFire ? "Tap raiders inside the ring: the glass sets them alight. Tap it again to cancel."
+                    : _night > 2 && !_trialMode ? string.Empty // learnt by now: the board gets the room (spec 2026-11-17 fun first, B6)
                     : "Tap the ground to move the Prophet. Enemies stop to fight him.";
                 _hud.UpdateNight(new NightHudState(
                     _night, _battle.HearthHealth, _battle.HearthMaxHealth, leader.Health, leader.MaxHealth,
@@ -2761,7 +2824,8 @@ namespace CultOfComfort.Client
                         : RelicButton(Relic.DynamoTorch, "Torch", leader.TorchReadyAtTick, _battle.IsTorchReady, null, swooning),
                     !_battle.IsSunUp && _battle.Relics.HasFlag(Relic.Magnifier)
                         ? new RelicButtonState(true, "Sun's down", false)
-                        : RelicButton(Relic.Magnifier, "Sun-fire", leader.SunFireReadyAtTick, _battle.IsSunFireReady, PlayerActionType.SunFire, swooning)));
+                        : RelicButton(Relic.Magnifier, "Sun-fire", leader.SunFireReadyAtTick, _battle.IsSunFireReady, PlayerActionType.SunFire, swooning),
+                    Cooldown("sluice", _battle.SluiceReadyAtTick), Cooldown("voice", leader.VoiceReadyAtTick), Cooldown("stones", leader.HotStonesReadyAtTick)));
             }
         }
 
