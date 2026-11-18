@@ -31,7 +31,7 @@ namespace CultOfComfort.Client
     /// </summary>
     public static class RosterCard
     {
-        public static string Title(int hearthLevel, int road) => $"Tonight: {RaidRoster.Who(hearthLevel, road)}";
+        public static string Title(int hearthLevel, int road) => $"Next Night: {RaidRoster.Who(hearthLevel, road)}"; // not "Tonight": at Calm it may be hours off
 
         public static List<RaiderRow> Rows(int hearthLevel, int road, ICollection<string> seen)
         {

@@ -759,17 +759,18 @@ namespace CultOfComfort.Client
         /// <summary>Raider types the player has read about on the roster card (spec 2026-11-17 fun first, B5).</summary>
         public const string RosterSeenKey = "roster.seen";
 
-        private (int Hearth, int Road, int Seen, bool Dusk) _rosterLinkKey = (-1, -1, -1, false);
+        private (int Hearth, int Road, int Seen, bool Dusk, bool Coaching) _rosterLinkKey = (-1, -1, -1, false, false);
         private HashSet<string> _rosterSeen;
 
         private HashSet<string> RosterSeen => _rosterSeen ??= PrefSet(RosterSeenKey);
 
         /// <summary>"Who's coming ›" on the strip at Dusk, or "New raiders! ›" while the card has one not read about yet.</summary>
-        private void UpdateRosterLink()
+        /// <param name="coaching">The coach is talking: the link stays quiet, one thing at a time (playtest 2026-11-18).</param>
+        private void UpdateRosterLink(bool coaching)
         {
             var dusk = _phase == GamePhase.Dusk && _snapshot != null;
             var seen = RosterSeen;
-            var key = dusk ? (_snapshot.HearthLevel, _snapshot.NextRoad, seen.Count, true) : (-1, -1, -1, false);
+            var key = dusk ? (_snapshot.HearthLevel, _snapshot.NextRoad, seen.Count, true, coaching) : (-1, -1, -1, false, false);
             if (key == _rosterLinkKey)
             {
                 return;
@@ -777,7 +778,7 @@ namespace CultOfComfort.Client
 
             _rosterLinkKey = key;
             var any = dusk && RosterCard.Rows(_snapshot.HearthLevel, _snapshot.NextRoad, seen).Count > 0;
-            _hud.SetRosterLink(any, any && RosterCard.HasNew(_snapshot.HearthLevel, _snapshot.NextRoad, seen));
+            _hud.SetRosterLink(any, any && !coaching && RosterCard.HasNew(_snapshot.HearthLevel, _snapshot.NextRoad, seen));
         }
 
         private void OpenRoster()
@@ -2171,6 +2172,7 @@ namespace CultOfComfort.Client
             }
 
             ShowRaidersOutOfSight();
+            ShowPendingTip();
 
             if (_battle.IsFinished)
             {
@@ -2303,6 +2305,7 @@ namespace CultOfComfort.Client
             _hud.ShowEdgeMarkers(null);
             _hits.Clear();
             _hud.ShowHitMarkers(null, 0f);
+            _pendingTip = null; // never over the Dawn card: it comes back the next time the skill is used
             _phase = GamePhase.Dawn;
             _hud.ShowPhase(_phase);
             _hud.Announce(string.Empty, Time.time, 0f);
@@ -2564,8 +2567,22 @@ namespace CultOfComfort.Client
             _hud.Announce(text, Time.time, prophet: prophet);
         }
 
-        private void ShowFirstUseTip(PlayerActionType skill)
+        /// <summary>
+        /// A skill's first-use tip waits for a gap: no raider on the road (spec 2026-11-17 fun first, B5; the playtest of
+        /// 2026-11-18 had it cover the fight). Not taken until shown, so a Night that ends first keeps it for next time.
+        /// </summary>
+        private void ShowFirstUseTip(PlayerActionType skill) => _pendingTip = skill;
+
+        private PlayerActionType? _pendingTip;
+
+        private void ShowPendingTip()
         {
+            if (_pendingTip is not { } skill || _battle == null || _battle.Enemies.Any(e => e.IsActive))
+            {
+                return;
+            }
+
+            _pendingTip = null;
             var tip = _tips.Take(skill);
             if (tip != null)
             {
@@ -2850,7 +2867,7 @@ namespace CultOfComfort.Client
             _hud.ShowCoach(coach, coachPoint);
             _hud.Tick(Time.time);
             _hud.UpdateFrame(_snapshot != null ? VillagePresenter.Frame(_snapshot) : DemoEconomy.Frame(0, 1));
-            UpdateRosterLink();
+            UpdateRosterLink(coach != null);
             if (_phase == GamePhase.Dusk)
             {
                 var probe = DeterminismProbe.Matches switch

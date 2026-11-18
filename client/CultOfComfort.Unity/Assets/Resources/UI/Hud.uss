@@ -144,7 +144,7 @@
     background-image: resource("UI/Kit/parchment");
     -unity-slice-left: 32; -unity-slice-right: 32; -unity-slice-top: 32; -unity-slice-bottom: 32; -unity-slice-scale: 0.5px;
 }
-.night-phase .centre { justify-content: flex-end; padding-bottom: 6px; }
+.night-phase .centre { align-self: stretch; justify-content: flex-end; padding-bottom: 6px; } /* stretch: .middle aligns to the top, so without it flex-end did nothing (playtest 2026-11-18) */
 .night-phase .toast { width: 92%; font-size: 15px; }
 .toast.prophet, .locked-note {
     background-image: resource("UI/Kit/note_yellow");
@@ -493,12 +493,13 @@
 .night-bar .skill-arc, .landscape .night-bar .skill-arc { flex-grow: 0; flex-shrink: 0; width: 176px; height: 142px; }
 .night-bar .skill-arc > .skill {
     position: absolute; flex-grow: 0; flex-shrink: 0; flex-basis: auto; min-width: 0; max-width: none; margin: 0;
-    padding: 6px 4px 8px 4px; border-radius: 50%; justify-content: center; align-items: center;
+    padding: 6px 4px 8px 4px; justify-content: center; align-items: center;
     -unity-slice-left: 0; -unity-slice-right: 0; -unity-slice-top: 0; -unity-slice-bottom: 0;
 }
-.night-bar .skill-arc > .arc-corner { width: 76px; height: 76px; right: 0; bottom: 0; }
-.night-bar .skill-arc > .arc-left { width: 60px; height: 60px; left: 4px; bottom: 6px; }
-.night-bar .skill-arc > .arc-high { width: 60px; height: 60px; left: 34px; top: 0; }
+/* radii in px: on the device 50% came out as a rounded square (playtest 2026-11-18) */
+.night-bar .skill-arc > .arc-corner { width: 76px; height: 76px; right: 0; bottom: 0; border-radius: 38px; }
+.night-bar .skill-arc > .arc-left { width: 60px; height: 60px; left: 4px; bottom: 6px; border-radius: 30px; }
+.night-bar .skill-arc > .arc-high { width: 60px; height: 60px; left: 34px; top: 0; border-radius: 30px; }
 .night-bar .skill-arc .skill-icon { width: 26px; height: 26px; }
 .night-bar .skill-arc > .arc-corner .skill-icon { width: 32px; height: 32px; }
 .night-bar .skill-arc .skill-text { font-size: 9px; white-space: nowrap; }
@@ -506,7 +507,7 @@
 
 .night-bar .relics > .relic, .landscape .night-bar .relics > .relic {
     width: 50px; min-width: 50px; max-width: 50px; height: 50px; margin: 0 6px 0 0; padding: 4px 2px 6px 2px;
-    border-radius: 50%; flex-direction: column; justify-content: center; align-items: center;
+    border-radius: 25px; flex-direction: column; justify-content: center; align-items: center;
     -unity-slice-left: 0; -unity-slice-right: 0; -unity-slice-top: 0; -unity-slice-bottom: 0;
 }
 .night-bar .relics > .relic .skill-icon { width: 22px; height: 22px; margin: 0; }
@@ -516,10 +517,10 @@
 /* landscape: the height is short, so the notes sit in one low row in the corner instead of an arc (still under 18%) */
 .landscape .night-bar .skill-arc { width: 196px; height: 62px; }
 .landscape .night-bar .skill-arc > .skill { top: auto; bottom: 0; left: auto; }
-.landscape .night-bar .skill-arc > .arc-corner { width: 62px; height: 62px; right: 0; }
-.landscape .night-bar .skill-arc > .arc-left { width: 56px; height: 56px; right: 134px; }
-.landscape .night-bar .skill-arc > .arc-high { width: 56px; height: 56px; right: 70px; }
+.landscape .night-bar .skill-arc > .arc-corner { width: 62px; height: 62px; right: 0; border-radius: 31px; }
+.landscape .night-bar .skill-arc > .arc-left { width: 56px; height: 56px; right: 134px; border-radius: 28px; }
+.landscape .night-bar .skill-arc > .arc-high { width: 56px; height: 56px; right: 70px; border-radius: 28px; }
 .landscape .night-bar .skill-arc .skill-icon, .landscape .night-bar .skill-arc > .arc-corner .skill-icon { width: 22px; height: 22px; }
-.landscape .night-bar .relics > .relic { width: 44px; min-width: 44px; max-width: 44px; height: 44px; }
+.landscape .night-bar .relics > .relic { width: 44px; min-width: 44px; max-width: 44px; height: 44px; border-radius: 22px; }
 .landscape .night-side { flex-direction: row-reverse; justify-content: flex-end; align-items: center; }
 .landscape .night-side > .hint { margin: 0 0 0 4px; flex-shrink: 1; max-width: 300px; }
