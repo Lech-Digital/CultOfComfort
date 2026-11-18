@@ -291,7 +291,7 @@ namespace CultOfComfort.Client
             model.MissionaryChip = Chip(model.Roster, domain.MissionarySlots);
             var free = domain.MissionarySlots - domain.Missionaries.Count;
             model.MissionaryLine = domain.Missionaries.Count == 0
-                ? $"Missionaries: {free} ready. Tap a place to send one."
+                ? $"Preachers: {free} ready. Tap a place to send one."
                 : string.Join("\n", model.Missionaries.Select(m => m.Text)) + (free > 0 ? $"\n{free} more ready." : string.Empty);
             model.OfferingsLine = domain.OfferingsPerHour.IsZero && domain.Offerings.IsZero
                 ? "Offerings: none yet. Win the faithful first."
@@ -358,7 +358,7 @@ namespace CultOfComfort.Client
             var out_ = roster.Where(r => r.NodeId >= 0).ToList();
             if (out_.Count == 0)
             {
-                return slots == 0 ? "Missionaries" : $"Missionaries: {slots} ready";
+                return slots == 0 ? "Preachers" : $"Preachers: {slots} ready";
             }
 
             return $"{out_[0].Title} · {out_[0].Detail}" + (out_.Count > 1 ? $" (+{out_.Count - 1} out)" : string.Empty);
@@ -463,13 +463,13 @@ namespace CultOfComfort.Client
         /// <summary>What the map is for, in plain words (the ? sheet; shown once, the first time the map opens).</summary>
         public static List<string> Help(string lord, BuildingTable table, bool world) => new List<string>
         {
-            "Spread the faith. Tap a place and send a missionary: a villager with provisions walks there, preaches, and wins a share of the place's faith. While away, they don't work at home.",
+            "Spread the faith. Tap a place and send a preacher: a villager with provisions walks there, preaches, and wins a share of the place's faith. While away, they don't work at home.",
             $"Hold {table.Domain.PatronInfluence}% of a place and you're its Patron. The places you hold send offerings (Timber, Peat, Scrap, Devotion); they pile up here until you tap Collect.",
             world ? "Other players' cults and wandering cults preach here too. The faithful split between you, and faith fades a little every day unless you keep preaching."
                   : "Faith fades a little every day unless you keep preaching.",
             $"{Capital(lord)} doesn't like it. The more faith you hold, the faster his temper (Tension) rises. When it's full he raids your village at night.",
             "Pay a tithe to calm him: resources for a lower temper. During a raid warning, pay enough and he calls the raid off.",
-            "A bigger Hearth sends more missionaries, further.",
+            "A bigger Hearth sends more preachers, further.",
         };
 
         private static string Capital(string text) => string.IsNullOrEmpty(text) ? text : char.ToUpperInvariant(text[0]) + text.Substring(1);

@@ -12,11 +12,14 @@ namespace CultOfComfort.Client
     /// </summary>
     public static class FeatureUnlocks
     {
-        /// <summary>The order shortcuts arrive in. The Map and the Missionaries arrive together (one world, spec D).</summary>
-        public static readonly IReadOnlyList<string> Order = new[] { "pilgrims", "map", "research", "tithes", "festival" };
+        /// <summary>
+        /// The order shortcuts arrive in. One world screen (spec 2026-11-17 fun first, D): the preachers live on the Map,
+        /// and the lord's hall opens from the Tension strip, so neither has a shortcut of its own any more.
+        /// </summary>
+        public static readonly IReadOnlyList<string> Order = new[] { "pilgrims", "map", "research", "festival" };
 
-        /// <summary>The shortcuts that arrive with another, and count as tried when it is.</summary>
-        private static readonly Dictionary<string, string> Riders = new Dictionary<string, string> { ["missionaries"] = "map" };
+        /// <summary>The shortcuts that arrive with another, and count as tried when it is (none since D).</summary>
+        private static readonly Dictionary<string, string> Riders = new Dictionary<string, string>();
 
         /// <summary>The lord's temper at which his hall appears, unless a letter comes first.</summary>
         public const int TithesAtTension = 15;

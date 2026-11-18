@@ -160,14 +160,14 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
-        public void Step_SendAMissionary_PointsAtTheMissionHouse()
+        public void Step_SendAPreacher_PointsAtTheLands()
         {
             // Act
             var step = TutorialCoach.Step(Errand(Index("missionary")), null, Nothing, Table);
 
             // Assert
             Assert.AreEqual(CoachTarget.Feature, step.Target);
-            Assert.AreEqual("missionaries", step.Feature);
+            Assert.AreEqual("map", step.Feature); // the preachers live on the Map (spec 2026-11-17 fun first, D)
         }
 
         [Test]

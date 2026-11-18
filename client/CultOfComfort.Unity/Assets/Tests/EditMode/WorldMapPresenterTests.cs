@@ -161,7 +161,7 @@ namespace CultOfComfort.Client.Tests
             var chip = WorldMapPresenter.Chip(WorldMapPresenter.Roster(Array.Empty<(MissionaryView, string, double)>(), 2, true, T0), 2);
 
             // Assert
-            Assert.AreEqual("Missionaries: 2 ready", chip);
+            Assert.AreEqual("Preachers: 2 ready", chip);
         }
     }
 }

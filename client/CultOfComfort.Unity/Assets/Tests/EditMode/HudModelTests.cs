@@ -7,13 +7,13 @@ namespace CultOfComfort.Client.Tests
     public class HudModelTests
     {
         [Test]
-        public void LockedFeatures_All_HasTheEightShortcutsWithNotes()
+        public void LockedFeatures_All_TheSixShortcutsWithNotes()
         {
             // Act
             var ids = LockedFeatures.All.Select(f => f.Id).ToArray();
 
             // Assert
-            CollectionAssert.AreEquivalent(new[] { "map", "research", "pilgrims", "missionaries", "tithes", "festival", "shop", "cult" }, ids);
+            CollectionAssert.AreEquivalent(new[] { "map", "research", "pilgrims", "festival", "shop", "cult" }, ids); // eight entry points with the portrait and the strip (spec 2026-11-17 fun first, D)
             Assert.IsTrue(LockedFeatures.All.All(f => f.Note.Length > 20 && f.Label.Length > 0 && f.Icon.Length > 0));
         }
 

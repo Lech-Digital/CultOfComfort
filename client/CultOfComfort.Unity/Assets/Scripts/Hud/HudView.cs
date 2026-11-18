@@ -319,8 +319,13 @@ namespace CultOfComfort.Client
             // Who's coming tonight (spec 2026-11-17 fun first, B5): the scouting lines live on a card at Dusk, not in the fight.
             _rosterLink = Text("Who's coming ›", "roster-link");
             _rosterLink.name = "roster-link";
-            _rosterLink.RegisterCallback<ClickEvent>(_ => RosterClicked?.Invoke());
+            _rosterLink.RegisterCallback<ClickEvent>(e =>
+            {
+                e.StopPropagation(); // the link is the roster; the rest of the strip is the lord's hall
+                RosterClicked?.Invoke();
+            });
             _tensionStrip.Add(_rosterLink);
+            _tensionStrip.RegisterCallback<ClickEvent>(_ => StripClicked?.Invoke()); // the lord's hall (spec 2026-11-17 fun first, D2)
             _top.Add(_tensionStrip);
 
             _waveStrip = Container("strip");
@@ -343,11 +348,10 @@ namespace CultOfComfort.Client
             _sideLeft.name = "side-left";
             _sideRight = Container("side");
             _sideRight.name = "side-right";
+            // Eight entry points, not twelve (spec 2026-11-17 fun first, D): Lands and Study at the left, the timed ones at the right.
             _sideLeft.Add(Shortcut(LockedFeatures.Get("map")));
             _sideLeft.Add(Shortcut(LockedFeatures.Get("research")));
-            _sideLeft.Add(Shortcut(LockedFeatures.Get("pilgrims")));
-            _sideRight.Add(Shortcut(LockedFeatures.Get("missionaries")));
-            _sideRight.Add(Shortcut(LockedFeatures.Get("tithes")));
+            _sideRight.Add(Shortcut(LockedFeatures.Get("pilgrims")));
             _sideRight.Add(Shortcut(LockedFeatures.Get("festival")));
             var centre = Container("centre");
             _toast = Text(string.Empty, "toast", "hidden");
@@ -1772,6 +1776,12 @@ namespace CultOfComfort.Client
 
         /// <summary>"Who's coming ›" on the Tension strip was tapped.</summary>
         public event Action RosterClicked;
+
+        /// <summary>The Tension strip itself was tapped: the lord's hall.</summary>
+        public event Action StripClicked;
+
+        /// <summary>The lord has written (a demand waits): the strip says so, as the Tithes button's dot once did.</summary>
+        public void SetStripAlert(bool on) => _tensionStrip.EnableInClassList("alert", on);
 
         private readonly Label _rosterLink;
         private readonly VisualElement _roster;

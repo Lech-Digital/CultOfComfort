@@ -64,7 +64,7 @@ public sealed record ErrandBook(string Version, IReadOnlyList<Errand> Errands)
         new("slurry-chute", "Put a Slurry Chute right beside the raiders' road. Mud is a defence.", ErrandGoal.Build, BuildingType.SlurryChute, 1, new ResourceBag(20, 0, 50, 0)),
         new("first-night", "Light the Lamps and see your first Night through.", ErrandGoal.SurviveNight, null, 1, new ResourceBag(100, 0, 40, 0)),
         new("hearth-2", "Raise the Hearth to level 2.", ErrandGoal.HearthLevel, BuildingType.Hearth, 2, new ResourceBag(0, 0, 0, 30)),
-        new("missionary", "Open the Missionaries and send a preacher to a place nearby. The muddy ones listen best.", ErrandGoal.SendMissionary, null, 1, new ResourceBag(100, 0, 0, 20)),
+        new("missionary", "Open Lands and send a preacher to a place nearby. The muddy ones listen best.", ErrandGoal.SendMissionary, null, 1, new ResourceBag(100, 0, 0, 20)),
         new("midden-sorter", "Build a Midden Sorter. Scrap, from rubbish. Keep it away from the homes: it smells.", ErrandGoal.Build, BuildingType.MiddenSorter, 1, new ResourceBag(100, 0, 0, 0)),
         new("study", "Open Research and study something from the car's manual.", ErrandGoal.Study, null, 1, new ResourceBag(0, 30, 30, 0)),
         new("sapling-flinger", "Build a Sapling Flinger beside the road. Mud slows them; saplings hit them.", ErrandGoal.Build, BuildingType.SaplingFlinger, 1, new ResourceBag(40, 0, 70, 0)),

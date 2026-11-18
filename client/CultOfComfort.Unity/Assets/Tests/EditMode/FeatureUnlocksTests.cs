@@ -46,39 +46,38 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
-        public void Open_PilgrimsTried_TheMapArrivesWithTheMissionaries()
+        public void Open_PilgrimsTried_TheLandsArrive()
         {
             // Act
             var open = FeatureUnlocks.Open(HearthTwo(), new[] { "pilgrims" }, new[] { "pilgrims" });
 
-            // Assert
-            CollectionAssert.AreEquivalent(new[] { "pilgrims", "map", "missionaries" }, open);
+            // Assert — the preachers live on the Map since one world screen (spec 2026-11-17 fun first, D).
+            CollectionAssert.AreEquivalent(new[] { "pilgrims", "map" }, open);
         }
 
         [Test]
-        public void Open_MissionariesTried_CountsForTheMap()
+        public void Open_LandsTried_StudyComesNext()
         {
             // Act
-            var open = FeatureUnlocks.Open(HearthTwo(), new[] { "pilgrims", "map", "missionaries" }, new[] { "pilgrims", "missionaries" });
+            var open = FeatureUnlocks.Open(HearthTwo(), new[] { "pilgrims", "map" }, new[] { "pilgrims", "map" });
 
-            // Assert — Research comes next.
+            // Assert
             Assert.IsTrue(open.Contains("research"));
-            Assert.IsFalse(open.Contains("tithes"));
+            Assert.IsFalse(open.Contains("festival"));
         }
 
         [Test]
-        public void Open_LordStillCalm_TithesWait()
+        public void Open_Anything_NeverTheOldMissionariesOrTithes()
         {
-            // Arrange
-            var all = new[] { "pilgrims", "map", "missionaries", "research" };
+            // Arrange — the lord cross, everything tried: his hall opens from the strip now, not a shortcut.
+            var all = new[] { "pilgrims", "map", "research", "festival", "missionaries", "tithes" };
 
             // Act
-            var calm = FeatureUnlocks.Open(HearthTwo(), all, all);
-            var cross = FeatureUnlocks.Open(HearthTwo() with { Tension = FeatureUnlocks.TithesAtTension }, all, all);
+            var open = FeatureUnlocks.Open(HearthTwo() with { Tension = FeatureUnlocks.TithesAtTension }, all, all);
 
             // Assert
-            Assert.IsFalse(calm.Contains("tithes"));
-            Assert.IsTrue(cross.Contains("tithes"));
+            Assert.IsFalse(open.Contains("tithes"));
+            Assert.IsFalse(open.Contains("missionaries"));
         }
 
         [Test]
@@ -92,7 +91,6 @@ namespace CultOfComfort.Client.Tests
 
             // Assert
             Assert.IsTrue(open.Contains("map"));
-            Assert.IsTrue(open.Contains("missionaries"));
         }
 
         [Test]
@@ -112,7 +110,7 @@ namespace CultOfComfort.Client.Tests
             var open = FeatureUnlocks.Open(HearthTwo() with { HearthLevel = 3, Tension = 40, LastNightRecorded = 3 }, Nothing, Nothing);
 
             // Assert
-            CollectionAssert.AreEquivalent(new[] { "pilgrims", "map", "missionaries", "research", "tithes", "festival" }, open);
+            CollectionAssert.AreEquivalent(new[] { "pilgrims", "map", "research", "festival" }, open);
         }
     }
 }

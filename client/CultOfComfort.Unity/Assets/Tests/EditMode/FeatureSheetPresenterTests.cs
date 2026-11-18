@@ -166,7 +166,7 @@ namespace CultOfComfort.Client.Tests
             var raise = hearth.Single(r => r.Action == "hearth:upgrade");
             Assert.AreEqual("Raise", raise.Button);
             Assert.IsTrue(raise.Enabled);
-            Assert.IsTrue(hearth.Any(r => r.Text != null && r.Text.Contains("The map opens")), "Hearth 2 opens the map");
+            Assert.IsTrue(hearth.Any(r => r.Text != null && r.Text.Contains("The Lands open")), "Hearth 2 opens the Lands");
             Assert.IsTrue(hearth.Any(r => r.Text != null && r.Text.StartsWith("· New: ") && r.Text.Contains("Cistern")));
         }
 
@@ -178,7 +178,7 @@ namespace CultOfComfort.Client.Tests
 
             // Assert
             Assert.IsTrue(lines.Any(l => l.Contains("Bathhouse")));
-            Assert.IsTrue(lines.Any(l => l.StartsWith("2 missionaries at once")));
+            Assert.IsTrue(lines.Any(l => l.StartsWith("2 preachers at once")));
         }
 
         [Test]

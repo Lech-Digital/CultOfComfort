@@ -181,7 +181,7 @@ public sealed partial class BaseState
     {
         if (HearthLevel < Domain.UnlockHearth)
         {
-            return $"Missionaries go out from Hearth {Domain.UnlockHearth}.";
+            return $"Preachers go out from Hearth {Domain.UnlockHearth}.";
         }
 
         if (Domain.EfficiencyPercent(hours) == null)
@@ -191,7 +191,7 @@ public sealed partial class BaseState
 
         if (_missionaries.Count >= Domain.Missionaries(HearthLevel))
         {
-            return "Every missionary is already out.";
+            return "Every preacher is already out.";
         }
 
         if (_population - MissionariesAway < 1)

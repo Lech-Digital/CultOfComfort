@@ -369,7 +369,7 @@ namespace CultOfComfort.Client.Tests
             var root = Root();
 
             // Assert
-            foreach (var name in new[] { "locked-map", "locked-research", "locked-missionaries", "locked-tithes" })
+            foreach (var name in new[] { "locked-map", "locked-research", "locked-festival" })
             {
                 Assert.IsFalse(Visible(root.Q(name)), name + ": no padlocks on show (spec 2026-10-16 one thing at a time)");
             }

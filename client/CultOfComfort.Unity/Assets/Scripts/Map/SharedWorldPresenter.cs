@@ -160,9 +160,9 @@ namespace CultOfComfort.Client
                 .Select(m => (m, map.Node(m.NodeId)))
                 .Where(x => x.Item2 != null)
                 .Select(x => (x.m, x.Item2.Name, x.Item2.DistanceTo(world.q, world.r) * table.Domain.MinutesPerHex * 60.0)).ToList(), slots, model.Unlocked, now);
-            model.MissionaryChip = !model.Unlocked ? $"Missionaries go out from Hearth {table.Domain.UnlockHearth}." : WorldMapPresenter.Chip(model.Roster, slots);
-            model.MissionaryLine = !model.Unlocked ? $"Missionaries go out from Hearth {table.Domain.UnlockHearth}."
-                : model.Missionaries.Count == 0 ? $"Missionaries: {free} ready. Tap a place to send one."
+            model.MissionaryChip = !model.Unlocked ? $"Preachers go out from Hearth {table.Domain.UnlockHearth}." : WorldMapPresenter.Chip(model.Roster, slots);
+            model.MissionaryLine = !model.Unlocked ? $"Preachers go out from Hearth {table.Domain.UnlockHearth}."
+                : model.Missionaries.Count == 0 ? $"Preachers: {free} ready. Tap a place to send one."
                 : string.Join("\n", model.Missionaries.Select(m => m.Text)) + (free > 0 ? $"\n{free} more ready." : string.Empty);
             var purse = new ResourceBag(world.purseTimber, world.pursePeat, world.purseScrap, world.purseDevotion);
             var perHour = new ResourceBag(world.perHourTimber, world.perHourPeat, world.perHourScrap, world.perHourDevotion);
@@ -236,7 +236,7 @@ namespace CultOfComfort.Client
             var domain = snapshot.Domain;
             if (domain == null || !domain.Unlocked)
             {
-                card.Note = $"Missionaries go out from Hearth {table.Domain.UnlockHearth}.";
+                card.Note = $"Preachers go out from Hearth {table.Domain.UnlockHearth}.";
                 return card;
             }
 

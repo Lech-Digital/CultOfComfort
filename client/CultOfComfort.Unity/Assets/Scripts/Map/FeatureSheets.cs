@@ -42,7 +42,7 @@ namespace CultOfComfort.Client
             TechEffect.ScrapPercent => $"Scrap +{tech.Amount}%",
             TechEffect.DevotionPercent => $"Devotion +{tech.Amount}%",
             TechEffect.BuildTimePercent => $"Building {tech.Amount}% quicker",
-            TechEffect.MissionaryPercent => $"Missionaries win +{tech.Amount}% influence",
+            TechEffect.MissionaryPercent => $"Preachers win +{tech.Amount}% influence",
             TechEffect.HealthPercent => $"Buildings +{tech.Amount}% health in a Night",
             TechEffect.SluiceCharges => $"+{tech.Amount} Open Sluice a Night",
             TechEffect.TowerDamagePercent => $"Towers hit {tech.Amount}% harder",
@@ -387,11 +387,11 @@ namespace CultOfComfort.Client
             lines.Add($"Every building can go up to level {next}");
             if (next == table.Domain.UnlockHearth)
             {
-                lines.Add("The map opens: missionaries, offerings, tithes");
+                lines.Add("The Lands open: preachers, offerings, the lord's hall");
             }
             else if (table.Domain.Missionaries(next) > table.Domain.Missionaries(level))
             {
-                lines.Add($"{table.Domain.Missionaries(next)} missionaries at once, walking {table.Domain.Reach(next)} hexes");
+                lines.Add($"{table.Domain.Missionaries(next)} preachers at once, walking {table.Domain.Reach(next)} hexes");
             }
 
             var studies = table.Research.Techs.Count(t => t.UnlockHearth == next);

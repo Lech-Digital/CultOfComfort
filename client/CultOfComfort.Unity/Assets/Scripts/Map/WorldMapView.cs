@@ -118,9 +118,7 @@ namespace CultOfComfort.Client
             _title.AddToClassList("map-title");
             var zoom = new VisualElement();
             zoom.AddToClassList("map-zoom");
-            var home = UiGlyphs.Home("map-home", () => Recentred?.Invoke());
-            home.AddToClassList("map-close");
-            zoom.Add(home);
+            // One home button (spec 2026-11-17 fun first, D2): "Home" at the bottom; the minimap finds the village.
             foreach (var (text, name, act) in new (string, string, Action)[]
                      {
                          ("−", "map-zoom-out", () => Zoomed?.Invoke(+1)), ("+", "map-zoom-in", () => Zoomed?.Invoke(-1)),

@@ -230,6 +230,12 @@ namespace CultOfComfort.Client
             _map.Closed += CloseMap;
             _map.NodeTapped += id =>
             {
+                if (_mapModel != null && id == _mapModel.SeatId)
+                {
+                    OpenHall(); // his seat is the way into his hall (spec 2026-11-17 fun first, D2)
+                    return;
+                }
+
                 _stage.Select(id);
                 _stage.FlyTo(id, aboveCard: true);
                 ShowPlaceCard(id);
@@ -239,7 +245,7 @@ namespace CultOfComfort.Client
                 _sendPreacher = id;
                 ShowPlaceCard(_cardNode);
             };
-            _map.TitheRequested += OpenSeat;
+            _map.TitheRequested += OpenHall;
             _map.MissionariesClicked += OpenMissionHouse;
             _map.DemandDelivered += DeliverDemand;
             _map.CardClosed += () => _stage.Select(null);
@@ -258,7 +264,7 @@ namespace CultOfComfort.Client
                     _sendPreacher = 0;
                     _map.SetStatus(null);
                     var name = world != null ? SharedWorldPresenter.MapFor(world).Node(node)?.Name : DomainMap.Marchlands.Node(node)?.Name;
-                    Announce($"{(preacher > 0 ? Preachers.Name(preacher) : "A missionary")} sets off for {name}, with sandwiches.");
+                    Announce($"{(preacher > 0 ? Preachers.Name(preacher) : "A preacher")} sets off for {name}, with sandwiches.");
                 }
             };
             _house = new MissionHouseView(root);
@@ -273,7 +279,7 @@ namespace CultOfComfort.Client
                     : (BaseCommand)new SendMissionary(Guid.NewGuid(), node, hours, preacher));
                 if (outcome.Status == CommandStatus.Accepted)
                 {
-                    Announce($"{(preacher > 0 ? Preachers.Name(preacher) : "A missionary")} sets off for {PlaceName(node, world != null)}, with sandwiches.");
+                    Announce($"{(preacher > 0 ? Preachers.Name(preacher) : "A preacher")} sets off for {PlaceName(node, world != null)}, with sandwiches.");
                     RenderMissionHouse();
                 }
                 else
@@ -346,6 +352,17 @@ namespace CultOfComfort.Client
             _sheet.ActionClicked += OnSheetAction;
             _hud.FeatureClicked += OpenFeature;
             _hud.RosterClicked += OpenRoster;
+            _hud.StripClicked += () =>
+            {
+                if (_snapshot?.Domain?.Unlocked == true)
+                {
+                    OpenFeature("hall");
+                }
+                else
+                {
+                    Announce($"{Ruler.Cap(Ruler.Full)} hasn't noticed you yet. Give him time, and a Hearth worth noticing.");
+                }
+            };
         }
 
         /// <summary>Opens a frame feature: the map (Map, Missionaries, Tithes) or a sheet (Research, Shop, Cult).</summary>
@@ -366,13 +383,13 @@ namespace CultOfComfort.Client
                     return;
                 }
 
-                if (id == "missionaries")
+                if (id == "missionaries" || id == "preachers")
                 {
-                    OpenMissionHouse();
+                    OpenMissionHouse(); // from the Map's preachers chip since one world screen
                     return;
                 }
 
-                if (id == "tithes")
+                if (id == "tithes" || id == "hall")
                 {
                     OpenHall();
                     return;
@@ -392,6 +409,10 @@ namespace CultOfComfort.Client
                 {
                     _pendingTithe = true;
                     OpenSeat();
+                }
+                else if (id == "hall")
+                {
+                    OpenHall();
                 }
                 else if (!Pref(MapHelpSeenKey))
                 {
@@ -598,7 +619,7 @@ namespace CultOfComfort.Client
         private void WatchDemand()
         {
             var demand = _snapshot?.Domain?.Demand;
-            _hud.SetFeatureBadge("tithes", demand != null);
+            _hud.SetStripAlert(demand != null); // a letter from the lord: the strip says so (spec 2026-11-17 fun first, D2)
             var id = demand?.Id ?? -1;
             if (id == _seenDemand)
             {
@@ -739,7 +760,7 @@ namespace CultOfComfort.Client
             {
                 Announce(id switch
                 {
-                    "map" => "New: the Map, and the Missionaries. See the lands around you, and send a preacher to win them over.",
+                    "map" => "New: the Lands. See the places around you, and send a preacher to win them over.",
                     "missionaries" => null, // arrives with the Map, which says so
                     "tithes" => "New: Tithes. Keep the lord sweet before he sends men.",
                     "research" => "New: Research. Study better ways of doing things.",
@@ -752,7 +773,8 @@ namespace CultOfComfort.Client
 
         private bool _featuresSeeded;
 
-        private static readonly string[] SideShortcuts = { "pilgrims", "map", "missionaries", "research", "tithes", "festival" };
+        // One world screen (spec 2026-11-17 fun first, D): the Mission House lives on the Map, the lord's hall opens from the strip.
+        private static readonly string[] SideShortcuts = { "pilgrims", "map", "research", "festival" };
         public const string ShownFeaturesKey = "features.shown";
         public const string TriedFeaturesKey = "features.tried";
 
@@ -849,7 +871,7 @@ namespace CultOfComfort.Client
             }
             _featuresSeeded |= _snapshot != null;
             WatchDemand();
-            _hud.SetFeatureBadge("missionaries", _snapshot?.Domain?.Tales?.Count > 0);
+            _hud.SetFeatureBadge("map", _snapshot?.Domain?.Tales?.Count > 0); // a preacher's tale waits
             if (_house != null && _house.IsOpen && _snapshot != null)
             {
                 RenderMissionHouse();
@@ -1948,7 +1970,7 @@ namespace CultOfComfort.Client
                 var found = RelicNews.Found(_openLevel, _snapshot.HearthLevel);
                 if (_openLevel > 0 && _openLevel < BuildingTable.Default.Domain.UnlockHearth && _snapshot.HearthLevel >= BuildingTable.Default.Domain.UnlockHearth)
                 {
-                    found = (found == null ? string.Empty : found + " ") + "And the Marchlands are open: tap the Map and send a missionary.";
+                    found = (found == null ? string.Empty : found + " ") + "And the Marchlands are open: tap Lands and send a preacher.";
                 }
                 if (found != null)
                 {

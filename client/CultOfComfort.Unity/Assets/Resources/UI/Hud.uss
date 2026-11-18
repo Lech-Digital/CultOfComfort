@@ -553,3 +553,5 @@
 .landscape #wave-strip > .objective-line { width: 100%; margin: 1px 0 0 24px; }
 .landscape .call-wave { width: 56px; height: 56px; border-radius: 28px; }
 .roster-objective { color: #7a1f1a; margin: 0 0 4px 0; }
+/* the lord has written: the strip calls for a tap (spec 2026-11-17 fun first, D2) */
+#tension-strip.alert .marker-note { color: #ff7a59; }
