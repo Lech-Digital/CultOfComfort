@@ -18,8 +18,11 @@ public sealed partial class Battle
     /// <summary>The rules this file adds (the balance version 2026.11.1).</summary>
     public const int FunFirstRules = 1;
 
-    /// <summary>The breather between waves (C5: 8 seconds before, 10 now).</summary>
-    public const int GapTicks = 10 * BalanceTable.TicksPerSecond;
+    /// <summary>
+    /// The breather between waves (C5: 8 seconds before). 15, not the spec's 10: on the emulator (playtest 2026-11-18) the
+    /// wave came before three boon notes could be read. Calling early still pays for cutting it short.
+    /// </summary>
+    public const int GapTicks = 15 * BalanceTable.TicksPerSecond;
 
     /// <summary>A wave's raiders come further apart than before, so it takes a while and the towers do the killing (C4).</summary>
     public const int SpawnStretch = 2;
