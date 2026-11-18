@@ -240,6 +240,10 @@ namespace CultOfComfort.Client
             offeringsRow.Add(_offerings);
             offeringsRow.Add(_collect);
             bottom.Add(missionariesButton);
+            // The preachers' tray (spec 2026-11-17 fun first, D1): who's out, a story waiting, and a few good places to go.
+            _tray = new VisualElement { name = "map-tray" };
+            _tray.AddToClassList("map-tray");
+            bottom.Add(_tray);
             bottom.Add(offeringsRow);
             _root.Add(bottom);
 
@@ -410,6 +414,53 @@ namespace CultOfComfort.Client
 
         // ---------------- model → screen ----------------
 
+        private VisualElement _tray;
+
+        /// <summary>The preachers' tray under the chip: their lines, a story, the recommended places (a tap opens the place's card).</summary>
+        public void SetTray(PreacherTrayModel tray)
+        {
+            _tray.Clear();
+            if (tray == null)
+            {
+                return;
+            }
+
+            // Who's out sits in the chip itself (a tap opens the full Mission House): one block, not two.
+            if (tray.Preachers.Count > 0)
+            {
+                _missionaries.text = string.Join("\n", tray.Preachers) + " ›";
+            }
+
+            if (tray.TaleLine != null)
+            {
+                var tale = new Button(() => MissionariesClicked?.Invoke()) { text = tray.TaleLine, name = "map-tray-tale" };
+                tale.AddToClassList("plain");
+                tale.AddToClassList("map-tray-tale");
+                _tray.Add(tale);
+            }
+
+            if (tray.Places.Count > 0)
+            {
+                var heading = new Label("Worth a walk") { pickingMode = PickingMode.Ignore };
+                heading.AddToClassList("map-tray-heading");
+                _tray.Add(heading);
+            }
+
+            foreach (var (id, name, why) in tray.Places)
+            {
+                var row = new Button(() => Tap(id)) { name = $"tray-place-{id}" };
+                row.AddToClassList("plain");
+                row.AddToClassList("map-tray-place");
+                var title = new Label(name) { pickingMode = PickingMode.Ignore };
+                title.AddToClassList("map-tray-place-name");
+                var detail = new Label(why) { pickingMode = PickingMode.Ignore };
+                detail.AddToClassList("map-tray-place-why");
+                row.Add(title);
+                row.Add(detail);
+                _tray.Add(row);
+            }
+        }
+
         public void Render(WorldMapModel model)
         {
             _model = model;
@@ -439,7 +490,8 @@ namespace CultOfComfort.Client
             }
 
             _tensionFill.style.width = Length.Percent(model.TensionFraction * 100f);
-            _missionaries.text = string.IsNullOrEmpty(model.MissionaryChip) ? model.MissionaryLine : model.MissionaryChip;
+            // The tray under it says who's out (spec 2026-11-17 fun first, D1): the chip is the way into the full Mission House.
+            _missionaries.text = model.Unlocked ? "Your preachers ›" : string.IsNullOrEmpty(model.MissionaryChip) ? model.MissionaryLine : model.MissionaryChip;
             _demandRow.style.display = model.DemandLine != null ? DisplayStyle.Flex : DisplayStyle.None;
             _demandLine.text = model.DemandLine ?? string.Empty;
             _demandButton.SetEnabled(model.DemandAffordable);

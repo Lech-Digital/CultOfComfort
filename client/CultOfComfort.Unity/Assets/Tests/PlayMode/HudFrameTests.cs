@@ -364,7 +364,10 @@ namespace CultOfComfort.Client.Tests
         [UnityTest]
         public IEnumerator Shortcut_BeforeItOpens_IsNotOnShow()
         {
-            // Arrange & Act — a fresh village, Hearth 1: nothing beyond building is open yet.
+            // Arrange & Act — a fresh village, Hearth 1: nothing beyond building is open yet (and no shortcut shown before:
+            // the captures leave theirs in the Editor's prefs).
+            PlayerPrefs.DeleteKey(GameController.ShownFeaturesKey);
+            PlayerPrefs.DeleteKey(GameController.TriedFeaturesKey);
             yield return LoadGame();
             var root = Root();
 

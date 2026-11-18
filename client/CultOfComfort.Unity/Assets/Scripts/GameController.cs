@@ -547,10 +547,16 @@ namespace CultOfComfort.Client
                 return;
             }
 
+            _house.Render(HouseModel());
+        }
+
+        /// <summary>The Mission House's model: its sheet, and the Map's preachers' tray (spec 2026-11-17 fun first, D1).</summary>
+        private MissionHouseModel HouseModel()
+        {
             var places = _world != null ? SharedWorldPresenter.Places(_snapshot, BuildingTable.Default, _world)
                 : _snapshot.Domain?.World == null ? WorldMapPresenter.Places(_snapshot, BuildingTable.Default)
                 : null; // on a shared world, waiting for the server
-            _house.Render(MissionHousePresenter.Build(_snapshot, BuildingTable.Default, PlaceName, _snapshot.AsOfUtc, WalkSeconds, places));
+            return MissionHousePresenter.Build(_snapshot, BuildingTable.Default, PlaceName, _snapshot.AsOfUtc, WalkSeconds, places);
         }
 
         /// <summary>The walk to a place, one way, in seconds.</summary>
@@ -942,6 +948,7 @@ namespace CultOfComfort.Client
 
             _mapModel = model;
             _map.Render(model);
+            _map.SetTray(PreacherTray.Build(HouseModel()));
             StageMap(model);
         }
 
