@@ -723,9 +723,10 @@ namespace CultOfComfort.Client
                         _ => $"A levy kicked the Hearth. −{damaged.Damage} warmth.",
                     });
                     break;
-                case EnemyDefeated defeated when _enemies.TryGetValue(defeated.EnemyId, out var dead):
-                    SpawnPoof(dead.Current);
+                case EnemyDefeated defeated when _enemies.TryGetValue(defeated.EnemyId, out var routed):
+                    SpawnPoof(routed.Current);
                     _shake = Mathf.Max(_shake, 0.05f);
+                    Floater?.Invoke(routed.Current + Vector3.up * 1.6f, "+1"); // one more driven off: the tally counts it (B7)
                     break;
             }
         }

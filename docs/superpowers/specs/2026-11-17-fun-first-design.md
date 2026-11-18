@@ -83,7 +83,8 @@ the remodel. All of it ships as one release.
 7. **Feel.**
    - Damage numbers; "CRIT!" when a Flinger hits a muddied raider.
    - A short hit-stop on Hot Stones; a small shake when a building breaks.
-   - "+Scrap" on kills.
+   - "+1" over a raider driven off, and a tally in the wave line ("7 driven off"). Not "+Scrap": driving one off earns
+     nothing, salvage comes at Dawn (owner, 2026-11-18).
 
 ### C. A Night that needs you (about 5 days, simulation and client)
 
@@ -297,6 +298,9 @@ new errand-book version. Old saves read through the old order, as on 2026-10-16.
 
    Where they disagree, the GDD wins: the car is nose-down (as in `hearth-final`, not flat as in `day-final`), and there
    is only one of each real relic (`day-final` has four cones, two trolleys and two tarps).
+
+10. **Nobody dies** (owner, 2026-11-18). Raiders are knocked out, muddied, scared off or sent home, never killed,
+    as cultists are only Demoralized. Words on screen say "driven off", never "killed".
 
 ## Not in this plan
 

@@ -33,8 +33,9 @@ namespace CultOfComfort.Client
             int night, int hearth, int hearthMax, int prophet, int prophetMax, string sluice, bool sluiceReady, string voice, bool voiceReady,
             string stones, bool stonesReady, bool aiming, int speed, int wave, int waveCount, int alive, string status,
             RelicButtonState laser = default, RelicButtonState torch = default, RelicButtonState sunFire = default,
-            float sluiceCooldown = 0f, float voiceCooldown = 0f, float stonesCooldown = 0f)
+            float sluiceCooldown = 0f, float voiceCooldown = 0f, float stonesCooldown = 0f, int defeated = 0)
         {
+            Defeated = defeated;
             SluiceCooldown = sluiceCooldown;
             VoiceCooldown = voiceCooldown;
             StonesCooldown = stonesCooldown;
@@ -85,6 +86,9 @@ namespace CultOfComfort.Client
         public int Wave { get; }
         public int WaveCount { get; }
         public int Alive { get; }
+
+        /// <summary>Raiders driven off so far tonight (nobody dies: they run home) (spec 2026-11-17 fun first, B7).</summary>
+        public int Defeated { get; }
 
         /// <summary>The one-line hint under the skills.</summary>
         public string Status { get; }
@@ -853,9 +857,19 @@ namespace CultOfComfort.Client
             BuildCardSelected?.Invoke(selected ? (BuildingType?)null : card.Type);
         }
 
+        /// <summary>
+        /// The wave line at Night, with a tally once a raider has been driven off (spec 2026-11-17 fun first, B7:
+        /// driving one off earns no Scrap, salvage comes at Dawn, so it shows what it really is).
+        /// </summary>
+        public static string WaveText(int wave, int waveCount, int alive, int defeated)
+        {
+            var text = $"Wave {Mathf.Max(1, wave)}/{waveCount} · {alive} on the road";
+            return defeated > 0 ? $"{text} · {defeated} driven off" : text;
+        }
+
         public void UpdateNight(in NightHudState state)
         {
-            _waveLabel.text = $"Wave {Mathf.Max(1, state.Wave)}/{state.WaveCount} · {state.Alive} on the road";
+            _waveLabel.text = WaveText(state.Wave, state.WaveCount, state.Alive, state.Defeated);
             SetMeter(_hearthValue, _hearthFill, state.Hearth, state.HearthMax);
             SetMeter(_prophetValue, _prophetFill, state.Prophet, state.ProphetMax);
             SetSkill(_sluice, state.Sluice, state.SluiceReady, state.SluiceCooldown);

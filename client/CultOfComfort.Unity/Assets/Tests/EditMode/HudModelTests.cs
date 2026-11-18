@@ -56,5 +56,25 @@ namespace CultOfComfort.Client.Tests
             // Assert
             Assert.AreEqual(0, frame.Scrap.Value);
         }
+
+        [Test]
+        public void WaveText_NoneDrivenOff_LeavesTheTallyOut()
+        {
+            // Act
+            var text = HudView.WaveText(1, 3, 5, 0);
+
+            // Assert
+            Assert.AreEqual("Wave 1/3 · 5 on the road", text);
+        }
+
+        [Test]
+        public void WaveText_SomeDrivenOff_CountsThem()
+        {
+            // Act
+            var text = HudView.WaveText(2, 3, 4, 7);
+
+            // Assert
+            Assert.AreEqual("Wave 2/3 · 4 on the road · 7 driven off", text);
+        }
     }
 }

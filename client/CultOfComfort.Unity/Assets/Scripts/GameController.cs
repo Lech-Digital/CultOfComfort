@@ -2825,7 +2825,8 @@ namespace CultOfComfort.Client
                     !_battle.IsSunUp && _battle.Relics.HasFlag(Relic.Magnifier)
                         ? new RelicButtonState(true, "Sun's down", false)
                         : RelicButton(Relic.Magnifier, "Sun-fire", leader.SunFireReadyAtTick, _battle.IsSunFireReady, PlayerActionType.SunFire, swooning),
-                    Cooldown("sluice", _battle.SluiceReadyAtTick), Cooldown("voice", leader.VoiceReadyAtTick), Cooldown("stones", leader.HotStonesReadyAtTick)));
+                    Cooldown("sluice", _battle.SluiceReadyAtTick), Cooldown("voice", leader.VoiceReadyAtTick), Cooldown("stones", leader.HotStonesReadyAtTick),
+                    _battle.Enemies.Count(e => e.State == EnemyState.Defeated)));
             }
         }
 
