@@ -118,7 +118,12 @@ namespace CultOfComfort.Client
         /// (viewport coordinates, 0..1, bottom-left origin), then moves the camera there.
         /// </summary>
         /// <param name="yawDegrees">0 = board long axis left-to-right; -90 = long axis top-to-bottom (portrait).</param>
-        public void Frame(float yawDegrees, Rect clearViewport)
+        /// <param name="lean">
+        /// A ground point (x, z) the spare room should go towards, or null to centre. At Night it's the road's entrance: in
+        /// portrait the stage is wider than tall, and centred, half the spare height was empty forest behind the Hearth
+        /// while the raiders came in under the HUD (playtest 2026-11-18).
+        /// </param>
+        public void Frame(float yawDegrees, Rect clearViewport, Vector2? lean = null)
         {
             _direction = (Quaternion.Euler(0f, yawDegrees, 0f) * _offset).normalized;
             _focus = new Vector3((_minFocus.x + _maxFocus.x) / 2f, 0f, (_minFocus.y + _maxFocus.y) / 2f);
@@ -147,6 +152,20 @@ namespace CultOfComfort.Client
                 var centre = ProjectedBoardBounds().center;
                 if (TryScreenToGround(_camera.ViewportToScreenPoint(centre), out var from)
                     && TryScreenToGround(_camera.ViewportToScreenPoint(clearViewport.center), out var to))
+                {
+                    _focus += from - to;
+                    Apply();
+                }
+            }
+
+            if (lean is { } towards)
+            {
+                var board = ProjectedBoardBounds();
+                var at = _camera.WorldToViewportPoint(new Vector3(towards.x, 0f, towards.y));
+                var shift = LeanShift(board, clearViewport, new Vector2(at.x, at.y));
+                if (shift != Vector2.zero
+                    && TryScreenToGround(_camera.ViewportToScreenPoint(board.center), out var from)
+                    && TryScreenToGround(_camera.ViewportToScreenPoint(board.center + shift), out var to))
                 {
                     _focus += from - to;
                     Apply();
@@ -212,6 +231,16 @@ namespace CultOfComfort.Client
 
         /// <summary>Viewport-space bounding box of the board, including some height for towers on the far edge.</summary>
         private Rect ProjectedBoardBounds() => ProjectedBounds(_minFocus, _maxFocus);
+
+        /// <summary>
+        /// How far (viewport) to move the framed board, centred in <paramref name="clear"/>, so the room it doesn't fill lies
+        /// on the side of <paramref name="lean"/>: on each axis, half the spare room, away from the lean point. Pure.
+        /// </summary>
+        public static Vector2 LeanShift(Rect board, Rect clear, Vector2 lean)
+        {
+            float Axis(float spare, float towards) => spare > 0.01f && Mathf.Abs(towards) > 0.01f ? -Mathf.Sign(towards) * spare / 2f : 0f;
+            return new Vector2(Axis(clear.width - board.width, lean.x - board.center.x), Axis(clear.height - board.height, lean.y - board.center.y));
+        }
 
         private Rect ProjectedBounds(Vector2 min, Vector2 max)
         {

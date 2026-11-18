@@ -1407,8 +1407,9 @@ namespace CultOfComfort.Client
             var spec = table.Spec(_tool.Type);
             var needsRoad = problem == null && !spec.IsTower && !BuildingTable.IsRoad(spec.Type) && !BuildingTable.IsBarrier(spec.Type)
                 && spec.Type is not (BuildingType.Tree or BuildingType.Stone) && BuildingTable.NeedsRoad(spec.Type) && !VillageMap.Demo.WouldConnect(_snapshot, tiles);
+            var (hearthCentre, hearthSize) = BoardView.FootprintBox(VillageMap.Demo.HearthTiles);
             _hud.ShowGhostActions(GhostBox(centre, size), problem, CanTurn(spec),
-                needsRoad ? "No road here yet: it won't work until you paint one to it." : null);
+                needsRoad ? "No road here yet: it won't work until you paint one to it." : null, GhostBox(hearthCentre, hearthSize));
         }
 
         /// <summary>A world point in UI panel coordinates, or null when it's behind the camera or there's no panel yet.</summary>
@@ -2308,7 +2309,8 @@ namespace CultOfComfort.Client
             _pendingTip = null; // never over the Dawn card: it comes back the next time the skill is used
             _phase = GamePhase.Dawn;
             _hud.ShowPhase(_phase);
-            _hud.Announce(string.Empty, Time.time, 0f);
+            _hud.Announce("Dawn. Counting heads…", Time.time, 30f); // while the village replays the Night; the card follows
+            FrameStage(); // the village behind the card, not wherever the Prophet ended (playtest 2026-11-18)
             _serverReplay = null;
             LastNightVerified = null; // until this Night's replays are in
             var replaySetup = _setup with { Inputs = _battle.InputLog.ToList() };
@@ -2335,6 +2337,7 @@ namespace CultOfComfort.Client
             var dawn = DawnCard.Build(_battle.Result, _lastReport, _trialMode ? _plan.Night : (int?)null, _trialOutcome?.Collected ?? default, NextStageAfterDawn(),
                 Ruler.Cap(Ruler.Short));
             _hud.ShowDawn(dawn, _battle.Result, LastNightVerified == true ? _battle.Result : (_serverReplay ?? _battle.Result) with { StateHash = 0 }, _battle.InputLog.Count);
+            _hud.Announce(string.Empty, Time.time, 0f);
         }
 
         /// <summary>The Pilgrims' stage the Dawn card offers next, or null (spec 2026-11-17 fun first, A2).</summary>
@@ -2939,7 +2942,8 @@ namespace CultOfComfort.Client
             {
                 var portrait = size.y > size.x;
                 var fallback = portrait ? Rect.MinMaxRect(0.03f, 0.25f, 0.97f, 0.85f) : Rect.MinMaxRect(0.03f, 0.2f, 0.97f, 0.8f);
-                _rig.Frame(portrait ? PortraitYaw : 0f, _hud.ClearViewport() ?? fallback);
+                var lean = _phase == GamePhase.Night ? VillageFraming.NightLean(VillageMap.Demo, _plan?.Road ?? 0) : (Vector2?)null;
+                _rig.Frame(portrait ? PortraitYaw : 0f, _hud.ClearViewport() ?? fallback, lean);
                 _rig.Reset();
             }
         }

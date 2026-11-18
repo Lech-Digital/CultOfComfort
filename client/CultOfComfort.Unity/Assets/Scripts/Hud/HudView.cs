@@ -673,6 +673,7 @@ namespace CultOfComfort.Client
         {
             // At Night the notes and tips sit at the bottom, above the skills, never over the fight (spec 2026-11-17 fun first, B5).
             _root.EnableInClassList("night-phase", phase == GamePhase.Night);
+            _root.EnableInClassList("dawn-phase", phase == GamePhase.Dawn); // the card has the screen: no barks over it
             Show(_tensionStrip, phase == GamePhase.Dusk);
             if (phase != GamePhase.Dusk)
             {
@@ -686,7 +687,7 @@ namespace CultOfComfort.Client
             Show(_drawerToggle, phase == GamePhase.Dusk); // nothing to build in the dark
             Show(_nightBar, phase == GamePhase.Night);
             Show(_bar, phase != GamePhase.Dawn);
-            Show(_card, phase == GamePhase.Dawn);
+            Show(_card, false); // at Dawn it waits for its own content (ShowDawn, ShowAwayReport): a stale card's Back to Dusk was live (playtest 2026-11-18)
             Show(_prophetFill.parent.parent, phase == GamePhase.Night);
             if (phase != GamePhase.Dusk)
             {
@@ -801,7 +802,8 @@ namespace CultOfComfort.Client
         /// <summary>✓ ✗ ↻ beside the ghost (panel coordinates of its right edge), or hidden (null).</summary>
         /// <param name="ghost">The ghost's box on screen (panel coordinates), or null to hide the buttons.</param>
         /// <param name="warning">Allowed, but worth knowing (it would stand unconnected): said without blocking ✓.</param>
-        public void ShowGhostActions(Rect? ghost, string problem, bool canRotate, string warning = null)
+        /// <param name="avoid">What the buttons must not cover (the Hearth, panel coordinates), or null.</param>
+        public void ShowGhostActions(Rect? ghost, string problem, bool canRotate, string warning = null, Rect? avoid = null)
         {
             // A sheet on screen (settings, how to play) has the finger: the ghost's buttons wait behind it.
             var sheetOpen = Visible(_settings) || Visible(_howTo) || Visible(_roster);
@@ -818,9 +820,9 @@ namespace CultOfComfort.Client
             var height = _ghostActions.resolvedStyle.height > 0f ? _ghostActions.resolvedStyle.height : 60f;
             var panelWidth = _root.resolvedStyle.width > 0f ? _root.resolvedStyle.width : 400f;
             var floor = Visible(_drawer) ? _drawer.worldBound.yMin - 50f : (_root.resolvedStyle.height > 0f ? _root.resolvedStyle.height : 800f) - 120f;
-            var top = box.yMax + 10f + height <= floor ? box.yMax + 10f : box.yMin - 10f - height;
-            _ghostActions.style.left = Mathf.Clamp(box.center.x - width / 2f, CornerMargin, Mathf.Max(CornerMargin, panelWidth - width - CornerMargin));
-            _ghostActions.style.top = Mathf.Max(CornerMargin, top);
+            var at = GhostActionsAt(box, new Vector2(width, height), panelWidth, floor, avoid);
+            _ghostActions.style.left = at.x;
+            _ghostActions.style.top = at.y;
             _ghostConfirm.SetEnabled(problem == null);
             Show(_ghostRotate, canRotate);
             _ghostProblem.text = problem ?? warning ?? string.Empty;
@@ -1453,6 +1455,7 @@ namespace CultOfComfort.Client
             _stamp.EnableInClassList("verified", true);
             _stamp.EnableInClassList("mismatch", false);
             Show(_cardNext, false);
+            Show(_card, true);
         }
 
         /// <summary>Lights one gold star per star earned (spec 2026-11-17 fun first, A2).</summary>
@@ -1482,6 +1485,7 @@ namespace CultOfComfort.Client
             _stamp.EnableInClassList("mismatch", !match);
             _cardNext.text = model.Next ?? string.Empty;
             Show(_cardNext, model.Next != null);
+            Show(_card, true);
         }
 
         /// <summary>The world speaks on a parchment ribbon; the Prophet (<paramref name="prophet"/>) scribbles on a sticky note.</summary>
@@ -1548,14 +1552,24 @@ namespace CultOfComfort.Client
                 {
                     // Bubbles stay below the frame and the health bars: speech never covers the numbers.
                     var floor = (_top.layout.yMax > 0f ? _top.layout.yMax : 0f) + 4f;
+                    var bubbleHeight = _bubbles[i].layout.height > 1f ? _bubbles[i].layout.height : 40f;
+                    var ceiling = (_bar.resolvedStyle.display == DisplayStyle.None ? _root.layout.height : _bar.worldBound.yMin) - bubbleHeight - 4f;
                     if (!_toast.ClassListContains("hidden") && _toast.worldBound.height > 0f)
                     {
-                        floor = Mathf.Max(floor, _toast.worldBound.yMax + 4f); // nor the announcement
+                        // nor the announcement: below it when it's at the top, above it when it's at the bottom (at Night)
+                        if (_toast.worldBound.center.y < _root.layout.height / 2f)
+                        {
+                            floor = Mathf.Max(floor, _toast.worldBound.yMax + 4f);
+                        }
+                        else
+                        {
+                            ceiling = Mathf.Min(ceiling, _toast.worldBound.yMin - bubbleHeight - 4f);
+                        }
                     }
 
                     var bubbleWidth = _bubbles[i].layout.width > 1f ? _bubbles[i].layout.width : 180f;
                     _bubbles[i].style.left = Mathf.Clamp(at.Value.x - bubbleWidth / 2f, 4f, Mathf.Max(4f, _root.layout.width - bubbleWidth - 4f));
-                    _bubbles[i].style.top = Mathf.Max(floor, at.Value.y - 64f);
+                    _bubbles[i].style.top = Mathf.Clamp(at.Value.y - 64f, floor, Mathf.Max(floor, ceiling));
                 }
             }
 
@@ -1606,6 +1620,35 @@ namespace CultOfComfort.Client
         }
 
         public bool HowToShown => Visible(_howTo);
+
+        /// <summary>
+        /// Where the ghost's ✓ ✗ Turn go (top-left, panel coordinates): under the ghost, else over it, else beside it, kept
+        /// inside the sides and above <paramref name="floor"/>; the first spot that doesn't cover <paramref name="avoid"/>
+        /// (the Hearth: twice covered in the playtests of 2026-11-17 and 18). Pure.
+        /// </summary>
+        public static Vector2 GhostActionsAt(Rect ghost, Vector2 size, float panelWidth, float floor, Rect? avoid)
+        {
+            Vector2 Fit(float left, float top) => new Vector2(
+                Mathf.Clamp(left, CornerMargin, Mathf.Max(CornerMargin, panelWidth - size.x - CornerMargin)),
+                Mathf.Clamp(top, CornerMargin, Mathf.Max(CornerMargin, floor - size.y)));
+            var below = Fit(ghost.center.x - size.x / 2f, ghost.yMax + 10f);
+            var above = Fit(ghost.center.x - size.x / 2f, ghost.yMin - 10f - size.y);
+            var right = Fit(ghost.xMax + 10f, ghost.center.y - size.y / 2f);
+            var left = Fit(ghost.xMin - 10f - size.x, ghost.center.y - size.y / 2f);
+            var roomBelow = ghost.yMax + 10f + size.y <= floor;
+            var candidates = roomBelow ? new[] { below, above, right, left } : new[] { above, below, right, left };
+            // Never on the ghost itself either: a finger dragging it must find it (owner 2026-10-16).
+            bool Clear(Vector2 at) => avoid == null || !new Rect(at, size).Overlaps(avoid.Value);
+            foreach (var at in candidates)
+            {
+                if (Clear(at) && !new Rect(at, size).Overlaps(ghost))
+                {
+                    return at;
+                }
+            }
+
+            return candidates[0];
+        }
 
         /// <summary>"Who's coming ›" on the Tension strip was tapped.</summary>
         public event Action RosterClicked;

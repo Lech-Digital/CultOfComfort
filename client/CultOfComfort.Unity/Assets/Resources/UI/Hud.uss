@@ -146,6 +146,7 @@
 }
 .night-phase .centre { align-self: stretch; justify-content: flex-end; padding-bottom: 6px; } /* stretch: .middle aligns to the top, so without it flex-end did nothing (playtest 2026-11-18) */
 .night-phase .toast { width: 92%; font-size: 15px; }
+.dawn-phase .bubble { display: none; } /* a villager's bark was drawn over the Dawn card (playtest 2026-11-18) */
 .toast.prophet, .locked-note {
     background-image: resource("UI/Kit/note_yellow");
     -unity-slice-left: 16; -unity-slice-right: 16; -unity-slice-top: 16; -unity-slice-bottom: 16;
@@ -524,3 +525,12 @@
 .landscape .night-bar .relics > .relic { width: 44px; min-width: 44px; max-width: 44px; height: 44px; border-radius: 22px; }
 .landscape .night-side { flex-direction: row-reverse; justify-content: flex-end; align-items: center; }
 .landscape .night-side > .hint { margin: 0 0 0 4px; flex-shrink: 1; max-width: 300px; }
+
+/* portrait Night: the two meters side by side under the wave line, thinner, so the top covers less of the road the
+   raiders come in on (playtest 2026-11-18: the HUD covered the fight's entrance) */
+.portrait #wave-strip { flex-direction: row; flex-wrap: wrap; align-items: center; }
+.portrait #wave-strip > .wave-row { width: 100%; }
+.portrait #wave-strip > .meter { flex-grow: 1; flex-basis: 0; min-width: 0; margin: 2px 12px 0 16px; }
+.portrait #wave-strip .meter-label { width: auto; margin-right: 6px; font-size: 12px; }
+.portrait #wave-strip .meter-track { height: 14px; }
+.portrait #wave-strip .meter-value { width: 28px; font-size: 11px; }

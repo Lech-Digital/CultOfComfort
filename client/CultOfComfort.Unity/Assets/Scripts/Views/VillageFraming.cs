@@ -50,6 +50,13 @@ namespace CultOfComfort.Client
             return (new Vector2(tiles.Min(t => t.X) - margin, -tiles.Max(t => t.Y) - margin), new Vector2(tiles.Max(t => t.X) + margin, -tiles.Min(t => t.Y) + margin));
         }
 
+        /// <summary>Where tonight's raiders come from (x, z): the start of the road. The Night's spare room goes that way.</summary>
+        public static Vector2 NightLean(VillageMap map, int road = 0)
+        {
+            var path = map.RoadAt(road);
+            return new Vector2(path[0].X, -path[0].Y);
+        }
+
         /// <summary>The whole valley: the map, its forest edge and the river past the south and east.</summary>
         public static (Vector2 Min, Vector2 Max) RoamBounds(VillageMap map) =>
             (new Vector2(-6f, -(map.Height - 1) - 7f), new Vector2(map.Width - 1 + 7f, 6f));

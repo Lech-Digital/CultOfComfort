@@ -612,6 +612,71 @@ namespace CultOfComfort.Client.Tests
             Assert.IsNotNull(Snapshot(game).ShieldEndsAtUtc);
         }
 
+        /// <summary>
+        /// The playtest of 2026-11-18: a Night, Back to Dusk, then the big button's Pilgrims' stage. Its Dawn card must be the
+        /// stage's ("Stage 1 cleared" or "The pilgrims turned back"), not a real Night's.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator PilgrimsStage_AfterTheFirstNight_DawnCardIsTheStages()
+        {
+            // Arrange — the errands done (the lamps don't wait), the first Night fought and acknowledged.
+            var data = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, _clock.UtcNow).ToData();
+            var store = new Store { Saved = data with { ErrandIndex = BuildingTable.Default.Errands.Errands.Count, ErrandId = null } };
+            VillageComposition.Override = () => new LocalBaseGateway(store, _clock, BuildingTable.Default, VillageMap.Demo, _ => { });
+            yield return SceneManager.LoadSceneAsync("SampleScene");
+            yield return Frames(3);
+            var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
+            var root = UnityEngine.Object.FindAnyObjectByType<UIDocument>().rootVisualElement;
+            Time.timeScale = 20f;
+            game.StartNight();
+            var timeout = Time.realtimeSinceStartup + 120f;
+            while (game.Phase != GamePhase.Dawn && Time.realtimeSinceStartup < timeout)
+            {
+                yield return null;
+            }
+
+            for (var wait = Time.realtimeSinceStartup + 15f; game.LastNightVerified == null && Time.realtimeSinceStartup < wait;)
+            {
+                yield return null;
+            }
+
+            Click(root.Q("card").Q<Button>(className: "primary")); // Back to Dusk
+            for (var wait = Time.realtimeSinceStartup + 10f; game.Phase != GamePhase.Dusk && Time.realtimeSinceStartup < wait;)
+            {
+                yield return null;
+            }
+
+            yield return Frames(4);
+            var label = root.Q<Button>("start-night").text;
+
+            // Act — the big button.
+            Click(root.Q<Button>("start-night"));
+            for (var wait = Time.realtimeSinceStartup + 10f; game.Phase != GamePhase.Night && Time.realtimeSinceStartup < wait;)
+            {
+                yield return null;
+            }
+
+            timeout = Time.realtimeSinceStartup + 120f;
+            while (game.Phase != GamePhase.Dawn && Time.realtimeSinceStartup < timeout)
+            {
+                yield return null;
+            }
+
+            for (var wait = Time.realtimeSinceStartup + 15f; game.LastNightVerified == null && Time.realtimeSinceStartup < wait;)
+            {
+                yield return null;
+            }
+
+            yield return Frames(3);
+            Time.timeScale = 1f;
+            var title = root.Q("card").Q<Label>(className: "card-title").text;
+
+            // Assert
+            StringAssert.StartsWith("Pilgrims' Way", label);
+            Assert.AreEqual(GamePhase.Dawn, game.Phase);
+            Assert.IsTrue(title.StartsWith("Stage 1") || title.StartsWith("The pilgrims"), $"the stage's own card, got \"{title}\"");
+        }
+
         [UnityTest]
         public IEnumerator Settings_DevRaiseTension_ShowsTheRaidCountdown()
         {
