@@ -33,7 +33,9 @@ public sealed record NightPlan(
     int StonesPercent = 0,
     int EnemySpeedPercent = 0,
     int SalvagePercent = 0,
-    int DefenderDamagePercent = 0)
+    int DefenderDamagePercent = 0,
+    int Rules = 0,
+    int MaxWrecks = 0)
 {
     /// <summary>
     /// The balance this Night is fought with: research makes towers hit harder and the Prophet sturdier. Nothing
@@ -75,6 +77,10 @@ public sealed record NightPlan(
             AutoRelics = AutoRelics,
             Defenders = Defenders ?? System.Array.Empty<GridPosition>(),
             Traps = Traps ?? System.Array.Empty<GridPosition>(),
+            // Nights planned since fun first C (rules 1): waves with gaps, boons, earned stars; before, as they were.
+            Rules = Rules,
+            Objective = Rules >= Battle.FunFirstRules ? Battle.ObjectiveFor(Night) : NightObjective.None,
+            MaxWrecks = MaxWrecks,
 
         };
 }

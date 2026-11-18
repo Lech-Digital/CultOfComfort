@@ -73,7 +73,8 @@ public sealed partial class BaseState
             HearthLevel, AutoRelics: true, Defenders: DefenderPosts(layout).Concat(wardens).ToList(),
             TowerDamagePercent: Bonus(TechEffect.TowerDamagePercent), ProphetHealthPercent: Bonus(TechEffect.ProphetHealthPercent) + ProphetHealthBonus,
             Road: road, ProphetDamagePercent: ProphetDamageBonus, ProphetSpeedPercent: TakenPerks.Sum(p => p.SpeedPercent),
-            VoicePercent: TakenPerks.Sum(p => p.VoicePercent), StonesPercent: TakenPerks.Sum(p => p.StonesPercent));
+            VoicePercent: TakenPerks.Sum(p => p.VoicePercent), StonesPercent: TakenPerks.Sum(p => p.StonesPercent),
+            Rules: Battle.FunFirstRules);
         return CommandOutcome.Accept() with { Plan = _trial };
     }
 

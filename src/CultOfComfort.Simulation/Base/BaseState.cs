@@ -1438,7 +1438,9 @@ public sealed partial class BaseState
             StonesPercent: TakenPerks.Sum(p => p.StonesPercent),
             EnemySpeedPercent: SeasonBook.EnemySpeedPercent(season),
             DefenderDamagePercent: Standing(BuildingType.BellTower) ? _table.BellDefenderPercent : 0,
-            SalvagePercent: SeasonBook.SalvagePercent(season));
+            SalvagePercent: SeasonBook.SalvagePercent(season),
+            Rules: Battle.FunFirstRules,
+            MaxWrecks: night == 1 ? 1 : 0); // the first Night teaches Repair with one wreck, not six (spec 2026-11-17 fun first, decision 2)
     }
 
     /// <summary>
@@ -1555,7 +1557,7 @@ public sealed partial class BaseState
             }
         }
 
-        var salvage = Math.Min(Salvage(result.Stars) * (100 + plan.SalvagePercent) / 100, Math.Max(0, Caps.Scrap - _stock.Scrap));
+        var salvage = Math.Min(Salvage(result.Stars) * (100 + plan.SalvagePercent + result.EarlyCalls * Battle.EarlyCallSalvagePercent) / 100, Math.Max(0, Caps.Scrap - _stock.Scrap)); // a wave called early pays more (C3)
         _stock += new ResourceBag(0, 0, salvage, 0);
         foreach (var id in wrecked)
         {

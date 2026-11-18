@@ -1,3 +1,4 @@
+using CultOfComfort.Simulation.Balance;
 using CultOfComfort.Simulation.Base;
 using CultOfComfort.Simulation.Combat;
 using CultOfComfort.Simulation.Grid;
@@ -18,13 +19,15 @@ internal sealed class PaceBot
     private readonly List<string> _log = new();
     private readonly string _policy;
     private readonly bool _verbose;
+    private readonly bool _activeFighter; // --fight active: the Night is played by NightBot (spec 2026-11-17 fun first, C7)
     private readonly BaseState _state;
     private DateTimeOffset _now = T0;
 
-    private PaceBot(string policy, bool verbose)
+    private PaceBot(string policy, bool verbose, bool activeFighter)
     {
         _policy = policy;
         _verbose = verbose;
+        _activeFighter = activeFighter;
         _state = BaseState.CreateNew(_table, _map, T0);
     }
 
@@ -33,14 +36,16 @@ internal sealed class PaceBot
         var policy = args.FirstOrDefault(a => !a.StartsWith("--")) ?? "errands";
         var hoursAt = Array.IndexOf(args, "--hours");
         var hours = hoursAt >= 0 ? double.Parse(args[hoursAt + 1]) : 8;
-        new PaceBot(policy, args.Contains("--verbose")).Play(TimeSpan.FromHours(hours));
+        var fightAt = Array.IndexOf(args, "--fight");
+        var active = fightAt >= 0 && args[fightAt + 1] == "active";
+        new PaceBot(policy, args.Contains("--verbose"), active).Play(TimeSpan.FromHours(hours));
     }
 
     private double Minutes => (_now - T0).TotalMinutes;
 
     private void Play(TimeSpan length)
     {
-        Console.WriteLine($"PACE — policy '{_policy}', {length.TotalHours:0.#} h, {_table.Version}, {_table.Errands.Version}");
+        Console.WriteLine($"PACE — policy '{_policy}', {length.TotalHours:0.#} h, {_table.Version}, {_table.Errands.Version}, Nights fought {(_activeFighter ? "actively" : "idly")}");
         var hearth = 1;
         var busyFirst20 = 0;
         var hearthAt = new Dictionary<int, double>();
@@ -193,10 +198,69 @@ internal sealed class PaceBot
             return false;
         }
 
-        var resolved = _state.Apply(new ResolveNight(Guid.NewGuid(), begun.Plan!.Night, Array.Empty<PlayerInput>()), _now);
-        Note($"NIGHT {begun.Plan.Night}: {resolved.Report?.Stars}★ salvage {resolved.Report?.Salvage}, {resolved.Report?.Wrecked.Count} wrecked", always: true);
+        var plan = begun.Plan!;
+        var idle = new Battle(plan.ToBattleSetup(_map, Array.Empty<PlayerInput>()));
+        var (fought, inputs, battle) = _activeFighter
+            ? NightBot.PlayActive(plan.ToBattleSetup(_map, Array.Empty<PlayerInput>()))
+            : (RunLogged(idle), (IReadOnlyList<PlayerInput>)Array.Empty<PlayerInput>(), idle);
+        var left = battle.Enemies.Where(e => e.IsActive).ToList();
+        if (left.Count > 0)
+        {
+            Note($"  the clock ran out at wave {battle.CurrentWave}/{battle.WaveCount}: {left.Count} still on the road ("
+                + string.Join(", ", left.Select(e => $"{e.Type} #{e.Id} at {e.DistanceAlongPath.ToDouble():0.0}/{battle.PathLength.ToDouble():0} offset {e.Offset.X.ToDouble():0.0},{e.Offset.Y.ToDouble():0.0} smash {e.SmashTargetId} raid {e.RaidTargetId} fighting {e.IsFightingLeader} health {e.Health.ToDouble():0}")) + ")"
+                + $"; Prophet at {battle.Leader.Position.X.ToDouble():0.0},{battle.Leader.Position.Y.ToDouble():0.0} health {battle.Leader.Health}; road starts {battle.Path[0]}, {battle.Path[1]}, {battle.Path[2]}", always: true);
+            var near = battle.Path.Take(5).ToList();
+            foreach (var st in battle.Structures.Where(st => (st.Tiles ?? new[] { st.Position }).Any(t => near.Any(p => Math.Abs(p.X - t.X) <= 1 && Math.Abs(p.Y - t.Y) <= 1))))
+            {
+                Note($"    near the road's start: structure #{st.Id} at {st.Position} health {st.Health}/{st.MaxHealth} barrier {st.IsBarrier}", always: true);
+            }
+
+            foreach (var d in battle.Defenders)
+            {
+                Note($"    defender at {d.Position.X.ToDouble():0.0},{d.Position.Y.ToDouble():0.0} up {d.IsUp}", always: true);
+            }
+        }
+        if (!_activeFighter)
+        {
+            var old = new Battle(plan.ToBattleSetup(_map, Array.Empty<PlayerInput>()) with { Rules = 0, Objective = NightObjective.None, MaxWrecks = 0 });
+            var oldResult = old.RunToCompletion();
+            Note($"  the same plan by the old rules: {oldResult.Stars}★, {old.Structures.Count(st => st.IsWrecked)} wrecked, {oldResult.TicksElapsed / BalanceTable.TicksPerSecond}s, "
+                + $"Hearth {oldResult.HearthHealth}, {old.Enemies.Count(e => e.IsActive)} still on the road", always: true);
+        }
+
+        var resolved = _state.Apply(new ResolveNight(Guid.NewGuid(), plan.Night, inputs), _now);
+        var seconds = fought.TicksElapsed / BalanceTable.TicksPerSecond;
+        Note($"NIGHT {plan.Night}: {resolved.Report?.Stars}★ salvage {resolved.Report?.Salvage}, {resolved.Report?.Wrecked.Count} wrecked, "
+            + $"{seconds / 60}m{seconds % 60:00}s, Hearth {fought.HearthHealth}/{fought.HearthMaxHealth}, {plan.Waves} waves (budget {plan.Budget}), "
+            + $"objective {Battle.ObjectiveFor(plan.Night)} {(fought.ObjectiveMet ? "met" : "missed")}, {fought.EarlyCalls} called early, {inputs.Count} inputs", always: true);
         Send(new RepairAll(Guid.NewGuid()), "repair all");
         return true;
+    }
+
+    private BattleResult RunLogged(Battle battle)
+    {
+        var timeline = new List<string>();
+        while (!battle.IsFinished)
+        {
+            battle.Step();
+            foreach (var e in battle.LastTickEvents)
+            {
+                switch (e)
+                {
+                    case WaveStarted w:
+                        timeline.Add($"wave {w.Wave} at {w.Tick / BalanceTable.TicksPerSecond}s");
+                        break;
+                    case WaveGap g:
+                        timeline.Add($"gap at {g.Tick / BalanceTable.TicksPerSecond}s");
+                        break;
+                    case EnemyDefeated d:
+                        break;
+                }
+            }
+        }
+
+        Note("  timeline: " + string.Join(" · ", timeline) + $" · {battle.TotalEnemies} raiders, last spawn wave {battle.Enemies.LastOrDefault()?.Wave}", always: true);
+        return battle.Result!;
     }
 
     // ---------------- actions ----------------

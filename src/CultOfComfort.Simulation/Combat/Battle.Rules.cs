@@ -24,6 +24,12 @@ public sealed partial class Battle
     /// <summary>A wave's raiders come further apart than before, so it takes a while and the towers do the killing (C4).</summary>
     public const int SpawnStretch = 2;
 
+    /// <summary>
+    /// A wave that isn't cleared this long after its last raider came opens the gap anyway: on a long road a slow raider
+    /// would otherwise hold the next wave back for minutes (the pace bot's Night 3 across the river: wave 1 took 283 s).
+    /// </summary>
+    public const int WaveOverdueTicks = 40 * BalanceTable.TicksPerSecond;
+
     /// <summary>Each early call pays this much more salvage (C3).</summary>
     public const int EarlyCallSalvagePercent = 10;
 
@@ -37,6 +43,7 @@ public sealed partial class Battle
     private int _maxWrecks;
     private readonly Dictionary<int, int> _waveFirstTick = new();
     private int _waveStartTick;
+    private int _lastSpawnTick;
     private bool _gapOpen;
     private int _nextWaveAt;
     private readonly List<Boon> _offer = new();
@@ -150,6 +157,7 @@ public sealed partial class Battle
             }
 
             _nextSpawnIndex++;
+            _lastSpawnTick = Tick;
             SpawnOne(spawn);
         }
     }
@@ -188,7 +196,8 @@ public sealed partial class Battle
         }
 
         var waveSpent = _nextSpawnIndex >= _spawns.Count || _spawns[_nextSpawnIndex].Wave != CurrentWave;
-        if (!_gapOpen && waveSpent && _nextSpawnIndex < _spawns.Count && !_enemies.Any(e => e.IsActive))
+        var cleared = !_enemies.Any(e => e.IsActive) || Tick - _lastSpawnTick >= WaveOverdueTicks;
+        if (!_gapOpen && waveSpent && _nextSpawnIndex < _spawns.Count && cleared)
         {
             _gapOpen = true;
             _nextWaveAt = Tick + GapTicks;
@@ -267,5 +276,6 @@ public sealed partial class Battle
         _hasher.Add(_picked.HasValue ? (int)_picked.Value + 1 : 0);
         _hasher.Add(ActiveBoon.HasValue ? (int)ActiveBoon.Value + 1 : 0);
         _hasher.Add(EarlyCalls);
+        _hasher.Add(_lastSpawnTick);
     }
 }

@@ -181,7 +181,7 @@ public class FirstNightTests
     }
 
     [Fact]
-    public void FirstNight_AChuteBesideTheRoad_WinsWithNobodyPlaying()
+    public void FirstNight_AChuteBesideTheRoad_WinsWithNobodyPlayingForOneStar()
     {
         // Arrange — the errand's Chute beside the raiders' road, nothing else, nobody touching the screen.
         var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
@@ -189,9 +189,12 @@ public class FirstNightTests
         var plan = state.Apply(new BeginNight(Guid.NewGuid()), T0).Plan!;
 
         // Act
-        var result = new CultOfComfort.Simulation.Combat.Battle(plan.ToBattleSetup(VillageMap.Demo, Array.Empty<CultOfComfort.Simulation.Combat.PlayerInput>())).RunToCompletion();
+        var battle = new CultOfComfort.Simulation.Combat.Battle(plan.ToBattleSetup(VillageMap.Demo, Array.Empty<CultOfComfort.Simulation.Combat.PlayerInput>()));
+        var result = battle.RunToCompletion();
 
-        // Assert
-        result.Stars.Should().BeGreaterThanOrEqualTo(2);
+        // Assert — won by the Chute alone; stars are earned by playing (spec 2026-11-17 fun first, C1), so one.
+        result.Outcome.Should().Be(CultOfComfort.Simulation.Combat.BattleOutcome.Won);
+        result.Stars.Should().Be(1);
+        battle.Structures.Count(s => s.IsWrecked && !s.IsBarrier).Should().BeLessThanOrEqualTo(1, "the first Night wrecks one building at most");
     }
 }

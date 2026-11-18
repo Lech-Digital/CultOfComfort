@@ -223,6 +223,8 @@ public sealed class NightDto
     public int enemySpeed;           // the season, % (spec 2026-10-20 seasons)
     public int salvage;
     public int defenderDamage;       // the Bell Tower, % (spec 2026-10-20 new buildings)
+    public int rules;                // older plans lack it: 0, the rules before fun first C
+    public int maxWrecks;            // 0: no limit (the first Night since fun first C: 1)
 }
 
 [Serializable]
