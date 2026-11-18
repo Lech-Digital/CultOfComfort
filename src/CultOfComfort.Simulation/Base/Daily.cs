@@ -63,8 +63,14 @@ public static class DailyBook
     public const int HurryCost = 1;
     public const int HurryMinutes = 60; // 2026-10-20 long builds: an hour a Towel (was half an hour)
 
-    /// <summary>Towels for claiming one of the Prophet's errands (spec 2026-10-20 long builds: speed-ups as rewards).</summary>
-    public const int ErrandTowels = 1;
+    /// <summary>
+    /// Towels for claiming one of the Prophet's errands: none since fun first E4 (spec 2026-11-17). Seven in hand before the
+    /// first Hearth upgrade made its wait one tap; Towels now come from the Night's stars and the Pilgrims' Way.
+    /// </summary>
+    public const int ErrandTowels = 0;
+
+    /// <summary>Towels a Night pays: one for each star above the first (E4). The fight pays for the shortcut.</summary>
+    public static int NightTowels(int stars) => System.Math.Max(0, stars - 1);
     public const int RerollCost = 2;
 
     /// <summary>Cosmetics a full week brings, in order (the first one shows at once: a golden duck by the Hearth).</summary>

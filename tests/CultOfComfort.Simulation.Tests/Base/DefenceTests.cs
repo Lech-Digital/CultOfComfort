@@ -529,17 +529,19 @@ public class LongBuildsTests
     }
 
     [Fact]
-    public void Place_HearthOne_OneJobAtATime()
+    public void Place_HearthOne_TwoJobsAtATime()
     {
-        // Arrange
+        // Arrange — two builders from the start, so the first waits overlap (spec 2026-11-17 fun first, E3).
         var state = Village(1);
         state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Cottage, new GridPosition(22, 15)), T0).Status.Should().Be(CommandStatus.Accepted);
 
         // Act
         var second = state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Cottage, new GridPosition(25, 15)), T0);
+        var third = state.Apply(new UpgradeHearth(Guid.NewGuid()), T0);
 
         // Assert
-        second.Reason.Should().Contain("builder is busy");
+        second.Status.Should().Be(CommandStatus.Accepted);
+        third.Reason.Should().Contain("builders are busy");
     }
 
     [Fact]

@@ -77,7 +77,7 @@ public sealed class BuildingTable
 
     public static BuildingTable Default { get; } = new();
 
-    public string Version { get; init; } = "village-2026.10.20e";
+    public string Version { get; init; } = "village-2026.11.18"; // fun first E: two builders from Hearth 1
 
     /// <summary>Health of a building whose first level is still being built.</summary>
     public int UnderConstructionHealth { get; init; } = 30;
@@ -140,7 +140,7 @@ public sealed class BuildingTable
     /// Builders at Hearth 1–5 (spec 2026-10-20 long builds): upgrades at the top take days (owner: "at higher levels,
     /// take days even"), so a growing Hearth keeps more than one job going.
     /// </summary>
-    public IReadOnlyList<int> BuildersByHearth { get; init; } = new[] { 1, 1, 2, 2, 3 };
+    public IReadOnlyList<int> BuildersByHearth { get; init; } = new[] { 2, 2, 2, 2, 3 }; // two from the start, so the first waits overlap (fun first E3)
 
     public int Builders(int hearthLevel) => BuildersByHearth[Math.Min(Math.Max(hearthLevel, 1), BuildersByHearth.Count) - 1];
 

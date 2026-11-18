@@ -134,13 +134,17 @@ public class BaseStateEconomyTests
     }
 
     [Fact]
-    public void Place_WhileTheBuilderIsBusy_IsRejected()
+    public void Place_WhileBothBuildersAreBusy_IsRejected()
     {
-        // Arrange
+        // Arrange — two builders at Hearth 1 (fun first E3): the second job starts, a third waits.
         var (state, _) = BaseWithWoodcutter();
+        var second = Enumerable.Range(0, 40).SelectMany(x => Enumerable.Range(0, 30).Select(y => new GridPosition(x, y)))
+            .Select(p => Send(state, new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, p), T0.AddSeconds(5)))
+            .First(o => o.Status == CommandStatus.Accepted); // anywhere it fits
+        second.Status.Should().Be(CommandStatus.Accepted);
 
         // Act
-        var outcome = Send(state, new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(4, 9)), T0.AddSeconds(5));
+        var outcome = Send(state, new UpgradeHearth(Guid.NewGuid()), T0.AddSeconds(6));
 
         // Assert
         outcome.Status.Should().Be(CommandStatus.Rejected);

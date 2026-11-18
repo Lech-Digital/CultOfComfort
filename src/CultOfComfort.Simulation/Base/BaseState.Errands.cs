@@ -23,12 +23,12 @@ public sealed partial class BaseState
 
         var progress = Math.Min(Progress(errand), errand.Target);
         return new ErrandView(_errandIndex, _table.Errands.Errands.Count, errand.Id, errand.Text, progress, errand.Target, progress >= errand.Target, errand.Reward,
-            errand.Goal, errand.Type);
+            errand.Goal, errand.Type, errand.Or);
     }
 
     private int Progress(Errand errand) => errand.Goal switch
     {
-        ErrandGoal.Build => _buildings.Count(b => b.Type == errand.Type && b.Level >= 1),
+        ErrandGoal.Build => _buildings.Count(b => (b.Type == errand.Type || b.Type == errand.Or) && b.Level >= 1), // either choice counts (E2)
         ErrandGoal.UpgradeTo => _buildings.Where(b => b.Type == errand.Type).Select(b => b.Level).DefaultIfEmpty(0).Max(),
         ErrandGoal.HearthLevel => HearthLevel,
         ErrandGoal.BuildOnRoad => _buildings.Count(b => b.Type == errand.Type && b.Level >= 1 && b.Tiles.Any(_road.Contains)),
@@ -61,7 +61,7 @@ public sealed partial class BaseState
         _stock += paid;
         _errandIndex++;
         _errandEventDone = false;
-        _towels += DailyBook.ErrandTowels; // a speed-up for every errand (spec 2026-10-20 long builds)
+        _towels += DailyBook.ErrandTowels; // none since fun first E4: Towels come from the Night's stars and the Pilgrims' Way
         return CommandOutcome.Accept(paid);
     }
 

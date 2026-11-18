@@ -129,6 +129,7 @@ internal sealed class PaceBot
             ErrandGoal.SendMissionary => Send(new SendMissionary(Guid.NewGuid(), 1, 1), "SEND MISSIONARY"),
             ErrandGoal.Patron => Send(new SendMissionary(Guid.NewGuid(), 1, 8), "SEND MISSIONARY 8h"),
             ErrandGoal.Study => StudyCheapest(),
+            ErrandGoal.MicroRaid => MeetTheLocals(),
             _ => false,
         };
     }
@@ -234,6 +235,22 @@ internal sealed class PaceBot
             + $"{seconds / 60}m{seconds % 60:00}s, Hearth {fought.HearthHealth}/{fought.HearthMaxHealth}, {plan.Waves} waves (budget {plan.Budget}), "
             + $"objective {Battle.ObjectiveFor(plan.Night)} {(fought.ObjectiveMet ? "met" : "missed")}, {fought.EarlyCalls} called early, {inputs.Count} inputs", always: true);
         Send(new RepairAll(Guid.NewGuid()), "repair all");
+        return true;
+    }
+
+    /// <summary>The micro-raid of the first minutes (spec 2026-11-17 fun first, E1): fought idly or actively, like a Night.</summary>
+    private bool MeetTheLocals()
+    {
+        var begun = _state.Apply(new BeginTrial(Guid.NewGuid()), _now);
+        if (begun.Status != CommandStatus.Accepted || begun.Plan?.Night != 0)
+        {
+            return false;
+        }
+
+        var setup = begun.Plan.ToBattleSetup(_map, Array.Empty<PlayerInput>());
+        var (result, inputs, _) = _activeFighter ? NightBot.PlayActive(setup) : (Battle.Simulate(setup), (IReadOnlyList<PlayerInput>)Array.Empty<PlayerInput>(), null!);
+        _state.Apply(new ResolveTrial(Guid.NewGuid(), 0, inputs), _now);
+        Note($"MICRO-RAID: {result.Stars}★, {result.TicksElapsed / BalanceTable.TicksPerSecond}s, {result.EnemiesDefeated} driven off, {inputs.Count} inputs", always: true);
         return true;
     }
 

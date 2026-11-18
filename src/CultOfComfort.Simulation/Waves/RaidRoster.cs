@@ -9,6 +9,12 @@ namespace CultOfComfort.Simulation.Waves;
 /// </summary>
 public sealed record RaidRoster(IReadOnlyList<(EnemyType Type, int Weight)> Mix, EnemyType? Boss)
 {
+    /// <summary>The micro-raid of the first minutes (spec 2026-11-17 fun first, E1): four nosy locals, nothing else.</summary>
+    public static RaidRoster NosyLocals { get; } = new(new[] { (EnemyType.Peasant, 1) }, null);
+
+    /// <summary>The roster number a micro-raid's plan carries (no Hearth level is ever negative).</summary>
+    public const int MicroRaidRoster = -1;
+
     /// <summary>Hearth 1: wild animals and nosy peasants.</summary>
     public static RaidRoster CuriousLocals { get; } = new(new[]
     {
@@ -75,6 +81,7 @@ public sealed record RaidRoster(IReadOnlyList<(EnemyType Type, int Weight)> Mix,
     /// <summary>The roster for a Hearth level (0 or less: none — the classic demo mix).</summary>
     public static RaidRoster? ForHearth(int hearthLevel) => hearthLevel switch
     {
+        MicroRaidRoster => NosyLocals,
         <= 0 => null,
         1 => CuriousLocals,
         2 => WulfricsLevy,

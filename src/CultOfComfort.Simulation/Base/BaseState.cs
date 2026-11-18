@@ -1578,6 +1578,7 @@ public sealed partial class BaseState
         _night = null;
         LastNightRecorded = plan.Night;
         GainProphetXp(result.Stars);
+        _towels += DailyBook.NightTowels(result.Stars); // the fight pays for the shortcut (spec 2026-11-17 fun first, E4)
         Festival(FestivalDeed.Stars, result.Stars, at);
         NoteNight(result.Stars, at);
         var report = new NightReport(plan.Night, plan.Scheduled, whileAway, result.Stars, result.HearthHealth, result.HearthMaxHealth, wrecked, salvage, result.StateHashHex);

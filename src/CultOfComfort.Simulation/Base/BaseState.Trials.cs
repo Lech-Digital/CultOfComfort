@@ -26,8 +26,9 @@ public static class TrialBook
     public static ulong Seed(int stage) => 7_000UL + (ulong)stage;
 
     /// <summary>What a cleared stage pays (and a Towel every fifth).</summary>
+    /// <remarks>A Towel every stage, two for a boss, since fun first E4: Towels come from fighting, not from errands.</remarks>
     public static (ResourceBag Bag, int Towels) Reward(int stage) =>
-        (new ResourceBag(100 + 25 * stage, 0, 40 + 12 * stage, IsBoss(stage) ? 20 * stage : 0), IsBoss(stage) ? 2 : 0);
+        (new ResourceBag(100 + 25 * stage, 0, 40 + 12 * stage, IsBoss(stage) ? 20 * stage : 0), IsBoss(stage) ? 2 : 1);
 
     public static ResourceBag AlmsPerHour(int cleared) => new(15 * cleared, 0, 5 * cleared, 2 * cleared);
 }
@@ -56,11 +57,25 @@ public sealed partial class BaseState
         return new ResourceBag((int)(rate.Timber * hours), (int)(rate.Peat * hours), (int)(rate.Scrap * hours), (int)(rate.Devotion * hours));
     }
 
+    /// <summary>The micro-raid's size: four nosy locals, one wave (spec 2026-11-17 fun first, E1).</summary>
+    public const int MicroRaidBudget = 4;
+
     private CommandOutcome BeginTrial(DateTimeOffset now)
     {
         if (_night != null)
         {
             return CommandOutcome.Reject("A Night is on. The pilgrims can wait.");
+        }
+
+        if (CurrentErrand?.Goal == ErrandGoal.MicroRaid && !_errandEventDone)
+        {
+            // Stage 0: the nosy locals of the first minutes. The Prophet meets them alone (no towers, no relics), the village
+            // fought fresh, and nothing counts as a Night: no shield, no Tension, no Pilgrims' stage.
+            var road0 = ToBattleLayout();
+            _trial = new NightPlan(0, 946UL, MicroRaidBudget, 1, 0, false, Array.Empty<CultOfComfort.Simulation.Grid.PlacedTower>(), road0.Obstacles,
+                road0.Structures.Select(s => s with { Health = s.MaxHealth }).ToList(), CultOfComfort.Simulation.Waves.RaidRoster.MicroRaidRoster,
+                Rules: Battle.FunFirstRules);
+            return CommandOutcome.Accept() with { Plan = _trial };
         }
 
         var stage = _trialsCleared + 1;
@@ -88,6 +103,16 @@ public sealed partial class BaseState
         var plan = _trial;
         _trial = null;
         var result = new Battle(plan.ToBattleSetup(_map, command.Inputs)).RunToCompletion(); // replayed, never trusted
+        if (plan.Night == 0)
+        {
+            // The micro-raid: met is met, whatever came of it. The errand pays; nothing else moves.
+            _errandEventDone |= CurrentErrand?.Goal == ErrandGoal.MicroRaid;
+            return CommandOutcome.Accept() with
+            {
+                Report = new NightReport(0, false, false, result.Stars, result.HearthHealth, result.HearthMaxHealth, Array.Empty<int>(), 0, result.StateHashHex),
+            };
+        }
+
         ResourceBag paid = default;
         if (result.Stars >= 1)
         {

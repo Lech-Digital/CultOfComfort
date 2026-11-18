@@ -34,17 +34,21 @@ public enum ErrandGoal
 
     /// <summary>Have <c>Target</c> studies finished.</summary>
     Study,
+
+    /// <summary>Meet the nosy locals: the micro-raid of the first minutes (spec 2026-11-17 fun first, E1).</summary>
+    MicroRaid,
 }
 
 /// <summary>One of the Prophet's errands: a goal and the reward paid when it is claimed.</summary>
-public sealed record Errand(string Id, string Text, ErrandGoal Goal, BuildingType? Type, int Target, ResourceBag Reward)
+/// <param name="Or">A build errand with a choice (spec 2026-11-17 fun first, E2): this type counts too, the same reward either way.</param>
+public sealed record Errand(string Id, string Text, ErrandGoal Goal, BuildingType? Type, int Target, ResourceBag Reward, BuildingType? Or = null)
 {
-    public bool IsEvent => Goal is ErrandGoal.Collect or ErrandGoal.SurviveNight or ErrandGoal.WinRaid;
+    public bool IsEvent => Goal is ErrandGoal.Collect or ErrandGoal.SurviveNight or ErrandGoal.WinRaid or ErrandGoal.MicroRaid;
 }
 
 /// <summary>The current errand as the client shows it.</summary>
 public sealed record ErrandView(int Index, int Count, string Id, string Text, int Progress, int Target, bool Done, ResourceBag Reward,
-    ErrandGoal Goal = ErrandGoal.Build, BuildingType? Type = null);
+    ErrandGoal Goal = ErrandGoal.Build, BuildingType? Type = null, BuildingType? Or = null);
 
 /// <summary>
 /// The Prophet's errands (spec 2026-10-13 first-hour arc): an ordered chain that walks a new cult from its first
@@ -54,14 +58,15 @@ public sealed record ErrandBook(string Version, IReadOnlyList<Errand> Errands)
 {
     // Spec 2026-10-16 first day: the defences come before the first Night, and the middle (Hearth 2 → 3) has errands of
     // 10–30 minutes. Defence errands repay what they cost, so the tutorial keeps its clock.
-    public static ErrandBook Default { get; } = new("errands-2026.10.16", new Errand[]
+    // Spec 2026-11-17 fun first, E: a fight inside three minutes (the nosy locals), then the Chute, then two errands with a
+    // choice, the same reward either way, and the first Night. Was errands-2026.10.16: five builds in a row before a fight.
+    public static ErrandBook Default { get; } = new("errands-2026.11.18", new Errand[]
     {
         new("woodcutter", "Build a Woodcutter's Lean-to. Comfort starts with firewood.", ErrandGoal.Build, BuildingType.Woodcutter, 1, new ResourceBag(50, 0, 0, 0)),
-        new("storage-hut", "Build a Storage Hut. The Timber stacks itself, but only where there's room.", ErrandGoal.Build, BuildingType.StorageHut, 1, new ResourceBag(100, 0, 0, 0)), // pays the hut back: the tutorial stays on its clock
-        new("cottage", "Build a Cottage. Seekers need somewhere to sleep.", ErrandGoal.Build, BuildingType.Cottage, 1, new ResourceBag(60, 0, 0, 0)),
-        new("peat-cut", "Build a Peat Cut. No Peat, no warmth, no work.", ErrandGoal.Build, BuildingType.PeatCut, 1, new ResourceBag(40, 40, 0, 0)),
-        new("cultist-hut", "Build a Cultist Hut. Devotion keeps the Prophet going.", ErrandGoal.Build, BuildingType.CultistHut, 1, new ResourceBag(0, 0, 0, 20)),
+        new("micro-raid", "Four nosy locals are poking at your Lean-to. Go and meet them: walk the Prophet out, and give them the Voice.", ErrandGoal.MicroRaid, null, 1, new ResourceBag(60, 0, 20, 0)),
         new("slurry-chute", "Put a Slurry Chute right beside the raiders' road. Mud is a defence.", ErrandGoal.Build, BuildingType.SlurryChute, 1, new ResourceBag(20, 0, 50, 0)),
+        new("cottage", "Build a Cottage (two more seekers) or a Storage Hut (room for the Timber). Your call.", ErrandGoal.Build, BuildingType.Cottage, 1, new ResourceBag(100, 0, 0, 0), Or: BuildingType.StorageHut),
+        new("peat-cut", "Build a Peat Cut (warmth: no Peat, no work) or a Cultist Hut (Devotion). Your call.", ErrandGoal.Build, BuildingType.PeatCut, 1, new ResourceBag(40, 40, 0, 20), Or: BuildingType.CultistHut),
         new("first-night", "Light the Lamps and see your first Night through.", ErrandGoal.SurviveNight, null, 1, new ResourceBag(100, 0, 40, 0)),
         new("hearth-2", "Raise the Hearth to level 2.", ErrandGoal.HearthLevel, BuildingType.Hearth, 2, new ResourceBag(0, 0, 0, 30)),
         new("missionary", "Open Lands and send a preacher to a place nearby. The muddy ones listen best.", ErrandGoal.SendMissionary, null, 1, new ResourceBag(100, 0, 0, 20)),
@@ -99,10 +104,24 @@ public sealed record ErrandBook(string Version, IReadOnlyList<Errand> Errands)
         "slurry-chute", "road-gate", "woodcutter-2", "cistern", "patron", "hearth-3", "win-raid",
     };
 
+    /// <summary>
+    /// Errands this book folded into others (errands-2026.11.18): a save on one of them carries on with the errand that
+    /// took it in, rather than finding the chain done.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> Folded { get; } = new Dictionary<string, string>
+    {
+        ["storage-hut"] = "cottage",
+        ["cultist-hut"] = "peat-cut",
+    };
+
     /// <summary>Where a saved errand is in this book: by id when the save has one, else through <see cref="LegacyOrder"/>.</summary>
     public int IndexOf(string? id, int legacyIndex)
     {
         id ??= legacyIndex >= 0 && legacyIndex < LegacyOrder.Count ? LegacyOrder[legacyIndex] : null;
+        if (id != null && Folded.TryGetValue(id, out var into))
+        {
+            id = into;
+        }
         if (id == null)
         {
             return legacyIndex >= LegacyOrder.Count ? Errands.Count : 0; // past the old end: all done

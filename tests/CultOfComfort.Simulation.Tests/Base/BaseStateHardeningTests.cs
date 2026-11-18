@@ -46,11 +46,14 @@ public class BaseStateHardeningTests
     }
 
     [Fact]
-    public void Restore_TwoConstructionsPending_ThrowsInvalidBaseData()
+    public void Restore_MoreConstructionsPendingThanBuilders_ThrowsInvalidBaseData()
     {
-        // Arrange
+        // Arrange — three jobs for Hearth 1's two builders.
         var state = BaseState.CreateNew(BuildingTable.Default, VillageMap.Demo, T0);
         state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, new GridPosition(3, 9)), T0);
+        Enumerable.Range(0, 40).SelectMany(x => Enumerable.Range(0, 30).Select(y => new GridPosition(x, y)))
+            .Select(p => state.Apply(new PlaceBuilding(Guid.NewGuid(), BuildingType.Woodcutter, p), T0))
+            .First(o => o.Status == CommandStatus.Accepted); // a second job, anywhere it fits
         var data = state.ToData();
         var hearthUpgrading = Edit(data, b => b with { UpgradeEndsAtUtcTicks = T0.AddHours(1).UtcTicks }, BuildingType.Hearth);
 
