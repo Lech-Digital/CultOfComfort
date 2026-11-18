@@ -115,6 +115,27 @@ namespace CultOfComfort.Client
     }
 
     /// <summary>Everything the map screen draws, built from the Domain view (pure: tested without Unity's UI).</summary>
+    /// <summary>Where the Map opens (spec 2026-11-17 fun first, D4).</summary>
+    public static class MapOpening
+    {
+        /// <summary>
+        /// The nearest place a preacher can reach from home (not home, not a camp, not a lord's seat), or -1. The Map opens on
+        /// it: the first tap of the playtest of 2026-11-17 found a place "15h 20m, too far".
+        /// </summary>
+        public static int NearestReachable(WorldMapModel model)
+        {
+            var home = model.Nodes.FirstOrDefault(n => n.Home);
+            if (home == null)
+            {
+                return -1;
+            }
+
+            var best = model.Nodes.Where(n => n.Reachable && !n.Home && !n.Camp && !n.Seat)
+                .OrderBy(n => (n.At - home.At).sqrMagnitude).ThenBy(n => n.Id).FirstOrDefault();
+            return best?.Id ?? -1;
+        }
+    }
+
     public sealed class WorldMapModel
     {
         public string Title = "The Marchlands";

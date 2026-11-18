@@ -60,7 +60,7 @@
 }
 .map-plate-home > .map-plate-name { background-color: #ffe7a8; border-color: #46618c; font-size: 11px; }
 .map-plate-camp > .map-plate-name { background-color: rgba(227, 207, 166, 0.95); border-width: 0 0 3px 0; }
-.map-plate-far { opacity: 0.6; }
+.map-plate-far { opacity: 0.4; } /* out of reach: dimmed (spec 2026-11-17 fun first, D4) */
 .map-plate-quiet > .map-plate-name { display: none; }
 .map-plate-selected > .map-plate-name { background-color: #ffe7a8; border-color: #e8a54b; }
 .map-plate-patron > .map-banner { display: flex; }

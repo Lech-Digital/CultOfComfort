@@ -979,6 +979,12 @@ namespace CultOfComfort.Client
                 _hud.SetMapOpen(true);
                 var home = model.Land.TryPlace(WorldMapPresenter.HomeId, out var place) ? place.At : Vector2.zero;
                 _stage.Open(model.Land, home, _camera);
+                // It opens on the nearest place a preacher can reach (spec 2026-11-17 fun first, D4), unless it was opened for something.
+                if (!_pendingTithe && _pendingFocus < 0 && MapOpening.NearestReachable(model) is var near && near >= 0)
+                {
+                    _stage.FlyTo(near);
+                    _stage.Select(near);
+                }
             }
 
             var camps = model.Nodes.Where(n => n.Camp).Select(n => new StageCamp
