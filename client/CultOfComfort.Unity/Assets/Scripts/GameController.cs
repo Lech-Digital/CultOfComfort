@@ -133,6 +133,7 @@ namespace CultOfComfort.Client
             _battleView.SkillUsed += ShowFirstUseTip;
             _battleView.StructureDamaged += (id, fraction, wrecked) => _board.ShowStructureHealth(id, fraction, wrecked);
             _battleView.TowerShot += _board.KickTower;
+            _battleView.Struck += at => _hits.Add((at, Time.time));
             _weather = new GameObject("Weather").AddComponent<WeatherView>();
 
             SetUpCamera();
@@ -1248,7 +1249,22 @@ namespace CultOfComfort.Client
 
             var clear = _hud.ClearViewport();
             _hud.ShowEdgeMarkers(clear != null ? EdgeMarkers.Compute(_raiderViewport, clear.Value) : null);
+
+            // Ours hit out of sight (spec 2026-11-17 fun first, B4): that edge pulses red, with an arrow.
+            _hits.RemoveAll(h => Time.time - h.At > EdgeMarkers.HitSeconds);
+            _hitViewport.Clear();
+            var newest = float.PositiveInfinity;
+            foreach (var hit in _hits)
+            {
+                _hitViewport.Add(_camera.WorldToViewportPoint(hit.Where));
+                newest = Mathf.Min(newest, Time.time - hit.At);
+            }
+
+            _hud.ShowHitMarkers(clear != null && _hits.Count > 0 ? EdgeMarkers.Compute(_hitViewport, clear.Value) : null, EdgeMarkers.Pulse(newest));
         }
+
+        private readonly List<(Vector3 Where, float At)> _hits = new List<(Vector3, float)>();
+        private readonly List<Vector3> _hitViewport = new List<Vector3>();
 
         private readonly Dictionary<string, (int ReadyAt, int From)> _cooldowns = new Dictionary<string, (int, int)>();
 
@@ -2241,6 +2257,8 @@ namespace CultOfComfort.Client
             SetAim(null);
             _board.ShowLeaderDestination(null);
             _hud.ShowEdgeMarkers(null);
+            _hits.Clear();
+            _hud.ShowHitMarkers(null, 0f);
             _phase = GamePhase.Dawn;
             _hud.ShowPhase(_phase);
             _hud.Announce(string.Empty, Time.time, 0f);

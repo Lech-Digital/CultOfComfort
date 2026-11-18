@@ -47,6 +47,9 @@ namespace CultOfComfort.Client
         /// <summary>A skill was actually used (never for a rejected order): drives the first-use tips.</summary>
         public event Action<PlayerActionType> SkillUsed;
 
+        /// <summary>Something of ours was hit, where (world): a building or the Hearth. Off screen, the HUD pulses that edge (B4).</summary>
+        public event Action<Vector3> Struck;
+
         /// <summary>A village structure was hit: id, health fraction left, wrecked.</summary>
         public event Action<int, float, bool> StructureDamaged;
 
@@ -602,6 +605,7 @@ namespace CultOfComfort.Client
                     var structure = _battle.Structures.First(s => s.Id == hit.StructureId);
                     Floater?.Invoke(Shapes.ToWorld(structure.Position) + Vector3.up * 1.4f, "SMASH!");
                     StructureDamaged?.Invoke(structure.Id, structure.MaxHealth > 0 ? hit.HealthRemaining / (float)structure.MaxHealth : 0f, false);
+                    Struck?.Invoke(Shapes.ToWorld(structure.Position, 0.5f));
                     break;
                 }
 
@@ -622,6 +626,7 @@ namespace CultOfComfort.Client
                     var poof = Fx("fx_poof", at) ?? Shapes.Create(PrimitiveType.Sphere, Palette.Linen, at, Vector3.zero, _root, "Wreck");
                     AddEffect(poof, 0.6f, (go, t) => go.transform.localScale = Vector3.one * (1f - t) * 3f * Mathf.Sqrt(t));
                     StructureDamaged?.Invoke(structure.Id, 0f, true);
+                    Struck?.Invoke(at);
                     _shake = Mathf.Max(_shake, 0.22f); // a building goes down: you feel it (B7)
                     break;
                 }
@@ -707,6 +712,7 @@ namespace CultOfComfort.Client
                     Announcement?.Invoke($"Wave {wave.Wave} of {_battle.WaveCount}. {Ruler.Cap(Ruler.Full)} remains unconvinced.");
                     break;
                 case HearthDamaged damaged:
+                    Struck?.Invoke(Shapes.ToWorld(_battle.Path[_battle.Path.Count - 1], 0.5f)); // the road ends at the Hearth
                     _prophet?.Unimpressed();
                     _shake = 0.25f;
                     Announcement?.Invoke(damaged.Type switch

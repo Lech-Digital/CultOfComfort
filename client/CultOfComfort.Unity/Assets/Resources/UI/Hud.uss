@@ -337,6 +337,9 @@
 /* ---------- the tutorial coach (GDD 05) ---------- */
 /* Raiders out of sight (spec 2026-11-17 fun first, B4). */
 .edge-marker { position: absolute; width: 44px; height: 44px; transform-origin: center; align-items: center; justify-content: flex-end; }
+.edge-hit-arrow { position: absolute; left: 0; top: 0; width: 44px; height: 44px; align-items: center; justify-content: flex-end; }
+/* The glow runs along the edge the arrow points at (the marker is rotated, so "top" is always that edge). */
+.edge-hit-glow { position: absolute; left: -98px; top: -14px; width: 240px; height: 12px; border-radius: 6px; background-color: rgba(255, 40, 24, 0.75); }
 .edge-count { color: #fff4dc; font-size: 15px; -unity-font-style: bold; padding: 0; margin-bottom: 2px; text-shadow: 0 1px 2px rgba(0,0,0,0.9); }
 .coach-arrow { position: absolute; width: 34px; height: 40px; transform-origin: center; }
 .coach-line {

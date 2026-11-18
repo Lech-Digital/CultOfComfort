@@ -38,5 +38,35 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual(2, markers.Count);
             CollectionAssert.AreEquivalent(new[] { 180f, 270f }, new[] { markers[0].AngleDegrees, markers[1].AngleDegrees });
         }
+
+        [Test]
+        public void Pulse_AtTheHit_IsFull()
+        {
+            // Act
+            var pulse = EdgeMarkers.Pulse(0f);
+
+            // Assert
+            Assert.AreEqual(1f, pulse, 1e-4f);
+        }
+
+        [Test]
+        public void Pulse_HalfwayThrough_IsFadingButBeats()
+        {
+            // Act
+            var onBeat = EdgeMarkers.Pulse(2f / 3f);
+            var offBeat = EdgeMarkers.Pulse(2f / 3f - 1f / 6f);
+
+            // Assert
+            Assert.Greater(onBeat, offBeat, "it beats");
+            Assert.Less(onBeat, 1f, "and fades");
+        }
+
+        [Test]
+        public void Pulse_OverOrNeverHit_IsZero()
+        {
+            // Act & Assert
+            Assert.AreEqual(0f, EdgeMarkers.Pulse(EdgeMarkers.HitSeconds));
+            Assert.AreEqual(0f, EdgeMarkers.Pulse(float.PositiveInfinity));
+        }
     }
 }

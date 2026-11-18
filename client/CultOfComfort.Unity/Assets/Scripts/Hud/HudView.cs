@@ -522,6 +522,26 @@ namespace CultOfComfort.Client
                 _root.Add(marker);
             }
 
+            for (var i = 0; i < _hitMarkers.Length; i++)
+            {
+                var marker = new VisualElement { pickingMode = PickingMode.Ignore };
+                marker.AddToClassList("edge-marker");
+                marker.AddToClassList("edge-hit");
+                var glow = new VisualElement { pickingMode = PickingMode.Ignore };
+                glow.AddToClassList("edge-hit-glow"); // along the edge, behind the arrow
+                marker.Add(glow);
+                var arrow = new VisualElement { pickingMode = PickingMode.Ignore };
+                arrow.AddToClassList("edge-hit-arrow");
+                arrow.generateVisualContent += DrawEdgeChevron;
+                var bang = Text("!", "edge-count");
+                bang.pickingMode = PickingMode.Ignore;
+                arrow.Add(bang);
+                marker.Add(arrow);
+                Show(marker, false);
+                _hitMarkers[i] = marker;
+                _root.Add(marker);
+            }
+
             _root.Add(_ghostActions); // above the board, beside the ghost
             for (var i = 0; i < _bubbles.Length; i++)
             {
@@ -1169,6 +1189,36 @@ namespace CultOfComfort.Client
                 var label = (Label)marker[0];
                 label.text = m.Count.ToString();
                 label.style.rotate = new Rotate(Angle.Degrees(-m.AngleDegrees)); // the number stays upright
+            }
+        }
+
+        private readonly VisualElement[] _hitMarkers = new VisualElement[4];
+
+        /// <summary>
+        /// Ours hit out of sight (spec 2026-11-17 fun first, B4): a red glow along that edge and a "!" arrow pointing
+        /// at it, beating at <paramref name="pulse"/> (0..1). Positions as for <see cref="ShowEdgeMarkers"/>.
+        /// </summary>
+        public void ShowHitMarkers(IReadOnlyList<EdgeMarker> markers, float pulse)
+        {
+            var size = _root.worldBound;
+            for (var i = 0; i < _hitMarkers.Length; i++)
+            {
+                var on = markers != null && i < markers.Count && pulse > 0f && !float.IsNaN(size.width);
+                Show(_hitMarkers[i], on);
+                if (!on)
+                {
+                    continue;
+                }
+
+                var m = markers[i];
+                var marker = _hitMarkers[i];
+                marker.style.left = m.At.x * size.width - 22f;
+                marker.style.top = (1f - m.At.y) * size.height - 22f;
+                marker.style.rotate = new Rotate(Angle.Degrees(m.AngleDegrees));
+                marker.style.opacity = pulse;
+                var scale = 1f + 0.18f * pulse;
+                marker[1].style.scale = new Scale(new Vector3(scale, scale, 1f));
+                marker[1][0].style.rotate = new Rotate(Angle.Degrees(-m.AngleDegrees)); // the "!" stays upright
             }
         }
 

@@ -27,6 +27,24 @@ namespace CultOfComfort.Client
     /// </summary>
     public static class EdgeMarkers
     {
+        /// <summary>How long an edge keeps pulsing after something of ours was hit out of sight.</summary>
+        public const float HitSeconds = 1.5f;
+
+        /// <summary>
+        /// How bright the hit pulse is, <paramref name="age"/> seconds after the newest hit: three beats a second, fading
+        /// out over <see cref="HitSeconds"/>. 0 once it's over (or never hit).
+        /// </summary>
+        public static float Pulse(float age)
+        {
+            if (age < 0f || age >= HitSeconds || float.IsNaN(age))
+            {
+                return 0f;
+            }
+
+            var beat = 0.55f + 0.45f * Mathf.Cos(age * Mathf.PI * 6f); // 1 at the hit, three beats a second
+            return beat * (1f - age / HitSeconds);
+        }
+
         /// <param name="viewportPoints">Each raider's viewport position (z &lt;= 0: behind the camera).</param>
         /// <param name="clear">The part of the screen the board shows in (between the HUD's top and its bar).</param>
         public static List<EdgeMarker> Compute(IEnumerable<Vector3> viewportPoints, Rect clear)
