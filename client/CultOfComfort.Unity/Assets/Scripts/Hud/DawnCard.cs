@@ -26,7 +26,11 @@ namespace CultOfComfort.Client
         /// <param name="trialStage">The Pilgrims' stage just walked, or null for a real Night.</param>
         /// <param name="trialPaid">What the stage paid into the stores.</param>
         /// <param name="nextStage">The Pilgrims' stage that can be walked now, or null if the Way isn't open.</param>
-        public static DawnCardModel Build(BattleResult result, NightReport report, int? trialStage, ResourceBag trialPaid, int? nextStage, string ruler)
+        /// <param name="objective">Tonight's third-star objective (None for a Night planned before fun first C).</param>
+        /// <param name="played">Whether the player did anything: a Night left to the towers earns one star (C1).</param>
+        /// <param name="perkLevel">The Prophet's level when a perk is now waiting to be chosen (C6), else null.</param>
+        public static DawnCardModel Build(BattleResult result, NightReport report, int? trialStage, ResourceBag trialPaid, int? nextStage, string ruler,
+            NightObjective objective = NightObjective.None, bool played = true, int? perkLevel = null)
         {
             var won = result.Outcome == BattleOutcome.Won;
             var model = new DawnCardModel
@@ -41,6 +45,14 @@ namespace CultOfComfort.Client
                     : $"{ruler}'s men warmed their hands on the embers and left. Tomorrow: repairs, and a strongly worded diary entry.",
             };
 
+            // How the stars were earned (spec 2026-11-17 fun first, C1): the objective, or why there's only one.
+            if (won && objective != NightObjective.None)
+            {
+                model.Earned.Add(played
+                    ? $"Third star: {NightRulesText.Objective(objective)} {(result.ObjectiveMet ? "✓" : "✗")}"
+                    : "Left to the towers: one star. Play the Night to earn more.");
+            }
+
             if (trialStage != null)
             {
                 if (!trialPaid.IsZero)
@@ -52,7 +64,9 @@ namespace CultOfComfort.Client
             {
                 if (report != null && report.Salvage > 0)
                 {
-                    model.Earned.Add($"+{report.Salvage} Scrap salvaged");
+                    model.Earned.Add(result.EarlyCalls > 0
+                        ? $"+{report.Salvage} Scrap salvaged ({result.EarlyCalls} {(result.EarlyCalls == 1 ? "wave" : "waves")} called early)"
+                        : $"+{report.Salvage} Scrap salvaged");
                 }
 
                 if (report != null && report.Wrecked.Count > 0)
@@ -61,6 +75,11 @@ namespace CultOfComfort.Client
                 }
 
                 model.Earned.Add($"The Prophet: +{ProphetBook.XpForNight(result.Stars)} experience");
+            }
+
+            if (perkLevel != null)
+            {
+                model.Earned.Add($"The Prophet is level {perkLevel}: a perk to choose. Tap his portrait.");
             }
 
             if (nextStage != null)

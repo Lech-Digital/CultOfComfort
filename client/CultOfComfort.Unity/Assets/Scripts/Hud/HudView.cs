@@ -30,6 +30,22 @@ namespace CultOfComfort.Client
         public float Cooldown { get; }
     }
 
+    /// <summary>A gap between waves as the HUD shows it (spec 2026-11-17 fun first, C2–C3).</summary>
+    public sealed class NightGap
+    {
+        public int NextWave;
+        public int SecondsLeft;
+
+        /// <summary>How much of the gap is left (1 → 0): the call button's ring.</summary>
+        public float Left;
+
+        /// <summary>The boons on offer (title, what it does); empty once one is picked.</summary>
+        public (string Title, string Text)[] Boons = System.Array.Empty<(string, string)>();
+
+        /// <summary>The boon picked for the coming wave, or null.</summary>
+        public string Picked;
+    }
+
     /// <summary>What the Night bar shows. Built by the controller each frame from the live battle.</summary>
     public readonly struct NightHudState
     {
@@ -37,9 +53,12 @@ namespace CultOfComfort.Client
             int night, int hearth, int hearthMax, int prophet, int prophetMax, string sluice, bool sluiceReady, string voice, bool voiceReady,
             string stones, bool stonesReady, bool aiming, int speed, int wave, int waveCount, int alive, string status,
             RelicButtonState laser = default, RelicButtonState torch = default, RelicButtonState sunFire = default,
-            float sluiceCooldown = 0f, float voiceCooldown = 0f, float stonesCooldown = 0f, int defeated = 0)
+            float sluiceCooldown = 0f, float voiceCooldown = 0f, float stonesCooldown = 0f, int defeated = 0,
+            NightGap gap = null, string objective = null)
         {
             Defeated = defeated;
+            Gap = gap;
+            Objective = objective;
             SluiceCooldown = sluiceCooldown;
             VoiceCooldown = voiceCooldown;
             StonesCooldown = stonesCooldown;
@@ -93,6 +112,12 @@ namespace CultOfComfort.Client
 
         /// <summary>Raiders driven off so far tonight (nobody dies: they run home) (spec 2026-11-17 fun first, B7).</summary>
         public int Defeated { get; }
+
+        /// <summary>Between waves (spec 2026-11-17 fun first, C2–C3): the boons and the call, or null during a wave.</summary>
+        public NightGap Gap { get; }
+
+        /// <summary>"Third star: no building wrecked ✓", or null for a Night planned before.</summary>
+        public string Objective { get; }
 
         /// <summary>The one-line hint under the skills.</summary>
         public string Status { get; }
@@ -307,6 +332,9 @@ namespace CultOfComfort.Client
             _waveStrip.Add(_waveRow);
             (_hearthFill, _hearthValue) = Meter(_waveStrip, "Hearth", "hearth-fill");
             (_prophetFill, _prophetValue) = Meter(_waveStrip, "Prophet", "prophet-fill");
+            _objectiveLine = Text(string.Empty, "objective-line");
+            _objectiveLine.name = "objective-line";
+            _waveStrip.Add(_objectiveLine);
             _top.Add(_waveStrip);
 
             // ---------- middle: side columns + centre stack ----------
@@ -493,6 +521,8 @@ namespace CultOfComfort.Client
             side.Add(_relicRow);
             _nightBar.Add(side);
             _nightBar.Add(skills);
+            _gapRow = BuildGapRow();
+            _bar.Add(_gapRow);
             _bar.Add(_duskBar);
             _bar.Add(_nightBar);
 
@@ -615,6 +645,91 @@ namespace CultOfComfort.Client
         public event Action BuildingCardClosed;
         public event Action StartNightClicked;
         public event Action SluiceClicked;
+
+        /// <summary>A boon note was tapped in a gap (its index in the offer).</summary>
+        public event Action<int> BoonClicked;
+
+        /// <summary>"Call now" in a gap: the next wave comes at once, for more salvage.</summary>
+        public event Action CallWaveClicked;
+
+        private readonly Label _objectiveLine;
+        private readonly VisualElement _gapRow;
+        private Label _gapNote;
+        private readonly Button[] _boonButtons = new Button[3];
+        private Button _callWave;
+        private VisualElement _callRing;
+
+        /// <summary>
+        /// Between waves (spec 2026-11-17 fun first, C2–C3): three sticky notes, pick one or ignore them, and a round "Call
+        /// now" with the gap's ring timer. Above the skills, never over the fight.
+        /// </summary>
+        private VisualElement BuildGapRow()
+        {
+            var row = Container("gap-row");
+            row.name = "gap-row";
+            _gapNote = Text(string.Empty, "gap-note");
+            row.Add(_gapNote);
+            var notes = Container("gap-notes");
+            var colours = new[] { "note-yellow", "note-pink", "note-blue" };
+            for (var i = 0; i < _boonButtons.Length; i++)
+            {
+                var index = i;
+                var boon = new Button(() => BoonClicked?.Invoke(index)) { name = $"boon-{i}" };
+                boon.AddToClassList("btn");
+                boon.AddToClassList("boon");
+                boon.AddToClassList(colours[i]);
+                boon.Add(Text(string.Empty, "boon-title"));
+                boon.Add(Text(string.Empty, "boon-text"));
+                _boonButtons[i] = boon;
+                notes.Add(boon);
+            }
+
+            _callWave = new Button(() => CallWaveClicked?.Invoke()) { name = "call-wave" };
+            _callWave.AddToClassList("btn");
+            _callWave.AddToClassList("call-wave");
+            _callWave.AddToClassList("note-green");
+            _callRing = new VisualElement { pickingMode = PickingMode.Ignore, userData = 0f };
+            _callRing.AddToClassList("skill-ring");
+            _callRing.generateVisualContent += DrawCooldownRing;
+            _callWave.Add(_callRing);
+            _callWave.Add(Text("Call now", "call-title"));
+            _callWave.Add(Text("+10% Scrap", "call-text"));
+            notes.Add(_callWave);
+            row.Add(notes);
+            Show(row, false);
+            return row;
+        }
+
+        private void UpdateGap(NightGap gap)
+        {
+            Show(_gapRow, gap != null);
+            if (gap == null)
+            {
+                return;
+            }
+
+            _gapNote.text = gap.Picked != null
+                ? $"{gap.Picked} for wave {gap.NextWave}. It comes in {gap.SecondsLeft}s."
+                : $"Wave {gap.NextWave} in {gap.SecondsLeft}s. Pick a boon, or call it now.";
+            for (var i = 0; i < _boonButtons.Length; i++)
+            {
+                var on = i < gap.Boons.Length;
+                Show(_boonButtons[i], on);
+                if (on)
+                {
+                    ((Label)_boonButtons[i][0]).text = gap.Boons[i].Title;
+                    ((Label)_boonButtons[i][1]).text = gap.Boons[i].Text;
+                }
+            }
+
+            // The ring fills gold as the gap runs out and the wave draws near.
+            var left = Mathf.Clamp01(gap.Left);
+            if (!(_callRing.userData is float was) || Mathf.Abs(was - left) > 0.004f)
+            {
+                _callRing.userData = left;
+                _callRing.MarkDirtyRepaint();
+            }
+        }
         public event Action VoiceClicked;
         public event Action StonesClicked;
         public event Action SpeedClicked;
@@ -914,7 +1029,12 @@ namespace CultOfComfort.Client
 
         public void UpdateNight(in NightHudState state)
         {
-            _waveLabel.text = WaveText(state.Wave, state.WaveCount, state.Alive, state.Defeated);
+            _waveLabel.text = state.Gap != null
+                ? NightRulesText.GapLine(state.Gap.NextWave, state.WaveCount, state.Gap.SecondsLeft, state.Defeated)
+                : WaveText(state.Wave, state.WaveCount, state.Alive, state.Defeated);
+            UpdateGap(state.Gap);
+            _objectiveLine.text = state.Objective ?? string.Empty;
+            Show(_objectiveLine, state.Objective != null);
             SetMeter(_hearthValue, _hearthFill, state.Hearth, state.HearthMax);
             SetMeter(_prophetValue, _prophetFill, state.Prophet, state.ProphetMax);
             SetSkill(_sluice, state.Sluice, state.SluiceReady, state.SluiceCooldown);
@@ -1667,7 +1787,8 @@ namespace CultOfComfort.Client
         }
 
         /// <summary>The roster card (spec 2026-11-17 fun first, B5): who may come tonight, with the scout's line for each. Null closes it.</summary>
-        public void ShowRoster(string title, IReadOnlyList<RaiderRow> rows)
+        /// <param name="objective">The coming Night's third-star objective, shown under the title (spec 2026-11-17 fun first, C1).</param>
+        public void ShowRoster(string title, IReadOnlyList<RaiderRow> rows, string objective = null)
         {
             _roster.Clear();
             if (rows == null)
@@ -1677,6 +1798,11 @@ namespace CultOfComfort.Client
             }
 
             _roster.Add(Text(title, "sheet-title"));
+            if (objective != null)
+            {
+                _roster.Add(Text($"Three stars: keep the Hearth above 80%, with {objective}.", "sheet-line", "small", "wrap", "roster-objective"));
+            }
+
             foreach (var row in rows)
             {
                 var line = Container("roster-row");

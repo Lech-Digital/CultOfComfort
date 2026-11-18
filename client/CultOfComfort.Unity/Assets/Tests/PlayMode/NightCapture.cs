@@ -194,6 +194,20 @@ namespace CultOfComfort.Client.Tests
             Save(world, ui, Path.Combine(output, $"night_early_{suffix}.png"));
             yield return Frames(300);
             Save(world, ui, Path.Combine(output, $"night_fight_{suffix}.png"));
+
+            // The first gap between waves (spec 2026-11-17 fun first, C2–C3): the boons and the call.
+            var field = typeof(GameController).GetField("_battle", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            for (var frame = 0; frame < 6000; frame++)
+            {
+                if (field.GetValue(game) is CultOfComfort.Simulation.Combat.Battle { IsGapOpen: true })
+                {
+                    yield return Frames(15);
+                    Save(world, ui, Path.Combine(output, $"night_gap_{suffix}.png"));
+                    break;
+                }
+
+                yield return null;
+            }
         }
 
         private static IEnumerator Frames(int count)

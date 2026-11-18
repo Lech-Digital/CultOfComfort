@@ -76,14 +76,14 @@ namespace CultOfComfort.Client.Tests
         [UnityTest]
         public IEnumerator CameraShake_NightLostOnAHearthHit_SettlesAtDawn()
         {
-            // Arrange: an undefended base loses, and the final Hearth hit shakes the camera on the last tick.
+            // Arrange: an undefended base; Hearth hits shake the camera, the last one maybe on the last tick.
             yield return SceneManager.LoadSceneAsync("SampleScene");
             yield return null;
             var game = Object.FindAnyObjectByType<GameController>();
             var battleView = Object.FindAnyObjectByType<BattleView>();
             Time.captureDeltaTime = 1f / 60f; // phone-sized frames, as fast as the editor can run them
             game.StartNight();
-            var timeout = Time.realtimeSinceStartup + 120f;
+            var timeout = Time.realtimeSinceStartup + 360f; // a Night with gaps between its waves runs about three minutes (fun first C)
             while (game.Phase != GamePhase.Dawn && Time.realtimeSinceStartup < timeout)
             {
                 yield return null;

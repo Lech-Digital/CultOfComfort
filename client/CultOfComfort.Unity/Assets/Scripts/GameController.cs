@@ -790,7 +790,8 @@ namespace CultOfComfort.Client
 
             var seen = RosterSeen;
             var rows = RosterCard.Rows(_snapshot.HearthLevel, _snapshot.NextRoad, seen);
-            _hud.ShowRoster(RosterCard.Title(_snapshot.HearthLevel, _snapshot.NextRoad), rows);
+            _hud.ShowRoster(RosterCard.Title(_snapshot.HearthLevel, _snapshot.NextRoad), rows,
+                NightRulesText.Objective(Battle.ObjectiveFor(_snapshot.LastNightRecorded + 1)));
             foreach (var row in rows)
             {
                 seen.Add(row.Type.ToString());
@@ -2211,6 +2212,25 @@ namespace CultOfComfort.Client
             }
         }
 
+        /// <summary>The gap between waves as the HUD shows it, or null during a wave (spec 2026-11-17 fun first, C2–C3).</summary>
+        private NightGap GapNow()
+        {
+            if (_battle == null || !_battle.IsGapOpen)
+            {
+                return null;
+            }
+
+            var ticksLeft = Mathf.Max(0, _battle.NextWaveAtTick - _battle.Tick);
+            return new NightGap
+            {
+                NextWave = _battle.CurrentWave + 1,
+                SecondsLeft = Mathf.CeilToInt(ticksLeft / (float)BalanceTable.TicksPerSecond),
+                Left = ticksLeft / (float)Battle.GapTicks,
+                Boons = _battle.BoonOffer.Select(b => (NightRulesText.BoonTitle(b), NightRulesText.BoonText(b))).ToArray(),
+                Picked = _battle.PickedBoon is { } picked ? NightRulesText.BoonTitle(picked) : null,
+            };
+        }
+
         private RelicButtonState RelicButton(Relic relic, string name, int readyAtTick, bool ready, PlayerActionType? aimed, bool swooning)
         {
             if (!_battle.Relics.HasFlag(relic))
@@ -2334,8 +2354,9 @@ namespace CultOfComfort.Client
                 VillageFailed(e);
             }
 
+            var prophet = _snapshot?.Prophet;
             var dawn = DawnCard.Build(_battle.Result, _lastReport, _trialMode ? _plan.Night : (int?)null, _trialOutcome?.Collected ?? default, NextStageAfterDawn(),
-                Ruler.Cap(Ruler.Short));
+                Ruler.Cap(Ruler.Short), _battle.Objective, _battle.InputLog.Count > 0, prophet?.Choice != null ? prophet.Level : (int?)null);
             _hud.ShowDawn(dawn, _battle.Result, LastNightVerified == true ? _battle.Result : (_serverReplay ?? _battle.Result) with { StateHash = 0 }, _battle.InputLog.Count);
             _hud.Announce(string.Empty, Time.time, 0f);
         }
@@ -2807,6 +2828,8 @@ namespace CultOfComfort.Client
                 }
             };
             _hud.SluiceClicked += () => _battle?.Intervene(PlayerActionType.OpenSluiceGate);
+            _hud.BoonClicked += i => _battle?.Intervene(PlayerActionType.PickBoon, new GridPosition(i, 0)); // spec 2026-11-17 fun first, C2
+            _hud.CallWaveClicked += () => _battle?.Intervene(PlayerActionType.CallWave); // C3
             _hud.VoiceClicked += () => _battle?.Intervene(PlayerActionType.PhantomVoice);
             _hud.StonesClicked += ToggleAimingStones;
             // Tonight's relics fire themselves (owner 2026-10-15: "laser should act automatically"); a Night planned
@@ -2909,7 +2932,9 @@ namespace CultOfComfort.Client
                         ? new RelicButtonState(true, "Sun's down", false)
                         : RelicButton(Relic.Magnifier, "Sun-fire", leader.SunFireReadyAtTick, _battle.IsSunFireReady, PlayerActionType.SunFire, swooning),
                     Cooldown("sluice", _battle.SluiceReadyAtTick), Cooldown("voice", leader.VoiceReadyAtTick), Cooldown("stones", leader.HotStonesReadyAtTick),
-                    _battle.Enemies.Count(e => e.State == EnemyState.Defeated)));
+                    _battle.Enemies.Count(e => e.State == EnemyState.Defeated),
+                    GapNow(),
+                    NightRulesText.ObjectiveLine(_battle.Objective, _battle.ObjectiveMet)));
             }
         }
 

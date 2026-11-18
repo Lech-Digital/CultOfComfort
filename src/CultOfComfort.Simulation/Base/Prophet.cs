@@ -14,7 +14,7 @@ public sealed record ProphetView(int Level, int Xp, int XpForLevel, int XpForNex
 
 /// <summary>
 /// The Prophet grows (spec 2026-10-20 the Prophet grows; owner: "a reason to fight well"): every Night earns him
-/// experience, each level a little more health and bite, and at levels 3, 5, 7 and 9 a choice of two perks. It all goes
+/// experience, each level a little more health and bite, and at levels 2, 5, 7 and 9 a choice of two perks (2 since fun first C6, so the first Dawn ends on a choice). It all goes
 /// into the Night plan, so the server fights the same Prophet.
 /// </summary>
 public static class ProphetBook
@@ -42,8 +42,8 @@ public static class ProphetBook
 
     public static IReadOnlyList<ProphetPerk> Perks { get; } = new[]
     {
-        new ProphetPerk("bathrobe", 3, "A thicker bathrobe", "Health +20%", HealthPercent: 20),
-        new ProphetPerk("slippers", 3, "Fluffier slippers", "He walks 20% faster", SpeedPercent: 20),
+        new ProphetPerk("bathrobe", 2, "A thicker bathrobe", "Health +20%", HealthPercent: 20),
+        new ProphetPerk("slippers", 2, "Fluffier slippers", "He walks 20% faster", SpeedPercent: 20),
         new ProphetPerk("megaphone", 5, "A louder megaphone", "The Voice reaches 40% further", VoicePercent: 40),
         new ProphetPerk("hot-stones", 5, "Hotter stones", "Hot Stones burn 40% harder", StonesPercent: 40),
         new ProphetPerk("velvet-knuckles", 7, "Velvet knuckle-dusters", "He hits 25% harder", DamagePercent: 25),

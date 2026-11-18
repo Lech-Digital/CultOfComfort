@@ -714,6 +714,22 @@ namespace CultOfComfort.Client
                 case WaveStarted wave:
                     Announcement?.Invoke($"Wave {wave.Wave} of {_battle.WaveCount}. {Ruler.Cap(Ruler.Full)} remains unconvinced.");
                     break;
+                // A Night that needs you (spec 2026-11-17 fun first, C): the gap, the boon, the call.
+                case WaveGap gap:
+                    Announcement?.Invoke($"Wave {gap.NextWave - 1} cleared. A breather.");
+                    break;
+                case BoonPicked picked:
+                    Announcement?.Invoke($"{NightRulesText.BoonTitle(picked.Boon)}: {NightRulesText.BoonText(picked.Boon).ToLowerInvariant()} next wave.");
+                    break;
+                case WaveCalled called:
+                    Announcement?.Invoke($"Wave {called.Wave}, called early. The faithful will find extra Scrap at Dawn.");
+                    break;
+                case StructureMended mended:
+                {
+                    var structure = _battle.Structures.First(s => s.Id == mended.StructureId);
+                    StructureDamaged?.Invoke(structure.Id, structure.MaxHealth > 0 ? mended.Health / (float)structure.MaxHealth : 0f, false);
+                    break;
+                }
                 case HearthDamaged damaged:
                     Struck?.Invoke(Shapes.ToWorld(_battle.Path[_battle.Path.Count - 1], 0.5f)); // the road ends at the Hearth
                     _prophet?.Unimpressed();
