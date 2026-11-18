@@ -36,6 +36,31 @@ namespace CultOfComfort.Editor
         }
 
         /// <summary>
+        /// The release App Bundle on a machine without the upload key: everything as <see cref="BuildAndroidRelease"/>
+        /// (release IL2CPP, ARM64, target SDK 36, -versionCode/-versionName), signed with the debug key. Re-sign it with the
+        /// upload key before uploading (store-assets/HANDOVER.md: strip META-INF, then jarsigner).
+        /// </summary>
+        [MenuItem("Cult of Comfort/Build Android release (AAB, debug-signed)")]
+        public static void BuildAndroidReleaseUnsigned()
+        {
+            ConfigureAndroid();
+            if (Argument("-versionCode") is { } versionCode)
+            {
+                PlayerSettings.Android.bundleVersionCode = int.Parse(versionCode);
+            }
+
+            if (Argument("-versionName") is { } versionName)
+            {
+                PlayerSettings.bundleVersion = versionName;
+            }
+
+            PlayerSettings.Android.targetSdkVersion = (AndroidSdkVersions)36;
+            PlayerSettings.Android.useCustomKeystore = false;
+            EditorUserBuildSettings.buildAppBundle = true;
+            Build(AndroidReleaseOutput.Replace(".aab", "-debugsigned.aab"), BuildOptions.None);
+        }
+
+        /// <summary>
         /// The Google Play build: a signed release App Bundle, no development flags. Needs CULTOFCOMFORT_KEYSTORE_PASS
         /// (the upload key's password); without it the build fails rather than ship something unsigned. Optional
         /// -versionCode N and -versionName x.y.z on the command line; otherwise the Player Settings values are used.
