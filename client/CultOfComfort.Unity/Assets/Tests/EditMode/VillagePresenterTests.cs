@@ -751,5 +751,15 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("note-blue", HudView.NoteFor(VillagePresenter.Defence));
             Assert.AreEqual("note-green", HudView.NoteFor(VillagePresenter.Roads));
         }
+
+        [Test]
+        public void PillText_BigNumbers_Compact()
+        {
+            // Act & Assert (F4: a compact number; the cap is a line, not text)
+            Assert.AreEqual("850", HudView.PillText(850));
+            Assert.AreEqual("1k", HudView.PillText(1000));
+            Assert.AreEqual("1.2k", HudView.PillText(1249));
+            Assert.AreEqual("12k", HudView.PillText(12400));
+        }
     }
 }

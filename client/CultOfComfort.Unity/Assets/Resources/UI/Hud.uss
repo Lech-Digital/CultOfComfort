@@ -63,6 +63,12 @@
     rotate: 2deg;
 }
 .pill-value { color: #f6e7c4; -unity-font-style: bold; font-size: 13px; margin-left: 3px; padding: 0; }
+/* the store's fill: a thin line along the pill's foot, red when full (F4) */
+.cap-line { display: none; position: absolute; left: 10px; right: 10px; bottom: 3px; height: 3px; border-radius: 2px; background-color: rgba(0, 0, 0, 0.35); }
+.capped > .cap-line { display: flex; }
+.cap-fill { height: 100%; width: 0; border-radius: 2px; background-color: #e8c66a; }
+.full > .cap-line > .cap-fill { background-color: #e0453a; }
+.full .pill-value { color: #ff8a7a; }
 .pill-note .pill-value { color: #2b2215; -unity-font-definition: resource("UI/Fonts/PermanentMarker"); }
 .demo-tag {
     display: none; font-size: 11px; color: #ffcf80; margin-left: 3px; padding: 0;
@@ -455,8 +461,7 @@
 .pill, .pill-note { height: 24px; padding: 0 7px 0 3px; margin: 0 4px 4px 0; }
 .pill .icon, .pill-note .icon { width: 18px; height: 18px; }
 .pill-value { font-size: 12px; }
-.pill.full { border-color: #e3b34a; border-width: 1px; }
-.pill.full .pill-value { color: #ffd98a; }
+.pill.full { border-color: #e0453a; border-width: 1px; }
 .avatar { width: 52px; height: 52px; border-radius: 26px; }
 .avatar-clip { border-radius: 23px; }
 .strip { margin-top: 4px; }

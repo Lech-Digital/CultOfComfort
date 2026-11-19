@@ -272,6 +272,12 @@ namespace CultOfComfort.Client
                 var value = Text(string.Empty, "pill-value");
                 pill.Add(value);
                 pill.Add(Text("demo", "demo-tag"));
+                var capLine = Container("cap-line"); // the store's fill, a thin line under the number (F4)
+                capLine.pickingMode = PickingMode.Ignore;
+                var capFill = Container("cap-fill");
+                capFill.pickingMode = PickingMode.Ignore;
+                capLine.Add(capFill);
+                pill.Add(capLine);
                 var pillKey = key;
                 pill.AddManipulator(new Clickable(() => PillClicked?.Invoke(pillKey)));
                 _pills[key] = (pill, value);
@@ -2205,10 +2211,20 @@ namespace CultOfComfort.Client
         private void SetPill(string key, Reading reading)
         {
             var (pill, value) = _pills[key];
-            value.text = reading.Cap > 0 ? $"{reading.Value}/{Short(reading.Cap)}" : reading.Value.ToString();
+            // A compact number; the cap is the thin line under it, red when the store is full (spec 2026-11-17 fun first, F4).
+            value.text = PillText(reading.Value);
             pill.EnableInClassList("demo", reading.IsDemo);
             pill.EnableInClassList("full", reading.Cap > 0 && reading.Value >= reading.Cap);
+            pill.EnableInClassList("capped", reading.Cap > 0);
+            var fill = pill.Q(className: "cap-fill");
+            if (fill != null)
+            {
+                fill.style.width = Length.Percent(reading.Cap > 0 ? Mathf.Clamp01(reading.Value / (float)reading.Cap) * 100f : 0f);
+            }
         }
+
+        /// <summary>A pill's number: "850", "1.2k", "12k". Pure.</summary>
+        public static string PillText(int value) => value < 1000 ? value.ToString() : value < 10000 ? $"{value / 1000f:0.#}k".Replace(".0k", "k") : $"{value / 1000}k";
 
         private static string Short(int cap) => cap < 1000 ? cap.ToString() : cap % 1000 == 0 ? $"{cap / 1000}k" : $"{cap / 1000f:0.#}k";
 

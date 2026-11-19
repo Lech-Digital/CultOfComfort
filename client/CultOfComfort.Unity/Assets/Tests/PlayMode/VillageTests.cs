@@ -373,7 +373,8 @@ namespace CultOfComfort.Client.Tests
             var snapshot = Snapshot(game);
             Assert.IsNotNull(snapshot.BuildingAt(new GridPosition(3, 9)));
             Assert.AreEqual(450, snapshot.Stock.Timber);
-            Assert.AreEqual("450/1k", root.Q("pill-timber").Q<Label>(className: "pill-value").text);
+            Assert.AreEqual("450", root.Q("pill-timber").Q<Label>(className: "pill-value").text, "the number; the cap is the line under it");
+            Assert.AreEqual(45f, root.Q("pill-timber").Q(className: "cap-fill").style.width.value.value, 0.01f, "450 of 1k");
             Assert.AreEqual(DisplayStyle.None, root.Q("ghost-actions").resolvedStyle.display, "the ghost is gone");
         }
 
