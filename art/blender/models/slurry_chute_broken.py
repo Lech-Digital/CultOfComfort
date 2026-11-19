@@ -16,5 +16,8 @@ def build():
     p.sphere(0.4, (0.15, -0.1, 0.02), "wet_mud", segments=8, rings=4, scale=(1.4, 1.1, 0.12), smooth=True)  # the spill
     for k, x in enumerate((-0.2, 0.05, 0.3)):
         p.box((0.13, 0.4, 0.03), (x, -0.62 - k * 0.05, 0.03), "fresh_log", bevel=0.006, rotation=(0, 0, 20 * k - 15))
+    # The remodel: the same stone pads as the standing chute (one knocked askew), so the wreck reads as that chute.
+    for x, y, tilt in ((-0.25, -0.22, 0), (0.25, -0.22, 18), (-0.25, 0.22, 0), (0.25, 0.22, -9)):
+        p.box((0.15, 0.15, 0.07), (x, y, 0.04), "fieldstone", bevel=0.02, bevel_segments=2, rotation=(tilt, 0, tilt * 2))
     p.build()
     return tower
