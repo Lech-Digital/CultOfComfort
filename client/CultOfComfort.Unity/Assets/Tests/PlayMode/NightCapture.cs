@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.IO;
+using System.Linq;
 using CultOfComfort.Contracts;
 using NUnit.Framework;
 using UnityEngine;
@@ -144,7 +145,46 @@ namespace CultOfComfort.Client.Tests
             PlayerPrefs.DeleteKey(GameController.RosterSeenKey);
         }
 
-        private static IEnumerator Capture(bool portrait)
+        /// <summary>
+        /// The store's captures (spec 2026-11-17 fun first, F5): the Pixel's full 1080 × 2424, a lived-in village at Dusk,
+        /// a close Night with the Prophet mid-skill, the breather's boons. Into store-assets/_src/shots/ for build.mjs.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator NightCapture_Store_WritesShots() => Capture(true, forStore: true);
+
+        /// <summary>A village worth a screenshot: Hearth 2, the first buildings, two towers by the road. Spots found by trying.</summary>
+        private static CultOfComfort.Simulation.Base.BaseData LivedIn(DateTimeOffset now)
+        {
+            var rich = new CultOfComfort.Simulation.Base.BuildingTable { StartingStock = new CultOfComfort.Simulation.Base.ResourceBag(20000, 5000, 5000, 500) };
+            var map = CultOfComfort.Simulation.Base.VillageMap.Demo;
+            var state = CultOfComfort.Simulation.Base.BaseState.CreateNew(rich, map, now);
+            state.Apply(new CultOfComfort.Simulation.Base.UpgradeHearth(Guid.NewGuid()), now);
+            state.Apply(new CultOfComfort.Simulation.Base.FinishConstructionNow(Guid.NewGuid()), now);
+            var hearth = map.HearthTiles[0];
+            var spots = Enumerable.Range(0, map.Width).SelectMany(x => Enumerable.Range(0, map.Height).Select(y => new CultOfComfort.Simulation.Grid.GridPosition(x, y)))
+                .OrderBy(p => Math.Abs(p.X - hearth.X) + Math.Abs(p.Y - hearth.Y)).ToList();
+            foreach (var type in new[]
+                     {
+                         CultOfComfort.Simulation.Base.BuildingType.Woodcutter, CultOfComfort.Simulation.Base.BuildingType.Cottage,
+                         CultOfComfort.Simulation.Base.BuildingType.StorageHut, CultOfComfort.Simulation.Base.BuildingType.CultistHut,
+                         CultOfComfort.Simulation.Base.BuildingType.PeatCut, CultOfComfort.Simulation.Base.BuildingType.Cottage,
+                         CultOfComfort.Simulation.Base.BuildingType.SlurryChute, CultOfComfort.Simulation.Base.BuildingType.SaplingFlinger,
+                     })
+            {
+                foreach (var spot in spots.Skip(6))
+                {
+                    if (state.Apply(new CultOfComfort.Simulation.Base.PlaceBuilding(Guid.NewGuid(), type, spot), now).Status == CultOfComfort.Simulation.Base.CommandStatus.Accepted)
+                    {
+                        state.Apply(new CultOfComfort.Simulation.Base.FinishConstructionNow(Guid.NewGuid()), now);
+                        break;
+                    }
+                }
+            }
+
+            return state.ToData();
+        }
+
+        private static IEnumerator Capture(bool portrait, bool forStore = false)
         {
             var clock = new Clock();
             var table = CultOfComfort.Simulation.Base.BuildingTable.Default;
@@ -154,6 +194,10 @@ namespace CultOfComfort.Client.Tests
             if (!string.IsNullOrEmpty(path) && File.Exists(path))
             {
                 data = VillageSaveMapping.FromDto(JsonUtility.FromJson<VillageSaveDto>(File.ReadAllText(path)));
+            }
+            else if (forStore)
+            {
+                data = LivedIn(clock.UtcNow);
             }
             else
             {
@@ -169,14 +213,14 @@ namespace CultOfComfort.Client.Tests
             yield return Frames(6);
             yield return GroundPainted();
 
-            var width = portrait ? Short : Long;
-            var height = portrait ? Long : Short;
+            var width = forStore ? 1080 : portrait ? Short : Long;
+            var height = forStore ? 2424 : portrait ? Long : Short;
             var game = UnityEngine.Object.FindAnyObjectByType<GameController>();
             var document = game.GetComponent<UIDocument>();
             var ui = new RenderTexture(width, height, 24);
             document.panelSettings.targetTexture = ui;
             document.panelSettings.scaleMode = PanelScaleMode.ConstantPixelSize;
-            document.panelSettings.scale = Scale;
+            document.panelSettings.scale = forStore ? Scale * 2f : Scale;
             document.panelSettings.clearColor = true;
             document.panelSettings.colorClearValue = new Color(0f, 0f, 0f, 0f);
             var world = new RenderTexture(width, height, 24) { antiAliasing = 4 };
@@ -187,6 +231,12 @@ namespace CultOfComfort.Client.Tests
             var suffix = portrait ? "portrait" : "landscape";
             var output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "..", "art", "previews", "night"));
             Directory.CreateDirectory(output);
+            if (forStore)
+            {
+                yield return StoreShots(game, world, ui, Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "..", "store-assets", "_src", "shots")));
+                yield break;
+            }
+
             Save(world, ui, Path.Combine(output, $"dusk_{suffix}.png"));
             game.StartNight();
             Time.captureDeltaTime = 1f / 30f;
@@ -203,6 +253,43 @@ namespace CultOfComfort.Client.Tests
                 {
                     yield return Frames(15);
                     Save(world, ui, Path.Combine(output, $"night_gap_{suffix}.png"));
+                    break;
+                }
+
+                yield return null;
+            }
+        }
+
+        private static IEnumerator StoreShots(GameController game, RenderTexture world, RenderTexture ui, string output)
+        {
+            Directory.CreateDirectory(output);
+            Save(world, ui, Path.Combine(output, "village.png"));
+            game.StartNight();
+            Time.captureDeltaTime = 1f / 30f;
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var field = typeof(GameController).GetField("_battle", flags);
+            var stones = typeof(GameController).GetMethod("ToggleAimingStones", flags);
+
+            // The Prophet mid-skill: Hot Stones on the first knot of raiders in reach, caught as they land.
+            for (var frame = 0; frame < 3000; frame++)
+            {
+                if (field.GetValue(game) is CultOfComfort.Simulation.Combat.Battle battle && battle.IsHotStonesReady && battle.BestHotStonesTarget() != null)
+                {
+                    stones.Invoke(game, null);
+                    yield return Frames(24); // as they land, in a puff
+                    Save(world, ui, Path.Combine(output, "night.png"));
+                    break;
+                }
+
+                yield return null;
+            }
+
+            for (var frame = 0; frame < 6000; frame++)
+            {
+                if (field.GetValue(game) is CultOfComfort.Simulation.Combat.Battle { IsGapOpen: true })
+                {
+                    yield return Frames(15);
+                    Save(world, ui, Path.Combine(output, "boons.png"));
                     break;
                 }
 

@@ -66,7 +66,7 @@ YOU DECIDE WHEN TO FIGHT
 
 A PROPHET, A VALLEY, A WORLD
 • Your Prophet fights at night, earns experience, climbs ten levels and picks perks.
-• Send missionaries across the world map, and pay tithes to keep the lords calm.
+• Send preachers across the world map, and pay tithes to keep the lords calm.
 • Your cult shares the world with other players' cults.
 • Seasons change the valley and the raids: spring floods a bridge, winter ices the river.
 
@@ -102,14 +102,18 @@ Regenerate: `node store-assets/_src/build.mjs`. Screens come from real phone cap
 
 | File | Headline / subline | Capture (`_src/shots/…`) |
 |---|---|---|
-| `phone-1-village.png` | Build a spa *out of junk.* | `village.png`: Hearth 5 village by day |
-| `phone-2-night.png` | When the raiders come, *hold the Hearth.* | `night.png`: a Night, the Prophet's torch lit at the Hearth |
-| `phone-3-towers.png` | Place, turn and *upgrade towers.* | `towers.png`: placing a Sapling Flinger, range and Turn showing |
-| `phone-4-warning.png` | Every raid *is announced.* | `warning.png`: Dusk, "Punitive raid · 7h 59m" |
-| `phone-5-world.png` | A world shared *with other cults.* | `world.png`: the lands map |
-| `phone-6-people.png` | Villagers with *a talent each.* | `prophet.png`: Cult → People, the notables |
-| `phone-7-festival.png` | Seven themed days *every week.* | `festival.png`: the Comfort Festival sheet |
-| `phone-8-verified.png` | Every raid replayed *and verified.* | `verified.png`: dawn card, 3 stars, VERIFIED |
+| `phone-1-village.png` | Build a spa *out of junk.* | `village.png`: a Hearth 2 village at Dusk (F5 capture) |
+| `phone-2-night.png` | When the raiders come, *hold the Hearth.* | `night.png`: a close Night, Hot Stones landing by the Hearth (F5 capture) |
+| `phone-3-boons.png` | Catch your breath, *pick a boon.* | `boons.png`: the breather, three boons and *Call now* (F5 capture) |
+| `phone-4-towers.png` | Place, turn and *upgrade towers.* | `towers.png`: placing a Sapling Flinger, range and Turn showing |
+| `phone-5-warning.png` | Every raid *is announced.* | `warning.png`: Dusk, "Punitive raid · 7h 59m" |
+| `phone-6-world.png` | A world shared *with other cults.* | `world.png`: the lands map |
+| `phone-7-people.png` | Villagers with *a talent each.* | `prophet.png`: Cult → People, the notables |
+| `phone-8-festival.png` | Seven themed days *every week.* | `festival.png`: the Comfort Festival sheet |
+
+The first three come from `NightCapture_Store_WritesShots` (a Unity PlayMode capture at the Pixel's 1080 × 2424:
+`unity test client/CultOfComfort.Unity --mode PlayMode --filter NightCapture_Store_WritesShots`); the rest are
+0.1.0's phone captures, still true of 0.2.0 but in the old look: retake them on the phone when convenient.
 
 Captures are portrait, 1080×2424, from the `coc-shots` emulator (Android 36, Pixel 9 profile, GPU on) running a
 non-development APK (`BuildAndroid -noDevelopment`) with the dev key, played up to Hearth 5 on 2026-10-20.

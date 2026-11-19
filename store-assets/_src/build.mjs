@@ -32,20 +32,17 @@ body{position:relative;font-family:'Fell',Georgia,serif;color:${T.parchment};
 
 const png = (path) => `data:image/png;base64,${readFileSync(path).toString('base64')}`;
 
-// ---------- feature graphic (1024×500): the duck in its tub on the Hearth's glow ----------
-const duck = png(join(REPO, 'art/branding/app_icon_render.png'));
+// ---------- feature graphic (1024×500): a close Night, the Hearth's glow and the fire (spec 2026-11-17 fun first, F5) ----------
+const nightShot = join(HERE, 'shots', 'night.png');
 const feature = doc(1024, 500, `
-<div style="position:absolute;inset:0;background:
-  radial-gradient(60% 95% at 80% 55%, rgba(255,190,90,.55) 0%, rgba(255,140,60,.18) 38%, transparent 70%),
-  linear-gradient(100deg, ${T.night} 0%, #2a2033 42%, #4a2e1c 100%);"></div>
-<div style="position:absolute;inset:0;background:repeating-conic-gradient(from 0deg at 80% 55%, rgba(255,217,138,.08) 0 6deg, transparent 6deg 18deg);"></div>
-<img src="${duck}" style="position:absolute;right:28px;top:22px;width:470px;height:470px;filter:drop-shadow(0 0 40px rgba(255,190,90,.55));">
-<div style="position:absolute;left:64px;top:0;bottom:0;width:560px;display:flex;flex-direction:column;justify-content:center;">
+<img src="${png(nightShot)}" style="position:absolute;inset:0;width:1024px;height:500px;object-fit:cover;object-position:50% 40%;">
+<div style="position:absolute;inset:0;background:linear-gradient(90deg, rgba(20,16,30,.96) 0%, rgba(20,16,30,.85) 38%, rgba(20,16,30,.15) 66%, transparent 100%);"></div>
+<div style="position:absolute;left:56px;top:0;bottom:0;width:520px;display:flex;flex-direction:column;justify-content:center;">
   <div class="sc" style="font-size:26px;letter-spacing:.14em;color:${T.glow};">Cult of Comfort</div>
-  <div class="marker" style="font-size:66px;line-height:1.05;margin:14px 0 22px;color:${T.parchment};text-shadow:0 3px 0 rgba(0,0,0,.35);">
+  <div class="marker" style="font-size:64px;line-height:1.05;margin:14px 0 22px;color:${T.parchment};text-shadow:0 3px 0 rgba(0,0,0,.35);">
     Build a spa.<br><span style="color:${T.glow};">Hold the night.</span>
   </div>
-  <div style="font-size:27px;line-height:1.35;color:#efe2c0;max-width:520px;">
+  <div style="font-size:26px;line-height:1.35;color:#efe2c0;max-width:480px;">
     A cozy medieval village builder, with tower defense when the raiders come.
   </div>
 </div>`);
@@ -68,13 +65,13 @@ const phone = (top, accent, sub, capture) => doc(PW, PH, `
 // features. Captures are 1080×2424 from the Pixel 10, portrait.
 const SCREENS = [
   ['1-village', 'Build a spa', 'out of junk.', 'A medieval village that runs on comfort — and grows while you are away.', 'village'],
-  ['2-night', 'When the raiders come,', 'hold the Hearth.', 'Live tower defense at night, with your Prophet in the thick of it.', 'night'],
-  ['3-towers', 'Place, turn and', 'upgrade towers.', 'Anywhere in the village, not just by the road.', 'towers'],
-  ['4-warning', 'Every raid', 'is announced.', 'Tension rises, a warning goes up, and you choose when to light the lamps.', 'warning'],
-  ['5-world', 'A world shared', 'with other cults.', 'Send missionaries, win over the valley, keep the lord calm.', 'world'],
-  ['6-people', 'Villagers with', 'a talent each.', 'Agnes the Axe, Sister Ember, Wet Willy — give them the job they love.', 'prophet'],
-  ['7-festival', 'Seven themed days', 'every week.', 'The Comfort Festival: three rewards a day for coming back.', 'festival'],
-  ['8-verified', 'Every raid replayed', 'and verified.', 'The server checks each Night, so nobody can fake a result. No ads.', 'verified'],
+  ['2-night', 'When the raiders come,', 'hold the Hearth.', 'Live tower defense at night: throw Hot Stones, and drive every raider off.', 'night'],
+  ['3-boons', 'Catch your breath,', 'pick a boon.', 'Between waves: a boon for the next one, or call it early for more Scrap.', 'boons'],
+  ['4-towers', 'Place, turn and', 'upgrade towers.', 'Anywhere in the village, not just by the road.', 'towers'],
+  ['5-warning', 'Every raid', 'is announced.', 'Tension rises, a warning goes up, and you choose when to light the lamps.', 'warning'],
+  ['6-world', 'A world shared', 'with other cults.', 'Send preachers, win over the valley, keep the lord calm.', 'world'],
+  ['7-people', 'Villagers with', 'a talent each.', 'Agnes the Axe, Sister Ember, Wet Willy — give them the job they love.', 'prophet'],
+  ['8-festival', 'Seven themed days', 'every week.', 'The Comfort Festival: three rewards a day for coming back.', 'festival'],
 ];
 
 const jobs = [['feature', feature, 1024, 500, 'feature-1024x500.png']];
