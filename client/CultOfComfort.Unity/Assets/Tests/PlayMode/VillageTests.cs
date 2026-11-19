@@ -314,7 +314,7 @@ namespace CultOfComfort.Client.Tests
             var battle = (CultOfComfort.Simulation.Combat.Battle)typeof(GameController).GetField("_battle", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(game);
             Assert.IsTrue(battle.AutoRelics, "tonight's relics fire themselves (owner 2026-10-15)");
             Assert.IsFalse(battle.InputLog.Any(i => i.Type == CultOfComfort.Simulation.Combat.PlayerActionType.DynamoTorch), "the button explains; it doesn't fire");
-            StringAssert.Contains("auto", root.Q<Button>("torch").Q<Label>().text);
+            StringAssert.Contains("Torch", root.Q<Button>("torch").Q<Label>().text, "the relic says its name: \"auto\" said nothing (review 2026-11-19)");
         }
 
         [UnityTest]

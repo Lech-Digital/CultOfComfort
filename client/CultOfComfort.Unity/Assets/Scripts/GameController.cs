@@ -1296,6 +1296,7 @@ namespace CultOfComfort.Client
                 {
                     _rig.Pan(_gesture.PanFrom, _gesture.PanTo);
                     _cameraTouchedAt = Time.time;
+                    _cameraHeld = true;
                 }
             }
 
@@ -1374,6 +1375,13 @@ namespace CultOfComfort.Client
 
         /// <summary>How long the Night camera waits after a pan or pinch before it follows the Prophet again.</summary>
         private const float FollowAfterTouchSeconds = 3f;
+
+        /// <summary>
+        /// A pan at Night holds the camera where the player put it until they next order the Prophet about (the reviewer
+        /// couldn't watch a long road: the camera went back to him a moment later). A pinch still eases back after
+        /// <see cref="FollowAfterTouchSeconds"/>.
+        /// </summary>
+        private bool _cameraHeld;
 
         /// <summary>World units the Prophet may stray from the stage's middle before the camera eases after him.</summary>
         private const float FollowDeadZone = 2.5f;
@@ -2163,6 +2171,7 @@ namespace CultOfComfort.Client
             _cardTerrain = null; // playtest 2026-11-17: a tree's card left open came back over the Dawn card
             _cooldowns.Clear(); // a new Battle counts its ticks from zero
             _cameraTouchedAt = float.NegativeInfinity;
+            _cameraHeld = false;
             _cardVisitor = false;
             _hud.ShowBuildingCard(null);
             _board.ClearStructureHealth();
@@ -2185,6 +2194,29 @@ namespace CultOfComfort.Client
             FrameStage(); // in close on the road for the fight
             _hud.ShowPhase(_phase);
             Announce("Night falls. Tap the ground to move the Prophet.");
+            IntroduceRelic();
+        }
+
+        /// <summary>
+        /// A relic that fires itself was never introduced: its tip came on first use, and the player never uses it (the
+        /// reviewer met two buttons saying "AUTO" and no word about them). Its tip comes on its first Night instead, one
+        /// relic a Night, at the first lull.
+        /// </summary>
+        private void IntroduceRelic()
+        {
+            if (_battle == null || !_battle.AutoRelics)
+            {
+                return;
+            }
+
+            foreach (var (relic, skill) in new[] { (Relic.LaserPointer, PlayerActionType.LaserPointer), (Relic.DynamoTorch, PlayerActionType.DynamoTorch), (Relic.Magnifier, PlayerActionType.SunFire) })
+            {
+                if (_battle.Relics.HasFlag(relic) && _tips.Waiting(skill))
+                {
+                    ShowFirstUseTip(skill);
+                    return;
+                }
+            }
         }
 
         // ---------------- Night: live battle ----------------
@@ -2237,6 +2269,7 @@ namespace CultOfComfort.Client
                 else
                 {
                     _battle.Intervene(PlayerActionType.MoveLeader, OrderSnap.Walkable(tile, _setup.Layout.IsWalkableForLeader) ?? tile);
+                    _cameraHeld = false; // an order: the camera goes back to him
                 }
             }
 
@@ -2266,7 +2299,7 @@ namespace CultOfComfort.Client
 
             _board.ShowLeaderDestination(_battle.Leader.IsMoving ? _battle.Leader.Destination : (GridPosition?)null);
             _battleView.Render(Mathf.Clamp01(_accumulator / TickSeconds));
-            if (Time.time - _cameraTouchedAt > FollowAfterTouchSeconds && _framePending == 0)
+            if (!_cameraHeld && Time.time - _cameraTouchedAt > FollowAfterTouchSeconds && _framePending == 0)
             {
                 _rig.Follow(Shapes.ToWorld(_battle.Leader.Position), FollowDeadZone, Time.deltaTime); // spec 2026-11-17 fun first, B1
             }
@@ -2338,7 +2371,7 @@ namespace CultOfComfort.Client
 
             var aiming = aimed != null && _aim == aimed;
             // A chip (spec 2026-11-17 fun first, B6): the icon says which relic, the word under it what it's doing.
-            var text = swooning ? "Fainted" : aiming ? "Pick" : ready ? (_battle.AutoRelics ? "auto" : name) : $"{Seconds(readyAtTick)}s";
+            var text = swooning ? "Fainted" : aiming ? "Pick" : ready ? name : $"{Seconds(readyAtTick)}s";
             return new RelicButtonState(true, text, ready, aiming, ready ? 0f : Cooldown(name, readyAtTick));
         }
 
@@ -3045,7 +3078,7 @@ namespace CultOfComfort.Client
                     Cooldown("sluice", _battle.SluiceReadyAtTick), Cooldown("voice", leader.VoiceReadyAtTick), Cooldown("stones", leader.HotStonesReadyAtTick),
                     _battle.Enemies.Count(e => e.State == EnemyState.Defeated),
                     GapNow(),
-                    NightRulesText.ObjectiveLine(_battle.Objective, _battle.ObjectiveMet)));
+                    NightRulesText.ObjectiveLine(_battle.Objective, _battle.ObjectiveMet, _battle.BestStones)));
             }
         }
 

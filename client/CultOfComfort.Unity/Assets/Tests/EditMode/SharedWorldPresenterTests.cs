@@ -59,7 +59,7 @@ namespace CultOfComfort.Client.Tests
             Assert.IsTrue(model.Lord.StartsWith("Lord ") || model.Lord.StartsWith("the Bishop of "), model.Lord);
             StringAssert.Contains(model.Lord.Substring(1), model.TensionLine, "the temper bar says whose temper it is");
             Assert.IsNotEmpty(model.TensionHelp);
-            Assert.GreaterOrEqual(model.Help.Count, 4, "the ? sheet explains missionaries, offerings, temper and tithes");
+            Assert.AreEqual(3, model.Help.Count, "the ? sheet: preaching, offerings, his temper and tithes, in three short lines (review 2026-11-19)");
         }
 
         [Test]

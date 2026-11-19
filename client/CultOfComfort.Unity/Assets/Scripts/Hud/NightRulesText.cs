@@ -34,10 +34,19 @@ namespace CultOfComfort.Client
         /// The line under the meters at Night: "Third star: no building wrecked ✓", or "… (missed)", or null. Words, not ✗:
         /// the HUD's font has no ✗, and it showed as an empty box on the phone (playtest 2026-11-18).
         /// </summary>
-        public static string ObjectiveLine(NightObjective objective, bool met)
+        public static string ObjectiveLine(NightObjective objective, bool met, int bestStones = 0)
         {
             var text = Objective(objective);
-            return text == null ? null : $"Third star: {text} {Mark(met)}";
+            if (text == null)
+            {
+                return null;
+            }
+
+            // Something still to do is "not yet", with how close, never "(missed)" before it could be met (review
+            // 2026-11-19: "three in one Hot Stone (missed)" from the first second).
+            return objective == NightObjective.ThreeInOneStone && !met
+                ? $"Third star: {text} · best {bestStones}/3"
+                : $"Third star: {text} {Mark(met)}";
         }
 
         public static string Mark(bool met) => met ? "✓" : "(missed)";

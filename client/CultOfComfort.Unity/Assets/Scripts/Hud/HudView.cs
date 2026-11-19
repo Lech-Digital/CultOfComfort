@@ -582,7 +582,7 @@ namespace CultOfComfort.Client
                 _floaters[i] = Text(string.Empty, "floater", "hidden");
                 _floaters[i].pickingMode = PickingMode.Ignore;
                 _floatStart[i] = float.NegativeInfinity;
-                _root.Add(_floaters[i]);
+                _root.Insert(0, _floaters[i]); // under the HUD: over the world, never over a sheet (review 2026-11-19: "+1 Peat" on Settings)
             }
 
             for (var i = 0; i < _edgeMarkers.Length; i++)

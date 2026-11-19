@@ -270,7 +270,7 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("Calm", VillagePresenter.TensionNote(calm.Snapshot(T0)));
             Assert.AreEqual("Wulfric's men are coming · 7h 12m", VillagePresenter.TensionNote(raided.Snapshot(T0.AddMinutes(48))));
             Assert.AreEqual("Punitive raid · 8h 00m", VillagePresenter.TensionNote(punitive.Snapshot(T0)));
-            Assert.AreEqual("Shielded · 11h 00m", VillagePresenter.TensionNote(shielded.Snapshot(T0.AddHours(1))));
+            Assert.AreEqual("Shielded · 3h 00m", VillagePresenter.TensionNote(shielded.Snapshot(T0.AddHours(1))));
             Assert.AreEqual("Face the raid · 7h 12m left", VillagePresenter.Start(raided.Snapshot(T0.AddMinutes(48)), false).Label);
             Assert.AreEqual("Light the Lamps (early)", VillagePresenter.Start(calm.Snapshot(T0), false).Label);
             var frame = VillagePresenter.Frame(raided.Snapshot(T0));
@@ -738,7 +738,7 @@ namespace CultOfComfort.Client.Tests
 
             // Assert
             Assert.IsFalse(card.CanUpgrade);
-            Assert.AreEqual("Need 350 Timber", card.UpgradeLabel);
+            Assert.AreEqual("Still need 350 Timber", card.UpgradeLabel);
             Assert.AreEqual(new ResourceBag(350, 0, 0, 0), VillagePresenter.Shortfall(new ResourceBag(100, 5, 50, 0), new ResourceBag(450, 0, 50, 0)));
         }
 

@@ -12,6 +12,8 @@ namespace CultOfComfort.Client.Tests
             // Act & Assert
             Assert.AreEqual("Third star: no building wrecked ✓", NightRulesText.ObjectiveLine(NightObjective.NothingWrecked, true));
             Assert.IsNull(NightRulesText.ObjectiveLine(NightObjective.None, true), "a Night planned before has none");
+            Assert.AreEqual("Third star: three raiders in one Hot Stone · best 2/3", NightRulesText.ObjectiveLine(NightObjective.ThreeInOneStone, false, 2),
+                "still to do: how close, not \"missed\"");
         }
 
         [Test]

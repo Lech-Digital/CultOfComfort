@@ -173,7 +173,7 @@ namespace CultOfComfort.Client
             if (!b.Wrecked && !b.IsUpgrading && !maxed && b.Type != BuildingType.Tree)
             {
                 upgradeLabel = b.Type != BuildingType.Hearth && b.Level + 1 > snapshot.HearthLevel ? $"Upgrade · needs Hearth {b.Level + 1}"
-                    : !snapshot.Stock.Covers(next.Cost) ? $"Need {ShortCost(Shortfall(snapshot.Stock, next.Cost))}"
+                    : !snapshot.Stock.Covers(next.Cost) ? $"Still need {ShortCost(Shortfall(snapshot.Stock, next.Cost))}"
                     : next.BuildSeconds > 0 && snapshot.FreeBuilders == 0 ? "Every builder is busy"
                     : upgradeLabel;
             }

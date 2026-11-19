@@ -482,15 +482,13 @@ namespace CultOfComfort.Client
             $"Your faith in his lands angers him. At {max} he raids your village. A tithe calms him.";
 
         /// <summary>What the map is for, in plain words (the ? sheet; shown once, the first time the map opens).</summary>
+        /// <remarks>Three short lines (review 2026-11-19: six bullets on the first visit were a wall of text).</remarks>
         public static List<string> Help(string lord, BuildingTable table, bool world) => new List<string>
         {
-            "Spread the faith. Tap a place and send a preacher: a villager with provisions walks there, preaches, and wins a share of the place's faith. While away, they don't work at home.",
-            $"Hold {table.Domain.PatronInfluence}% of a place and you're its Patron. The places you hold send offerings (Timber, Peat, Scrap, Devotion); they pile up here until you tap Collect.",
-            world ? "Other players' cults and wandering cults preach here too. The faithful split between you, and faith fades a little every day unless you keep preaching."
-                  : "Faith fades a little every day unless you keep preaching.",
-            $"{Capital(lord)} doesn't like it. The more faith you hold, the faster his temper (Tension) rises. When it's full he raids your village at night.",
-            "Pay a tithe to calm him: resources for a lower temper. During a raid warning, pay enough and he calls the raid off.",
-            "A bigger Hearth sends more preachers, further.",
+            "Tap a place and send a preacher: they win a share of its faith. Faith fades unless you keep preaching"
+                + (world ? ", and other cults preach here too." : "."),
+            $"Hold {table.Domain.PatronInfluence}% of a place to be its Patron: it sends you offerings. Tap Collect.",
+            $"{Capital(lord)} hates it: the more faith you hold, the faster his temper rises. A tithe calms him.",
         };
 
         private static string Capital(string text) => string.IsNullOrEmpty(text) ? text : char.ToUpperInvariant(text[0]) + text.Substring(1);
