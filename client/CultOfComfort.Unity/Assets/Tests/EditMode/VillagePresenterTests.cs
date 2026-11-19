@@ -726,5 +726,30 @@ namespace CultOfComfort.Client.Tests
             Assert.AreEqual("3k Timber · 150 Devotion", VillagePresenter.ShortCost(new ResourceBag(3000, 0, 0, 150)));
             Assert.AreEqual("free", VillagePresenter.ShortCost(default));
         }
+
+        [Test]
+        public void Card_UpgradeOutOfReach_TheButtonSaysWhatsMissing()
+        {
+            // Arrange — Hearth 1 with no Timber: the upgrade asks 450 (spec 2026-11-17 fun first, F4).
+            var state = BaseState.CreateNew(new BuildingTable { StartingStock = new ResourceBag(100, 0, 50, 0) }, VillageMap.Demo, T0);
+
+            // Act
+            var card = VillagePresenter.Card(state.Snapshot(T0), BuildingTable.Default, 0);
+
+            // Assert
+            Assert.IsFalse(card.CanUpgrade);
+            Assert.AreEqual("Need 350 Timber", card.UpgradeLabel);
+            Assert.AreEqual(new ResourceBag(350, 0, 0, 0), VillagePresenter.Shortfall(new ResourceBag(100, 5, 50, 0), new ResourceBag(450, 0, 50, 0)));
+        }
+
+        [Test]
+        public void NoteFor_EachCategory_ItsOwnColour()
+        {
+            // Act & Assert (F4: a colour per category, not per position in the drawer)
+            Assert.AreEqual("note-yellow", HudView.NoteFor(VillagePresenter.Work));
+            Assert.AreEqual("note-pink", HudView.NoteFor(VillagePresenter.Homes));
+            Assert.AreEqual("note-blue", HudView.NoteFor(VillagePresenter.Defence));
+            Assert.AreEqual("note-green", HudView.NoteFor(VillagePresenter.Roads));
+        }
     }
 }

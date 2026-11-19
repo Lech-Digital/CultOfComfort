@@ -869,14 +869,13 @@ namespace CultOfComfort.Client
                 _cardsSignature = signature;
                 _drawer.Clear();
                 _cards.Clear();
-                var notes = new[] { "note-yellow", "note-pink", "note-green", "note-blue" };
                 foreach (var card in cards)
                 {
                     var model = card;
                     var button = new Button(() => PickCard(model)) { name = $"card-{card.Type}" };
                     button.AddToClassList("btn");
                     button.AddToClassList("build-card");
-                    button.AddToClassList(notes[_cards.Count % notes.Length]);
+                    button.AddToClassList(NoteFor(card.Category)); // a colour per category (F4)
                     button.AddToClassList(_cards.Count % 2 == 0 ? "tilt-left" : "tilt-right");
                     button.EnableInClassList("locked", card.Locked);
                     button.EnableInClassList("unaffordable", !card.Affordable);
@@ -904,6 +903,15 @@ namespace CultOfComfort.Client
                 pair.Value.EnableInClassList("selected", pair.Key == selected);
             }
         }
+
+        /// <summary>A build card's note colour: what it's for, at a glance (spec 2026-11-17 fun first, F4). Pure.</summary>
+        public static string NoteFor(string category) => category switch
+        {
+            VillagePresenter.Homes => "note-pink",
+            VillagePresenter.Defence => "note-blue",
+            VillagePresenter.Work => "note-yellow",
+            _ => "note-green",
+        };
 
         /// <summary>Shows one tab of the build drawer: only its cards, scrolled back to the start.</summary>
         public void ShowBuildTab(string category)

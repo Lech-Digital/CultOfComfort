@@ -169,6 +169,15 @@ namespace CultOfComfort.Client
                 : b.Type == BuildingType.WoodenWall ? $"Rebuild in stone · {ShortCost(next.Cost)}"
                 : b.Type == BuildingType.Gate ? (b.Level == 1 ? $"Bind it with iron · {ShortCost(next.Cost)}" : $"Build a gatehouse · {ShortCost(next.Cost)}")
                 : next.BuildSeconds == 0 ? $"Upgrade · {ShortCost(next.Cost)}" : $"Upgrade · {ShortCost(next.Cost)} · {Duration(next.BuildSeconds)}";
+            // A disabled button says why (spec 2026-11-17 fun first, F4): "Need 287 Timber", not a grey button to guess at.
+            if (!b.Wrecked && !b.IsUpgrading && !maxed && b.Type != BuildingType.Tree)
+            {
+                upgradeLabel = b.Type != BuildingType.Hearth && b.Level + 1 > snapshot.HearthLevel ? $"Upgrade · needs Hearth {b.Level + 1}"
+                    : !snapshot.Stock.Covers(next.Cost) ? $"Need {ShortCost(Shortfall(snapshot.Stock, next.Cost))}"
+                    : next.BuildSeconds > 0 && snapshot.FreeBuilders == 0 ? "Every builder is busy"
+                    : upgradeLabel;
+            }
+
             if (b.Type == BuildingType.Tree)
             {
                 return new BuildingCardModel
@@ -188,7 +197,7 @@ namespace CultOfComfort.Client
                     : b.Type == BuildingType.Gate ? (b.Level >= 3 ? "Gatehouse" : b.Level == 2 ? "Iron-bound Gate" : "Wooden Gate")
                     : b.Level == 0 ? $"{spec.Name} · being built" : $"{spec.Name} · level {b.Level}",
                 IsWrecked = b.Wrecked,
-                RepairLabel = b.Wrecked ? $"Repair · {repair}" : string.Empty,
+                RepairLabel = !b.Wrecked ? string.Empty : snapshot.Stock.Covers(repair) ? $"Repair · {repair}" : $"Repair · need {ShortCost(Shortfall(snapshot.Stock, repair))}",
                 CanRepair = b.Wrecked && snapshot.Stock.Covers(repair),
                 Output = b.Wrecked ? (spec.IsTower ? "Wrecked — won't fire until repaired" : "Wrecked — produces nothing")
                     : !b.Connected ? "Not connected — build a road to it"
@@ -514,6 +523,11 @@ namespace CultOfComfort.Client
         }
 
         /// <summary>A cost that fits on a card: "1.5k Timber · 200 Peat · 200 Scrap · 50 Dev" (full names for one or two resources).</summary>
+        /// <summary>What's missing to pay <paramref name="cost"/>: each resource short, nothing for what's covered. Pure.</summary>
+        public static ResourceBag Shortfall(ResourceBag stock, ResourceBag cost) => new(
+            System.Math.Max(0, cost.Timber - stock.Timber), System.Math.Max(0, cost.Peat - stock.Peat),
+            System.Math.Max(0, cost.Scrap - stock.Scrap), System.Math.Max(0, cost.Devotion - stock.Devotion));
+
         public static string ShortCost(ResourceBag cost)
         {
             var parts = new System.Collections.Generic.List<string>();

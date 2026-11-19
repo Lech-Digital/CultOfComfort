@@ -20,7 +20,7 @@
 
 .hidden { display: none; }
 .spacer { flex-grow: 1; }
-.small { font-size: 11px; color: #6b5a44; }
+.small { font-size: 12px; color: #6b5a44; }
 .icon { width: 22px; height: 22px; -unity-background-scale-mode: scale-to-fit; flex-shrink: 0; }
 
 .icon-timber { background-image: resource("UI/Icons/timber"); }
@@ -65,7 +65,7 @@
 .pill-value { color: #f6e7c4; -unity-font-style: bold; font-size: 13px; margin-left: 3px; padding: 0; }
 .pill-note .pill-value { color: #2b2215; -unity-font-definition: resource("UI/Fonts/PermanentMarker"); }
 .demo-tag {
-    display: none; font-size: 8px; color: #ffcf80; margin-left: 3px; padding: 0;
+    display: none; font-size: 11px; color: #ffcf80; margin-left: 3px; padding: 0;
     -unity-font-definition: resource("UI/Fonts/PermanentMarker");
 }
 .demo > .demo-tag { display: flex; }
@@ -120,7 +120,7 @@
     background-image: resource("UI/Kit/hazard"); background-repeat: repeat; background-size: 32px 32px; }
 .lord-face { position: absolute; top: -9px; width: 34px; height: 34px; translate: -17px 0; border-radius: 17px;
     border-color: #2b2215; border-width: 2px; background-color: #f1e3c0; }
-.season-line { position: absolute; bottom: -16px; left: -10px; right: -10px; font-size: 10px; color: #f6e7c4; padding: 0;
+.season-line { position: absolute; bottom: -16px; left: -10px; right: -10px; font-size: 12px; color: #f6e7c4; padding: 0;
     -unity-text-align: middle-center; text-shadow: 0 1px 2px rgba(0,0,0,0.95); }
 .marker-note, .wave-label {
     -unity-font-definition: resource("UI/Fonts/PermanentMarker");
@@ -141,7 +141,7 @@
 .middle { flex-grow: 1; flex-direction: row; justify-content: space-between; align-items: flex-start; margin-top: 10px; }
 .side { flex-direction: column; }
 .shortcut { align-items: center; margin-bottom: 10px; }
-.shortcut-label { font-size: 10px; color: #fff3d6; text-shadow: 0 1px 2px #000; padding: 0; margin-top: 2px; }
+.shortcut-label { font-size: 12px; color: #fff3d6; text-shadow: 0 1px 2px #000; padding: 0; margin-top: 2px; }
 .locked > .icon { opacity: 0.55; }
 .padlock { position: absolute; right: -2px; bottom: -2px; width: 18px; height: 18px; background-image: resource("UI/Kit/padlock"); }
 
@@ -249,15 +249,15 @@
 
 /* ---------- village: build drawer ---------- */
 
-.drawer { height: 116px; flex-grow: 1; flex-shrink: 1; }
+.drawer { height: 162px; flex-grow: 1; flex-shrink: 1; }
 .portrait .drawer { margin-bottom: 8px; }
-.build-card { width: 100px; height: 108px; margin-right: 8px; padding: 4px 4px 8px 4px; align-items: center; justify-content: flex-start; }
-.card-icon { width: 36px; height: 36px; flex-shrink: 0; }
-.card-name { font-size: 10px; padding: 0; -unity-text-align: middle-center; white-space: normal; }
-.card-cost { font-size: 9px; padding: 0; color: #5a3d1e; -unity-text-align: middle-center; white-space: normal; }
-.card-time { position: absolute; top: 7px; left: 12px; font-size: 9px; padding: 0; color: #5a3d1e; }
-.card-size { position: absolute; top: 20px; left: 12px; font-size: 9px; color: #5a3d1e; padding: 0; -unity-font-style: bold; }
-.card-lock { display: none; position: absolute; top: 7px; right: 12px; font-size: 9px; color: #a8322a; padding: 0; }
+.build-card { width: 112px; height: 154px; margin-right: 8px; padding: 4px 4px 8px 4px; align-items: center; justify-content: flex-start; }
+.card-icon { width: 56px; height: 56px; flex-shrink: 0; margin-top: 16px; }
+.card-name { font-size: 13px; padding: 0; -unity-text-align: middle-center; white-space: normal; }
+.card-cost { font-size: 11px; padding: 0; color: #5a3d1e; -unity-text-align: middle-center; white-space: normal; }
+.card-time { position: absolute; top: 7px; left: 12px; font-size: 11px; padding: 0; color: #5a3d1e; }
+.card-size { position: absolute; top: 7px; right: 12px; font-size: 11px; color: #5a3d1e; padding: 0; -unity-font-style: bold; }
+.card-lock { display: none; position: absolute; top: 7px; left: 12px; font-size: 11px; color: #a8322a; padding: 0; }
 .build-card.locked { opacity: 0.6; }
 .build-card.locked > .card-lock { display: flex; }
 .build-card.locked > .card-time { display: none; }
@@ -273,11 +273,11 @@
 .icon-b_sapling_flinger { background-image: resource("UI/Icons/b_sapling_flinger"); }
 
 /* landscape is short: a compact drawer so the board keeps most of the screen */
-.landscape .drawer { height: 78px; }
-.landscape .build-card { width: 84px; height: 72px; padding: 2px 3px 4px 3px; }
-.landscape .card-icon { width: 26px; height: 26px; }
-.landscape .card-name { font-size: 9px; }
-.landscape .card-cost { font-size: 8px; }
+.landscape .drawer { height: 100px; }
+.landscape .build-card { width: 140px; height: 94px; padding: 2px 3px 4px 3px; }
+.landscape .card-icon { width: 30px; height: 30px; margin-top: 15px; }
+.landscape .card-name { font-size: 11px; }
+.landscape .card-cost { font-size: 11px; }
 .landscape .bar { padding: 6px 10px; }
 .landscape .primary { height: 44px; }
 .sheet .sheet-title { white-space: normal; font-size: 19px; }
@@ -287,7 +287,7 @@
 .landscape .sheet { top: 2%; padding: 6px 12px; }
 .landscape .sheet .plain { height: 26px; margin-top: 3px; font-size: 13px; }
 .landscape .sheet .sheet-title { font-size: 16px; margin-bottom: 2px; }
-.landscape .sheet .sheet-line { font-size: 11px; margin-top: 1px; }
+.landscape .sheet .sheet-line { font-size: 12px; margin-top: 1px; }
 .icon-b_stone { background-image: resource("UI/Icons/b_stone"); }
 .icon-b_tree { background-image: resource("UI/Icons/b_tree"); }
 .rotate-button { position: absolute; right: 8px; top: -58px; width: 104px; height: 46px; font-size: 16px; background-color: #efe2c0; border-color: #6d4c2f; border-width: 3px; border-radius: 8px; color: #3b2614; -unity-font-style: bold; }
@@ -330,9 +330,9 @@
     width: 62%; margin: 2px 0 0 0; padding: 6px 10px 8px 10px; align-items: flex-start; rotate: -1deg; /* compact: the board stays visible */
     color: #2b2215; border-width: 0; background-color: rgba(0, 0, 0, 0);
 }
-.errand-heading { font-size: 9px; color: #7a5a2a; padding: 0; margin: 0; }
+.errand-heading { font-size: 11px; color: #7a5a2a; padding: 0; margin: 0; }
 .errand-text { font-size: 12px; white-space: normal; padding: 0; margin: 1px 0 0 0; -unity-text-align: upper-left; }
-.errand-reward { font-size: 10px; color: #5b6b2a; padding: 0; margin: 2px 0 0 0; }
+.errand-reward { font-size: 12px; color: #5b6b2a; padding: 0; margin: 2px 0 0 0; }
 .errand-claim {
     display: none; position: absolute; right: 6px; bottom: 4px; padding: 1px 6px; font-size: 12px; rotate: -6deg;
     color: #2f7a35; border-width: 2px; border-color: #2f7a35; border-radius: 4px;
@@ -358,7 +358,7 @@
 /* ---------- relics from the boot (GDD 05) ---------- */
 .relics { flex-direction: row; margin-bottom: 6px; }
 .relic { height: 54px; flex-grow: 1; max-width: 33%; }
-.relic .skill-text { font-size: 11px; }
+.relic .skill-text { font-size: 12px; }
 
 .sheet-row { flex-direction: row; }
 /* Who's coming tonight (spec 2026-11-17 fun first, B5). */
@@ -368,7 +368,7 @@
 .roster-row { margin: 4px 0 2px 0; }
 .roster-head { flex-direction: row; align-items: center; }
 .roster-name { -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC"); color: #7a1f1a; font-size: 15px; padding: 0; margin: 0; }
-.roster-new { background-color: #ffe14d; color: #2b2215; font-size: 10px; -unity-font-style: bold; padding: 0 4px; margin: 0 0 0 6px; border-radius: 3px; }
+.roster-new { background-color: #ffe14d; color: #2b2215; font-size: 12px; -unity-font-style: bold; padding: 0 4px; margin: 0 0 0 6px; border-radius: 3px; }
 .landscape .roster .roster-name { font-size: 13px; }
 .sheet-row > .btn, .sheet-row > Button { flex-grow: 1; flex-basis: 0; margin-right: 6px; }
 
@@ -396,9 +396,9 @@
 .relics { flex-direction: row; margin-bottom: 6px; flex-wrap: wrap; }
 .relic { height: 34px; flex-grow: 0; flex-shrink: 0; width: 104px; max-width: 104px; margin-right: 6px; flex-direction: row; padding: 2px 6px; justify-content: flex-start; }
 .relic .skill-icon { width: 24px; height: 24px; margin-right: 4px; }
-.relic .skill-text { font-size: 11px; -unity-text-align: middle-left; flex-shrink: 1; }
+.relic .skill-text { font-size: 12px; -unity-text-align: middle-left; flex-shrink: 1; }
 .skill { flex-basis: 0; flex-shrink: 1; min-width: 0; height: 58px; }
-.skill .skill-text { font-size: 11px; }
+.skill .skill-text { font-size: 12px; }
 .speed { flex-basis: auto; flex-grow: 0; flex-shrink: 0; width: 52px; }
 /* landscape: one short row, relics stacked at the side; the board keeps the screen */
 .landscape .night-bar { flex-direction: row; align-items: center; flex-wrap: wrap; }
@@ -407,7 +407,7 @@
 .landscape .relic .skill-icon { width: 20px; height: 20px; }
 .landscape .skills { flex-grow: 1; flex-shrink: 1; }
 .landscape .skill { height: 50px; max-width: 120px; }
-.landscape .night-bar > .hint { width: 100%; font-size: 10px; margin-top: 2px; }
+.landscape .night-bar > .hint { width: 100%; font-size: 12px; margin-top: 2px; }
 /* landscape dusk: the drawer gives way to the buttons instead of running under them */
 .landscape .dusk-bar > .drawer { flex-grow: 1; flex-shrink: 1; min-width: 0; }
 .landscape .dusk-bar > .actions { flex-grow: 0; flex-shrink: 0; margin-left: 8px; }
@@ -431,22 +431,22 @@
 }
 .build-tab-open { background-color: #f6e7c4; color: #3a2a18; border-color: #f6e7c4; }
 .landscape .build-tabs { flex-direction: column; margin: 0 6px 0 0; }
-.landscape .build-tab { font-size: 11px; padding: 1px 8px; margin: 1px 0; }
+.landscape .build-tab { font-size: 12px; padding: 0 8px; margin: 1px 0; }
 /* the Prophet's daily list (spec 2026-10-15) */
 .daily-note { width: 68%; max-width: 340px; }
 .daily-text { font-size: 12px; white-space: normal; color: #2b2215; -unity-font-definition: resource("UI/Fonts/PermanentMarker"); }
 .daily-claimed .daily-text { opacity: 0.5; }
-.daily-button { font-size: 11px; padding: 2px 8px; margin-left: 6px; height: 26px; border-radius: 6px; background-color: rgba(43, 34, 21, 0.85); color: #f6e7c4; border-width: 0; }
+.daily-button { font-size: 12px; padding: 2px 8px; margin-left: 6px; height: 26px; border-radius: 6px; background-color: rgba(43, 34, 21, 0.85); color: #f6e7c4; border-width: 0; }
 .daily-swap { background-color: rgba(43, 34, 21, 0.35); color: #2b2215; }
 .daily-thermos { margin-top: 6px; height: 30px; font-size: 13px; border-radius: 8px; background-color: #46618c; color: #f6e7c4; border-width: 0; }
-.daily-footer { font-size: 10px; color: #5a4632; margin-top: 4px; white-space: normal; }
+.daily-footer { font-size: 12px; color: #5a4632; margin-top: 4px; white-space: normal; }
 .daily-note { padding: 5px 9px 6px 9px; }
 .daily-line { flex-direction: column; align-items: stretch; align-self: stretch; margin-top: 3px; }
 .daily-under { flex-direction: row; align-items: center; justify-content: space-between; }
-.daily-text { font-size: 10px; margin: 0; padding: 0; }
-.daily-line .errand-reward { font-size: 9px; margin: 0; }
-.daily-button { flex-shrink: 0; height: 22px; font-size: 10px; padding: 1px 6px; }
-.daily-footer { font-size: 9px; margin-top: 2px; }
+.daily-text { font-size: 12px; margin: 0; padding: 0; }
+.daily-line .errand-reward { font-size: 11px; margin: 0; }
+.daily-button { flex-shrink: 0; height: 22px; font-size: 12px; padding: 1px 6px; }
+.daily-footer { font-size: 11px; margin-top: 2px; }
 
 /* ---------- a calmer frame (2026-10-16: "the main screen is not really readable, a lot going on") ---------- */
 .identity { align-items: flex-start; }
@@ -496,7 +496,7 @@
 .night-bar, .landscape .night-bar { flex-direction: row; align-items: flex-end; justify-content: space-between; flex-wrap: nowrap; }
 .night-side { flex-grow: 1; flex-shrink: 1; min-width: 0; justify-content: flex-end; padding-bottom: 4px; }
 .night-side > .hint { margin: 0 8px 6px 0; font-size: 12px; text-shadow: 0 1px 2px rgba(0,0,0,0.95); }
-.landscape .night-side > .hint { display: flex; font-size: 11px; }
+.landscape .night-side > .hint { display: flex; font-size: 12px; }
 .night-side > .relics, .landscape .night-side > .relics { flex-direction: row; flex-wrap: wrap; margin: 0; }
 
 .night-bar .skill-arc, .landscape .night-bar .skill-arc { flex-grow: 0; flex-shrink: 0; width: 176px; height: 142px; }
@@ -511,8 +511,8 @@
 .night-bar .skill-arc > .arc-high { width: 60px; height: 60px; left: 34px; top: 0; border-radius: 30px; }
 .night-bar .skill-arc .skill-icon { width: 26px; height: 26px; }
 .night-bar .skill-arc > .arc-corner .skill-icon { width: 32px; height: 32px; }
-.night-bar .skill-arc .skill-text { font-size: 9px; white-space: nowrap; }
-.night-bar .skill-arc > .arc-corner .skill-text { font-size: 10px; }
+.night-bar .skill-arc .skill-text { font-size: 11px; white-space: nowrap; }
+.night-bar .skill-arc > .arc-corner .skill-text { font-size: 12px; }
 
 .night-bar .relics > .relic, .landscape .night-bar .relics > .relic {
     width: 50px; min-width: 50px; max-width: 50px; height: 50px; margin: 0 6px 0 0; padding: 4px 2px 6px 2px;
@@ -520,7 +520,7 @@
     -unity-slice-left: 0; -unity-slice-right: 0; -unity-slice-top: 0; -unity-slice-bottom: 0;
 }
 .night-bar .relics > .relic .skill-icon { width: 22px; height: 22px; margin: 0; }
-.night-bar .relics > .relic .skill-text { font-size: 9px; -unity-text-align: middle-center; white-space: nowrap; }
+.night-bar .relics > .relic .skill-text { font-size: 11px; -unity-text-align: middle-center; white-space: nowrap; }
 
 .skill-ring { position: absolute; left: -3px; top: -3px; right: -3px; bottom: -3px; }
 /* landscape: the height is short, so the notes sit in one low row in the corner instead of an arc (still under 18%) */
@@ -541,20 +541,20 @@
 .portrait #wave-strip > .meter { flex-grow: 1; flex-basis: 0; min-width: 0; margin: 2px 12px 0 16px; }
 .portrait #wave-strip .meter-label { width: auto; margin-right: 6px; font-size: 12px; }
 .portrait #wave-strip .meter-track { height: 14px; }
-.portrait #wave-strip .meter-value { width: 28px; font-size: 11px; }
+.portrait #wave-strip .meter-value { width: 28px; font-size: 12px; }
 
 /* ---------- a Night that needs you (spec 2026-11-17 fun first, C) ---------- */
-.objective-line { width: 100%; color: #ffe14d; font-size: 11px; padding: 0; margin: 2px 0 0 24px; text-shadow: 0 1px 2px rgba(0,0,0,0.95); }
+.objective-line { width: 100%; color: #ffe14d; font-size: 12px; padding: 0; margin: 2px 0 0 24px; text-shadow: 0 1px 2px rgba(0,0,0,0.95); }
 .gap-row { flex-direction: column; align-items: stretch; margin: 0 0 6px 0; }
 .gap-note { color: #f6e7c4; font-size: 13px; padding: 0 4px; margin: 0 0 4px 0; white-space: normal; text-shadow: 0 1px 2px rgba(0,0,0,0.95); -unity-text-align: middle-center; }
 .gap-notes { flex-direction: row; align-items: center; justify-content: center; }
-.boon { flex-grow: 1; flex-basis: 0; min-width: 0; max-width: 118px; min-height: 74px; margin: 0 3px; padding: 8px 6px 10px 6px; justify-content: center; align-items: center; rotate: -1deg; }
-.boon-title { font-size: 11px; padding: 0; white-space: normal; -unity-text-align: middle-center; }
-.boon-text { -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC"); font-size: 10px; padding: 0; margin-top: 2px; white-space: normal; -unity-text-align: middle-center; color: #3b2614; }
+.boon { flex-grow: 1; flex-basis: 0; min-width: 0; max-width: 118px; min-height: 74px; margin: 0 3px; padding: 8px 6px 14px 6px; justify-content: center; align-items: center; rotate: -1deg; }
+.boon-title { font-size: 12px; padding: 0; white-space: normal; -unity-text-align: middle-center; }
+.boon-text { -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC"); font-size: 11px; padding: 0; margin-top: 2px; white-space: normal; -unity-text-align: middle-center; color: #3b2614; }
 .call-wave { width: 70px; height: 70px; border-radius: 35px; margin: 0 4px 0 8px; padding: 4px; justify-content: center; align-items: center;
     -unity-slice-left: 0; -unity-slice-right: 0; -unity-slice-top: 0; -unity-slice-bottom: 0; }
-.call-title { font-size: 11px; padding: 0; -unity-text-align: middle-center; }
-.call-text { -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC"); font-size: 9px; padding: 0; -unity-text-align: middle-center; color: #3b2614; }
+.call-title { font-size: 12px; padding: 0; -unity-text-align: middle-center; }
+.call-text { -unity-font-definition: resource("UI/Fonts/ImFellEnglishSC"); font-size: 11px; padding: 0; -unity-text-align: middle-center; color: #3b2614; }
 .landscape .boon { min-height: 50px; max-width: 160px; padding: 4px 6px 6px 6px; }
 /* landscape: the strip is one row; the objective takes a line of its own under it */
 .landscape #wave-strip { flex-wrap: wrap; }
