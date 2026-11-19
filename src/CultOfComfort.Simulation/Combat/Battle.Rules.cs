@@ -18,6 +18,9 @@ public sealed partial class Battle
     /// <summary>The rules this file adds (the balance version 2026.11.1).</summary>
     public const int FunFirstRules = 1;
 
+    /// <summary>Rules 1: how many buildings one raider goes off the road for before it makes for the Hearth.</summary>
+    public const int RaidsPerRaider = 2;
+
     /// <summary>
     /// The breather between waves (C5: 8 seconds before). 15, not the spec's 10: on the emulator (playtest 2026-11-18) the
     /// wave came before three boon notes could be read. Calling early still pays for cutting it short.

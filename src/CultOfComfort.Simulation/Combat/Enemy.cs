@@ -75,8 +75,12 @@ public sealed class Enemy
 
     internal bool IsRaiding => RaidRoute != null;
 
+    /// <summary>How many raids off the road this raider has set out on (rules 1 caps it: <see cref="Battle.RaidsPerRaider"/>).</summary>
+    internal int RaidsStarted { get; private set; }
+
     internal void StartRaid(int targetId, List<GridPosition> route)
     {
+        RaidsStarted++;
         RaidTargetId = targetId;
         RaidRoute = route;
         RaidStep = 0;

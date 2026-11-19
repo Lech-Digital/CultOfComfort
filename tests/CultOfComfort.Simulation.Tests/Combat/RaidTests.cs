@@ -138,4 +138,30 @@ public class RaidTests
         structures[new GridPosition(14, 4)].Should().Match<PlacedStructure>(s => s.Barrier && s.Gate && s.MaxHealth == 200);
         structures[new GridPosition(15, 4)].Barrier.Should().BeTrue();
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(Battle.FunFirstRules)]
+    public void Raider_AStreetOfHuts_RaidsTwoThenMakesForTheHearthByRulesOne(int rules)
+    {
+        // Arrange — a hut two tiles off the road at every step: plenty to loot (pace bot, Hearth 4: a Night of looting
+        // to the clock while the Hearth stood untouched).
+        var huts = Enumerable.Range(1, 9).Select(x => new PlacedStructure(200 + x, new GridPosition(x, 2), 60, 60)).ToList();
+        var setup = new BattleSetup(Layout(huts), 11, 24, 1, [], new Balance.BalanceTable { HearthMaxHealth = 100_000 }) { Rules = rules };
+        var battle = new Battle(setup);
+
+        // Act
+        battle.RunToCompletion();
+
+        // Assert
+        var most = battle.Enemies.Max(e => e.RaidsStarted);
+        if (rules >= Battle.FunFirstRules)
+        {
+            most.Should().BeLessThanOrEqualTo(Battle.RaidsPerRaider);
+        }
+        else
+        {
+            most.Should().BeGreaterThan(Battle.RaidsPerRaider, "the old rules let them loot every hut on the way");
+        }
+    }
 }

@@ -983,7 +983,11 @@ public sealed partial class Battle
             }
         }
 
-        foreach (var structure in best != null ? Enumerable.Empty<Structure>() : _structures)
+        // Rules 1: a raider raids a couple of buildings, then makes for the Hearth. Before, a big village kept a pack
+        // looting off the road for the whole Night while the Hearth stood untouched, five minutes to the clock (pace bot,
+        // Hearth 4). A decoy duck still pulls them in: it's the player's trick.
+        var raidedEnough = _rules >= FunFirstRules && enemy.RaidsStarted >= RaidsPerRaider;
+        foreach (var structure in best != null || raidedEnough ? Enumerable.Empty<Structure>() : _structures)
         {
             if (structure.IsWrecked || enemy.StructuresHit.Contains(structure.Id) || (structure.IsBarrier && !enemy.WallBreaker))
             {
