@@ -23,6 +23,13 @@ def build():
         base.box((0.13, 0.92, 0.03), (x, -0.58, 0.47), "fresh_log", bevel=0.006, rotation=(54, 0, k - 1))
     base.box((0.42, 0.08, 0.06), (0, -0.86, 0.04), "old_wood", bevel=0.01)                  # ramp foot
     base.sphere(0.07, (0.04, -0.92, 0.04), "wet_mud", segments=6, rings=4, scale=(1.4, 1.2, 0.4), smooth=True)  # puddle
+    # The remodel (the target frame night-final): stone pads under the stilts, the slurry running down the ramp in a
+    # stream, a spare bucket by the foot: it reads as a mud-slinging machine from above.
+    for x, y in ((-0.25, -0.22), (0.25, -0.22), (-0.25, 0.22), (0.25, 0.22)):
+        base.box((0.15, 0.15, 0.07), (x, y, 0.04), "fieldstone", bevel=0.02, bevel_segments=2)
+    base.box((0.1, 0.86, 0.012), (0.0, -0.6, 0.53), "wet_mud", bevel=0.004, rotation=(54, 0, 0))   # the stream
+    base.cylinder(0.08, 0.14, (0.3, -0.8, 0.07), "tarred_wood", segments=8)                         # bucket
+    base.cylinder(0.068, 0.01, (0.3, -0.8, 0.14), "wet_mud", segments=8)
     base_obj = base.build()
 
     (Part("Gate", pivot=(0, -0.32, 0.86), parent=base_obj)

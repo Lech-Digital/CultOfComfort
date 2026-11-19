@@ -26,5 +26,14 @@ def build():
     for k, colour in enumerate(("linen", "woad", "linen")):
         b.box((0.12, 0.015, 0.18), (0.44 + k * 0.07, -0.36 + k * 0.14, 0.58), colour, bevel=0.003, rotation=(0, 0, -27))
     wattle_fence(b, (-0.6, 0.5), (0.5, 0.5), height=0.3)
+    # The remodel (the target frame day-final): a fieldstone footing, a teal towel banner on a pole (the Cult's colour,
+    # the Prophet's T-shirt), a bench by the door to sit and be comfortable on.
+    b.box((0.9, 0.8, 0.07), (-0.1, 0.05, 0.08), "fieldstone", bevel=0.02, bevel_segments=2, rotation=(0, 0, 2))
+    b.cylinder(0.02, 1.15, (-0.62, -0.38, 0.6), "old_wood", segments=6)                                 # banner pole
+    b.box((0.26, 0.02, 0.36), (-0.48, -0.38, 0.95), "car_paint", bevel=0.006)                          # the teal towel
+    b.box((0.05, 0.022, 0.36), (-0.42, -0.38, 0.95), "linen", bevel=0.004)                              # its stripe
+    b.box((0.36, 0.12, 0.04), (-0.3, -0.48, 0.18), "fresh_log", bevel=0.008)                            # bench
+    for x in (-0.44, -0.16):
+        b.box((0.04, 0.1, 0.14), (x, -0.48, 0.09), "old_wood", bevel=0.004)
     b.build()
     return hut

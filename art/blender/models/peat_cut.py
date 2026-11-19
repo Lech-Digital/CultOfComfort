@@ -20,5 +20,20 @@ def build():
     b.box((0.06, 0.55, 0.06), (0.35, 0.55, 0.4), "old_wood", bevel=0.008)                               # drying rack
     for y in (0.3, 0.8):
         b.box((0.05, 0.05, 0.42), (0.35, y, 0.21), "old_wood", bevel=0.006)
+    # The remodel (the target frame day-final): a stone lip round the trench, a thatched drying shelter over the rack,
+    # a barrow of cut bricks: a working bog, read from above.
+    for x in (-0.43, 0.03):
+        b.box((0.06, 1.04, 0.06), (x, -0.1, 0.07), "fieldstone", bevel=0.02, bevel_segments=2)
+    for y in (-0.62, 0.42):
+        b.box((0.52, 0.06, 0.06), (-0.2, y, 0.07), "fieldstone", bevel=0.02, bevel_segments=2)
+    b.box((0.36, 0.7, 0.04), (0.35, 0.55, 0.66), "thatch", bevel=0.03, bevel_segments=2, rotation=(0, 14, 0))  # shelter roof
+    b.box((0.04, 0.04, 0.62), (0.21, 0.24, 0.31), "old_wood", bevel=0.006)
+    b.box((0.04, 0.04, 0.62), (0.21, 0.86, 0.31), "old_wood", bevel=0.006)
+    b.box((0.26, 0.36, 0.1), (0.25, -0.78, 0.17), "old_wood", bevel=0.012)                             # barrow tray
+    b.cylinder(0.08, 0.04, (0.25, -0.98, 0.09), "tarred_wood", segments=8, rotation=(0, 90, 0))         # its wheel
+    for x in (0.16, 0.34):
+        b.box((0.03, 0.34, 0.03), (x, -0.58, 0.14), "old_wood", bevel=0.004, rotation=(-12, 0, 0))       # handles
+    for k in range(3):
+        b.box((0.08, 0.12, 0.05), (0.2 + (k % 2) * 0.1, -0.78, 0.25 + (k // 2) * 0.05), "wet_mud", bevel=0.01)  # peat bricks
     b.build()
     return cut

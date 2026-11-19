@@ -20,5 +20,15 @@ def build():
     sack(b, (0.42, -0.45, 0.06))
     sack(b, (0.55, -0.3, 0.06), swatch="levy_wool")
     b.box((0.22, 0.22, 0.2), (0.55, 0.1, 0.16), "fresh_log", bevel=0.015, rotation=(0, 0, 12))        # crate
+    # The remodel (the target frame day-final): a fieldstone footing under the logs, a hanging sign over the door (a
+    # barrel painted on it), a ladder up to the loft: the village's larder, from above.
+    b.box((0.92, 0.77, 0.07), (0, 0.025, 0.08), "fieldstone", bevel=0.02, bevel_segments=2)
+    b.cylinder(0.012, 0.3, (0.28, -0.42, 0.62), "old_wood", segments=5, rotation=(90, 0, 0))            # sign arm
+    b.box((0.16, 0.025, 0.12), (0.34, -0.55, 0.52), "fresh_log", bevel=0.008)                          # the sign
+    b.cylinder(0.035, 0.04, (0.34, -0.565, 0.52), "ochre_clay", segments=8, rotation=(90, 0, 0))       # a barrel on it
+    for x in (-0.66, -0.52):
+        b.box((0.03, 0.03, 0.7), (x, 0.1, 0.36), "old_wood", bevel=0.004, rotation=(0, -14, 0))         # ladder
+    for k in range(4):
+        b.box((0.17, 0.025, 0.025), (-0.59 + (k * 0.15 - 0.2) * -0.25, 0.1, 0.12 + k * 0.15), "old_wood", bevel=0.003)
     b.build()
     return hut
