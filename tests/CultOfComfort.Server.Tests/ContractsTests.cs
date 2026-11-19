@@ -146,8 +146,8 @@ public class ContractsTests
         var state = BaseState.CreateNew(table, VillageMap.Demo, T0);
         state.Apply(new UpgradeHearth(Guid.NewGuid()), T0);
         state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
-        state.Apply(new SendMissionary(Guid.NewGuid(), 1, 4, PreacherId: 1), T0);
-        var asked = T0.AddHours(1); // the first letter (half an hour after Hearth 2), stalled so it's still open when he's home
+        state.Apply(new SendMissionary(Guid.NewGuid(), 1, 1, PreacherId: 1), T0);
+        var asked = T0.AddHours(2); // the first letter comes once his sermon has won some faith; stalled so it's still open later
         state.Apply(new PleadWithLord(Guid.NewGuid(), state.Snapshot(asked).Domain!.Demand!.Id, Plea.Stall), asked).Status.Should().Be(CommandStatus.Accepted);
         var later = T0.AddHours(5);
         var domain = state.Snapshot(later).Domain!;

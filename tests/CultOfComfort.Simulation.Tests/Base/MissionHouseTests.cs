@@ -205,7 +205,7 @@ public class DemandTests
         state.Apply(new UpgradeHearth(Guid.NewGuid()), T0).Status.Should().Be(CommandStatus.Accepted);
         state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
         state.Apply(new DebugFillStores(Guid.NewGuid()), T0);
-        return (state, T0);
+        return (Faith.Held(state, Rich()), T0);
     }
 
     [Fact]
@@ -317,5 +317,20 @@ public class DemandTests
         // Assert
         restored.Snapshot(latest.AddMinutes(Demands.FirstGapMinutes - 1)).Domain!.Demand.Should().BeNull();
         restored.Snapshot(latest.AddMinutes(Demands.FirstGapMinutes + 1)).Domain!.Demand.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Demand_NoFaithAnywhere_TheLordWaits()
+    {
+        // Arrange — owner 2026-11-19: Lands opened on a demand before any preacher had arrived anywhere.
+        var state = BaseState.CreateNew(Rich(), VillageMap.Demo, T0);
+        state.Apply(new UpgradeHearth(Guid.NewGuid()), T0);
+        state.Apply(new FinishConstructionNow(Guid.NewGuid()), T0);
+
+        // Act
+        var demand = state.Snapshot(T0.AddHours(6)).Domain!.Demand;
+
+        // Assert
+        demand.Should().BeNull();
     }
 }

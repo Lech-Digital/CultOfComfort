@@ -88,7 +88,7 @@ namespace CultOfComfort.Client
             EnemyType.Zealot => "Friar Odo's lot. They throw hymnals, and they aim for the heretic.",
             EnemyType.Goose => "It has chosen violence. Mind the Prophet's ankles.",
             EnemyType.Goat => "They butt fences and walls on principle.",
-            EnemyType.Boar => "Tough, quick, and nobody invited it.",
+            EnemyType.Boar => "Charges past the Prophet, straight for the village. Stones or the Voice stop it.",
             EnemyType.Peasant => "They won't fight; they just poke your buildings to see what happens.",
             EnemyType.Priest => "Their blessing makes the soldiers around them harder to hurt. Get them first.",
             EnemyType.Lord => "In person, at the head of the last wave. He is not amused.",

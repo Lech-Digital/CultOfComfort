@@ -389,7 +389,13 @@ public sealed partial class BaseState
 
     /// <summary>The next moment the lord's demands change: a demand arrives, or one runs out.</summary>
     private DateTimeOffset? NextDemandEvent() =>
-        _demand != null ? new DateTimeOffset(_demand.DueAtUtcTicks, TimeSpan.Zero) : HearthLevel >= Domain.UnlockHearth ? _nextDemandAt : null;
+        _demand != null ? new DateTimeOffset(_demand.DueAtUtcTicks, TimeSpan.Zero) : HearthLevel >= Domain.UnlockHearth && HoldsFaith ? _nextDemandAt : null;
+
+    /// <summary>
+    /// The lord asks for his due only once the Cult holds faith somewhere (owner 2026-11-19, from the reviewer: the first
+    /// thing Lands did was threaten, before any preacher had arrived anywhere). Until then his demands wait.
+    /// </summary>
+    private bool HoldsFaith => _influenceMilli.Any(v => v >= 1000);
 
     private void RunDemandEvents(DateTimeOffset at)
     {
@@ -399,7 +405,7 @@ public sealed partial class BaseState
             _demand = null;
             _nextDemandAt = at + Demands.Gap(_nextDemandId);
         }
-        else if (_demand == null && _nextDemandAt <= at && HearthLevel >= Domain.UnlockHearth)
+        else if (_demand == null && _nextDemandAt <= at && HearthLevel >= Domain.UnlockHearth && HoldsFaith)
         {
             var id = _nextDemandId++;
             _demand = new DemandData(id, Demands.Scaled(Demands.Amount(id, HearthLevel), 100 - Math.Min(90, Bonus(TechEffect.DemandPercent))), at.AddHours(Demands.WindowHours).UtcTicks);
@@ -606,7 +612,7 @@ public sealed partial class BaseState
             new ResourceBag((int)(purse[0] / 1000), (int)(purse[1] / 1000), (int)(purse[2] / 1000), (int)(purse[3] / 1000)),
             Times(perHour, Domain.OfferingsBufferHours), perHour, (int)(TensionRateMilli()), halfUntil > now ? halfUntil : null,
             Bonus(TechEffect.MissionaryPercent), Bonus(TechEffect.TithePercent), _world, preachers, _reports.ToList(), demand, tales,
-            _demand == null && HearthLevel >= Domain.UnlockHearth ? _nextDemandAt : null);
+            _demand == null && HearthLevel >= Domain.UnlockHearth && HoldsFaith ? _nextDemandAt : null);
     }
 
     private DomainData DomainToData() => new(

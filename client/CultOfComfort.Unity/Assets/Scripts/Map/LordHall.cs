@@ -112,7 +112,9 @@ namespace CultOfComfort.Client
             {
                 var next = domain?.NextDemandAtUtc;
                 model.NoDemand = next == null
-                    ? $"No demands yet. They start once your Hearth reaches level {table.Domain.UnlockHearth}."
+                    ? snapshot.HearthLevel < table.Domain.UnlockHearth
+                        ? $"No demands yet. They start once your Hearth reaches level {table.Domain.UnlockHearth}."
+                        : "No demands yet. He'll write once your preachers have won some faith in his lands."
                     : $"No demand right now. His next letter comes in about {VillagePresenter.Duration((long)Math.Max(0, (next.Value - now).TotalSeconds))}.";
                 model.Speech = model.MoodLevel switch
                 {

@@ -1325,7 +1325,7 @@ public sealed partial class Battle
     }
 
     private bool Contends(Enemy enemy) =>
-        enemy.IsActive && !enemy.IsFrightened(Tick) && (_relics == Relic.None || (!enemy.IsBlinded(Tick) && !IsDazzled(enemy)))
+        enemy.IsActive && !enemy.IsFrightened(Tick) && !Charges(enemy) && (_relics == Relic.None || (!enemy.IsBlinded(Tick) && !IsDazzled(enemy)))
         && WantsLeader(enemy, _balance.Enemies[enemy.Type]);
 
     /// <summary>

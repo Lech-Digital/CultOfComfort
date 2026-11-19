@@ -15,6 +15,13 @@ public sealed partial class BaseState
     /// <summary>Saves before footprints (layout version 0) are migrated on load: every building finds room for its shape.</summary>
     public const int CurrentLayoutVersion = 5; // 4: production flows straight into the stores; 5: the Hearth's ground is 4×4
 
+    /// <summary>
+    /// The shield after a Night (owner 2026-11-19, from the reviewer: one real Night per 12 hours was too little of the
+    /// best part). By rules 1 the first Nights come round faster: 4 hours after Nights 1–3, 6 after 4–6, then the table's.
+    /// </summary>
+    public static int ShieldHoursAfter(int night, int rules, int tableHours) =>
+        rules < Combat.Battle.FunFirstRules ? tableHours : night <= 3 ? Math.Min(4, tableHours) : night <= 6 ? Math.Min(6, tableHours) : tableHours;
+
     private const int RememberedCommands = 64;
     private const int HearthId = 0;
 
@@ -1573,7 +1580,7 @@ public sealed partial class BaseState
         _network = null;
         MaterializeTension(at);
         _tensionMilli = 0;
-        _shieldEndsAt = at.AddHours(_table.Tension.ShieldHours);
+        _shieldEndsAt = at.AddHours(ShieldHoursAfter(plan.Night, plan.Rules, _table.Tension.ShieldHours));
         _raid = null;
         _night = null;
         LastNightRecorded = plan.Night;

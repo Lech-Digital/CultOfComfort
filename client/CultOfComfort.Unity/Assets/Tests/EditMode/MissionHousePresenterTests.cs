@@ -27,6 +27,14 @@ namespace CultOfComfort.Client.Tests
             return state;
         }
 
+        /// <summary>A village holding 20% of the nearest place: the lord writes only once the Cult holds faith (2026-11-19).</summary>
+        private static BaseState Faithful(int hearth)
+        {
+            var data = Village(hearth).ToData();
+            var influence = data.Domain.Influence.Where(i => i.NodeId != 1).Append((1, 20_000L)).ToList();
+            return BaseState.Restore(Rich(), VillageMap.Demo, data with { Domain = data.Domain with { Influence = influence } });
+        }
+
         private static string Name(int id, bool world) => DomainMap.Marchlands.Node(id)?.Name ?? "?";
 
         [Test]
@@ -86,8 +94,8 @@ namespace CultOfComfort.Client.Tests
         [Test]
         public void SetDemand_AnOpenDemand_ALineWithTheDeadlineAndTheStakes()
         {
-            // Arrange — the first demand comes half an hour after Hearth 2.
-            var state = Village(2);
+            // Arrange — the first demand comes half an hour after Hearth 2, once he has faith to be cross about.
+            var state = Faithful(2);
             var at = T0.AddHours(1);
             var snapshot = state.Snapshot(at);
             var model = new WorldMapModel { Lord = "Lord Wulfric" };
@@ -221,7 +229,7 @@ namespace CultOfComfort.Client.Tests
         public void Hall_AnOpenDemand_ALetterDeliverAndThreePleas()
         {
             // Arrange
-            var state = Village(2);
+            var state = Faithful(2);
             var at = T0.AddHours(1);
 
             // Act
@@ -235,10 +243,21 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
+        public void Hall_NoFaithYet_HeWritesOncePreachersHaveWonSome()
+        {
+            // Act
+            var model = LordHallPresenter.Build(Village(2).Snapshot(T0.AddHours(3)), Rich(), "Lord Wulfric", "Wulfric's Keep", T0.AddHours(3));
+
+            // Assert
+            Assert.IsNull(model.Letter);
+            StringAssert.Contains("once your preachers have won some faith", model.NoDemand);
+        }
+
+        [Test]
         public void Hall_NoDemandYet_SaysWhenTheNextLetterComes()
         {
             // Act
-            var model = LordHallPresenter.Build(Village(2).Snapshot(T0), Rich(), "Lord Wulfric", "Wulfric's Keep", T0);
+            var model = LordHallPresenter.Build(Faithful(2).Snapshot(T0), Rich(), "Lord Wulfric", "Wulfric's Keep", T0);
 
             // Assert
             Assert.IsNull(model.Letter);
@@ -249,7 +268,7 @@ namespace CultOfComfort.Client.Tests
         public void Hall_AfterAStall_StallIsSpent()
         {
             // Arrange
-            var state = Village(2);
+            var state = Faithful(2);
             var at = T0.AddHours(1);
             state.Apply(new PleadWithLord(Guid.NewGuid(), state.Snapshot(at).Domain.Demand.Id, Plea.Stall), at);
 

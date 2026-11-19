@@ -1,3 +1,4 @@
+using CultOfComfort.Simulation.Base;
 using CultOfComfort.Simulation.Balance;
 using CultOfComfort.Simulation.Combat;
 using CultOfComfort.Simulation.Grid;
@@ -218,5 +219,15 @@ public class FunFirstRulesTests
         Battle.ObjectiveFor(2).Should().Be(NightObjective.ProphetNeverSwoons);
         Battle.ObjectiveFor(3).Should().Be(NightObjective.ThreeInOneStone);
         Battle.ObjectiveFor(4).Should().Be(NightObjective.NothingWrecked);
+    }
+
+    [Fact]
+    public void ShieldHoursAfter_RulesOne_FirstNightsComeRoundFaster()
+    {
+        // Act & Assert (owner 2026-11-19)
+        BaseState.ShieldHoursAfter(1, Battle.FunFirstRules, 12).Should().Be(4);
+        BaseState.ShieldHoursAfter(5, Battle.FunFirstRules, 12).Should().Be(6);
+        BaseState.ShieldHoursAfter(7, Battle.FunFirstRules, 12).Should().Be(12);
+        BaseState.ShieldHoursAfter(1, 0, 12).Should().Be(12, "Nights planned before keep their shield");
     }
 }

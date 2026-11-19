@@ -80,7 +80,7 @@ public class NightTests
         var snapshot = state.Snapshot(T0.AddMinutes(4));
         snapshot.LastNightRecorded.Should().Be(1);
         snapshot.Tension.Should().Be(0);
-        snapshot.ShieldEndsAtUtc.Should().Be(T0.AddMinutes(4).AddHours(12));
+        snapshot.ShieldEndsAtUtc.Should().Be(T0.AddMinutes(4).AddHours(4), "the first Nights come round faster by rules 1");
         snapshot.NightInProgress.Should().BeNull();
         snapshot.Stock.Scrap.Should().Be(380 + BuildingTable.Default.Salvage(expected.Stars));
     }
@@ -170,7 +170,7 @@ public class NightTests
         during.NightInProgress.Should().NotBeNull();
         after.NightInProgress.Should().BeNull();
         after.UnseenReport!.WhileAway.Should().BeTrue();
-        after.ShieldEndsAtUtc.Should().Be(T0.AddMinutes(15).AddHours(12));
+        after.ShieldEndsAtUtc.Should().Be(T0.AddMinutes(15).AddHours(4), "the first Nights come round faster by rules 1");
     }
 
     [Fact]

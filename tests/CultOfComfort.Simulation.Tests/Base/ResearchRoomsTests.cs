@@ -119,6 +119,8 @@ public class ResearchRoomsTests
         // Arrange
         var (plain, now) = Village();
         var (humble, _) = Village("grovelling");
+        plain = Faith.Held(plain, BuildingTable.Default); // the lord asks only once the Cult holds faith somewhere
+        humble = Faith.Held(humble, BuildingTable.Default);
         var asked = now.AddMinutes(Demands.FirstGapMinutes + 1);
 
         // Act

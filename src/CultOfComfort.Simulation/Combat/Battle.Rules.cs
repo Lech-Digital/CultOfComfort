@@ -64,7 +64,7 @@ public sealed partial class Battle
     public NightObjective Objective => _objective;
 
     /// <summary>Between waves: the next one waits (rules 1+). Before the first wave too, without boons.</summary>
-    public bool IsGapOpen => _rules >= FunFirstRules && _gapOpen && CurrentWave >= 1;
+    public bool IsGapOpen => _rules >= FunFirstRules && _gapOpen && CurrentWave >= 1 && _offer.Count > 0;
 
     /// <summary>When the next wave comes if nobody calls it.</summary>
     public int NextWaveAtTick => _nextWaveAt;
@@ -79,6 +79,9 @@ public sealed partial class Battle
 
     /// <summary>How many waves were called early tonight.</summary>
     public int EarlyCalls { get; private set; }
+
+    /// <summary>The most raiders one Hot Stone has caught tonight (the "three in one stone" objective's progress).</summary>
+    public int BestStones => _bestStones;
 
     /// <summary>Whether the objective is (still) met as things stand.</summary>
     public bool ObjectiveMet => _objective switch
@@ -202,8 +205,17 @@ public sealed partial class Battle
         }
 
         var waveSpent = _nextSpawnIndex >= _spawns.Count || _spawns[_nextSpawnIndex].Wave != CurrentWave;
-        var cleared = !_enemies.Any(e => e.IsActive) || Tick - _lastSpawnTick >= WaveOverdueTicks;
-        if (!_gapOpen && waveSpent && _nextSpawnIndex < _spawns.Count && cleared)
+        // The breather opens only on a clear road (owner 2026-11-19, from the reviewer: boons came up with raiders still
+        // walking in, and the pick was missed in the fight). An overdue wave brings the next one on without a breather.
+        var cleared = !_enemies.Any(e => e.IsActive);
+        if (!_gapOpen && waveSpent && _nextSpawnIndex < _spawns.Count && !cleared && Tick - _lastSpawnTick >= WaveOverdueTicks)
+        {
+            _gapOpen = true;
+            _nextWaveAt = Tick;
+            ActiveBoon = null;
+            _offer.Clear(); // no offer: no breather (IsGapOpen), the next wave starts on the next tick
+        }
+        else if (!_gapOpen && waveSpent && _nextSpawnIndex < _spawns.Count && cleared)
         {
             _gapOpen = true;
             _nextWaveAt = Tick + GapTicks;
@@ -242,6 +254,13 @@ public sealed partial class Battle
     /// <summary>Whether a hit may wreck this structure: not once the first Night's one building is down (gates always may).</summary>
     private bool MayWreck(Structure structure) =>
         _maxWrecks <= 0 || structure.IsBarrier || _structures.Count(s => s.IsWrecked && !s.IsBarrier) < _maxWrecks;
+
+    /// <summary>
+    /// Rules 1: a boar charges. It runs past the Prophet without stopping to fight him (owner 2026-11-19, from the
+    /// reviewer: parked by the Hearth he held every raider, and an active player never had to move or choose). Stones,
+    /// the Voice, the Sluice and the towers still stop it.
+    /// </summary>
+    private bool Charges(Enemy enemy) => _rules >= FunFirstRules && enemy.Type == Balance.EnemyType.Boar;
 
     private int TowerCooldown(int ticks) => ActiveBoon == Boon.ChuteTape ? ticks * 2 / 3 : ticks;
 
