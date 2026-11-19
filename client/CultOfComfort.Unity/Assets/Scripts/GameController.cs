@@ -3043,10 +3043,17 @@ namespace CultOfComfort.Client
         /// <summary>Captures render at a phone's size without one: the screen the layout and the camera frame for.</summary>
         public Vector2Int? ScreenOverride { get; set; }
 
+        /// <summary>The tiles of what's built: not roads, trees or rocks (they don't make a village bigger).</summary>
+        private IEnumerable<GridPosition> BuiltTiles() =>
+            (_snapshot?.Buildings ?? (IReadOnlyList<BuildingView>)Array.Empty<BuildingView>())
+            .Where(b => !BuildingTable.IsRoad(b.Type) && b.Type != BuildingType.Tree && b.Type != BuildingType.Stone)
+            .SelectMany(b => b.Tiles);
+
         /// <summary>The camera's stage: the raiders' road at Night, the village by day. Framed again on the next frames.</summary>
         private void FrameStage()
         {
-            var (min, max) = _phase == GamePhase.Night ? VillageFraming.NightBounds(VillageMap.Demo, _plan?.Road ?? 0) : VillageFraming.HomeBounds(VillageMap.Demo, _openLevel);
+            var (min, max) = _phase == GamePhase.Night ? VillageFraming.NightBounds(VillageMap.Demo, _plan?.Road ?? 0)
+                : VillageFraming.BuiltBounds(VillageMap.Demo, _openLevel, BuiltTiles()); // the village, not the field (F3)
             _rig.SetBounds(min, max);
             _framePending = 2;
         }
