@@ -60,7 +60,9 @@ public sealed record ErrandBook(string Version, IReadOnlyList<Errand> Errands)
     // 10–30 minutes. Defence errands repay what they cost, so the tutorial keeps its clock.
     // Spec 2026-11-17 fun first, E: a fight inside three minutes (the nosy locals), then the Chute, then two errands with a
     // choice, the same reward either way, and the first Night. Was errands-2026.10.16: five builds in a row before a fight.
-    public static ErrandBook Default { get; } = new("errands-2026.11.18", new Errand[]
+    // errands-2026.11.19: the systems arrive with the Hearth (owner, after the reviewer's playtest: "too many systems at
+    // once"): Lands at Hearth 2, Research at Hearth 3, so the study errand moved after "hearth-3".
+    public static ErrandBook Default { get; } = new("errands-2026.11.19", new Errand[]
     {
         new("woodcutter", "Build a Woodcutter's Lean-to. Comfort starts with firewood.", ErrandGoal.Build, BuildingType.Woodcutter, 1, new ResourceBag(50, 0, 0, 0)),
         new("micro-raid", "Four nosy locals are poking at your Lean-to. Go and meet them: walk the Prophet out, and give them the Voice.", ErrandGoal.MicroRaid, null, 1, new ResourceBag(60, 0, 20, 0)),
@@ -71,13 +73,13 @@ public sealed record ErrandBook(string Version, IReadOnlyList<Errand> Errands)
         new("hearth-2", "Raise the Hearth to level 2.", ErrandGoal.HearthLevel, BuildingType.Hearth, 2, new ResourceBag(0, 0, 0, 30)),
         new("missionary", "Open Lands and send a preacher to a place nearby. The muddy ones listen best.", ErrandGoal.SendMissionary, null, 1, new ResourceBag(100, 0, 0, 20)),
         new("midden-sorter", "Build a Midden Sorter. Scrap, from rubbish. Keep it away from the homes: it smells.", ErrandGoal.Build, BuildingType.MiddenSorter, 1, new ResourceBag(100, 0, 0, 0)),
-        new("study", "Open Research and study something from the car's manual.", ErrandGoal.Study, null, 1, new ResourceBag(0, 30, 30, 0)),
         new("sapling-flinger", "Build a Sapling Flinger beside the road. Mud slows them; saplings hit them.", ErrandGoal.Build, BuildingType.SaplingFlinger, 1, new ResourceBag(40, 0, 70, 0)),
         new("road-gate", "Build a Gate across the raiders' road. They knock; the Flinger answers.", ErrandGoal.BuildOnRoad, BuildingType.Gate, 1, new ResourceBag(60, 0, 10, 0)),
         new("woodcutter-2", "Upgrade a Woodcutter's Lean-to to level 2.", ErrandGoal.UpgradeTo, BuildingType.Woodcutter, 2, new ResourceBag(150, 0, 0, 0)),
         new("cultist-hut-2", "Upgrade a Cultist Hut to level 2. More Devotion, and more cultists out at Night.", ErrandGoal.UpgradeTo, BuildingType.CultistHut, 2, new ResourceBag(150, 30, 0, 0)),
         new("peat-cut-2", "Upgrade a Peat Cut to level 2. Winter is a rumour, but a loud one.", ErrandGoal.UpgradeTo, BuildingType.PeatCut, 2, new ResourceBag(100, 50, 0, 0)),
         new("hearth-3", "Raise the Hearth to level 3.", ErrandGoal.HearthLevel, BuildingType.Hearth, 3, new ResourceBag(0, 0, 0, 50)),
+        new("study", "Open Research and study something from the car's manual.", ErrandGoal.Study, null, 1, new ResourceBag(0, 30, 30, 0)),
         new("cistern", "Build a Cistern. More water for the sluice.", ErrandGoal.Build, BuildingType.Cistern, 1, new ResourceBag(0, 0, 60, 0)),
         new("study-2", "Finish a second study. Another room of the manual, perhaps.", ErrandGoal.Study, null, 2, new ResourceBag(100, 0, 40, 0)),
         new("patron", "Become Patron of a place in the Marchlands (40% faith). Mind Wulfric's temper.", ErrandGoal.Patron, null, 1, new ResourceBag(0, 0, 0, 60)),

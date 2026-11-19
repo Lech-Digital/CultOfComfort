@@ -56,14 +56,31 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
-        public void Open_LandsTried_StudyComesNext()
+        public void Open_LandsTriedAtHearthTwo_StudyWaitsForHearthThree()
         {
-            // Act
+            // Act — owner 2026-11-19: the systems arrive with the Hearth, not all in the first forty minutes.
             var open = FeatureUnlocks.Open(HearthTwo(), new[] { "pilgrims", "map" }, new[] { "pilgrims", "map" });
 
             // Assert
-            Assert.IsTrue(open.Contains("research"));
+            Assert.IsFalse(open.Contains("research"));
             Assert.IsFalse(open.Contains("festival"));
+        }
+
+        [Test]
+        public void Open_HearthThree_StudyThenTheFestival()
+        {
+            // Arrange
+            var three = HearthTwo() with { HearthLevel = 3 };
+            var before = new[] { "pilgrims", "map" };
+
+            // Act
+            var first = FeatureUnlocks.Open(three, before, before);
+            var then = FeatureUnlocks.Open(three, new[] { "pilgrims", "map", "research" }, new[] { "pilgrims", "map", "research" });
+
+            // Assert
+            Assert.IsTrue(first.Contains("research"));
+            Assert.IsFalse(first.Contains("festival"), "one at a time: the Festival waits until Study has been opened");
+            Assert.IsTrue(then.Contains("festival"));
         }
 
         [Test]
@@ -104,10 +121,10 @@ namespace CultOfComfort.Client.Tests
         }
 
         [Test]
-        public void Open_HearthThree_EverythingEarnedAtOnce()
+        public void Open_HearthFour_EverythingEarnedAtOnce()
         {
             // Act — a village this far along doesn't wait in the queue.
-            var open = FeatureUnlocks.Open(HearthTwo() with { HearthLevel = 3, Tension = 40, LastNightRecorded = 3 }, Nothing, Nothing);
+            var open = FeatureUnlocks.Open(HearthTwo() with { HearthLevel = 4, Tension = 40, LastNightRecorded = 3 }, Nothing, Nothing);
 
             // Assert
             CollectionAssert.AreEquivalent(new[] { "pilgrims", "map", "research", "festival" }, open);

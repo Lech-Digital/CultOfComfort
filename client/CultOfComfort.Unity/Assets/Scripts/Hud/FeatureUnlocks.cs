@@ -24,7 +24,16 @@ namespace CultOfComfort.Client
         /// <summary>The lord's temper at which his hall appears, unless a letter comes first.</summary>
         public const int TithesAtTension = 15;
 
-        public const int QueueEndsAtHearth = 3;
+        /// <summary>
+        /// The systems arrive with the Hearth (owner 2026-11-19, after a reviewer met Lands, Research and the Festival in
+        /// the first forty minutes): the Pilgrims' Way and Lands at Hearth 2, Research at 3, then the Festival once
+        /// Research has been opened. The errands follow the same order (errands-2026.11.19).
+        /// </summary>
+        public const int ResearchAtHearth = 3;
+
+        public const int FestivalAtHearth = 3;
+
+        public const int QueueEndsAtHearth = 4;
 
         /// <summary>Whether the village has earned the shortcut, regardless of the queue.</summary>
         public static bool Earned(string id, BaseSnapshot s)
@@ -37,11 +46,11 @@ namespace CultOfComfort.Client
                 case "missionaries":
                     return s.Domain?.Unlocked == true;
                 case "research":
-                    return s.HearthLevel >= 2;
+                    return s.HearthLevel >= ResearchAtHearth;
                 case "tithes":
                     return s.Domain?.Unlocked == true && (s.Domain.Demand != null || s.Tension >= TithesAtTension);
                 case "festival":
-                    return s.HearthLevel >= 2 && ((s.Trial?.Cleared ?? 0) >= 1 || s.LastNightRecorded >= 2);
+                    return s.HearthLevel >= FestivalAtHearth;
                 default:
                     return true;
             }
