@@ -646,7 +646,8 @@ namespace CultOfComfort.Client
 
         private SheetModel SheetFor(string id) => id switch
         {
-            "research" => FeatureSheetPresenter.Research(_snapshot, _snapshot.AsOfUtc, confirmStop: IsArmed("research-stop")),
+            "research" => FeatureSheetPresenter.Research(_snapshot, _snapshot.AsOfUtc, confirmStop: IsArmed("research-stop"),
+                confirmStudy: _armed != null && _armed.StartsWith("research:") && IsArmed(_armed) ? _armed.Substring(9) : null),
             "shop" => FeatureSheetPresenter.Market(_snapshot, BuildingTable.Default),
             "prophet" => FeatureSheetPresenter.Prophet(_snapshot),
             "pilgrims" => FeatureSheetPresenter.PilgrimsWay(_snapshot),
@@ -739,6 +740,13 @@ namespace CultOfComfort.Client
             }
             else if (parts[0] == "research" && parts.Length == 2)
             {
+                // Hours of study on one tap was too easy to start by accident (review 2026-11-19): tap twice.
+                var study = BuildingTable.Default.Research.Get(parts[1]);
+                if (!Armed(action, $"Tap again to study \"{study?.Name}\"."))
+                {
+                    return;
+                }
+
                 var outcome = await SendVillage(new StartResearch(Guid.NewGuid(), parts[1]));
                 if (outcome.Status == CommandStatus.Accepted)
                 {
@@ -1775,7 +1783,8 @@ namespace CultOfComfort.Client
             Accept(result.Snapshot);
             if (result.Outcome.Status == CommandStatus.Rejected)
             {
-                Say(result.Outcome.Reason, prophet: true);
+                // Always said, even over a tip: a refused tap that says nothing reads as a dead button (review 2026-11-19).
+                _hud.Announce(result.Outcome.Reason ?? "That didn't work.", Time.time, prophet: true);
                 _audio.Play("error");
             }
             else
@@ -2159,7 +2168,11 @@ namespace CultOfComfort.Client
             _board.ClearStructureHealth();
             FrameRateLogger.Mark("BeginFight");
             _plan = plan;
-            _night = plan.Night;
+            if (!_trialMode)
+            {
+                _night = plan.Night; // a Pilgrims' stage or the locals is no Night: the counter kept the stage (review 2026-11-19)
+            }
+
             _setup = plan.ToBattleSetup(VillageMap.Demo, new List<PlayerInput>());
             _battle = new Battle(_setup);
             _battleView.Begin(_battle);
@@ -3005,7 +3018,7 @@ namespace CultOfComfort.Client
             else if (_phase == GamePhase.Night)
             {
                 var sluice = _battle.IsSluiceReady ? $"Sluice ×{_battle.SluiceChargesLeft}"
-                    : _battle.SluiceChargesLeft == 0 ? "Cistern empty" : $"Sluice {Seconds(_battle.SluiceReadyAtTick)}s";
+                    : _battle.SluiceChargesLeft == 0 ? "Empty" : $"Sluice {Seconds(_battle.SluiceReadyAtTick)}s";
                 var leader = _battle.Leader;
                 var swooning = leader.IsSwooning(_battle.Tick);
                 var voice = swooning ? "Fainted" : _battle.IsVoiceReady ? "Voice" : $"Voice {Seconds(leader.VoiceReadyAtTick)}s";

@@ -125,6 +125,9 @@ namespace CultOfComfort.Editor
             PlayerSettings.SetIl2CppCodeGeneration(android, emulator ? Il2CppCodeGeneration.OptimizeSize : Il2CppCodeGeneration.OptimizeSpeed);
             PlayerSettings.SetIl2CppCompilerConfiguration(android, emulator ? Il2CppCompilerConfiguration.Debug : Il2CppCompilerConfiguration.Release);
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel26;
+            // Plain HTTP only in development builds: a playtest against a server on the host (server.url, see
+            // VillageComposition.ServerOverride). Release builds stay HTTPS-only.
+            PlayerSettings.insecureHttpOption = InsecureHttpOption.DevelopmentOnly;
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.AutoRotation;
             PlayerSettings.allowedAutorotateToPortrait = true;
             PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;

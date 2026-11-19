@@ -57,7 +57,10 @@ namespace CultOfComfort.Client
             }
 
             (GridPosition, bool)? fits = null;
-            for (var radius = 0; radius <= 8; radius++)
+            // The whole map, not 8 tiles: in a busy village nothing fitted that close and the ghost came up on the
+            // Hearth (review 2026-11-19). The nearest good spot still wins.
+            var reach = Math.Max(map.Width, map.Height);
+            for (var radius = 0; radius <= reach; radius++)
             {
                 for (var dy = -radius; dy <= radius; dy++)
                 {

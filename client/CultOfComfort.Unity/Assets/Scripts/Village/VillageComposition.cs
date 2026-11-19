@@ -52,6 +52,30 @@ namespace CultOfComfort.Client
             }
         }
 
+        /// <summary>
+        /// Development builds only: a server.url file pushed with adb next to the save (e.g. http://10.0.2.2:5080 for a
+        /// server on the emulator's host) points the game at that server instead of production, for playtests of a
+        /// client and server that haven't shipped yet. Null in release builds or with no file.
+        /// </summary>
+        public static string ServerOverride()
+        {
+            if (!Debug.isDebugBuild)
+            {
+                return null;
+            }
+
+            try
+            {
+                var path = Path.Combine(Application.persistentDataPath, "server.url");
+                var url = File.Exists(path) ? File.ReadAllText(path).Trim() : null;
+                return url != null && (url.StartsWith("http://") || url.StartsWith("https://")) ? url.TrimEnd('/') : null;
+            }
+            catch (IOException)
+            {
+                return null;
+            }
+        }
+
         public static IBaseGateway CreateGateway()
         {
             if (Override != null)
@@ -63,7 +87,7 @@ namespace CultOfComfort.Client
             if (UseServer)
             {
                 var devKey = DevKey();
-                return new RemoteBaseGateway(new HttpVillageApi(ServerUrl, devKey), new PlayerPrefsCredentialStore(),
+                return new RemoteBaseGateway(new HttpVillageApi(ServerOverride() ?? ServerUrl, devKey), new PlayerPrefsCredentialStore(),
                     new FileRemoteCache(Path.Combine(Application.persistentDataPath, "village-cache.json")),
                     new SystemClock(), BuildingTable.Default, VillageMap.Demo, Warn, developer: devKey != null);
             }

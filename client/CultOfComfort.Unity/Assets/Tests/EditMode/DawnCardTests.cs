@@ -60,7 +60,7 @@ namespace CultOfComfort.Client.Tests
             var card = DawnCard.Build(Won(2), null, null, default, null, "Wulfric");
 
             // Assert
-            Assert.AreEqual("Hearth 67/100 · 5 driven off", card.Summary);
+            Assert.AreEqual("Hearth 67/100 · 5 driven off · 6 reached the Hearth", card.Summary);
         }
     }
 }

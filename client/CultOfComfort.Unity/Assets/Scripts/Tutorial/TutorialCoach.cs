@@ -67,6 +67,9 @@ namespace CultOfComfort.Client
     /// </summary>
     public static class TutorialCoach
     {
+        /// <summary>The standing reminder once the errands want a Night. It steps aside while the build drawer is open.</summary>
+        public const string LightTheLamps = "When you're ready, light the Lamps. The raiders come at Night.";
+
         /// <summary>The Hearth level from which the coach stops pointing (spec 2026-11-17 fun first, A5).</summary>
         public const int QuietFromHearth = 3;
 
@@ -124,7 +127,7 @@ namespace CultOfComfort.Client
                     return new CoachStep(CoachTarget.None, "Shielded for now. Get the defences ready; the Lamps can be lit when the shield drops.");
                 case ErrandGoal.SurviveNight:
                 case ErrandGoal.WinRaid:
-                    return new CoachStep(CoachTarget.StartNight, "When you're ready, light the Lamps. The raiders come at Night.");
+                    return new CoachStep(CoachTarget.StartNight, LightTheLamps);
                 case ErrandGoal.SendMissionary:
                 case ErrandGoal.Patron:
                     // The preachers live on the Map since one world screen (spec 2026-11-17 fun first, D).

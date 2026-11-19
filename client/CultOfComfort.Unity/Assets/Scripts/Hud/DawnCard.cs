@@ -40,7 +40,9 @@ namespace CultOfComfort.Client
                     : trialStage != null
                     ? won ? $"Stage {trialStage} cleared" : $"The pilgrims turned back at stage {trialStage}"
                     : won ? "The Hearth stands" : "The Hearth went cold",
-                Summary = $"Hearth {result.HearthHealth}/{result.HearthMaxHealth} · {result.EnemiesDefeated} driven off",
+                // The ones that walked in count too: a reviewer saw four locals and "1 driven off" and thought it a bug.
+                Summary = $"Hearth {result.HearthHealth}/{result.HearthMaxHealth} · {result.EnemiesDefeated} driven off"
+                          + (result.EnemiesLeaked > 0 ? $" · {result.EnemiesLeaked} reached the Hearth" : string.Empty),
                 Flavour = won
                     ? "The attackers left damp, confused and noticeably cleaner."
                     : $"{ruler}'s men warmed their hands on the embers and left. Tomorrow: repairs, and a strongly worded diary entry.",

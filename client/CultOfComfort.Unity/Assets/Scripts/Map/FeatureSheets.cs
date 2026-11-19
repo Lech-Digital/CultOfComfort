@@ -67,7 +67,7 @@ namespace CultOfComfort.Client
         };
 
         /// <param name="confirmStop">Stop was tapped once: the button asks to be sure.</param>
-        public static SheetModel Research(BaseSnapshot snapshot, DateTimeOffset now, bool confirmStop = false)
+        public static SheetModel Research(BaseSnapshot snapshot, DateTimeOffset now, bool confirmStop = false, string confirmStudy = null)
         {
             var model = new SheetModel { Title = "Research: the car's manual", Footer = "One study at a time. The Prophet reads slowly and moves his lips." };
             var views = snapshot.Research ?? Array.Empty<TechView>();
@@ -100,7 +100,7 @@ namespace CultOfComfort.Client
                 {
                     Text = $"{view.Tech.Name}: {EffectText(view.Tech)}",
                     Detail = $"{view.Tech.Joke}\n{state}",
-                    Button = view.State == TechState.Available ? "Study" : view.State == TechState.Studying ? (confirmStop ? "Sure? Tap again" : "Stop") : null,
+                    Button = view.State == TechState.Available ? (confirmStudy == view.Tech.Id ? "Sure? Tap again" : "Study") : view.State == TechState.Studying ? (confirmStop ? "Sure? Tap again" : "Stop") : null,
                     Enabled = view.State == TechState.Studying || (view.State == TechState.Available && view.Reason == null),
                     Action = view.State == TechState.Studying ? "research-stop" : "research:" + view.Tech.Id,
                     Tab = RoomName(view.Tech.Category),

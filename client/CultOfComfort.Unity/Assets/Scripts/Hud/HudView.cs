@@ -249,6 +249,9 @@ namespace CultOfComfort.Client
         private bool _coachScroll; // the coach's card should scroll into view once it has a layout
         private float _hintUntil;
         private float _toastUntil;
+        private float _toastAt;
+        private float _gapOpenedAt = float.NegativeInfinity;
+        private bool _gapWasOpen;
         private float _noteUntil;
         private Vector4 _padding = new Vector4(float.NaN, 0f, 0f, 0f);
 
@@ -1237,6 +1240,8 @@ namespace CultOfComfort.Client
                     return OffTheDrawer(card) ? (Rect?)null : bounds;
                 case CoachTarget.GhostConfirm when Visible(_ghostConfirm):
                     return _ghostConfirm.worldBound;
+                case CoachTarget.StartNight when !_drawerCollapsed && _coach.Line == TutorialCoach.LightTheLamps:
+                    return null; // review 2026-11-19: over the open drawer it covered the cards' names and costs; the errand note says it
                 case CoachTarget.StartNight when _root.Q<Button>("start-night") is { } start && Visible(start) && start.enabledSelf:
                     return start.worldBound;
                 case CoachTarget.Feature when _coach.Feature != null && _featureButtons.TryGetValue(_coach.Feature, out var feature) && Visible(feature):
@@ -1647,6 +1652,7 @@ namespace CultOfComfort.Client
             _toast.text = text;
             _toast.EnableInClassList("prophet", prophet);
             _toastUntil = now + seconds;
+            _toastAt = now;
         }
 
         /// <summary>A marker-pen note that rises and fades above a raider (panel coordinates).</summary>
@@ -1670,7 +1676,16 @@ namespace CultOfComfort.Client
         public void Tick(float now)
         {
             TickCoach(now);
-            _toast.EnableInClassList("hidden", now >= _toastUntil || string.IsNullOrEmpty(_toast.text));
+            // A breather opens clean (review 2026-11-19): a toast from the fight covered the boon line and the arrows. What
+            // is said during the breather (a boon picked) still shows.
+            var gap = Visible(_gapRow);
+            if (gap && !_gapWasOpen)
+            {
+                _gapOpenedAt = now;
+            }
+
+            _gapWasOpen = gap;
+            _toast.EnableInClassList("hidden", now >= _toastUntil || string.IsNullOrEmpty(_toast.text) || (gap && _toastAt < _gapOpenedAt));
             _lockedNote.EnableInClassList("hidden", now >= _noteUntil);
             if (_hinted != null)
             {
