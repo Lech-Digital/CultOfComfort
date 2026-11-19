@@ -29,6 +29,7 @@
 
 ## Next Sessions
 
+- [ ] Reinstall over leftover app files: when an earlier install's il2cpp folder survives in the external files folder (another app user owns it), Unity can't unpack and the player sees "Not enough storage space to install required resources" (emulator, 2026-11-19). Detect it, or unpack elsewhere, or say what's wrong.
 - [ ] Server: `RemoteBaseGateway` + `/api/base/sync` (commands with ids, `expectedStateVersion`, local projection mirror per the `IBaseGateway` contract).
 - [ ] Map expansion with Hearth level; Midden Sorter (Scrap producer); Comfort/Squalor; Tension → real Nights.
 
