@@ -17,5 +17,8 @@ def build():
     p.sphere(0.45, (0.0, -0.3, 0.01), "water", segments=8, rings=4, scale=(1.2, 1.0, 0.06), smooth=True)  # the spill
     p.cylinder(0.04, 0.7, (-0.3, -0.35, 0.04), "tarred_wood", segments=6, rotation=(0, 90, 60))              # hose
     p.cylinder(0.045, 0.16, (-0.55, -0.15, 0.05), "gold_trim", segments=6, radius_top=0.02, rotation=(0, 90, 110))  # bent nozzle
+    # The remodel: the stone footing the standing Sluice has, cracked.
+    for x, y, tilt in ((-0.18, -0.18, 0), (0.18, -0.18, 6), (-0.18, 0.18, -4), (0.2, 0.2, 10)):
+        p.box((0.32, 0.32, 0.1), (x, y, 0.05), "fieldstone", bevel=0.02, bevel_segments=2, rotation=(tilt, 0, tilt))
     p.build()
     return tower

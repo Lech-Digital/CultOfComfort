@@ -2,7 +2,7 @@
 on top, the Duck Ascendant (carved
 from one oak, painted with every pot of weld in the Marchlands). Two wings (one thatched, one in a hurry), red banners, a sauna pipe that won't stop
 puffing and a hot tub out front. Devotion has never been so moist."""
-from lib.buildings import plank_roof, rubber_duck, thatch_roof, towel_line
+from lib.buildings import plank_roof, rubber_duck, thatch_roof, towel_line, footing
 from lib.mesh import Part, root
 
 TRIANGLE_BUDGET = 5500
@@ -25,7 +25,7 @@ def build():
     # Red banners either side of the door.
     for x in (-0.24, 0.24):
         b.cylinder(0.018, 0.85, (x, -0.33, 0.43), "old_wood", segments=5)
-        b.box((0.14, 0.015, 0.34), (x, -0.34, 0.6), "zealot_red", bevel=0.003)
+        b.box((0.14, 0.015, 0.34), (x, -0.34, 0.6), "car_paint", bevel=0.003)
         b.box((0.145, 0.016, 0.03), (x, -0.345, 0.5), "gold_trim", bevel=0.002)
     # Left wing, thatched.
     b.box((0.36, 0.5, 0.4), (-0.52, 0.18, 0.26), "daub", bevel=0.03)
@@ -45,5 +45,9 @@ def build():
     for k, (dx, z) in enumerate(((-0.03, 0.3), (0.03, 0.4))):
         b.sphere(0.05 - k * 0.01, (-0.5 + dx, -0.32, z), "linen", segments=6, rings=4)
     towel_line(b, (0.32, -0.44), (0.74, -0.32), 0.5, ("woad", "linen", "madder"))
+    # The remodel (the target frame day-final): a stone ring under the chapel and footings under the wings. The banners are the Cult's teal now (red is the lord's).
+    b.cylinder(0.37, 0.08, (0, 0.1, 0.1), "fieldstone", segments=12)
+    footing(b, 0.44, 0.58, (-0.52, 0.18, 0.06))
+    footing(b, 0.44, 0.58, (0.53, 0.2, 0.06))
     b.build()
     return chapel

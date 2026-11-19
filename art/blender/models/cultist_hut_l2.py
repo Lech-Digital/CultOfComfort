@@ -1,6 +1,6 @@
 """Cultist Hut, level 2 — the Towel Lodge: the hut sprouts an annex under a plank roof, a carved duck takes its seat
 on the ridge, a long line of towels in every dye of the faith, a tub by the door and madder sandals on the step."""
-from lib.buildings import flip_flops, plank_roof, rubber_duck, thatch_roof, towel_line
+from lib.buildings import flip_flops, plank_roof, rubber_duck, thatch_roof, towel_line, footing
 from lib.mesh import Part, root
 
 TRIANGLE_BUDGET = 4500
@@ -25,10 +25,16 @@ def build():
     b.box((0.1, 0.03, 0.1), (0.38, -0.05, 0.32), "window", bevel=0.005)
     plank_roof(b, 0.5, 0.56, (0.38, 0.2, 0.5), -14)
     # Towels, in every colour of the faith.
-    towel_line(b, (0.15, -0.44), (0.74, -0.2), 0.62, ("linen", "woad", "madder", "weld", "linen"))
+    towel_line(b, (0.15, -0.44), (0.74, -0.2), 0.62, ("linen", "car_paint", "madder", "weld", "linen"))
     # A tub with a duck in it.
     b.box((0.32, 0.18, 0.13), (-0.52, -0.36, 0.13), "old_wood", bevel=0.03, bevel_segments=2)
     b.box((0.27, 0.13, 0.02), (-0.52, -0.36, 0.19), "water", bevel=0.005)
     rubber_duck(b, (-0.47, -0.36, 0.17), size=0.35)
+    # The remodel (the target frame day-final): stone footings, and the Cult's teal towel on a pole.
+    footing(b, 0.82, 0.7, (-0.28, 0.12, 0.06))
+    footing(b, 0.52, 0.56, (0.38, 0.2, 0.06))
+    b.cylinder(0.02, 1.15, (-0.74, -0.3, 0.6), "old_wood", segments=6)
+    b.box((0.26, 0.02, 0.36), (-0.6, -0.3, 0.95), "car_paint", bevel=0.006)
+    b.box((0.05, 0.022, 0.36), (-0.54, -0.3, 0.95), "linen", bevel=0.004)
     b.build()
     return lodge

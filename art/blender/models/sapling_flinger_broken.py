@@ -19,5 +19,9 @@ def build():
     p.cylinder(0.09, 0.06, (-0.42, -0.35, 0.05), "levy_wool", segments=8, radius_top=0.11, rotation=(70, 0, 0))  # sling cup
     for x, y in ((0.4, -0.2), (-0.1, -0.42), (0.1, 0.45), (-0.45, 0.3)):
         p.sphere(0.06, (x, y, 0.05), "fieldstone", segments=6, rings=4)
+    # The remodel: the Flinger's wheels, one still on, two off in the mud: the wreck reads as that machine.
+    p.cylinder(0.11, 0.06, (-0.26, -0.29, 0.11), "tarred_wood", segments=10, rotation=(90, 0, 0))
+    for x, y, tilt in ((0.45, -0.1, 80), (-0.5, 0.45, 70)):
+        p.cylinder(0.11, 0.06, (x, y, 0.04), "tarred_wood", segments=10, rotation=(tilt, 0, 30))
     p.build()
     return tower

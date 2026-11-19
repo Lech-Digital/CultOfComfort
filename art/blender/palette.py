@@ -12,10 +12,10 @@ CELL = 16  # pixels per swatch cell
 SWATCHES = [
     # Ground & nature
     ("grass", "#6f7a49"), ("grass_alt", "#687244"), ("road_mud", "#8a6a47"), ("wet_mud", "#4e3520"),
-    ("water", "#5b7f86"), ("foliage", "#6f8a3a"), ("pine", "#4c5b33"),
+    ("water", "#5b7f86"), ("foliage", "#6f8a3a"), ("pine", "#3f5f34"),
     # Building materials
     ("roman_marble", "#d7cfbf"), ("worn_stone", "#b8b0a2"), ("fieldstone", "#7f7b73"), ("fresh_log", "#9b7a52"),
-    ("old_wood", "#6d4c2f"), ("tarred_wood", "#4a321e"), ("thatch", "#a08450"), ("daub", "#bfa98a"),
+    ("old_wood", "#6d4c2f"), ("tarred_wood", "#4a321e"), ("thatch", "#c79c4e"), ("daub", "#bfa98a"),
     # People
     ("prophet_skin", "#e7b590"), ("local_skin", "#d9a37f"), ("linen", "#ece6d6"), ("levy_wool", "#9c8460"),
     ("mail", "#8e9399"), ("zealot_red", "#a8432c"), ("wulfric_red", "#b3352a"), ("gold_trim", "#d9b45a"),

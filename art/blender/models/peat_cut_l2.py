@@ -34,5 +34,8 @@ def build():
         b.box((0.16, 0.09, 0.07), (0.25 + (k - 1) * 0.06, -0.62 + (k % 2) * 0.08, 0.3), "tarred_wood", bevel=0.008, rotation=(0, 0, k * 35))
     b.cylinder(0.015, 0.5, (-0.42, 0.65, 0.3), "fresh_log", segments=5, rotation=(12, -8, 0))           # spade
     b.box((0.12, 0.02, 0.15), (-0.4, 0.63, 0.08), "mail", bevel=0.004, rotation=(12, -8, 0))
+    # The remodel (the target frame day-final): a stone lip along the trenches, like the cut below it.
+    for y in (-0.55, 0.15):
+        b.box((0.06, 0.62, 0.06), (-0.45, y, 0.07), "fieldstone", bevel=0.02, bevel_segments=2)
     b.build()
     return cut

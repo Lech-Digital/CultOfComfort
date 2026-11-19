@@ -37,6 +37,6 @@ def build():
     building = b.build()
     (Part("Banner", pivot=(0.62, -0.45, 1.3), parent=building)
      .cylinder(0.015, 0.4, (0.64, -0.47, 1.5), "old_wood", segments=4)
-     .box((0.2, 0.02, 0.14), (0.75, -0.47, 1.62), "zealot_red", bevel=0.0)
+     .box((0.2, 0.02, 0.14), (0.75, -0.47, 1.62), "car_paint", bevel=0.0)
      .build())
     return house

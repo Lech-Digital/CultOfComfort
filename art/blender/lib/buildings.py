@@ -18,11 +18,31 @@ def log_wall(part, start, end, height, z0=0.0, radius=0.06, swatch="fresh_log", 
 
 
 def thatch_roof(part, width, length, centre, height, overhang=0.12, ridge=True, lean=1.5):
-    """Gable roof of thatch with a darker ridge; `centre` is the eaves-level centre, ridge along Y."""
+    """Gable roof of thick golden thatch (the remodel, the target frame day-final): a shaggy eaves lip under the roof so it
+    reads thick from above, a ridge pole and crossed ridge sticks at both gables. `centre` is the eaves-level centre,
+    ridge along Y."""
     cx, cy, cz = centre
-    part.prism((width + overhang * 2, length + overhang * 2, height), (cx, cy, cz + height / 2), "thatch", rotation=(0, 0, lean))
+    w, l = width + overhang * 2, length + overhang * 2
+    part.prism((w + 0.08, l + 0.06, height * 0.4), (cx, cy, cz + height * 0.2 - 0.04), "levy_wool", rotation=(0, 0, lean))  # the lip
+    part.prism((w, l, height), (cx, cy, cz + height / 2), "thatch", rotation=(0, 0, lean))
     if ridge:
-        part.cylinder(0.05, length + overhang * 2.2, (cx, cy, cz + height + 0.01), "old_wood", segments=6, rotation=(90, 0, lean))
+        part.cylinder(0.05, l * 1.02, (cx, cy, cz + height + 0.01), "old_wood", segments=6, rotation=(90, 0, lean))
+        for end in (-1, 1):                                                                       # crossed ridge sticks
+            y = cy + end * (l / 2 - 0.04)
+            for tilt in (-35, 35):
+                part.cylinder(0.018, 0.26, (cx, y, cz + height + 0.06), "old_wood", segments=5, rotation=(0, tilt, lean))
+
+
+def footing(part, width, length, centre, height=0.08, yaw=0):
+    """A fieldstone footing under a building (the remodel): every building stands on stone, not on the grass."""
+    cx, cy, cz = centre
+    part.box((width, length, height), (cx, cy, cz + height / 2), "fieldstone", bevel=0.02, bevel_segments=2, rotation=(0, 0, yaw))
+
+
+def chimney(part, x, y, z, height=0.4, size=0.14):
+    """A stacked fieldstone chimney with a darker cap, poking through a roof at (x, y) from height z."""
+    part.box((size, size, height), (x, y, z + height / 2), "fieldstone", bevel=0.015)
+    part.box((size + 0.04, size + 0.04, 0.04), (x, y, z + height + 0.02), "worn_stone", bevel=0.01)
 
 
 def plank_roof(part, width, length, centre, slope_deg, swatch="tarred_wood"):

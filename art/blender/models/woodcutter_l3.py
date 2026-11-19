@@ -45,5 +45,9 @@ def build():
     clay_cone(b, (-0.95, -0.42, 0.06))
     weld_vest(b, (0.05, -0.39, 0.7))
     b.sphere(0.18, (0.4, -0.3, 0.06), "fresh_log", segments=8, rings=5, scale=(1.5, 0.8, 0.3))           # sawdust
+    # The remodel (the target frame day-final): stone pads under the saw-house posts.
+    for x in (0.05, 0.85):
+        for y in (-0.36, 0.2):
+            b.box((0.14, 0.14, 0.07), (x, y, 0.07), "fieldstone", bevel=0.02, bevel_segments=2)
     b.build()
     return mill

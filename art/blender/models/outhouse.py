@@ -14,5 +14,8 @@ def build():
             .sphere(0.05, (0.06, -0.33, 0.78), "tarred_wood", segments=6, rings=4, scale=(1, 0.3, 1)))          # the moon cut-out
     plank_roof(part, 0.7, 0.75, (0, 0, 1.06), -12)
     part.box((0.08, 0.08, 0.08), (0.18, -0.33, 0.45), "mail", bevel=0.01)                                       # latch
+    # The remodel (the target frame day-final): a stone step and footing.
+    part.box((0.7, 0.7, 0.06), (0, 0, 0.03), "fieldstone", bevel=0.02, bevel_segments=2)
+    part.box((0.3, 0.14, 0.05), (0, -0.4, 0.03), "worn_stone", bevel=0.01)
     part.build()
     return loo

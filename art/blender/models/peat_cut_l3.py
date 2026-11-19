@@ -1,6 +1,6 @@
 """Peat Cut, level 3 — the Peat Works: a deep cut with a windlass and bucket, a tall smoking drying barn, a peat
 pyramid crowned with a clay cone, and a wicker copy of the Holy Trolley pressed into service as a mine cart."""
-from lib.buildings import clay_cone, peat_stack, thatch_roof, wheel, wicker_trolley
+from lib.buildings import clay_cone, peat_stack, thatch_roof, wheel, wicker_trolley, footing
 from lib.mesh import Part, root
 
 TRIANGLE_BUDGET = 5000
@@ -40,5 +40,7 @@ def build():
     wicker_trolley(b, (0.27, -0.12, 0.06), yaw=8, load="tarred_wood")
     peat_stack(b, (-0.3, 0.2, 0.06), rows=4)
     peat_stack(b, (-0.3, -0.02, 0.06), rows=3, yaw=20)
+    # The remodel (the target frame day-final): a fieldstone footing under the drying barn.
+    footing(b, 0.9, 0.8, (0.05, 0.6, 0.05))
     b.build()
     return works

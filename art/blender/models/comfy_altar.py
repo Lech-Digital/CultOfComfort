@@ -14,7 +14,7 @@ def build():
     for x in (-0.38, 0.38):
         b.box((0.22, 0.5, 0.42), (x, 0, 0.27), "fieldstone", bevel=0.03)                                      # legs
     b.box((1.1, 0.66, 0.12), (0, 0, 0.54), "worn_stone", bevel=0.03, bevel_segments=2)                         # slab
-    b.box((0.5, 0.42, 0.12), (-0.12, 0.02, 0.66), "wulfric_red", bevel=0.05, bevel_segments=2, smooth=True)   # the cushion
+    b.box((0.5, 0.42, 0.12), (-0.12, 0.02, 0.66), "car_paint", bevel=0.05, bevel_segments=2, smooth=True)   # the cushion
     for x, y in ((-0.06, -0.06), (-0.22, 0.1), (0.04, 0.1)):
         b.sphere(0.03, (x, y, 0.735), "gold_trim", segments=5, rings=3)                                       # tassels
     b.box((0.2, 0.16, 0.05), (0.33, 0.12, 0.625), "linen", bevel=0.01)                                         # folded towel

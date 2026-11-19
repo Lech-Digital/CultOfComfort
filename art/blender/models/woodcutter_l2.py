@@ -1,7 +1,7 @@
 """Woodcutter, level 2 — the Saw Pit: a proper daub shed (with a door that shuts, mostly), a big log on trestles
 with a two-man saw stuck in it, a sawdust heap, a weld-dyed "hi-vis" vest on a post and a clay copy of the Holy Cone.
 Safety first, second and occasionally third."""
-from lib.buildings import clay_cone, thatch_roof, weld_vest
+from lib.buildings import clay_cone, thatch_roof, weld_vest, footing
 from lib.mesh import Part, root
 
 TRIANGLE_BUDGET = 4000
@@ -41,5 +41,11 @@ def build():
     b.cylinder(0.025, 0.7, (0.86, -0.42, 0.35), "old_wood", segments=5)
     weld_vest(b, (0.86, -0.45, 0.55))
     clay_cone(b, (-0.08, -0.4, 0.06))
+    # The remodel (the target frame day-final): a fieldstone footing under the shed, and the splitting stump with its big axe, like the lean-to.
+    footing(b, 0.78, 0.62, (-0.5, 0.12, 0.06))
+    b.cylinder(0.15, 0.24, (-0.15, 0.35, 0.12), "old_wood", segments=9)
+    b.cylinder(0.13, 0.02, (-0.15, 0.35, 0.245), "fresh_log", segments=9)
+    b.cylinder(0.02, 0.42, (-0.08, 0.32, 0.44), "fresh_log", segments=6, rotation=(0, 32, 0))
+    b.box((0.15, 0.03, 0.11), (-0.18, 0.32, 0.28), "mail", bevel=0.006, rotation=(0, 32, 0))
     b.build()
     return yard

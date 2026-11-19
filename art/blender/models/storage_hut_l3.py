@@ -1,7 +1,7 @@
 """Storage Hut, level 3 — the Hoard Tower: a log ground floor, a jettied daub storey on top, a pointed thatch hat of a roof
 with a cult pennant, a wobbly stack of crates and a crane jib from which a wicker trolley dangles. Nobody remembers
 what is in it. Nobody dares to look."""
-from lib.buildings import barrel, log_wall, sack, wicker_trolley
+from lib.buildings import barrel, log_wall, sack, wicker_trolley, footing
 from lib.mesh import Part, root
 
 TRIANGLE_BUDGET = 5000
@@ -27,7 +27,7 @@ def build():
     b.cylinder(0.62, 0.75, (0, 0.03, 1.43), "thatch", segments=4, radius_top=0.0, rotation=(0, 0, 45))   # pointed hat roof
     b.box((0.3, 0.3, 0.02), (0.15, -0.12, 1.3), "woad", bevel=0, rotation=(-30, 28, 10))               # woad cloth, of course
     b.cylinder(0.02, 0.45, (0, 0.03, 1.95), "old_wood", segments=5)                                     # pennant
-    b.box((0.22, 0.012, 0.13), (0.11, 0.03, 2.08), "zealot_red", bevel=0.003)
+    b.box((0.22, 0.012, 0.13), (0.11, 0.03, 2.08), "car_paint", bevel=0.003)
     # Crane jib with a dangling wicker trolley.
     b.box((0.05, 0.5, 0.05), (-0.3, -0.3, 1.08), "old_wood", bevel=0.006)
     b.box((0.04, 0.04, 0.3), (-0.3, -0.18, 0.95), "old_wood", bevel=0.005, rotation=(-40, 0, 0))
@@ -39,5 +39,7 @@ def build():
         b.box((0.2, 0.2, 0.18), (0.38 + dx, -0.36, 0.15 + k * 0.18), "fresh_log", bevel=0.012, rotation=(0, k * 2, yaw))
     barrel(b, (-0.42, 0.38, 0.06), radius=0.09, height=0.24)
     barrel(b, (0.42, 0.4, 0.06), radius=0.1, height=0.26)
+    # The remodel (the target frame day-final): a fieldstone footing under the logs, like the hut below it.
+    footing(b, 0.76, 0.7, (0, 0.03, 0.06))
     b.build()
     return tower

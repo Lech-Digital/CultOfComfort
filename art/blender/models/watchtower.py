@@ -29,6 +29,6 @@ def build():
     building = b.build()
     (Part("Flag", pivot=(-0.28, -0.28, 2.5), parent=building)
      .cylinder(0.015, 0.45, (-0.3, -0.3, 2.6), "old_wood", segments=4)
-     .box((0.22, 0.02, 0.14), (-0.18, -0.3, 2.75), "zealot_red", bevel=0.0)
+     .box((0.22, 0.02, 0.14), (-0.18, -0.3, 2.75), "car_paint", bevel=0.0)
      .build())
     return tower

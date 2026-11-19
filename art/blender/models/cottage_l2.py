@@ -1,6 +1,6 @@
 """Cottage, level 2 — the Two-Up: a jettied timber-framed upper floor, a dormer, a taller smoking chimney, window
 boxes of flowers, a wicker copy of the Prophet's garden chair and madder sandals by the door. Six beds, twelve opinions about the Prophet."""
-from lib.buildings import flip_flops, thatch_roof
+from lib.buildings import flip_flops, thatch_roof, footing
 from lib.mesh import Part, root
 
 TRIANGLE_BUDGET = 3500
@@ -43,5 +43,7 @@ def build():
         for dy in (-0.06, 0.06):
             b.box((0.02, 0.02, 0.13), (0.32 + dx, -0.4 + dy, 0.07), "fresh_log", bevel=0.003)
     flip_flops(b, (-0.14, -0.34, 0.05), yaw=-12)
+    # The remodel (the target frame day-final): a fieldstone footing under the walls, like the Cottage below it.
+    footing(b, 0.9, 0.7, (0, 0.06, 0.05))
     b.build()
     return cottage

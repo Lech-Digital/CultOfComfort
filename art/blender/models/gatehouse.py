@@ -15,7 +15,7 @@ def build():
             p.box((0.1, 0.44, 0.14), (x + k * 0.1, 0, 1.47), "worn_stone", bevel=0.01)        # crenels
     p.box((0.56, 0.4, 0.3), (0, 0, 1.15), "worn_stone", bevel=0.02)                          # arch top
     thatch_roof(p, 0.56, 0.4, (0, 0, 1.3), 0.3)
-    p.box((0.2, 0.02, 0.32), (0, -0.21, 1.1), "zealot_red", bevel=0.005)                       # the village banner
+    p.box((0.2, 0.02, 0.32), (0, -0.21, 1.1), "car_paint", bevel=0.005)                       # the village banner
     p.build()
     port = Part("Portcullis", parent=house)
     for k in range(5):
