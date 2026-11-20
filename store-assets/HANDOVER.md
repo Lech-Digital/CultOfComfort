@@ -8,7 +8,7 @@ Where the Play Store launch stands, and what is left. Everything to paste is in 
   - Google Cloud project `cult-of-comfort`: the consent screen is External and **In production**. Branding has the logo, the home page `https://lechdigital.nl/` and the privacy link, with authorised domain `lechdigital.nl`.
   - OAuth clients:
     - **Web**: `306329299380-ldti7e8ln5afc69r6mm3g64ldjgfipfu.apps.googleusercontent.com`. It is set in `GoogleSignIn.cs` and in `deploy/docker-compose.prod.yml`, and the server is deployed with it.
-    - **Android, debug key**: SHA-1 `BB:C3:BA:10:…:45:6D`.
+    - **Android, debug key**: SHA-1 `BB:C3:BA:10:…:45:6D`. That is Unity's `~/.android/debug.keystore`; the Linux dev box has the same file (backup: `~/dev/secrets/keystores/debug/unity-android-debug.keystore`).
   - Settings shows "Signed in with Google ✓" once signed in. The village code buttons are gone.
 - **lechdigital.nl** (all pushed and live):
   - project page `projects/cult-of-comfort/`, plus a card in the Garage section;
@@ -17,7 +17,7 @@ Where the Play Store launch stands, and what is left. Everything to paste is in 
 - **Release build.**
   - `BuildScripts.BuildAndroidRelease` makes a signed AAB at `client/CultOfComfort.Unity/Builds/Android/CultOfComfort.aab` (versionCode 1, 0.1.0, target SDK 36, internet permission only).
   - The upload key is `~/keystores/cultofcomfort-upload.jks`, alias `upload`. Its password is in `~/keystores/cultofcomfort-upload.pass.txt`. Upload SHA-1: `18:3F:3C:71:AE:D4:BE:84:32:97:53:8B:5B:C8:5B:C7:BA:A9:68:40`.
-  - **Back both files up.**
+  - **Back both files up.** Backed up on the Linux dev box: `~/keystores` links to `~/dev/secrets/keystores` (mode 700).
 - **Store assets** (in this folder):
   - `icon-512.png` and `feature-1024x500.png`;
   - eight framed screenshots in `phone/`, captured from the `coc-shots` emulator. `_src/build.mjs` regenerates them and `_src/count.mjs` checks the text lengths.
