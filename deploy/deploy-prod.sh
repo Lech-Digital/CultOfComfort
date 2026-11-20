@@ -8,12 +8,20 @@
 #
 # Usage:
 #   ./deploy/deploy-prod.sh --confirm
+#   COC_SUDO=1 ./deploy/deploy-prod.sh --confirm     # as a sudoer other than `deploy` (the Linux dev box)
 #
 set -euo pipefail
 
 HOST="${COC_HOST:-lechdigital-prod}"
 PUBLIC_URL="${COC_PUBLIC_URL:-https://api.cultofcomfort.lechdigital.nl}"
 REMOTE_DIR="${COC_REMOTE_DIR:-/opt/cultofcomfort}"
+# The copy on the host belongs to the `deploy` user. Deploying as another sudoer (the Linux dev box logs in as
+# adziusmaster): COC_SUDO=1 writes through sudo and keeps the files owned by deploy.
+SUDO=""; RSYNC_SUDO=()
+if [ "${COC_SUDO:-0}" = "1" ]; then
+  SUDO="sudo -n "
+  RSYNC_SUDO=(--rsync-path="sudo -n rsync" --chown=deploy:deploy)
+fi
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if [ "${1:-}" != "--confirm" ]; then
@@ -30,18 +38,18 @@ echo "    Tests green."
 
 # ---- Sync ------------------------------------------------------------------------------------
 echo "==> Syncing source to $HOST:$REMOTE_DIR"
-ssh "$HOST" "mkdir -p $REMOTE_DIR/src $REMOTE_DIR/deploy"
-rsync -az --delete \
+ssh "$HOST" "${SUDO}mkdir -p $REMOTE_DIR/src $REMOTE_DIR/deploy"
+rsync -az --delete "${RSYNC_SUDO[@]}" \
   --exclude 'bin/' --exclude 'obj/' \
   "$ROOT/src/CultOfComfort.Simulation" "$ROOT/src/CultOfComfort.Contracts" \
   "$ROOT/src/CultOfComfort.Server.Application" "$ROOT/src/CultOfComfort.Server.Infrastructure" "$ROOT/src/CultOfComfort.Server" \
   "$HOST:$REMOTE_DIR/src/"
-rsync -az "$ROOT/Dockerfile" "$ROOT/.dockerignore" "$ROOT/Directory.Build.props" "$ROOT/nuget.config" "$HOST:$REMOTE_DIR/"
-rsync -az "$ROOT/deploy/docker-compose.prod.yml" "$HOST:$REMOTE_DIR/deploy/"
+rsync -az "${RSYNC_SUDO[@]}" "$ROOT/Dockerfile" "$ROOT/.dockerignore" "$ROOT/Directory.Build.props" "$ROOT/nuget.config" "$HOST:$REMOTE_DIR/"
+rsync -az "${RSYNC_SUDO[@]}" "$ROOT/deploy/docker-compose.prod.yml" "$HOST:$REMOTE_DIR/deploy/"
 
 # ---- Build & restart -------------------------------------------------------------------------
 echo "==> Rebuilding container"
-ssh "$HOST" "cd $REMOTE_DIR && docker compose -f deploy/docker-compose.prod.yml up -d --build"
+ssh "$HOST" "cd $REMOTE_DIR && ${SUDO}docker compose -f deploy/docker-compose.prod.yml up -d --build"
 
 # ---- Verify ----------------------------------------------------------------------------------
 # The container only exposes 8080 on the Docker network, so the first check runs a throwaway curl on that network.
@@ -60,5 +68,5 @@ for _ in $(seq 1 30); do
 done
 
 echo "DEPLOY FAILED: the container did not become healthy." >&2
-ssh "$HOST" "cd $REMOTE_DIR && docker compose -f deploy/docker-compose.prod.yml logs --tail 30 cultofcomfort-api" >&2
+ssh "$HOST" "cd $REMOTE_DIR && ${SUDO}docker compose -f deploy/docker-compose.prod.yml logs --tail 30 cultofcomfort-api" >&2
 exit 1
