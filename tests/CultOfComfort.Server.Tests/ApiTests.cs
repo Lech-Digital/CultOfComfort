@@ -128,6 +128,19 @@ public sealed class ApiTests : IClassFixture<ApiTests.Host>
     }
 
     [Fact]
+    public async Task AppVersion_Anonymous_LatestAndMinimumVersionCodes()
+    {
+        // Act — the game asks before it has an account (2026-11-21, as in Coo).
+        var response = await _host.CreateClient().GetAsync("/api/app-version");
+        var body = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        body.GetProperty("latest").GetInt32().Should().BeGreaterThanOrEqualTo(body.GetProperty("minimum").GetInt32());
+        body.GetProperty("minimum").GetInt32().Should().Be(2, "0.2.0 (rules 1) is the oldest client this server understands");
+    }
+
+    [Fact]
     public async Task Health_Always_IsOk()
     {
         // Act

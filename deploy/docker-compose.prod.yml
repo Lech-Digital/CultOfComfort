@@ -32,6 +32,10 @@ services:
       Village__AllowDevelopmentCommands: "false"
       # Sign in with Google (ADR 0007): the Web client id from Google Cloud project cult-of-comfort. Public, not a secret.
       Auth__GoogleClientIds__0: "306329299380-ldti7e8ln5afc69r6mm3g64ldjgfipfu.apps.googleusercontent.com"
+      # App versions (/api/app-version): the newest version code on Play, and the oldest this server serves (2 = 0.2.0,
+      # rules 1). Raise Latest with each release; raise Minimum when the server stops understanding an older client.
+      AppUpdates__Latest: "3"
+      AppUpdates__Minimum: "2"
     volumes:
       - cultofcomfort-data:/data
     networks:

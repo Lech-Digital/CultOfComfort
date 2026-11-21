@@ -145,6 +145,8 @@ namespace CultOfComfort.Client
             _hud.SetDevTools(_devTools);
             LoadVillage(); // no opening toast: the coach and the errand note say what to do (spec 2026-10-16 one thing at a time)
             PlayIntroOnFirstLaunch();
+            AppUpdates.Prompted += ShowUpdate;
+            AppUpdates.Check(UpdateServer, force: true); // a newer version: Play's update, or the game says so (2026-11-21, as in Coo)
         }
 
         /// <summary>The story so far (GDD 05): plays once per device, over the loading village; the HUD waits.</summary>
@@ -727,6 +729,14 @@ namespace CultOfComfort.Client
                     Announce("The faithful pile more stones round the fire. It'll be grander soon.");
                 }
             }
+            else if (action == "update-store")
+            {
+                AppUpdates.OpenStore();
+            }
+            else if (action == "update-restart")
+            {
+                AppUpdates.Restart();
+            }
             else if (action == "research-stop")
             {
                 if (Armed(action, "Tap Stop again to stop reading. The cost comes back; the time doesn't."))
@@ -911,9 +921,9 @@ namespace CultOfComfort.Client
                 {
                     _sheet.Close();
                 }
-                else
+                else if (_sheet.Shown != "update" && _sheet.Shown != "away")
                 {
-                    _sheet.Show(_sheet.Shown, SheetFor(_sheet.Shown));
+                    _sheet.Show(_sheet.Shown, SheetFor(_sheet.Shown)); // one-off sheets aren't built from the village: they stay as shown
                 }
             }
 
@@ -2628,7 +2638,33 @@ namespace CultOfComfort.Client
             {
                 _awayFrom = PlayerPrefs.GetString(AwayKey, null);
                 _backAt = DateTimeOffset.UtcNow;
+                AppUpdates.Check(UpdateServer); // back after a while: a release may have come out (at most once an hour)
             }
+        }
+
+        private static string UpdateServer => VillageComposition.ServerOverride() ?? VillageComposition.ServerUrl;
+
+        /// <summary>The game's word on an update (Play shows its own full-screen and download screens).</summary>
+        private void ShowUpdate(UpdatePrompt prompt)
+        {
+            var sheet = new SheetModel { Title = "A new version" };
+            switch (prompt)
+            {
+                case UpdatePrompt.Restart:
+                    sheet.Rows.Add(new SheetRow { Text = "The update is in. Restart to use it: your village is saved." });
+                    sheet.Rows.Add(new SheetRow { Text = "Restart now", Button = "Restart", Enabled = true, Action = "update-restart" });
+                    break;
+                case UpdatePrompt.Required:
+                    sheet.Rows.Add(new SheetRow { Text = "This version is too old for the Cult's server. Update on Google Play to keep playing." });
+                    sheet.Rows.Add(new SheetRow { Text = "Google Play", Button = "Update", Enabled = true, Action = "update-store" });
+                    break;
+                default:
+                    sheet.Rows.Add(new SheetRow { Text = "A new version of Cult of Comfort is on Google Play." });
+                    sheet.Rows.Add(new SheetRow { Text = "Google Play", Button = "Update", Enabled = true, Action = "update-store" });
+                    break;
+            }
+
+            _sheet.Show("update", sheet);
         }
 
         private static bool Pref(string key) => PlayerPrefs.GetInt(key, 0) == 1;

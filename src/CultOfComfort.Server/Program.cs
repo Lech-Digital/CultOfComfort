@@ -48,6 +48,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok", game = "cult-of-comf
 app.MapVillageEndpoints();
 app.MapAuthEndpoints();
 app.MapWorldEndpoints();
+app.MapAppVersionEndpoints();
 
 app.Run();
 
